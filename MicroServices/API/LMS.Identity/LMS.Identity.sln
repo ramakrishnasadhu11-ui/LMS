@@ -5,7 +5,9 @@ VisualStudioVersion = 15.0.28307.705
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "LMS.Identity.Api", "LMS.Identity\LMS.Identity.Api.csproj", "{8BC2E9F3-38E8-4201-B31B-2EB35908B542}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LMS.Identity.DataModels", "LMS.Identity.DataModels\LMS.Identity.DataModels.csproj", "{8DDFA885-FF52-40FB-BFCC-F3F79264F7FE}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "LMS.Identity.DataModels", "LMS.Identity.DataModels\LMS.Identity.DataModels.csproj", "{8DDFA885-FF52-40FB-BFCC-F3F79264F7FE}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LMS.Identity.DTO", "LMS.Identity.DTO\LMS.Identity.DTO.csproj", "{4F283DEC-5C21-49D1-B408-FC9B9EC99F26}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -21,6 +23,10 @@ Global
 		{8DDFA885-FF52-40FB-BFCC-F3F79264F7FE}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{8DDFA885-FF52-40FB-BFCC-F3F79264F7FE}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{8DDFA885-FF52-40FB-BFCC-F3F79264F7FE}.Release|Any CPU.Build.0 = Release|Any CPU
+		{4F283DEC-5C21-49D1-B408-FC9B9EC99F26}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{4F283DEC-5C21-49D1-B408-FC9B9EC99F26}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{4F283DEC-5C21-49D1-B408-FC9B9EC99F26}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{4F283DEC-5C21-49D1-B408-FC9B9EC99F26}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
