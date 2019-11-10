@@ -8,7 +8,7 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 
-namespace LMS.Identity
+namespace LMS.Identity.WebApi
 {
     public class Program
     {
