@@ -5,6 +5,11 @@
     <AspNetCoreHostingModel>InProcess</AspNetCoreHostingModel>
   </PropertyGroup>
 
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
+    <DocumentationFile>LMS.Identity.WebAPI.xml</DocumentationFile>
+    <GenerateSerializationAssemblies>Off</GenerateSerializationAssemblies>
+  </PropertyGroup>
+
   <ItemGroup>
     <PackageReference Include="AutoMapper" Version="8.0.0" />
     <PackageReference Include="AutoMapper.Extensions.Microsoft.DependencyInjection" Version="6.0.0" />
@@ -21,6 +26,18 @@
   <ItemGroup>
     <ProjectReference Include="..\LMS.Identity.BusinessSerive\LMS.Identity.BusinessSerive.csproj" />
     <ProjectReference Include="..\LMS.SwaggerUI\LMS.SwaggerUI.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <DocFileItem Remove="LMS.Identity.WebAPI.xml" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Remove="LMS.Identity.WebAPI.xml" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="LMS.Identity.WebAPI.xml" />
   </ItemGroup>
 
 </Project>
