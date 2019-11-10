@@ -6,11 +6,18 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace LMS.Identity.WebApi.Controllers
 {
+    /// <summary>
+    /// ValuesController
+    /// </summary>
     [Route("api/[controller]")]
     [ApiController]
     public class ValuesController : ControllerBase
     {
-        // GET api/values
+        /// <summary>
+        /// This will use for getting the values
+        /// </summary>
+        /// <returns></returns>
+
         [HttpGet]
         public ActionResult<IEnumerable<string>> Get()
         {

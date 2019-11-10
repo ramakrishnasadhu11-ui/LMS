@@ -50,7 +50,7 @@ namespace LMS.Identity.WebApi
             {
                 swagger.DescribeAllEnumsAsStrings();
                 swagger.DescribeAllParametersInCamelCase();
-                swagger.SwaggerDoc("v1", new Swashbuckle.AspNetCore.Swagger.Info { Title = "LMS Identity API" });
+                swagger.SwaggerDoc("v1", new Swashbuckle.AspNetCore.Swagger.Info { Title = "LMS Identity API", Version = "v1" });
             });
 
         }
