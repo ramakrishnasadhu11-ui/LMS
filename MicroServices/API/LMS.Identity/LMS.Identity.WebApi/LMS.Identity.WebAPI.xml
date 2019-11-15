@@ -4,17 +4,6 @@
         <name>LMS.Identity.WebApi</name>
     </assembly>
     <members>
-        <member name="T:LMS.Identity.WebApi.Controllers.ValuesController">
-            <summary>
-            ValuesController
-            </summary>
-        </member>
-        <member name="M:LMS.Identity.WebApi.Controllers.ValuesController.Get">
-            <summary>
-            This will use for getting the values
-            </summary>
-            <returns></returns>
-        </member>
         <member name="M:LMS.Identity.WebApi.Utility.ServiceExtensions.RegisterServices(Microsoft.Extensions.DependencyInjection.IServiceCollection,Microsoft.Extensions.Configuration.IConfiguration)">
             <summary>
             Register All the Components with this Extension Method, All the Business Services and Repositories used in this Project

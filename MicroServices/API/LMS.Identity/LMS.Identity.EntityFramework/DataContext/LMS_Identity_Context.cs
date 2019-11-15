@@ -1,0 +1,136 @@
+﻿using System;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Metadata;
+using LMS.Identity.EntityFramework.Entities;
+
+namespace LMS.Identity.EntityFramework.DataContext
+{
+    public partial class LMS_Identity_Context : DbContext
+    {
+        public LMS_Identity_Context()
+        {
+        }
+
+        public LMS_Identity_Context(DbContextOptions<LMS_Identity_Context> options)
+            : base(options)
+        {
+        }
+
+        public virtual DbSet<Client> Client { get; set; }
+        public virtual DbSet<LoginAttempt> LoginAttempt { get; set; }
+        public virtual DbSet<Password> Password { get; set; }
+        public virtual DbSet<UserGender> UserGender { get; set; }
+
+        protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
+        {
+            if (!optionsBuilder.IsConfigured)
+            {
+            }
+        }
+
+        protected override void OnModelCreating(ModelBuilder modelBuilder)
+        {
+            modelBuilder.HasAnnotation("ProductVersion", "2.2.0-rtm-35687");
+
+            modelBuilder.Entity<Client>(entity =>
+            {
+                entity.ToTable("Client", "Account");
+
+                entity.Property(e => e.ClientId).HasColumnName("Client_id");
+
+                entity.Property(e => e.Address1).HasMaxLength(50);
+
+                entity.Property(e => e.Address2).HasMaxLength(50);
+
+                entity.Property(e => e.City).HasMaxLength(50);
+
+                entity.Property(e => e.ClientGenderId).HasColumnName("ClientGenderID");
+
+                entity.Property(e => e.ClientName)
+                    .IsRequired()
+                    .HasMaxLength(50);
+
+                entity.Property(e => e.Country).HasMaxLength(50);
+
+                entity.Property(e => e.CreatedDate).HasColumnType("datetime");
+
+                entity.Property(e => e.Email)
+                    .HasColumnName("EMail")
+                    .HasMaxLength(50);
+
+                entity.Property(e => e.FamilyName).HasMaxLength(100);
+
+                entity.Property(e => e.MiddleName).HasMaxLength(100);
+
+                entity.Property(e => e.ModifiedDate).HasColumnType("datetime");
+
+                entity.Property(e => e.PhoneNumber).HasColumnName("phoneNumber");
+
+                entity.Property(e => e.Region).HasMaxLength(50);
+
+                entity.Property(e => e.Zip).HasMaxLength(10);
+
+                entity.HasOne(d => d.ClientGender)
+                    .WithMany(p => p.Client)
+                    .HasForeignKey(d => d.ClientGenderId)
+                    .OnDelete(DeleteBehavior.ClientSetNull)
+                    .HasConstraintName("FK_Account_Client_ClientGenderID");
+            });
+
+            modelBuilder.Entity<LoginAttempt>(entity =>
+            {
+                entity.ToTable("LoginAttempt", "Account");
+
+                entity.Property(e => e.LoginAttemptId).HasColumnName("LoginAttemptID");
+
+                entity.Property(e => e.BrowserType).HasMaxLength(200);
+
+                entity.Property(e => e.CreatedDate).HasColumnType("datetime");
+
+                entity.Property(e => e.Ipnumber)
+                    .HasColumnName("IPNumber")
+                    .HasMaxLength(50);
+
+                entity.Property(e => e.Password).HasMaxLength(50);
+
+                entity.Property(e => e.UserName).HasMaxLength(50);
+            });
+
+            modelBuilder.Entity<Password>(entity =>
+            {
+                entity.ToTable("Password", "Account");
+
+                entity.Property(e => e.PasswordId).HasColumnName("Password_id");
+
+                entity.Property(e => e.CreatedDate).HasColumnType("datetime");
+
+                entity.Property(e => e.ModifiedDate).HasColumnType("datetime");
+
+                entity.Property(e => e.Password1)
+                    .HasColumnName("Password")
+                    .HasMaxLength(50);
+
+                entity.Property(e => e.PasswordAnswer).HasMaxLength(50);
+
+                entity.Property(e => e.PasswordQuestion).HasMaxLength(50);
+
+                entity.Property(e => e.UserId).HasColumnName("User_id");
+            });
+
+            modelBuilder.Entity<UserGender>(entity =>
+            {
+                entity.ToTable("UserGender", "Account");
+
+                entity.Property(e => e.UserGenderId).HasColumnName("UserGenderID");
+
+                entity.Property(e => e.GenderName)
+                    .IsRequired()
+                    .HasMaxLength(20);
+            });
+
+            OnModelCreatingPartial(modelBuilder);
+        }
+
+        partial void OnModelCreatingPartial(ModelBuilder modelBuilder);
+    }
+}
