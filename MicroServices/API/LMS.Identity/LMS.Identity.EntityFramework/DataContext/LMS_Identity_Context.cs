@@ -1,7 +1,6 @@
 ﻿using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata;
-using LMS.Identity.EntityFramework.Entities;
 
 namespace LMS.Identity.EntityFramework.DataContext
 {
