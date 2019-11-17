@@ -20,7 +20,7 @@ namespace LMS.Identity.WebApi.Controllers
             this._login = login;
         }
 
-         [HttpPost(nameof(Login))]
+         [HttpPost]
         public async Task<APIResponse> Login(ClientDto ClientDto)
         {
             var clientId = await _login.AddClient(ClientDto);
