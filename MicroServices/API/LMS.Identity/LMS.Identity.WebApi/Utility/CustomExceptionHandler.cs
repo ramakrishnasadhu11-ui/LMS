@@ -1,16 +1,8 @@
-﻿using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Mvc.Filters;
-using Newtonsoft.Json;
+﻿using Microsoft.AspNetCore.Mvc.Filters;
 using System;
-using System.Collections.Generic;
-using System.Linq;
 using System.Net;
-using System.Threading.Tasks;
-using VMD.RESTApiResponseWrapper.Core.Wrappers;
-using VMD.RESTApiResponseWrapper.Core.Extensions;
-using Imagine.Traffic.Api.Utility;
 
-namespace GlobalExceptionFilters.Utility
+namespace LMS.Identity.WebApi.Utility
 {
     public class CustomExceptionHandler : ExceptionFilterAttribute
     {

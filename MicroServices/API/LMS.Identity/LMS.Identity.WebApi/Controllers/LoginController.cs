@@ -1,13 +1,11 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
-using LMS.Identity.BusinessSerive.Interfaces;
-using LMS.Identity.BusinessSerive.Services;
-using LMS.Identity.DTO.Entities.Dto;
-using Microsoft.AspNetCore.Http;
+﻿using System.Threading.Tasks;
 using Microsoft.AspNetCore.Mvc;
 using VMD.RESTApiResponseWrapper.Core.Wrappers;
+using LMS.Identity.BusinessSerive.Interfaces;
+using LMS.Identity.DTO.Entities.Dto;
+using Microsoft.AspNetCore.Http;
+using LMS.Identity.WebApi.Utility;
+using LMS.Identity.WebApi.Api.Utility;
 
 namespace LMS.Identity.WebApi.Controllers
 {
@@ -23,15 +21,17 @@ namespace LMS.Identity.WebApi.Controllers
         }
 
          [HttpPost(nameof(Login))]
-        public async Task<int> Login([FromBody] ClientDto ClientDto)
+        public async Task<APIResponse> Login(ClientDto ClientDto)
         {
-            int clientId = await _login.AddClient(ClientDto);
-            //    if (clientId>0)
-            //        return new APIResponse(StatusCodes.Status200OK, GetEnumDescription((StatusCodeMessages)StatusCodes.Status200OK), true);
-            //    else
-            //        throw new ApiException(GetEnumDescription((StatusCodeMessages)StatusCodes.Status500InternalServerError), StatusCodes.Status500InternalServerError, ModelState.AllErrors());
+            var clientId = await _login.AddClient(ClientDto);
+            if (clientId>0)
+                return new APIResponse(StatusCodes.Status200OK, Common.GetEnumDescription((StatusCodeMessages)StatusCodes.Status200OK), clientId);
+            else if (clientId == 0)
+                return new APIResponse(StatusCodes.Status204NoContent, Common.GetEnumDescription((StatusCodeMessages)StatusCodes.Status204NoContent), clientId);
+            else
+                throw new ApiException(Common.GetEnumDescription((StatusCodeMessages)StatusCodes.Status500InternalServerError), clientId);
 
-            return clientId;
         }
+      
     }
 }

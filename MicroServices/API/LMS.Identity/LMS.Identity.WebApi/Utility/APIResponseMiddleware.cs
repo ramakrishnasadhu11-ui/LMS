@@ -1,4 +1,4 @@
-﻿using GlobalExceptionFilters.Utility;
+﻿using LMS.Identity.WebApi.Utility;
 using Microsoft.AspNetCore.Http;
 using Newtonsoft.Json;
 using System;
@@ -9,7 +9,7 @@ using System.Net;
 using System.Threading.Tasks;
 using VMD.RESTApiResponseWrapper.Core.Extensions;
 using VMD.RESTApiResponseWrapper.Core.Wrappers;
-namespace Imagine.Traffic.Api.Utility
+namespace LMS.Identity.WebApi.Api.Utility
 {
     public class APIResponseMiddleware
     {

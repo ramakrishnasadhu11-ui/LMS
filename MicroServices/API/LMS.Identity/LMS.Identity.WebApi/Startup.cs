@@ -1,5 +1,6 @@
 ﻿using AutoMapper;
 using LMS.Identity.BusinessSerive.Mapper;
+using LMS.Identity.WebApi.Api.Utility;
 using LMS.Identity.WebApi.Utility;
 using LMS.SwaggerUI;
 using Microsoft.AspNetCore.Builder;
@@ -74,7 +75,7 @@ namespace LMS.Identity.WebApi
            .AllowAnyMethod()
            .AllowAnyHeader()
           .AllowCredentials());
-         //   app.UseMiddleware(typeof(APIResponseMiddleware));
+           app.UseMiddleware(typeof(APIResponseMiddleware));
             app.UseMvc();
             app.UseSwagger();
             app.UseSwaggerUI(c =>

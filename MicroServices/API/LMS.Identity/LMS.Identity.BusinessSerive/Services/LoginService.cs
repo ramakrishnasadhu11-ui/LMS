@@ -1,4 +1,5 @@
-﻿using System.Threading.Tasks;
+﻿using System;
+using System.Threading.Tasks;
 using AutoMapper;
 using LMS.Core.Repository.UnitOfWork;
 using LMS.Identity.BusinessSerive.Interfaces;
@@ -21,6 +22,8 @@ namespace LMS.Identity.BusinessSerive.Services
         #region AddClient
         public async Task<int> AddClient(ClientDto ClientDto)
         {
+            try
+            { 
             Client Client = new Client();
             Client.ClientGenderId = ClientDto.ClientGenderId;
             Client.ClientName = ClientDto.ClientName;
@@ -36,10 +39,17 @@ namespace LMS.Identity.BusinessSerive.Services
             Client.Zip = ClientDto.Zip;
             Client.Active = ClientDto.Active;
             Client.CreatedByUserId = ClientDto.CreatedByUserId;
-            Client.ModifiedByUserId = ClientDto.ModifiedByUserId;
-            await _unitOfWork.GetRepository<Client>().InsertAsync(Client);
+                Client.CreatedDate = ClientDto.CreatedDate;
+                Client.ModifiedByUserId = ClientDto.ModifiedByUserId;
+                Client.ModifiedDate = ClientDto.ModifiedDate;
+                await _unitOfWork.GetRepository<Client>().InsertAsync(Client);
             int clientId = await _unitOfWork.SaveChangesAsync();
             return clientId;
+            }
+            catch(Exception ex)
+            {
+                throw ex;
+            }
         }
         #endregion
     }

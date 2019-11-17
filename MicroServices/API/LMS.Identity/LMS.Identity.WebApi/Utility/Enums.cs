@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 
-namespace Imagine.Traffic.Api.Utility
+namespace LMS.Identity.WebApi.Utility
 {
     public enum SystemSettingTypes
     {
