@@ -1,0 +1,37 @@
+﻿{
+   "ContextClassName": "LMSDB_DevContext",
+   "ContextNamespace": null,
+   "DefaultDacpacSchema": null,
+   "DoNotCombineNamespace": false,
+   "IdReplace": false,
+   "IncludeConnectionString": false,
+   "ModelNamespace": null,
+   "OutputContextPath": "DataContext",
+   "OutputPath": "",
+   "ProjectRootNamespace": "LMS.Identity.DataModels",
+   "SelectedHandlebarsLanguage": 0,
+   "SelectedToBeGenerated": 1,
+   "Tables": [
+      {
+         "HasPrimaryKey": true,
+         "Name": "[Account].[Client]"
+      },
+      {
+         "HasPrimaryKey": true,
+         "Name": "[Account].[LoginAttempt]"
+      },
+      {
+         "HasPrimaryKey": true,
+         "Name": "[Account].[Password]"
+      },
+      {
+         "HasPrimaryKey": true,
+         "Name": "[Account].[UserGender]"
+      }
+   ],
+   "UseDatabaseNames": false,
+   "UseFluentApiOnly": true,
+   "UseHandleBars": false,
+   "UseInflector": false,
+   "UseLegacyPluralizer": false
+}

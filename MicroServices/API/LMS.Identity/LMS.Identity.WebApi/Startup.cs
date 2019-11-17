@@ -33,9 +33,9 @@ namespace LMS.Identity.WebApi
         public void ConfigureServices(IServiceCollection services)
         {
             services.AddMvc().SetCompatibilityVersion(CompatibilityVersion.Version_2_2);
-            services.RegisterServices(Configuration);
+            services.RegisterServices();
 
-            services.AddAutoMapper();
+            //services.AddAutoMapper();
             services.AddCors();
             var mapperconfig = new MapperConfiguration(op =>
             {
@@ -45,6 +45,12 @@ namespace LMS.Identity.WebApi
             services.AddSingleton(mapper);
 
             services.RegisterDatabaseContext(Configuration.GetConnectionString("ModuleDB"));
+
+            SwaggerAPIMetaData metaData = new SwaggerAPIMetaData
+            {
+                Name = "v1",
+                SwaggerInfo = new Info { Title = "Common Data API", Version = "v1" }
+            };
 
             services.AddSwaggerGen(swagger =>
             {
@@ -62,11 +68,14 @@ namespace LMS.Identity.WebApi
             {
                 app.UseDeveloperExceptionPage();
             }
-            else
-            {
-                // The default HSTS value is 30 days. You may want to change this for production scenarios, see https://aka.ms/aspnetcore-hsts.
-                app.UseHsts();
-            }
+
+            app.UseCors(builder => builder
+           .AllowAnyOrigin()
+           .AllowAnyMethod()
+           .AllowAnyHeader()
+          .AllowCredentials());
+         //   app.UseMiddleware(typeof(APIResponseMiddleware));
+            app.UseMvc();
             app.UseSwagger();
             app.UseSwaggerUI(c =>
             {

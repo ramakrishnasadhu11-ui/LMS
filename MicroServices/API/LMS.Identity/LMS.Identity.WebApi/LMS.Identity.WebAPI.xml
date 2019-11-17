@@ -4,13 +4,12 @@
         <name>LMS.Identity.WebApi</name>
     </assembly>
     <members>
-        <member name="M:LMS.Identity.WebApi.Utility.ServiceExtensions.RegisterServices(Microsoft.Extensions.DependencyInjection.IServiceCollection,Microsoft.Extensions.Configuration.IConfiguration)">
+        <member name="M:LMS.Identity.WebApi.Utility.ServiceExtensions.RegisterServices(Microsoft.Extensions.DependencyInjection.IServiceCollection)">
             <summary>
             Register All the Components with this Extension Method, All the Business Services and Repositories used in this Project
             must be registered here for Enabling Dependency Injection
             </summary>
             <param name="services"></param>
-            <param name="configuration"></param>
             <returns>Service Collection</returns>
         </member>
         <member name="M:LMS.Identity.WebApi.Utility.ServiceExtensions.RegisterDatabaseContext(Microsoft.Extensions.DependencyInjection.IServiceCollection,System.String)">
