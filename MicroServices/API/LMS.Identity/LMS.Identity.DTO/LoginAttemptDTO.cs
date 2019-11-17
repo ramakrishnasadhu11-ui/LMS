@@ -2,7 +2,7 @@ using System;
 using System.Linq;
 using System.Runtime.Serialization;
 using Newtonsoft.Json;
-using LMS.Identity.EntityFramework.Entities;
+using LMS.Identity.DataModels.Entities;
 
 namespace LMS.Identity.DTO.Entities.Dto
 {

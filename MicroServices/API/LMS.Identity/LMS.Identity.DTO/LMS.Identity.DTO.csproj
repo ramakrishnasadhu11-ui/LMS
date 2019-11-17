@@ -5,11 +5,11 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Newtonsoft.Json" Version="12.0.3" />
+    <PackageReference Include="Newtonsoft.Json" Version="12.0.2" />
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\LMS.Identity.EntityFramework\LMS.Identity.EntityFramework.csproj" />
+    <ProjectReference Include="..\LMS.Identity.DataModels\LMS.Identity.DataModels.csproj" />
   </ItemGroup>
 
 </Project>

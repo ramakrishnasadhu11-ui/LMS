@@ -1,8 +1,8 @@
 using System;
 using System.Linq;
 using System.Runtime.Serialization;
-using LMS.Identity.EntityFramework.Entities;
 using Newtonsoft.Json;
+using LMS.Identity.DataModels.Entities;
 
 namespace LMS.Identity.DTO.Entities.Dto
 {
