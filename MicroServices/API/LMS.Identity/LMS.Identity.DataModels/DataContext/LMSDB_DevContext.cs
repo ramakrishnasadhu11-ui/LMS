@@ -3,7 +3,7 @@ using LMS.Identity.DataModels;
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata;
-using LMS.Identity.DataModels.Entities;
+
 namespace LMS.Identity.DataModels.DataContext
 {
     public partial class LMSDB_DevContext : DbContext
@@ -26,6 +26,8 @@ namespace LMS.Identity.DataModels.DataContext
         {
             if (!optionsBuilder.IsConfigured)
             {
+#warning To protect potentially sensitive information in your connection string, you should move it out of source code. See http://go.microsoft.com/fwlink/?LinkId=723263 for guidance on storing connection strings.
+                optionsBuilder.UseSqlServer("Data Source=database.cqwxueaftokp.us-east-2.rds.amazonaws.com;Initial Catalog=LMSDB_Dev;Persist Security Info=True;User ID=admin;Password=mypassword");
             }
         }
 
