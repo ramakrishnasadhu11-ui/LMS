@@ -4,13 +4,13 @@
    "DefaultDacpacSchema": null,
    "DoNotCombineNamespace": false,
    "IdReplace": false,
-   "IncludeConnectionString": false,
+   "IncludeConnectionString": true,
    "ModelNamespace": null,
    "OutputContextPath": "DataContext",
    "OutputPath": "",
    "ProjectRootNamespace": "LMS.Identity.DataModels",
    "SelectedHandlebarsLanguage": 0,
-   "SelectedToBeGenerated": 1,
+   "SelectedToBeGenerated": 0,
    "Tables": [
       {
          "HasPrimaryKey": true,

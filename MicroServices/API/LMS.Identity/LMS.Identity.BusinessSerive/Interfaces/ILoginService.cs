@@ -8,6 +8,7 @@ namespace LMS.Identity.BusinessSerive.Interfaces
 {
     public interface ILoginService
     {
-        Task<int> AddClient(ClientDto ClientDto);
-    }
+        Task<int> RegisterUser(ClientDto ClientDto);
+        Task<List<UserGenderDto>> UserGender();
+     }
 }

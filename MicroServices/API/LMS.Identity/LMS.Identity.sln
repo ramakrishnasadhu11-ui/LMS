@@ -9,11 +9,11 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "LMS.SwaggerUI", "LMS.Swagge
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "LMS.Identity.WebApi", "LMS.Identity.WebApi\LMS.Identity.WebApi.csproj", "{4131FDC3-DFD2-4009-BA2B-313E309CEB79}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LMS.Identity.DTO", "LMS.Identity.DTO\LMS.Identity.DTO.csproj", "{90FF0248-A31A-44F6-81C0-AA7EB411DAB4}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "LMS.Identity.DTO", "LMS.Identity.DTO\LMS.Identity.DTO.csproj", "{90FF0248-A31A-44F6-81C0-AA7EB411DAB4}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LMS.Identity.DataModels", "LMS.Identity.DataModels\LMS.Identity.DataModels.csproj", "{7834023F-8564-4C1D-8363-0A07543DDACE}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "LMS.Identity.DataModels", "LMS.Identity.DataModels\LMS.Identity.DataModels.csproj", "{7834023F-8564-4C1D-8363-0A07543DDACE}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LMS.Core.Repository", "LMS.Core.Repository\LMS.Core.Repository.csproj", "{05E054B8-87A5-43AE-A01B-E8E0A34AC164}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "LMS.Core.Repository", "LMS.Core.Repository\LMS.Core.Repository.csproj", "{05E054B8-87A5-43AE-A01B-E8E0A34AC164}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

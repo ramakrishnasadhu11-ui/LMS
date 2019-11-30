@@ -33,10 +33,14 @@ namespace LMS.Identity.WebApi
         // This method gets called by the runtime. Use this method to add services to the container.
         public void ConfigureServices(IServiceCollection services)
         {
+            services.Configure<IISOptions>(options =>
+            {
+                options.AutomaticAuthentication = false;
+            });
             services.AddMvc().SetCompatibilityVersion(CompatibilityVersion.Version_2_2);
             services.RegisterServices();
 
-            //services.AddAutoMapper();
+            services.AddAutoMapper();
             services.AddCors();
             var mapperconfig = new MapperConfiguration(op =>
             {
@@ -60,6 +64,8 @@ namespace LMS.Identity.WebApi
                 swagger.SwaggerDoc("v1", new Swashbuckle.AspNetCore.Swagger.Info { Title = "LMS Identity API", Version = "v1" });
             });
 
+           
+
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
@@ -80,7 +86,7 @@ namespace LMS.Identity.WebApi
             app.UseSwagger();
             app.UseSwaggerUI(c =>
             {
-                c.SwaggerEndpoint("/swagger/v1/swagger.json", "My First Swagger");
+                c.SwaggerEndpoint("../swagger/v1/swagger.json", "My First Swagger");
             });
 
             app.UseHttpsRedirection();

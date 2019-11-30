@@ -2,6 +2,9 @@
 using System.Collections.Generic;
 using System.Text;
 using AutoMapper;
+using LMS.Identity.DataModels;
+using LMS.Identity.DTO.Entities.Dto;
+
 namespace LMS.Identity.BusinessSerive.Mapper
 {
     public class MapperProfile : Profile
@@ -10,7 +13,7 @@ namespace LMS.Identity.BusinessSerive.Mapper
         {
             AllowNullDestinationValues = true;
 
-         //   CreateMap<Header, ProposalHeaderDto>().ReverseMap();
+            CreateMap<UserGender, UserGenderDto>().ReverseMap();
          //   CreateMap<SurveyDataDto, SurveyData>().ReverseMap();
         }
     }
