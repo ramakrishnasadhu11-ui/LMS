@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Data;
 using System.Data.SqlClient;
 using System.Threading.Tasks;
 using AutoMapper;
@@ -27,27 +28,11 @@ namespace LMS.Identity.BusinessSerive.Services
         public async Task<int> RegisterUser(ClientDto ClientDto)
         {
             var ctx = new LMSDB_DevContext();
-            Client Client = new Client();
-            Client.ClientGenderId = ClientDto.ClientGenderId;
-            Client.ClientName = ClientDto.ClientName;
-            Client.PhoneNumber = ClientDto.PhoneNumber;
-            Client.Email = ClientDto.Email;
-            Client.MiddleName = ClientDto.MiddleName;
-            Client.FamilyName = ClientDto.FamilyName;
-            Client.Photo = ClientDto.Photo;
-            Client.Address1 = ClientDto.Address1;
-            Client.Address2 = ClientDto.Address2;
-            Client.City = ClientDto.City;
-            Client.Region = ClientDto.Region;
-            Client.Zip = ClientDto.Zip;
-            Client.Active = ClientDto.Active;
-            Client.CreatedByUserId = ClientDto.CreatedByUserId;
-            Client.CreatedDate = ClientDto.CreatedDate;
-            Client.ModifiedByUserId = ClientDto.ModifiedByUserId;
-            Client.ModifiedDate = ClientDto.ModifiedDate;
-
-            object[] xparams = {
-                new SqlParameter("@ClientGenderID", ClientDto.ClientGenderId),
+            var clientId = new SqlParameter("@ClientId", SqlDbType.Int);
+            clientId.Direction = ParameterDirection.Output;
+           
+                 int status =ctx.Database.ExecuteSqlCommand("usp_insert_client @ClientGenderID,@ClientNam,@phoneNumber,@EMail,@MiddleName,@FamilyName,@Photo,@Address1,@Address2,@City,@Region,@Zip,@Country,@Active,@CreatedByUserId,@ModifiedByUserId,@ClientId OUT",
+                 new SqlParameter("@ClientGenderID", ClientDto.ClientGenderId),
                  new SqlParameter("@ClientNam", ClientDto.ClientName),
                  new SqlParameter("@phoneNumber", ClientDto.PhoneNumber),
                  new SqlParameter("@EMail", ClientDto.Email),
@@ -59,18 +44,16 @@ namespace LMS.Identity.BusinessSerive.Services
                  new SqlParameter("@City", ClientDto.City),
                  new SqlParameter("@Region", ClientDto.Region),
                  new SqlParameter("@Zip", ClientDto.Zip),
-                 new SqlParameter("@Country", ClientDto.Active),
-                 new SqlParameter("@Active", ClientDto.CreatedByUserId),
-                 new SqlParameter("@CreatedByUserId", ClientDto.ModifiedByUserId)
-            };
+                 new SqlParameter("@Country", ClientDto.Country),
+                 new SqlParameter("@Active", ClientDto.Active),
+                 new SqlParameter("@CreatedByUserId", ClientDto.CreatedByUserId),
+                 new SqlParameter("@ModifiedByUserId", ClientDto.ModifiedByUserId),
+                 clientId);
 
-
-            ctx.Database.ExecuteSqlCommand("exec usp_insert_client @ClientGenderID,@ClientNam,@phoneNumber,@EMail,@MiddleName,@FamilyName,@Photo,@Address1,@Address2,@City,@Region,@Zip,@Country,@Active,@CreatedByUserId,@ModifiedByUserId", xparams);
-
-            //  await _unitOfWork.GetRepository<Client>().InsertAsync(Client);
-            // int clientId = await _unitOfWork.SaveChangesAsync();
-            // return clientId;
-            return 1;
+            if (status == 1)
+                return Convert.ToInt32(clientId.Value);
+            else
+                return 0;
         }
         #endregion
         public async Task<List<UserGenderDto>> UserGender()
