@@ -6,10 +6,14 @@ using System.Threading.Tasks;
 using AutoMapper;
 using LMS.Core.Repository.UnitOfWork;
 using LMS.Identity.BusinessSerive.Interfaces;
+using LMS.Identity.BusinessSerive.Common;
 using LMS.Identity.DataModels.DataContext;
-using LMS.Identity.DataModels.Entities;
 using LMS.Identity.DTO.Entities.Dto;
 using Microsoft.EntityFrameworkCore;
+using AutoMapper.Configuration;
+using Amazon.SimpleEmail;
+using Amazon.SimpleEmail.Model;
+using System.Net;
 
 namespace LMS.Identity.BusinessSerive.Services
 {
@@ -17,20 +21,22 @@ namespace LMS.Identity.BusinessSerive.Services
     {
         private readonly IUnitOfWork _unitOfWork;
         private readonly IMapper _mapper;
+        private readonly IConfiguration _configuration;
 
         public LoginService(IUnitOfWork unitOfWork, IMapper mapper)
         {
-           this._unitOfWork = unitOfWork;
+            this._unitOfWork = unitOfWork;
             this._mapper = mapper;
         }
 
         #region AddClient
-        public async Task<int> RegisterUser(ClientDto ClientDto)
+        public int RegisterUser(ClientDto ClientDto)
         {
-            var ctx = new LMSDB_DevContext();
-            var clientId = new SqlParameter("@ClientId", SqlDbType.Int);
-            clientId.Direction = ParameterDirection.Output;
            
+             var ctx = new LMSDB_DevContext();
+            var userId = new SqlParameter("@ClientId", SqlDbType.Int);
+            userId.Direction = ParameterDirection.Output;
+            ClientDto.Active = false;
                  int status =ctx.Database.ExecuteSqlCommand("usp_insert_client @ClientGenderID,@ClientNam,@phoneNumber,@EMail,@MiddleName,@FamilyName,@Photo,@Address1,@Address2,@City,@Region,@Zip,@Country,@Active,@CreatedByUserId,@ModifiedByUserId,@ClientId OUT",
                  new SqlParameter("@ClientGenderID", ClientDto.ClientGenderId),
                  new SqlParameter("@ClientNam", ClientDto.ClientName),
@@ -48,14 +54,71 @@ namespace LMS.Identity.BusinessSerive.Services
                  new SqlParameter("@Active", ClientDto.Active),
                  new SqlParameter("@CreatedByUserId", ClientDto.CreatedByUserId),
                  new SqlParameter("@ModifiedByUserId", ClientDto.ModifiedByUserId),
-                 clientId);
+                 userId);
 
             if (status == 1)
-                return Convert.ToInt32(clientId.Value);
+            {
+                string password = string.Empty;
+                password = Utility.encode(ClientDto.Email);
+                var passwordgenStatus = new SqlParameter("@Status", SqlDbType.Int);
+                passwordgenStatus.Direction = ParameterDirection.Output;
+                 int st = ctx.Database.ExecuteSqlCommand("usp_client_generatepassword @User_id,@Password,@Active,@CreatedByUserId,@ModifiedByUserId,@Status OUT",
+                 new SqlParameter("@User_id", Convert.ToInt32(userId.Value)),
+                 new SqlParameter("@Password", password),
+                 new SqlParameter("@Active", 1),
+                 new SqlParameter("@CreatedByUserId", ClientDto.CreatedByUserId),
+                 new SqlParameter("@ModifiedByUserId", ClientDto.ModifiedByUserId),
+                 passwordgenStatus);
+                if (Convert.ToInt32(userId.Value) > 0 && Convert.ToInt32(passwordgenStatus.Value) > 0)
+                {
+                   sendEmailToUser(ClientDto.Email, password);
+                    return Convert.ToInt32(userId.Value);
+                }
+                else
+                    return 0;
+            }
             else
                 return 0;
         }
         #endregion
+
+        public bool sendEmailToUser(string eMail,string password)
+        {
+            Console.WriteLine("Sending Email...");
+            string key1 = string.Empty;
+            string key2 = string.Empty;
+            key1 = "AKIA6BLJZLG25YT4C6E7";
+            key2 = "Gb9Zc50N2AYCNFX00IV+wCuPzzbxvq0u/lmCTJqB";
+            using (var client = new AmazonSimpleEmailServiceClient(key1, key2, Amazon.RegionEndpoint.USEast1))
+            {
+                var sendRequest = new SendEmailRequest
+                {
+                    Source = "laundrymanagementsoftware@gmail.com",
+                    Destination = new Destination { ToAddresses = { eMail } },
+                    Message = new Message
+                    {
+                        Subject = new Content("Hello from the Amazon Simple Email Service!"),
+                        Body = new Body
+                        {
+                            Html = new Content("<html>" +
+                                               "<body>" +
+                                               "<h2>Hello from Laundry Management Software Mail Service</h2>" +
+                                               "<ul>" +
+                                               "<li><b>Thanks for Registration</b></li>" +
+                                               "<b>Your Password is</b>" +
+                                               "<b>" +
+                                               password +
+                                               "</b>" +
+                                               "</body>" +
+                                               "</html>")
+                        }
+                    }
+                };
+                var response = client.SendEmailAsync(sendRequest).Result;
+                return response.HttpStatusCode == HttpStatusCode.OK;
+            }
+
+        }
         public async Task<List<UserGenderDto>> UserGender()
         {
             var ctx = new LMSDB_DevContext();
