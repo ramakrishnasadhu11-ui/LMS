@@ -34,9 +34,14 @@ namespace LMS.Identity.WebApi.Controllers
         /// </summary>
         /// <returns></returns>
         [HttpPost(nameof(RegisterUser))]
-        public async Task<APIResponse> RegisterUser(ClientDto ClientDto)
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        public ActionResult<APIResponse> RegisterUser(ClientDto ClientDto)
         {
-            var clientId = await _login.RegisterUser(ClientDto);
+            if(ClientDto==null)
+                return BadRequest("Invalid data for this operation");
+            int clientId = _login.RegisterUser(ClientDto);
             if (clientId > 0)
                 return new APIResponse(StatusCodes.Status200OK, Common.GetEnumDescription((StatusCodeMessages)StatusCodes.Status200OK), clientId);
             else if (clientId == 0)
@@ -50,6 +55,8 @@ namespace LMS.Identity.WebApi.Controllers
         /// Get User Gender
         /// </summary>
         [HttpGet(nameof(GetUserGenders))]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
         public async Task<APIResponse> GetUserGenders()
         {
             var genderList = await _login.UserGender();
