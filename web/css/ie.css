@@ -1,0 +1,9 @@
+/*behavior: url(PIE.htc);*/
+
+.master-slider {
+	margin-top: 0\9 !important;
+}
+.maskDiv {
+	behavior: url(PIE.htc);
+filter: progid:DXImageTransform.Microsoft.gradient(GradientType=0, startColorstr='#6c000000', endColorstr='#6c000000');
+}
