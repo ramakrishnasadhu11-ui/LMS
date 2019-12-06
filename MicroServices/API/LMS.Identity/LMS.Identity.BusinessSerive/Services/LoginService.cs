@@ -81,7 +81,33 @@ namespace LMS.Identity.BusinessSerive.Services
                 return 0;
         }
         #endregion
+        public async Task<int> ForgotPassword(string email)
+        {
+            try
+            { 
+            var ctx = new LMSDB_DevContext();
+            string password = string.Empty;
+            password = Utility.encode(email);
 
+            var @Status = new SqlParameter("@Status", SqlDbType.Int);
+            @Status.Direction = ParameterDirection.Output;
+            int st =ctx.Database.ExecuteSqlCommand("[dbo].[usp_clientForgotPassword] @Email,@NewPassword,@Status OUT",
+            new SqlParameter("@Email", email),
+            new SqlParameter("@NewPassword", password),
+            Status);
+            if (Convert.ToInt32(Status.Value)==1)
+            {
+                sendEmailToUser(email, password);
+                return Convert.ToInt32(Status.Value);
+            }
+            else
+                return 0;
+            }
+            catch(Exception ex)
+            {
+                throw ex;
+            }
+        }
         public bool sendEmailToUser(string eMail,string password)
         {
             Console.WriteLine("Sending Email...");
@@ -137,44 +163,39 @@ namespace LMS.Identity.BusinessSerive.Services
                  new SqlParameter("@MailId", email),
                  AlreadyExistYesNo);
             if (Convert.ToInt32(AlreadyExistYesNo.Value) > 0)
-            {
                 return 1;
-            }
             else
-            {
                 return 0;
-            }
         }
 
         public async Task<int> ChangePassword(string email, string NewPassword, string OldPassword)
         {
-            try
-            {
                 var ctx = new LMSDB_DevContext();
-
                 var Status = new SqlParameter("@Status", SqlDbType.Int);
                 @Status.Direction = ParameterDirection.Output;
-
                 ctx.Database.ExecuteSqlCommand("[dbo].[usp_userChangePassword] @MailId,@NewPassword,@OLdPassword,@Status OUT",
                      new SqlParameter("@MailId", email),
                      new SqlParameter("@NewPassword", NewPassword),
                      new SqlParameter("@OLdPassword", OldPassword),
                      @Status);
                 if (Convert.ToInt32(@Status.Value) == 1)
-                {
                     return 1;
-                }
                 else
-                {
                     return 0;
-                }
-            }
-            catch (Exception ex)
-            {
-                throw ex;
-            }
         }
-
+        public async Task<int> GetEmailCount(string email)
+        {
+                var ctx = new LMSDB_DevContext();
+                var Count = new SqlParameter("@Count", SqlDbType.Int);
+                @Count.Direction = ParameterDirection.Output;
+                ctx.Database.ExecuteSqlCommand("[dbo].[usp_CheckUserEmailCount] @MailId,@Count OUT",
+                     new SqlParameter("@MailId", email),
+                     @Count);
+                if(Convert.ToInt32(@Count.Value) == 1)
+                    return 1;
+                else
+                    return 0;
+        }
 
     }
 }

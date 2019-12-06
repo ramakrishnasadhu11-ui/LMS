@@ -69,8 +69,9 @@ namespace LMS.Identity.WebApi.Controllers
                 throw new ApiException(Common.GetEnumDescription((StatusCodeMessages)StatusCodes.Status500InternalServerError),500);
         }
 
+        #region Password
         /// <summary>
-        /// Check User Email Exist or Not
+        /// User can change password
         /// </summary>
         [HttpGet(nameof(ChangePassword))]
         [ProducesResponseType(StatusCodes.Status200OK)]
@@ -106,5 +107,61 @@ namespace LMS.Identity.WebApi.Controllers
 
 
         }
+
+        /// <summary>
+        /// User can forget password
+        /// </summary>
+        [HttpGet(nameof(ForgotLoginPassword))]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        public async Task<APIResponse> ForgotLoginPassword(string userEmail)
+        {
+            LoginStatusDTO LoginStatusDTO = new LoginStatusDTO();
+            int statusvalue = 0;
+            if (!string.IsNullOrEmpty(userEmail))
+            {
+                statusvalue = await _login.CheckUserEmailExist(userEmail);
+                if (statusvalue == 1)
+                {
+                    //Checking for email count
+                    int emailCount = 0;
+                    emailCount= await _login.GetEmailCount(userEmail);
+                    if(emailCount==0)
+                    {
+                        LoginStatusDTO.Message = "No Email address found for this user name, please contact your Administrator to reset your password";
+                        LoginStatusDTO.MessageStatus = "Fail";
+                        return new APIResponse(StatusCodes.Status200OK, Common.GetEnumDescription((StatusCodeMessages)StatusCodes.Status200OK), LoginStatusDTO);
+                    }
+                    else
+                    {
+                        statusvalue = await _login.ForgotPassword(userEmail);
+                        if(statusvalue==1)
+                        {
+                            LoginStatusDTO.Message = "Your password has been reset and your new password has been send to your email";
+                            LoginStatusDTO.MessageStatus = "Success";
+                            return new APIResponse(StatusCodes.Status200OK, Common.GetEnumDescription((StatusCodeMessages)StatusCodes.Status200OK), LoginStatusDTO);
+                        }
+                        else if (statusvalue == 0)
+                        {
+                            LoginStatusDTO.Message = "No Email address found for this user name, please contact your personal rep to reset your password";
+                            LoginStatusDTO.MessageStatus = "Success";
+                            return new APIResponse(StatusCodes.Status200OK, Common.GetEnumDescription((StatusCodeMessages)StatusCodes.Status200OK), LoginStatusDTO);
+                        }
+                    }
+                }
+                else
+                {
+                        LoginStatusDTO.Message = "Invalid Email";
+                        LoginStatusDTO.MessageStatus = "Fail";
+                }
+            }
+            else
+            {
+                LoginStatusDTO.Message = "Email is Required";
+                LoginStatusDTO.MessageStatus = "Fail";
+            }
+            return new APIResponse(StatusCodes.Status200OK, Common.GetEnumDescription((StatusCodeMessages)StatusCodes.Status200OK), LoginStatusDTO);
+        }
+        #endregion
     }
 }
