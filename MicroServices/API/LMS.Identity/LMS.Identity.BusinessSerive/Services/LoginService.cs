@@ -126,6 +126,55 @@ namespace LMS.Identity.BusinessSerive.Services
             return _mapper.Map<List<UserGenderDto>>(list);
         }
 
+        public async Task<int> CheckUserEmailExist(string email)
+        {
+            var ctx = new LMSDB_DevContext();
+
+            var AlreadyExistYesNo = new SqlParameter("@AlreadyExistYesNo", SqlDbType.Int);
+            AlreadyExistYesNo.Direction = ParameterDirection.Output;
+
+            ctx.Database.ExecuteSqlCommand("[dbo].[usp_userEmailCheck] @MailId,@AlreadyExistYesNo OUT",
+                 new SqlParameter("@MailId", email),
+                 AlreadyExistYesNo);
+            if (Convert.ToInt32(AlreadyExistYesNo.Value) > 0)
+            {
+                return 1;
+            }
+            else
+            {
+                return 0;
+            }
+        }
+
+        public async Task<int> ChangePassword(string email, string NewPassword, string OldPassword)
+        {
+            try
+            {
+                var ctx = new LMSDB_DevContext();
+
+                var Status = new SqlParameter("@Status", SqlDbType.Int);
+                @Status.Direction = ParameterDirection.Output;
+
+                ctx.Database.ExecuteSqlCommand("[dbo].[usp_userChangePassword] @MailId,@NewPassword,@OLdPassword,@Status OUT",
+                     new SqlParameter("@MailId", email),
+                     new SqlParameter("@NewPassword", NewPassword),
+                     new SqlParameter("@OLdPassword", OldPassword),
+                     @Status);
+                if (Convert.ToInt32(@Status.Value) == 1)
+                {
+                    return 1;
+                }
+                else
+                {
+                    return 0;
+                }
+            }
+            catch (Exception ex)
+            {
+                throw ex;
+            }
+        }
+
 
     }
 }
