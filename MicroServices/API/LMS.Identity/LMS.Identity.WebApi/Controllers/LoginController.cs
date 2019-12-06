@@ -6,6 +6,7 @@ using LMS.Identity.DTO.Entities.Dto;
 using Microsoft.AspNetCore.Http;
 using LMS.Identity.WebApi.Utility;
 using LMS.Identity.WebApi.Api.Utility;
+using LMS.Identity.DTO;
 
 namespace LMS.Identity.WebApi.Controllers
 {
@@ -66,6 +67,44 @@ namespace LMS.Identity.WebApi.Controllers
                 return new APIResponse(StatusCodes.Status204NoContent, Common.GetEnumDescription((StatusCodeMessages)StatusCodes.Status204NoContent), genderList);
             else
                 throw new ApiException(Common.GetEnumDescription((StatusCodeMessages)StatusCodes.Status500InternalServerError),500);
+        }
+
+        /// <summary>
+        /// Check User Email Exist or Not
+        /// </summary>
+        [HttpGet(nameof(ChangePassword))]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        public async Task<APIResponse> ChangePassword(string userEmail, string NewPassword, string OldPassword)
+        {
+
+            LoginStatusDTO LoginStatusDTO = new LoginStatusDTO();
+            int statusvalue = await _login.CheckUserEmailExist(userEmail);
+
+            if (statusvalue == 1)
+            {
+                int status = await _login.ChangePassword(userEmail, NewPassword, OldPassword);
+                if (status == 1)
+                {
+                    LoginStatusDTO.Message = "Your password has been changed successfully";
+                    LoginStatusDTO.MessageStatus = "Success";
+                    return new APIResponse(StatusCodes.Status200OK, Common.GetEnumDescription((StatusCodeMessages)StatusCodes.Status200OK), LoginStatusDTO);
+                }
+                else if (status == 0)
+                {
+                    LoginStatusDTO.Message = "Your current password does not match";
+                    LoginStatusDTO.MessageStatus = "Fail";
+                    return new APIResponse(StatusCodes.Status200OK, Common.GetEnumDescription((StatusCodeMessages)StatusCodes.Status200OK), LoginStatusDTO);
+                }
+            }
+            else
+            {
+                LoginStatusDTO.Message = "Invalid Email";
+                LoginStatusDTO.MessageStatus = "Fail";
+            }
+            return new APIResponse(StatusCodes.Status200OK, Common.GetEnumDescription((StatusCodeMessages)StatusCodes.Status200OK), LoginStatusDTO);
+
+
         }
     }
 }

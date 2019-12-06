@@ -10,5 +10,7 @@ namespace LMS.Identity.BusinessSerive.Interfaces
     {
         int RegisterUser(ClientDto ClientDto);
         Task<List<UserGenderDto>> UserGender();
-     }
+        Task<int> ChangePassword(string email, string NewPassword, string OldPassword);
+        Task<int> CheckUserEmailExist(string email);
+    }
 }
