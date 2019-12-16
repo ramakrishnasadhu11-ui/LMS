@@ -163,5 +163,24 @@ namespace LMS.Identity.WebApi.Controllers
             return new APIResponse(StatusCodes.Status200OK, Common.GetEnumDescription((StatusCodeMessages)StatusCodes.Status200OK), LoginStatusDTO);
         }
         #endregion
+
+
+        [HttpPost(nameof(RegisterClient))]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        public ActionResult<APIResponse> RegisterClient(ClientDto ClientDto)
+        {
+            if (ClientDto == null)
+                return BadRequest("Invalid data for this operation");
+            int clientId = _login.RegisterClient(ClientDto);
+            if (clientId > 0)
+                return new APIResponse(StatusCodes.Status200OK, Common.GetEnumDescription((StatusCodeMessages)StatusCodes.Status200OK), clientId);
+            else if (clientId == 0)
+                return new APIResponse(StatusCodes.Status204NoContent, Common.GetEnumDescription((StatusCodeMessages)StatusCodes.Status204NoContent), clientId);
+            else
+                throw new ApiException(Common.GetEnumDescription((StatusCodeMessages)StatusCodes.Status500InternalServerError), clientId);
+
+        }
     }
 }

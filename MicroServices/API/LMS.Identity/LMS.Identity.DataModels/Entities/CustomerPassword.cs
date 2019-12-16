@@ -4,16 +4,13 @@ using System.Collections.Generic;
 
 namespace LMS.Identity.DataModels.Entities
 {
-    public partial class Client
+    public partial class CustomerPassword
     {
-        public int Id { get; set; }
-        public string FirstName { get; set; }
-        public string LastName { get; set; }
-        public string CompanyName { get; set; }
-        public string Email { get; set; }
-        public int PhoneNumber { get; set; }
-        public byte[] Photo { get; set; }
-        public int? NumberOfStores { get; set; }
+        public int PasswordId { get; set; }
+        public int? ClientId { get; set; }
+        public string Password { get; set; }
+        public string PasswordAnswer { get; set; }
+        public string PasswordQuestion { get; set; }
         public bool? Active { get; set; }
         public int? CreatedByUserId { get; set; }
         public DateTime CreatedDate { get; set; }

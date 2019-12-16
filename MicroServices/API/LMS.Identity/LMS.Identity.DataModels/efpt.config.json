@@ -18,15 +18,23 @@
       },
       {
          "HasPrimaryKey": true,
+         "Name": "[Account].[ClientPassword]"
+      },
+      {
+         "HasPrimaryKey": true,
+         "Name": "[Account].[ClientStoreInfo]"
+      },
+      {
+         "HasPrimaryKey": true,
          "Name": "[Account].[Customer]"
       },
       {
          "HasPrimaryKey": true,
-         "Name": "[Account].[LoginAttempt]"
+         "Name": "[Account].[CustomerPassword]"
       },
       {
          "HasPrimaryKey": true,
-         "Name": "[Account].[Password]"
+         "Name": "[Account].[LoginAttempt]"
       },
       {
          "HasPrimaryKey": true,

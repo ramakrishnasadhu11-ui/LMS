@@ -7,7 +7,7 @@ using LMS.Identity.DataModels.Entities;
 namespace LMS.Identity.DTO.Entities.Dto
 {
     [DataContract]
-    public class PasswordDto
+    public class CustomerPasswordDto
     {
         [DataMember]
         [JsonProperty("passwordId")]
@@ -18,8 +18,8 @@ namespace LMS.Identity.DTO.Entities.Dto
         public int? ClientId { get; set; }
 
         [DataMember]
-        [JsonProperty("password1")]
-        public string Password1 { get; set; }
+        [JsonProperty("password")]
+        public string Password { get; set; }
 
         [DataMember]
         [JsonProperty("passwordAnswer")]
@@ -49,13 +49,13 @@ namespace LMS.Identity.DTO.Entities.Dto
         [JsonProperty("modifiedDate")]
         public DateTime ModifiedDate { get; set; }
 
-        public static PasswordDto FromModel(Password model)
+        public static CustomerPasswordDto FromModel(CustomerPassword model)
         {
-            return new PasswordDto()
+            return new CustomerPasswordDto()
             {
                 PasswordId = model.PasswordId, 
                 ClientId = model.ClientId, 
-                Password1 = model.Password1, 
+                Password = model.Password, 
                 PasswordAnswer = model.PasswordAnswer, 
                 PasswordQuestion = model.PasswordQuestion, 
                 Active = model.Active, 
@@ -66,13 +66,13 @@ namespace LMS.Identity.DTO.Entities.Dto
             }; 
         }
 
-        public Password ToModel()
+        public CustomerPassword ToModel()
         {
-            return new Password()
+            return new CustomerPassword()
             {
                 PasswordId = PasswordId, 
                 ClientId = ClientId, 
-                Password1 = Password1, 
+                Password = Password, 
                 PasswordAnswer = PasswordAnswer, 
                 PasswordQuestion = PasswordQuestion, 
                 Active = Active, 

@@ -7,31 +7,19 @@ using LMS.Identity.DataModels.Entities;
 namespace LMS.Identity.DTO.Entities.Dto
 {
     [DataContract]
-    public class PasswordDto
+    public class ClientStoreInfoDto
     {
         [DataMember]
-        [JsonProperty("passwordId")]
-        public int PasswordId { get; set; }
+        [JsonProperty("id")]
+        public int Id { get; set; }
 
         [DataMember]
         [JsonProperty("clientId")]
         public int? ClientId { get; set; }
 
         [DataMember]
-        [JsonProperty("password1")]
-        public string Password1 { get; set; }
-
-        [DataMember]
-        [JsonProperty("passwordAnswer")]
-        public string PasswordAnswer { get; set; }
-
-        [DataMember]
-        [JsonProperty("passwordQuestion")]
-        public string PasswordQuestion { get; set; }
-
-        [DataMember]
-        [JsonProperty("active")]
-        public bool? Active { get; set; }
+        [JsonProperty("clientStoreCode")]
+        public string ClientStoreCode { get; set; }
 
         [DataMember]
         [JsonProperty("createdByUserId")]
@@ -39,7 +27,7 @@ namespace LMS.Identity.DTO.Entities.Dto
 
         [DataMember]
         [JsonProperty("createdDate")]
-        public DateTime CreatedDate { get; set; }
+        public DateTime? CreatedDate { get; set; }
 
         [DataMember]
         [JsonProperty("modifiedByUserId")]
@@ -47,18 +35,15 @@ namespace LMS.Identity.DTO.Entities.Dto
 
         [DataMember]
         [JsonProperty("modifiedDate")]
-        public DateTime ModifiedDate { get; set; }
+        public DateTime? ModifiedDate { get; set; }
 
-        public static PasswordDto FromModel(Password model)
+        public static ClientStoreInfoDto FromModel(ClientStoreInfo model)
         {
-            return new PasswordDto()
+            return new ClientStoreInfoDto()
             {
-                PasswordId = model.PasswordId, 
+                Id = model.Id, 
                 ClientId = model.ClientId, 
-                Password1 = model.Password1, 
-                PasswordAnswer = model.PasswordAnswer, 
-                PasswordQuestion = model.PasswordQuestion, 
-                Active = model.Active, 
+                ClientStoreCode = model.ClientStoreCode, 
                 CreatedByUserId = model.CreatedByUserId, 
                 CreatedDate = model.CreatedDate, 
                 ModifiedByUserId = model.ModifiedByUserId, 
@@ -66,16 +51,13 @@ namespace LMS.Identity.DTO.Entities.Dto
             }; 
         }
 
-        public Password ToModel()
+        public ClientStoreInfo ToModel()
         {
-            return new Password()
+            return new ClientStoreInfo()
             {
-                PasswordId = PasswordId, 
+                Id = Id, 
                 ClientId = ClientId, 
-                Password1 = Password1, 
-                PasswordAnswer = PasswordAnswer, 
-                PasswordQuestion = PasswordQuestion, 
-                Active = Active, 
+                ClientStoreCode = ClientStoreCode, 
                 CreatedByUserId = CreatedByUserId, 
                 CreatedDate = CreatedDate, 
                 ModifiedByUserId = ModifiedByUserId, 

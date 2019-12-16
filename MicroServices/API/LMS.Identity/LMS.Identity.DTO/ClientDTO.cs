@@ -10,8 +10,8 @@ namespace LMS.Identity.DTO.Entities.Dto
     public class ClientDto
     {
         [DataMember]
-        [JsonProperty("clientId")]
-        public int ClientId { get; set; }
+        [JsonProperty("id")]
+        public int Id { get; set; }
 
         [DataMember]
         [JsonProperty("firstName")]
@@ -39,7 +39,7 @@ namespace LMS.Identity.DTO.Entities.Dto
 
         [DataMember]
         [JsonProperty("numberOfStores")]
-        public int NumberOfStores { get; set; }
+        public int? NumberOfStores { get; set; }
 
         [DataMember]
         [JsonProperty("active")]
@@ -65,7 +65,7 @@ namespace LMS.Identity.DTO.Entities.Dto
         {
             return new ClientDto()
             {
-                ClientId = model.ClientId, 
+                Id = model.Id, 
                 FirstName = model.FirstName, 
                 LastName = model.LastName, 
                 CompanyName = model.CompanyName, 
@@ -85,7 +85,7 @@ namespace LMS.Identity.DTO.Entities.Dto
         {
             return new Client()
             {
-                ClientId = ClientId, 
+                Id = Id, 
                 FirstName = FirstName, 
                 LastName = LastName, 
                 CompanyName = CompanyName, 

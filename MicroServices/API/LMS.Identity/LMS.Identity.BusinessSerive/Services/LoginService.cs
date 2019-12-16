@@ -29,17 +29,17 @@ namespace LMS.Identity.BusinessSerive.Services
             this._mapper = mapper;
         }
 
-        #region AddClient
+        #region AddCustomer
         public int RegisterUser(CustomerDto CustomertDto)
         {
            
              var ctx = new LMSDB_DevContext();
-            var userId = new SqlParameter("@ClientId", SqlDbType.Int);
-            userId.Direction = ParameterDirection.Output;
+            var customerId = new SqlParameter("@CustomerId", SqlDbType.Int);
+            customerId.Direction = ParameterDirection.Output;
             CustomertDto.Active = false;
-                 int status =ctx.Database.ExecuteSqlCommand("usp_insert_client @ClientGenderID,@ClientNam,@phoneNumber,@EMail,@MiddleName,@FamilyName,@Photo,@Address1,@Address2,@City,@Region,@Zip,@Country,@Active,@CreatedByUserId,@ModifiedByUserId,@ClientId OUT",
-                 new SqlParameter("@ClientGenderID", CustomertDto.CustomerGenderId),
-                 new SqlParameter("@ClientNam", CustomertDto.CustomerName),
+                 int status =ctx.Database.ExecuteSqlCommand("[dbo].usp_insert_customer @CustomerGenderID,@CustomerName,@phoneNumber,@EMail,@MiddleName,@FamilyName,@Photo,@Address1,@Address2,@City,@Region,@Zip,@Country,@Active,@CreatedByUserId,@ModifiedByUserId,@CustomerId OUT",
+                 new SqlParameter("@CustomerGenderID", CustomertDto.CustomerGenderId),
+                 new SqlParameter("@CustomerName", CustomertDto.CustomerName),
                  new SqlParameter("@phoneNumber", CustomertDto.PhoneNumber),
                  new SqlParameter("@EMail", CustomertDto.Email),
                  new SqlParameter("@MiddleName", CustomertDto.MiddleName),
@@ -54,7 +54,7 @@ namespace LMS.Identity.BusinessSerive.Services
                  new SqlParameter("@Active", CustomertDto.Active),
                  new SqlParameter("@CreatedByUserId", CustomertDto.CreatedByUserId),
                  new SqlParameter("@ModifiedByUserId", CustomertDto.ModifiedByUserId),
-                 userId);
+                 customerId);
 
             if (status == 1)
             {
@@ -63,16 +63,16 @@ namespace LMS.Identity.BusinessSerive.Services
                 var passwordgenStatus = new SqlParameter("@Status", SqlDbType.Int);
                 passwordgenStatus.Direction = ParameterDirection.Output;
                  int st = ctx.Database.ExecuteSqlCommand("usp_client_generatepassword @User_id,@Password,@Active,@CreatedByUserId,@ModifiedByUserId,@Status OUT",
-                 new SqlParameter("@User_id", Convert.ToInt32(userId.Value)),
+                 new SqlParameter("@User_id", Convert.ToInt32(customerId.Value)),
                  new SqlParameter("@Password", password),
                  new SqlParameter("@Active", 1),
                  new SqlParameter("@CreatedByUserId", CustomertDto.CreatedByUserId),
                  new SqlParameter("@ModifiedByUserId", CustomertDto.ModifiedByUserId),
                  passwordgenStatus);
-                if (Convert.ToInt32(userId.Value) > 0 && Convert.ToInt32(passwordgenStatus.Value) > 0)
+                if (Convert.ToInt32(customerId.Value) > 0 && Convert.ToInt32(passwordgenStatus.Value) > 0)
                 {
                    sendEmailToUser(CustomertDto.Email, password);
-                    return Convert.ToInt32(userId.Value);
+                    return Convert.ToInt32(customerId.Value);
                 }
                 else
                     return 0;
@@ -145,6 +145,52 @@ namespace LMS.Identity.BusinessSerive.Services
             }
 
         }
+        public bool sendEmailToClient(string eMail, string password,List<string> storeCodes)
+        {
+            string store_codes = string.Empty;
+            foreach(string stcode in storeCodes)
+            {
+                store_codes += stcode + ",";
+            }
+            Console.WriteLine("Sending Email...");
+            string key1 = string.Empty;
+            string key2 = string.Empty;
+            key1 = "AKIA6BLJZLG25YT4C6E7";
+            key2 = "Gb9Zc50N2AYCNFX00IV+wCuPzzbxvq0u/lmCTJqB";
+            using (var client = new AmazonSimpleEmailServiceClient(key1, key2, Amazon.RegionEndpoint.USEast1))
+            {
+                var sendRequest = new SendEmailRequest
+                {
+                    Source = "laundrymanagementsoftware@gmail.com",
+                    Destination = new Destination { ToAddresses = { eMail } },
+                    Message = new Message
+                    {
+                        Subject = new Content("EDS Software!"),
+                        Body = new Body
+                        {
+                            Html = new Content("<html>" +
+                                               "<body>" +
+                                               "<h2>Welcome to Excel Dry Cleaning Mail Service</h2>" +
+                                               "<ul>" +
+                                               "<li><b>Thanks for Registration</b></li>" +
+                                               "<b>Password: </b>" +
+                                               "<b>" +
+                                               password +
+                                               "</b><br>" +
+                                               "<b>Store Code: </b>" +
+                                               "<b>" +
+                                               store_codes +
+                                               "</b><br>" +
+                                               "</body>" +
+                                               "</html>")
+                        }
+                    }
+                };
+                var response = client.SendEmailAsync(sendRequest).Result;
+                return response.HttpStatusCode == HttpStatusCode.OK;
+            }
+
+        }
         public async Task<List<UserGenderDto>> UserGender()
         {
             var ctx = new LMSDB_DevContext();
@@ -197,5 +243,64 @@ namespace LMS.Identity.BusinessSerive.Services
                     return 0;
         }
 
-    }
+        #region AddClient
+        public int RegisterClient(ClientDto ClientDto)
+        {
+            
+            var ctx = new LMSDB_DevContext();
+            var clientId = new SqlParameter("@ClientId", SqlDbType.Int);
+            clientId.Direction = ParameterDirection.Output;
+            ClientDto.Active = false;
+            int status = ctx.Database.ExecuteSqlCommand("[dbo].[usp_insert_client] @FirstName,@LastName,@CompanyName,@EMail,@phoneNumber,@Photo,@NumberOfStores,@Active,@CreatedByUserId,@ModifiedByUserId,@ClientId OUT",
+                new SqlParameter("@FirstName", ClientDto.FirstName),
+                new SqlParameter("@LastName", ClientDto.LastName),
+                new SqlParameter("@CompanyName", ClientDto.CompanyName),
+                new SqlParameter("@EMail", ClientDto.Email),
+                new SqlParameter("@phoneNumber", ClientDto.PhoneNumber),
+                new SqlParameter("@Photo",ClientDto.Photo),
+                new SqlParameter("@NumberOfStores", ClientDto.NumberOfStores),
+                new SqlParameter("@Active", ClientDto.Active),
+                new SqlParameter("@CreatedByUserId", ClientDto.CreatedByUserId),
+                new SqlParameter("@ModifiedByUserId", ClientDto.ModifiedByUserId),
+                clientId);
+            if (status == 1)
+            {
+                var passwordgenStatus = new SqlParameter("@Status", SqlDbType.Int);
+                passwordgenStatus.Direction = ParameterDirection.Output;
+                string password = Utility.generateOTP();
+                int st = ctx.Database.ExecuteSqlCommand("usp_client_generatepassword @Client_id,@Password,@Active,@CreatedByUserId,@ModifiedByUserId,@Status OUT",
+              new SqlParameter("@Client_id", Convert.ToInt32(clientId.Value)),
+              new SqlParameter("@Password", password),
+              new SqlParameter("@Active", 1),
+              new SqlParameter("@CreatedByUserId", ClientDto.CreatedByUserId),
+              new SqlParameter("@ModifiedByUserId", ClientDto.ModifiedByUserId),
+              passwordgenStatus);
+                List<string> storeCodes =new List<string>();
+                for (int i=0;i< ClientDto.NumberOfStores;i++)
+                {
+                var storeInsertStatus = new SqlParameter("@Status", SqlDbType.Int);
+                storeInsertStatus.Direction = ParameterDirection.Output;
+                string storecode=Utility.GenerateStoreCode(3);
+                ctx.Database.ExecuteSqlCommand("usp_client_insertstores @Client_id,@ClientStoreCode,@CreatedByUserId,@ModifiedByUserId,@Status OUT",
+                new SqlParameter("@Client_id", Convert.ToInt32(clientId.Value)),
+                new SqlParameter("@ClientStoreCode", storecode),
+                new SqlParameter("@CreatedByUserId", ClientDto.CreatedByUserId),
+                new SqlParameter("@ModifiedByUserId", ClientDto.ModifiedByUserId),
+                storeInsertStatus);
+                    storeCodes.Add(storecode);
+                }
+                if (Convert.ToInt32(clientId.Value) > 0 && Convert.ToInt32(passwordgenStatus.Value) > 0)
+                {
+                    sendEmailToClient(ClientDto.Email, password, storeCodes);
+                    return Convert.ToInt32(clientId.Value);
+                }
+                else
+                    return 0;
+            }
+            else
+                return 0;
+        }
+          
+        }
+        #endregion
 }

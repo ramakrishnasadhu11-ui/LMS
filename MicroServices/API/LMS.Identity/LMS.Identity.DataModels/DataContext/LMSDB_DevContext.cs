@@ -18,9 +18,11 @@ namespace LMS.Identity.DataModels.DataContext
         }
 
         public virtual DbSet<Client> Client { get; set; }
+        public virtual DbSet<ClientPassword> ClientPassword { get; set; }
+        public virtual DbSet<ClientStoreInfo> ClientStoreInfo { get; set; }
         public virtual DbSet<Customer> Customer { get; set; }
+        public virtual DbSet<CustomerPassword> CustomerPassword { get; set; }
         public virtual DbSet<LoginAttempt> LoginAttempt { get; set; }
-        public virtual DbSet<Password> Password { get; set; }
         public virtual DbSet<UserGender> UserGender { get; set; }
 
         protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
@@ -40,8 +42,6 @@ namespace LMS.Identity.DataModels.DataContext
             {
                 entity.ToTable("Client", "Account");
 
-                entity.Property(e => e.ClientId).HasColumnName("Client_id");
-
                 entity.Property(e => e.CompanyName)
                     .IsRequired()
                     .HasMaxLength(50);
@@ -49,7 +49,6 @@ namespace LMS.Identity.DataModels.DataContext
                 entity.Property(e => e.CreatedDate).HasColumnType("datetime");
 
                 entity.Property(e => e.Email)
-                    .IsRequired()
                     .HasColumnName("EMail")
                     .HasMaxLength(50);
 
@@ -60,6 +59,38 @@ namespace LMS.Identity.DataModels.DataContext
                 entity.Property(e => e.LastName)
                     .IsRequired()
                     .HasMaxLength(50);
+
+                entity.Property(e => e.ModifiedDate).HasColumnType("datetime");
+
+                entity.Property(e => e.PhoneNumber).HasColumnName("phoneNumber");
+            });
+
+            modelBuilder.Entity<ClientPassword>(entity =>
+            {
+                entity.ToTable("ClientPassword", "Account");
+
+                entity.Property(e => e.ClientId).HasColumnName("Client_id");
+
+                entity.Property(e => e.CreatedDate).HasColumnType("datetime");
+
+                entity.Property(e => e.ModifiedDate).HasColumnType("datetime");
+
+                entity.Property(e => e.Password)
+                    .HasMaxLength(50)
+                    .IsUnicode(false);
+            });
+
+            modelBuilder.Entity<ClientStoreInfo>(entity =>
+            {
+                entity.ToTable("ClientStoreInfo", "Account");
+
+                entity.Property(e => e.ClientId).HasColumnName("Client_id");
+
+                entity.Property(e => e.ClientStoreCode)
+                    .HasMaxLength(10)
+                    .IsUnicode(false);
+
+                entity.Property(e => e.CreatedDate).HasColumnType("datetime");
 
                 entity.Property(e => e.ModifiedDate).HasColumnType("datetime");
             });
@@ -109,6 +140,28 @@ namespace LMS.Identity.DataModels.DataContext
                     .HasConstraintName("FK__Customer__Custom__5EBF139D");
             });
 
+            modelBuilder.Entity<CustomerPassword>(entity =>
+            {
+                entity.HasKey(e => e.PasswordId)
+                    .HasName("PK__Customer__850F2032BB57A3A3");
+
+                entity.ToTable("CustomerPassword", "Account");
+
+                entity.Property(e => e.PasswordId).HasColumnName("Password_id");
+
+                entity.Property(e => e.ClientId).HasColumnName("Client_id");
+
+                entity.Property(e => e.CreatedDate).HasColumnType("datetime");
+
+                entity.Property(e => e.ModifiedDate).HasColumnType("datetime");
+
+                entity.Property(e => e.Password).HasMaxLength(50);
+
+                entity.Property(e => e.PasswordAnswer).HasMaxLength(50);
+
+                entity.Property(e => e.PasswordQuestion).HasMaxLength(50);
+            });
+
             modelBuilder.Entity<LoginAttempt>(entity =>
             {
                 entity.ToTable("LoginAttempt", "Account");
@@ -126,27 +179,6 @@ namespace LMS.Identity.DataModels.DataContext
                 entity.Property(e => e.Password).HasMaxLength(50);
 
                 entity.Property(e => e.UserName).HasMaxLength(50);
-            });
-
-            modelBuilder.Entity<Password>(entity =>
-            {
-                entity.ToTable("Password", "Account");
-
-                entity.Property(e => e.PasswordId).HasColumnName("Password_id");
-
-                entity.Property(e => e.ClientId).HasColumnName("Client_id");
-
-                entity.Property(e => e.CreatedDate).HasColumnType("datetime");
-
-                entity.Property(e => e.ModifiedDate).HasColumnType("datetime");
-
-                entity.Property(e => e.Password1)
-                    .HasColumnName("Password")
-                    .HasMaxLength(50);
-
-                entity.Property(e => e.PasswordAnswer).HasMaxLength(50);
-
-                entity.Property(e => e.PasswordQuestion).HasMaxLength(50);
             });
 
             modelBuilder.Entity<UserGender>(entity =>

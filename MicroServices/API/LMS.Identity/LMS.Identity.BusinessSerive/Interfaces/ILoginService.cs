@@ -14,5 +14,7 @@ namespace LMS.Identity.BusinessSerive.Interfaces
         Task<int> CheckUserEmailExist(string email);
         Task<int> ForgotPassword(string email);
         Task<int> GetEmailCount(string email);
+
+        int RegisterClient(ClientDto ClientDto);
     }
 }

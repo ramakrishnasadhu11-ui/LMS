@@ -7,27 +7,19 @@ using LMS.Identity.DataModels.Entities;
 namespace LMS.Identity.DTO.Entities.Dto
 {
     [DataContract]
-    public class PasswordDto
+    public class ClientPasswordDto
     {
         [DataMember]
-        [JsonProperty("passwordId")]
-        public int PasswordId { get; set; }
+        [JsonProperty("id")]
+        public int Id { get; set; }
 
         [DataMember]
         [JsonProperty("clientId")]
         public int? ClientId { get; set; }
 
         [DataMember]
-        [JsonProperty("password1")]
-        public string Password1 { get; set; }
-
-        [DataMember]
-        [JsonProperty("passwordAnswer")]
-        public string PasswordAnswer { get; set; }
-
-        [DataMember]
-        [JsonProperty("passwordQuestion")]
-        public string PasswordQuestion { get; set; }
+        [JsonProperty("password")]
+        public string Password { get; set; }
 
         [DataMember]
         [JsonProperty("active")]
@@ -39,7 +31,7 @@ namespace LMS.Identity.DTO.Entities.Dto
 
         [DataMember]
         [JsonProperty("createdDate")]
-        public DateTime CreatedDate { get; set; }
+        public DateTime? CreatedDate { get; set; }
 
         [DataMember]
         [JsonProperty("modifiedByUserId")]
@@ -47,17 +39,15 @@ namespace LMS.Identity.DTO.Entities.Dto
 
         [DataMember]
         [JsonProperty("modifiedDate")]
-        public DateTime ModifiedDate { get; set; }
+        public DateTime? ModifiedDate { get; set; }
 
-        public static PasswordDto FromModel(Password model)
+        public static ClientPasswordDto FromModel(ClientPassword model)
         {
-            return new PasswordDto()
+            return new ClientPasswordDto()
             {
-                PasswordId = model.PasswordId, 
+                Id = model.Id, 
                 ClientId = model.ClientId, 
-                Password1 = model.Password1, 
-                PasswordAnswer = model.PasswordAnswer, 
-                PasswordQuestion = model.PasswordQuestion, 
+                Password = model.Password, 
                 Active = model.Active, 
                 CreatedByUserId = model.CreatedByUserId, 
                 CreatedDate = model.CreatedDate, 
@@ -66,15 +56,13 @@ namespace LMS.Identity.DTO.Entities.Dto
             }; 
         }
 
-        public Password ToModel()
+        public ClientPassword ToModel()
         {
-            return new Password()
+            return new ClientPassword()
             {
-                PasswordId = PasswordId, 
+                Id = Id, 
                 ClientId = ClientId, 
-                Password1 = Password1, 
-                PasswordAnswer = PasswordAnswer, 
-                PasswordQuestion = PasswordQuestion, 
+                Password = Password, 
                 Active = Active, 
                 CreatedByUserId = CreatedByUserId, 
                 CreatedDate = CreatedDate, 
