@@ -2,13 +2,13 @@
 using System;
 using System.Collections.Generic;
 
-namespace LMS.Identity.DataModels
+namespace LMS.Identity.DataModels.Entities
 {
-    public partial class Client
+    public partial class Customer
     {
-        public int ClientId { get; set; }
-        public int ClientGenderId { get; set; }
-        public string ClientName { get; set; }
+        public int CustomerId { get; set; }
+        public int CustomerGenderId { get; set; }
+        public string CustomerName { get; set; }
         public int PhoneNumber { get; set; }
         public string Email { get; set; }
         public string MiddleName { get; set; }
@@ -26,6 +26,6 @@ namespace LMS.Identity.DataModels
         public int? ModifiedByUserId { get; set; }
         public DateTime ModifiedDate { get; set; }
 
-        public virtual UserGender ClientGender { get; set; }
+        public virtual UserGender CustomerGender { get; set; }
     }
 }

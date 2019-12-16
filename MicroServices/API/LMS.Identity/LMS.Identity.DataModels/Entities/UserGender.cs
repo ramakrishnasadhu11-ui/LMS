@@ -8,12 +8,12 @@ namespace LMS.Identity.DataModels.Entities
     {
         public UserGender()
         {
-            Client = new HashSet<Client>();
+            Customer = new HashSet<Customer>();
         }
 
         public int UserGenderId { get; set; }
         public string GenderName { get; set; }
 
-        public virtual ICollection<Client> Client { get; set; }
+        public virtual ICollection<Customer> Customer { get; set; }
     }
 }

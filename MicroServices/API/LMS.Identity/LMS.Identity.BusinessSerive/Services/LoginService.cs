@@ -30,48 +30,48 @@ namespace LMS.Identity.BusinessSerive.Services
         }
 
         #region AddClient
-        public int RegisterUser(ClientDto ClientDto)
+        public int RegisterUser(CustomerDto CustomertDto)
         {
            
              var ctx = new LMSDB_DevContext();
             var userId = new SqlParameter("@ClientId", SqlDbType.Int);
             userId.Direction = ParameterDirection.Output;
-            ClientDto.Active = false;
+            CustomertDto.Active = false;
                  int status =ctx.Database.ExecuteSqlCommand("usp_insert_client @ClientGenderID,@ClientNam,@phoneNumber,@EMail,@MiddleName,@FamilyName,@Photo,@Address1,@Address2,@City,@Region,@Zip,@Country,@Active,@CreatedByUserId,@ModifiedByUserId,@ClientId OUT",
-                 new SqlParameter("@ClientGenderID", ClientDto.ClientGenderId),
-                 new SqlParameter("@ClientNam", ClientDto.ClientName),
-                 new SqlParameter("@phoneNumber", ClientDto.PhoneNumber),
-                 new SqlParameter("@EMail", ClientDto.Email),
-                 new SqlParameter("@MiddleName", ClientDto.MiddleName),
-                 new SqlParameter("@FamilyName", ClientDto.FamilyName),
-                 new SqlParameter("@Photo", ClientDto.Photo),
-                 new SqlParameter("@Address1", ClientDto.Address1),
-                 new SqlParameter("@Address2", ClientDto.Address2),
-                 new SqlParameter("@City", ClientDto.City),
-                 new SqlParameter("@Region", ClientDto.Region),
-                 new SqlParameter("@Zip", ClientDto.Zip),
-                 new SqlParameter("@Country", ClientDto.Country),
-                 new SqlParameter("@Active", ClientDto.Active),
-                 new SqlParameter("@CreatedByUserId", ClientDto.CreatedByUserId),
-                 new SqlParameter("@ModifiedByUserId", ClientDto.ModifiedByUserId),
+                 new SqlParameter("@ClientGenderID", CustomertDto.CustomerGenderId),
+                 new SqlParameter("@ClientNam", CustomertDto.CustomerName),
+                 new SqlParameter("@phoneNumber", CustomertDto.PhoneNumber),
+                 new SqlParameter("@EMail", CustomertDto.Email),
+                 new SqlParameter("@MiddleName", CustomertDto.MiddleName),
+                 new SqlParameter("@FamilyName", CustomertDto.FamilyName),
+                 new SqlParameter("@Photo", CustomertDto.Photo),
+                 new SqlParameter("@Address1", CustomertDto.Address1),
+                 new SqlParameter("@Address2", CustomertDto.Address2),
+                 new SqlParameter("@City", CustomertDto.City),
+                 new SqlParameter("@Region", CustomertDto.Region),
+                 new SqlParameter("@Zip", CustomertDto.Zip),
+                 new SqlParameter("@Country", CustomertDto.Country),
+                 new SqlParameter("@Active", CustomertDto.Active),
+                 new SqlParameter("@CreatedByUserId", CustomertDto.CreatedByUserId),
+                 new SqlParameter("@ModifiedByUserId", CustomertDto.ModifiedByUserId),
                  userId);
 
             if (status == 1)
             {
                 string password = string.Empty;
-                password = Utility.encode(ClientDto.Email);
+                password = Utility.encode(CustomertDto.Email);
                 var passwordgenStatus = new SqlParameter("@Status", SqlDbType.Int);
                 passwordgenStatus.Direction = ParameterDirection.Output;
                  int st = ctx.Database.ExecuteSqlCommand("usp_client_generatepassword @User_id,@Password,@Active,@CreatedByUserId,@ModifiedByUserId,@Status OUT",
                  new SqlParameter("@User_id", Convert.ToInt32(userId.Value)),
                  new SqlParameter("@Password", password),
                  new SqlParameter("@Active", 1),
-                 new SqlParameter("@CreatedByUserId", ClientDto.CreatedByUserId),
-                 new SqlParameter("@ModifiedByUserId", ClientDto.ModifiedByUserId),
+                 new SqlParameter("@CreatedByUserId", CustomertDto.CreatedByUserId),
+                 new SqlParameter("@ModifiedByUserId", CustomertDto.ModifiedByUserId),
                  passwordgenStatus);
                 if (Convert.ToInt32(userId.Value) > 0 && Convert.ToInt32(passwordgenStatus.Value) > 0)
                 {
-                   sendEmailToUser(ClientDto.Email, password);
+                   sendEmailToUser(CustomertDto.Email, password);
                     return Convert.ToInt32(userId.Value);
                 }
                 else

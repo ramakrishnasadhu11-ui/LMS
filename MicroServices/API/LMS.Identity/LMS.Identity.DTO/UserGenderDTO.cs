@@ -1,26 +1,17 @@
 using System;
-using System.Linq;
-using System.Runtime.Serialization;
-using Newtonsoft.Json;
-using LMS.Identity.DataModels.Entities;
 using System.Collections.Generic;
+using System.Linq;
+using LMS.Identity.DataModels.Entities;
 
 namespace LMS.Identity.DTO.Entities.Dto
 {
-    [DataContract]
     public class UserGenderDto
     {
-        [DataMember]
-        [JsonProperty("userGenderId")]
         public int UserGenderId { get; set; }
 
-        [DataMember]
-        [JsonProperty("genderName")]
         public string GenderName { get; set; }
 
-        [DataMember]
-        [JsonProperty("client")]
-        public ICollection<Client> Client { get; set; }
+        public ICollection<Customer> Customer { get; set; }
 
         public static UserGenderDto FromModel(UserGender model)
         {
@@ -28,7 +19,7 @@ namespace LMS.Identity.DTO.Entities.Dto
             {
                 UserGenderId = model.UserGenderId, 
                 GenderName = model.GenderName, 
-                Client = model.Client, 
+                Customer = model.Customer, 
             }; 
         }
 
@@ -38,7 +29,7 @@ namespace LMS.Identity.DTO.Entities.Dto
             {
                 UserGenderId = UserGenderId, 
                 GenderName = GenderName, 
-                Client = Client, 
+                Customer = Customer, 
             }; 
         }
     }

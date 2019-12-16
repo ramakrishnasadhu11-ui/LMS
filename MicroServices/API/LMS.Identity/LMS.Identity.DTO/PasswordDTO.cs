@@ -1,52 +1,29 @@
 using System;
 using System.Linq;
-using System.Runtime.Serialization;
-using Newtonsoft.Json;
 using LMS.Identity.DataModels.Entities;
 
 namespace LMS.Identity.DTO.Entities.Dto
 {
-    [DataContract]
     public class PasswordDto
     {
-        [DataMember]
-        [JsonProperty("passwordId")]
         public int PasswordId { get; set; }
 
-        [DataMember]
-        [JsonProperty("userId")]
-        public int? UserId { get; set; }
+        public int? ClientId { get; set; }
 
-        [DataMember]
-        [JsonProperty("password1")]
         public string Password1 { get; set; }
 
-        [DataMember]
-        [JsonProperty("passwordAnswer")]
         public string PasswordAnswer { get; set; }
 
-        [DataMember]
-        [JsonProperty("passwordQuestion")]
         public string PasswordQuestion { get; set; }
 
-        [DataMember]
-        [JsonProperty("active")]
         public bool? Active { get; set; }
 
-        [DataMember]
-        [JsonProperty("createdByUserId")]
         public int? CreatedByUserId { get; set; }
 
-        [DataMember]
-        [JsonProperty("createdDate")]
         public DateTime CreatedDate { get; set; }
 
-        [DataMember]
-        [JsonProperty("modifiedByUserId")]
         public int? ModifiedByUserId { get; set; }
 
-        [DataMember]
-        [JsonProperty("modifiedDate")]
         public DateTime ModifiedDate { get; set; }
 
         public static PasswordDto FromModel(Password model)
@@ -54,7 +31,7 @@ namespace LMS.Identity.DTO.Entities.Dto
             return new PasswordDto()
             {
                 PasswordId = model.PasswordId, 
-                UserId = model.UserId, 
+                ClientId = model.ClientId, 
                 Password1 = model.Password1, 
                 PasswordAnswer = model.PasswordAnswer, 
                 PasswordQuestion = model.PasswordQuestion, 
@@ -71,7 +48,7 @@ namespace LMS.Identity.DTO.Entities.Dto
             return new Password()
             {
                 PasswordId = PasswordId, 
-                UserId = UserId, 
+                ClientId = ClientId, 
                 Password1 = Password1, 
                 PasswordAnswer = PasswordAnswer, 
                 PasswordQuestion = PasswordQuestion, 

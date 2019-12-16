@@ -10,11 +10,15 @@
    "OutputPath": "",
    "ProjectRootNamespace": "LMS.Identity.DataModels",
    "SelectedHandlebarsLanguage": 0,
-   "SelectedToBeGenerated": 0,
+   "SelectedToBeGenerated": 1,
    "Tables": [
       {
          "HasPrimaryKey": true,
          "Name": "[Account].[Client]"
+      },
+      {
+         "HasPrimaryKey": true,
+         "Name": "[Account].[Customer]"
       },
       {
          "HasPrimaryKey": true,
@@ -33,5 +37,6 @@
    "UseFluentApiOnly": true,
    "UseHandleBars": false,
    "UseInflector": false,
-   "UseLegacyPluralizer": false
+   "UseLegacyPluralizer": false,
+   "UseSpatial": false
 }

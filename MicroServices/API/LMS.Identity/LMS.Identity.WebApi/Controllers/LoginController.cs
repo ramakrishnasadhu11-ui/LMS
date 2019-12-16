@@ -38,11 +38,11 @@ namespace LMS.Identity.WebApi.Controllers
         [ProducesResponseType(StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
-        public ActionResult<APIResponse> RegisterUser(ClientDto ClientDto)
+        public ActionResult<APIResponse> RegisterUser(CustomerDto CustomerDto)
         {
-            if(ClientDto==null)
+            if(CustomerDto == null)
                 return BadRequest("Invalid data for this operation");
-            int clientId = _login.RegisterUser(ClientDto);
+            int clientId = _login.RegisterUser(CustomerDto);
             if (clientId > 0)
                 return new APIResponse(StatusCodes.Status200OK, Common.GetEnumDescription((StatusCodeMessages)StatusCodes.Status200OK), clientId);
             else if (clientId == 0)
