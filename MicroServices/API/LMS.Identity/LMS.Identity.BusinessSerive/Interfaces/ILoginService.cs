@@ -1,4 +1,5 @@
-﻿using LMS.Identity.DTO.Entities.Dto;
+﻿using LMS.Identity.DTO;
+using LMS.Identity.DTO.Entities.Dto;
 using System;
 using System.Collections.Generic;
 using System.Text;
@@ -10,11 +11,11 @@ namespace LMS.Identity.BusinessSerive.Interfaces
     {
         int RegisterUser(CustomerDto ClientDto);
         Task<List<UserGenderDto>> UserGender();
-        Task<int> ChangePassword(string email, string NewPassword, string OldPassword);
+        Task<int> ClientChangePassword(string email, string NewPassword, string OldPassword);
         Task<int> CheckUserEmailExist(string email);
         Task<int> ForgotPassword(string email);
         Task<int> GetEmailCount(string email);
-
+        int ClientLogin(ClientLoginDto ClientLoginDto);
         int RegisterClient(ClientDto ClientDto);
     }
 }

@@ -14,6 +14,7 @@ using AutoMapper.Configuration;
 using Amazon.SimpleEmail;
 using Amazon.SimpleEmail.Model;
 using System.Net;
+using LMS.Identity.DTO;
 
 namespace LMS.Identity.BusinessSerive.Services
 {
@@ -83,12 +84,9 @@ namespace LMS.Identity.BusinessSerive.Services
         #endregion
         public async Task<int> ForgotPassword(string email)
         {
-            try
-            { 
             var ctx = new LMSDB_DevContext();
             string password = string.Empty;
-            password = Utility.encode(email);
-
+            password = Utility.generateOTP();
             var @Status = new SqlParameter("@Status", SqlDbType.Int);
             @Status.Direction = ParameterDirection.Output;
             int st =ctx.Database.ExecuteSqlCommand("[dbo].[usp_clientForgotPassword] @Email,@NewPassword,@Status OUT",
@@ -102,11 +100,6 @@ namespace LMS.Identity.BusinessSerive.Services
             }
             else
                 return 0;
-            }
-            catch(Exception ex)
-            {
-                throw ex;
-            }
         }
         public bool sendEmailToUser(string eMail,string password)
         {
@@ -214,12 +207,12 @@ namespace LMS.Identity.BusinessSerive.Services
                 return 0;
         }
 
-        public async Task<int> ChangePassword(string email, string NewPassword, string OldPassword)
+        public async Task<int> ClientChangePassword(string email, string NewPassword, string OldPassword)
         {
                 var ctx = new LMSDB_DevContext();
                 var Status = new SqlParameter("@Status", SqlDbType.Int);
                 @Status.Direction = ParameterDirection.Output;
-                ctx.Database.ExecuteSqlCommand("[dbo].[usp_userChangePassword] @MailId,@NewPassword,@OLdPassword,@Status OUT",
+                ctx.Database.ExecuteSqlCommand("[dbo].[usp_clientChangePassword] @MailId,@NewPassword,@OLdPassword,@Status OUT",
                      new SqlParameter("@MailId", email),
                      new SqlParameter("@NewPassword", NewPassword),
                      new SqlParameter("@OLdPassword", OldPassword),
@@ -300,7 +293,34 @@ namespace LMS.Identity.BusinessSerive.Services
             else
                 return 0;
         }
-          
-        }
         #endregion
+
+        public int ClientLogin(ClientLoginDto ClientLoginDto)
+        {
+            var ctx = new LMSDB_DevContext();
+            var status = new SqlParameter("@Status", SqlDbType.Int);
+            status.Direction = ParameterDirection.Output;
+            var AlreadyExistYesNo = new SqlParameter("@AlreadyExistYesNo", SqlDbType.Int);
+            AlreadyExistYesNo.Direction = ParameterDirection.Output;
+
+            ctx.Database.ExecuteSqlCommand("[dbo].[usp_userEmailCheck] @MailId,@AlreadyExistYesNo OUT",
+                 new SqlParameter("@MailId", ClientLoginDto.Email),
+                 AlreadyExistYesNo);
+            if (Convert.ToInt32(AlreadyExistYesNo.Value) > 0)
+            {
+                ctx.Database.ExecuteSqlCommand("[dbo].[usp_clientlogincheck] @Email,@Password,@StoreCode,@status OUT",
+                new SqlParameter("@Email", ClientLoginDto.Email),
+                new SqlParameter("@Password", ClientLoginDto.Password),
+                new SqlParameter("@StoreCode", ClientLoginDto.StoreCode),
+                 status);
+                return Convert.ToInt32(status.Value);
+            }
+            else
+            {
+                return 3;
+            }
+
+
+        }
+    }
 }
