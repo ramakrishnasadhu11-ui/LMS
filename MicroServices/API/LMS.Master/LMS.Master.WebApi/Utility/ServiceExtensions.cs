@@ -1,8 +1,7 @@
-﻿using Microsoft.Extensions.DependencyInjection;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
+﻿using LMS.Core.Repository.UnitOfWork;
+using LMS.Master.DataModels.DataContext;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace LMS.Master.WebApi.Utility
 {
@@ -36,11 +35,11 @@ namespace LMS.Master.WebApi.Utility
         /// <returns></returns>
         public static IServiceCollection RegisterDatabaseContext(this IServiceCollection services, string connectionString)
         {
-           // services.AddDbContext<LMSDB_DevContext>(options =>
-           // {
-           //     options.UseSqlServer(connectionString);
-           // })
-           //.AddUnitOfWork<LMSDB_DevContext>();
+            services.AddDbContext<LMS_Master_DevContext>(options =>
+            {
+                options.UseSqlServer(connectionString);
+            })
+           .AddUnitOfWork<LMS_Master_DevContext>();
             return services;
         }
     }

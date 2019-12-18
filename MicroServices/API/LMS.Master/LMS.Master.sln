@@ -9,7 +9,11 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "LMS.SwaggerUI", "LMS.Swagge
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "LMS.Master.DTO", "LMS.Master.DTO\LMS.Master.DTO.csproj", "{857284D8-A50F-47B8-B782-CA3BF7256937}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LMS.Master.WebApi", "LMS.Master.WebApi\LMS.Master.WebApi.csproj", "{4DBC1EF4-C7BD-452E-A0B7-CBB5F7459661}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "LMS.Master.WebApi", "LMS.Master.WebApi\LMS.Master.WebApi.csproj", "{4DBC1EF4-C7BD-452E-A0B7-CBB5F7459661}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "LMS.Core.Repository", "LMS.Core.Repository\LMS.Core.Repository.csproj", "{50ADC8E0-0D97-4A59-AB39-941D8C4C0BA4}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "LMS.Master.DataModels", "LMS.Master.DataModels\LMS.Master.DataModels.csproj", "{351BD9B5-55F8-45E1-969C-A9A5D1ADB14E}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -33,6 +37,14 @@ Global
 		{4DBC1EF4-C7BD-452E-A0B7-CBB5F7459661}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{4DBC1EF4-C7BD-452E-A0B7-CBB5F7459661}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{4DBC1EF4-C7BD-452E-A0B7-CBB5F7459661}.Release|Any CPU.Build.0 = Release|Any CPU
+		{50ADC8E0-0D97-4A59-AB39-941D8C4C0BA4}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{50ADC8E0-0D97-4A59-AB39-941D8C4C0BA4}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{50ADC8E0-0D97-4A59-AB39-941D8C4C0BA4}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{50ADC8E0-0D97-4A59-AB39-941D8C4C0BA4}.Release|Any CPU.Build.0 = Release|Any CPU
+		{351BD9B5-55F8-45E1-969C-A9A5D1ADB14E}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{351BD9B5-55F8-45E1-969C-A9A5D1ADB14E}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{351BD9B5-55F8-45E1-969C-A9A5D1ADB14E}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{351BD9B5-55F8-45E1-969C-A9A5D1ADB14E}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

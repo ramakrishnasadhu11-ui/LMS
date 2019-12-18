@@ -24,7 +24,9 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\LMS.Core.Repository\LMS.Core.Repository.csproj" />
     <ProjectReference Include="..\LMS.Master.BusinessSerive\LMS.Master.BusinessSerive.csproj" />
+    <ProjectReference Include="..\LMS.Master.DataModels\LMS.Master.DataModels.csproj" />
     <ProjectReference Include="..\LMS.SwaggerUI\LMS.SwaggerUI.csproj" />
   </ItemGroup>
 
