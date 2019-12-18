@@ -1,4 +1,6 @@
 ﻿using LMS.Core.Repository.UnitOfWork;
+using LMS.Master.BusinessSerive.Interfaces;
+using LMS.Master.BusinessSerive.Services;
 using LMS.Master.DataModels.DataContext;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -16,7 +18,7 @@ namespace LMS.Master.WebApi.Utility
         public static IServiceCollection RegisterServices(
             this IServiceCollection services)
         {
-           // services.AddTransient<ILoginService, LoginService>();
+            services.AddTransient<ILaundryServicesService, LaundryServicesService>();
             //services.AddTransient<ICopyItemsService, CopyItemsService>();
             //services.AddTransient<IOrders, OrderService>();
             //services.AddTransient<IOrderLine, OrderLineServiceService>();

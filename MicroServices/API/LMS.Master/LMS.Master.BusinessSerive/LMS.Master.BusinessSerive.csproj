@@ -6,13 +6,16 @@
 
   <ItemGroup>
     <Folder Include="Common\" />
-    <Folder Include="Interfaces\" />
-    <Folder Include="Services\" />
   </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="AutoMapper" Version="8.0.0" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="2.2.6" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\LMS.Core.Repository\LMS.Core.Repository.csproj" />
+    <ProjectReference Include="..\LMS.Master.DTO\LMS.Master.DTO.csproj" />
   </ItemGroup>
 
 </Project>

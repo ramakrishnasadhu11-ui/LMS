@@ -9,7 +9,6 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Swashbuckle.AspNetCore.Swagger;
-using VMD.RESTApiResponseWrapper.Core;
 using IConfiguration = Microsoft.Extensions.Configuration.IConfiguration;
 namespace LMS.Master.WebApi
 {
