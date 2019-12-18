@@ -10,6 +10,12 @@
             </summary>
             <returns></returns>
         </member>
+        <member name="M:LMS.Master.WebApi.Controllers.MasterController.AddLaundryService(LMS.Master.DTO.Entities.Dto.LaundryServicesDto)">
+            <summary>
+            Add Laundry Service
+            </summary>
+            <returns></returns>
+        </member>
         <member name="M:LMS.Master.WebApi.Utility.ServiceExtensions.RegisterServices(Microsoft.Extensions.DependencyInjection.IServiceCollection)">
             <summary>
             Register All the Components with this Extension Method, All the Business Services and Repositories used in this Project
