@@ -407,3 +407,4 @@ ASALocalRun/
 
 # BeatPulse healthcheck temp database
 healthchecksdb
+/MicroServices/API/LMS.Master/LMS.Master.WebApi/Properties/launchSettings.json
