@@ -32,6 +32,8 @@ namespace LMS.Master.WebApi
             services.RegisterServices();
             services.AddAutoMapper();
             services.AddCors();
+            services.Configure<ApiBehaviorOptions>(options => { options.SuppressModelStateInvalidFilter = true; });
+            services.AddEntityFrameworkSqlServer();
             var mapperconfig = new MapperConfiguration(op =>
             {
                 op.AddProfile<MapperProfile>();

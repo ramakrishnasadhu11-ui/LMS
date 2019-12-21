@@ -14,7 +14,27 @@
    "Tables": [
       {
          "HasPrimaryKey": true,
-         "Name": "[Master].[LaundryServices]"
+         "Name": "[Master].[AvailableLaundryCustomerTypesForClient]"
+      },
+      {
+         "HasPrimaryKey": true,
+         "Name": "[Master].[AvailableLaundryServicesForClient]"
+      },
+      {
+         "HasPrimaryKey": true,
+         "Name": "[Master].[laundryCustomerItemBrands]"
+      },
+      {
+         "HasPrimaryKey": true,
+         "Name": "[Master].[laundryCustomerItemsByType]"
+      },
+      {
+         "HasPrimaryKey": true,
+         "Name": "[Master].[LaundryCustomerServices]"
+      },
+      {
+         "HasPrimaryKey": true,
+         "Name": "[Master].[LaundryCustomerTypes]"
       }
    ],
    "UseDatabaseNames": false,

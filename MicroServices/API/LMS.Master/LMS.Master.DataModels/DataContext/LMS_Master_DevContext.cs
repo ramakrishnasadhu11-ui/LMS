@@ -17,14 +17,19 @@ namespace LMS.Master.DataModels.DataContext
         {
         }
 
-        public virtual DbSet<LaundryServices> LaundryServices { get; set; }
+        public virtual DbSet<AvailableLaundryCustomerTypesForClient> AvailableLaundryCustomerTypesForClient { get; set; }
+        public virtual DbSet<AvailableLaundryServicesForClient> AvailableLaundryServicesForClient { get; set; }
+        public virtual DbSet<LaundryCustomerItemBrands> LaundryCustomerItemBrands { get; set; }
+        public virtual DbSet<LaundryCustomerItemsByType> LaundryCustomerItemsByType { get; set; }
+        public virtual DbSet<LaundryCustomerServices> LaundryCustomerServices { get; set; }
+        public virtual DbSet<LaundryCustomerTypes> LaundryCustomerTypes { get; set; }
 
         protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
         {
             if (!optionsBuilder.IsConfigured)
             {
 #warning To protect potentially sensitive information in your connection string, you should move it out of source code. See http://go.microsoft.com/fwlink/?LinkId=723263 for guidance on storing connection strings.
-                optionsBuilder.UseSqlServer("Data Source=database.cqwxueaftokp.us-east-2.rds.amazonaws.com;Initial Catalog=LMS_Master_Dev;Persist Security Info=True;User ID=admin;Password=mypassword");
+                optionsBuilder.UseSqlServer("Data Source=database.cqwxueaftokp.us-east-2.rds.amazonaws.com;Initial Catalog=LMS_Master_Dev;User ID=admin;Password=mypassword");
             }
         }
 
@@ -32,9 +37,9 @@ namespace LMS.Master.DataModels.DataContext
         {
             modelBuilder.HasAnnotation("ProductVersion", "2.2.0-rtm-35687");
 
-            modelBuilder.Entity<LaundryServices>(entity =>
+            modelBuilder.Entity<AvailableLaundryCustomerTypesForClient>(entity =>
             {
-                entity.ToTable("LaundryServices", "Master");
+                entity.ToTable("AvailableLaundryCustomerTypesForClient", "Master");
 
                 entity.Property(e => e.ClientStoreCode)
                     .IsRequired()
@@ -43,15 +48,68 @@ namespace LMS.Master.DataModels.DataContext
 
                 entity.Property(e => e.CreatedDate).HasColumnType("datetime");
 
-                entity.Property(e => e.ModifiedDate).HasColumnType("datetime");
-
-                entity.Property(e => e.ServiceCode)
-                    .IsRequired()
-                    .HasMaxLength(10);
-
-                entity.Property(e => e.ServiceName)
+                entity.Property(e => e.CustomerTypeName)
                     .IsRequired()
                     .HasMaxLength(15);
+
+                entity.Property(e => e.ModifiedDate).HasColumnType("datetime");
+            });
+
+            modelBuilder.Entity<AvailableLaundryServicesForClient>(entity =>
+            {
+                entity.ToTable("AvailableLaundryServicesForClient", "Master");
+
+                entity.Property(e => e.ClientStoreCode)
+                    .IsRequired()
+                    .HasMaxLength(10)
+                    .IsUnicode(false);
+
+                entity.Property(e => e.CreatedDate).HasColumnType("datetime");
+
+                entity.Property(e => e.CustomerServiceType)
+                    .IsRequired()
+                    .HasMaxLength(15);
+
+                entity.Property(e => e.ModifiedDate).HasColumnType("datetime");
+            });
+
+            modelBuilder.Entity<LaundryCustomerItemBrands>(entity =>
+            {
+                entity.ToTable("laundryCustomerItemBrands", "Master");
+
+                entity.Property(e => e.ItemBrandType)
+                    .IsRequired()
+                    .HasMaxLength(20)
+                    .IsUnicode(false);
+            });
+
+            modelBuilder.Entity<LaundryCustomerItemsByType>(entity =>
+            {
+                entity.ToTable("laundryCustomerItemsByType", "Master");
+
+                entity.Property(e => e.ItemType)
+                    .IsRequired()
+                    .HasMaxLength(20)
+                    .IsUnicode(false);
+            });
+
+            modelBuilder.Entity<LaundryCustomerServices>(entity =>
+            {
+                entity.ToTable("LaundryCustomerServices", "Master");
+
+                entity.Property(e => e.CustomerServiceType)
+                    .IsRequired()
+                    .HasMaxLength(30)
+                    .IsUnicode(false);
+            });
+
+            modelBuilder.Entity<LaundryCustomerTypes>(entity =>
+            {
+                entity.ToTable("LaundryCustomerTypes", "Master");
+
+                entity.Property(e => e.CustomerTypeName)
+                    .IsRequired()
+                    .HasMaxLength(30);
             });
 
             OnModelCreatingPartial(modelBuilder);

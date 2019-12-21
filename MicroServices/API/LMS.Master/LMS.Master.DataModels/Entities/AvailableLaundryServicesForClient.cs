@@ -4,13 +4,13 @@ using System.Collections.Generic;
 
 namespace LMS.Master.DataModels.Entities
 {
-    public partial class LaundryServices
+    public partial class AvailableLaundryServicesForClient
     {
         public int Id { get; set; }
         public int ClientId { get; set; }
         public string ClientStoreCode { get; set; }
-        public string ServiceCode { get; set; }
-        public string ServiceName { get; set; }
+        public int CustomerServiceTypeId { get; set; }
+        public string CustomerServiceType { get; set; }
         public int CreatedByUserId { get; set; }
         public DateTime CreatedDate { get; set; }
         public int ModifiedByUserId { get; set; }

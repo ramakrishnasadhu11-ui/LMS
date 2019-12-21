@@ -10,9 +10,51 @@
             </summary>
             <returns></returns>
         </member>
+        <member name="M:LMS.Master.WebApi.Controllers.MasterController.GetAllLaundryServices(LMS.Master.DTO.Entities.Dto.LaundryServicesDto)">
+            <summary>
+            Get All Laundry Service
+            </summary>
+            <returns></returns>
+        </member>
         <member name="M:LMS.Master.WebApi.Controllers.MasterController.AddLaundryService(LMS.Master.DTO.Entities.Dto.LaundryServicesDto)">
             <summary>
             Add Laundry Service
+            </summary>
+            <returns></returns>
+        </member>
+        <member name="M:LMS.Master.WebApi.Controllers.MasterController.UpdateLaundryServices(LMS.Master.DTO.Entities.Dto.LaundryServicesDto)">
+            <summary>
+            Update Laundry Service
+            </summary>
+            <returns></returns>
+        </member>
+        <member name="M:LMS.Master.WebApi.Controllers.MasterController.DeleteLaundryServices(LMS.Master.DTO.Entities.Dto.LaundryServicesDto)">
+            <summary>
+            Delete Laundry Service
+            </summary>
+            <returns></returns>
+        </member>
+        <member name="M:LMS.Master.WebApi.Controllers.MasterController.GetAllLaundryServiceCustomerType(LMS.Master.DTO.Entities.Dto.LaundryServiceCustomerTypeDto)">
+            <summary>
+            GetAllLaundryServiceCustomerType
+            </summary>
+            <returns></returns>
+        </member>
+        <member name="M:LMS.Master.WebApi.Controllers.MasterController.AddlaundryServiceCustomerType(LMS.Master.DTO.Entities.Dto.LaundryServiceCustomerTypeDto)">
+            <summary>
+            Add laundry Service CustomerType
+            </summary>
+            <returns></returns>
+        </member>
+        <member name="M:LMS.Master.WebApi.Controllers.MasterController.UpdatelaundryServiceCustomerType(LMS.Master.DTO.Entities.Dto.LaundryServiceCustomerTypeDto)">
+            <summary>
+            Update laundry Service CustomerType
+            </summary>
+            <returns></returns>
+        </member>
+        <member name="M:LMS.Master.WebApi.Controllers.MasterController.DeletelaundryServiceCustomerType(LMS.Master.DTO.Entities.Dto.LaundryServiceCustomerTypeDto)">
+            <summary>
+            Delete laundry Service CustomerType
             </summary>
             <returns></returns>
         </member>
