@@ -10,7 +10,7 @@
             </summary>
             <returns></returns>
         </member>
-        <member name="M:LMS.Identity.WebApi.Controllers.LoginController.RegisterUser(LMS.Identity.DTO.Entities.Dto.ClientDto)">
+        <member name="M:LMS.Identity.WebApi.Controllers.LoginController.RegisterUser(LMS.Identity.DTO.Entities.Dto.CustomerDto)">
             <summary>
             Register User
             </summary>
@@ -19,6 +19,16 @@
         <member name="M:LMS.Identity.WebApi.Controllers.LoginController.GetUserGenders">
             <summary>
             Get User Gender
+            </summary>
+        </member>
+        <member name="M:LMS.Identity.WebApi.Controllers.LoginController.ChangePassword(System.String,System.String,System.String)">
+            <summary>
+            User can change password
+            </summary>
+        </member>
+        <member name="M:LMS.Identity.WebApi.Controllers.LoginController.ForgotLoginPassword(System.String)">
+            <summary>
+            User can forget password
             </summary>
         </member>
         <member name="M:LMS.Identity.WebApi.Utility.ServiceExtensions.RegisterServices(Microsoft.Extensions.DependencyInjection.IServiceCollection)">

@@ -10,7 +10,7 @@
    "OutputPath": "",
    "ProjectRootNamespace": "LMS.Identity.DataModels",
    "SelectedHandlebarsLanguage": 0,
-   "SelectedToBeGenerated": 0,
+   "SelectedToBeGenerated": 1,
    "Tables": [
       {
          "HasPrimaryKey": true,
@@ -18,11 +18,23 @@
       },
       {
          "HasPrimaryKey": true,
-         "Name": "[Account].[LoginAttempt]"
+         "Name": "[Account].[ClientPassword]"
       },
       {
          "HasPrimaryKey": true,
-         "Name": "[Account].[Password]"
+         "Name": "[Account].[ClientStoreInfo]"
+      },
+      {
+         "HasPrimaryKey": true,
+         "Name": "[Account].[Customer]"
+      },
+      {
+         "HasPrimaryKey": true,
+         "Name": "[Account].[CustomerPassword]"
+      },
+      {
+         "HasPrimaryKey": true,
+         "Name": "[Account].[LoginAttempt]"
       },
       {
          "HasPrimaryKey": true,
@@ -33,5 +45,6 @@
    "UseFluentApiOnly": true,
    "UseHandleBars": false,
    "UseInflector": false,
-   "UseLegacyPluralizer": false
+   "UseLegacyPluralizer": false,
+   "UseSpatial": false
 }

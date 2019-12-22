@@ -2,13 +2,13 @@
 using System;
 using System.Collections.Generic;
 
-namespace LMS.Identity.DataModels
+namespace LMS.Identity.DataModels.Entities
 {
-    public partial class Password
+    public partial class CustomerPassword
     {
         public int PasswordId { get; set; }
-        public int? UserId { get; set; }
-        public string Password1 { get; set; }
+        public int? ClientId { get; set; }
+        public string Password { get; set; }
         public string PasswordAnswer { get; set; }
         public string PasswordQuestion { get; set; }
         public bool? Active { get; set; }

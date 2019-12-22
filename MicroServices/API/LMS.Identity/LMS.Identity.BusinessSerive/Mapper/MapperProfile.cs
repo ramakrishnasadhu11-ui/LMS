@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Text;
 using AutoMapper;
 using LMS.Identity.DataModels;
+using LMS.Identity.DataModels.Entities;
 using LMS.Identity.DTO.Entities.Dto;
 
 namespace LMS.Identity.BusinessSerive.Mapper

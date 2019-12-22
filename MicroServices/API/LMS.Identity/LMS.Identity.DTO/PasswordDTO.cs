@@ -14,8 +14,8 @@ namespace LMS.Identity.DTO.Entities.Dto
         public int PasswordId { get; set; }
 
         [DataMember]
-        [JsonProperty("userId")]
-        public int? UserId { get; set; }
+        [JsonProperty("clientId")]
+        public int? ClientId { get; set; }
 
         [DataMember]
         [JsonProperty("password1")]
@@ -54,7 +54,7 @@ namespace LMS.Identity.DTO.Entities.Dto
             return new PasswordDto()
             {
                 PasswordId = model.PasswordId, 
-                UserId = model.UserId, 
+                ClientId = model.ClientId, 
                 Password1 = model.Password1, 
                 PasswordAnswer = model.PasswordAnswer, 
                 PasswordQuestion = model.PasswordQuestion, 
@@ -71,7 +71,7 @@ namespace LMS.Identity.DTO.Entities.Dto
             return new Password()
             {
                 PasswordId = PasswordId, 
-                UserId = UserId, 
+                ClientId = ClientId, 
                 Password1 = Password1, 
                 PasswordAnswer = PasswordAnswer, 
                 PasswordQuestion = PasswordQuestion, 

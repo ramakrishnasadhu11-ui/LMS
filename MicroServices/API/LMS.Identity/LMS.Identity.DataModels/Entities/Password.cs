@@ -7,7 +7,7 @@ namespace LMS.Identity.DataModels.Entities
     public partial class Password
     {
         public int PasswordId { get; set; }
-        public int? UserId { get; set; }
+        public int? ClientId { get; set; }
         public string Password1 { get; set; }
         public string PasswordAnswer { get; set; }
         public string PasswordQuestion { get; set; }

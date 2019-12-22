@@ -1,0 +1,46 @@
+﻿{
+   "ContextClassName": "LMS_Master_DevContext",
+   "ContextNamespace": null,
+   "DefaultDacpacSchema": null,
+   "DoNotCombineNamespace": false,
+   "IdReplace": false,
+   "IncludeConnectionString": true,
+   "ModelNamespace": null,
+   "OutputContextPath": "DataContext",
+   "OutputPath": "",
+   "ProjectRootNamespace": "LMS.Master.DataModels",
+   "SelectedHandlebarsLanguage": 0,
+   "SelectedToBeGenerated": 1,
+   "Tables": [
+      {
+         "HasPrimaryKey": true,
+         "Name": "[Master].[AvailableLaundryCustomerTypesForClient]"
+      },
+      {
+         "HasPrimaryKey": true,
+         "Name": "[Master].[AvailableLaundryServicesForClient]"
+      },
+      {
+         "HasPrimaryKey": true,
+         "Name": "[Master].[laundryCustomerItemBrands]"
+      },
+      {
+         "HasPrimaryKey": true,
+         "Name": "[Master].[laundryCustomerItemsByType]"
+      },
+      {
+         "HasPrimaryKey": true,
+         "Name": "[Master].[LaundryCustomerServices]"
+      },
+      {
+         "HasPrimaryKey": true,
+         "Name": "[Master].[LaundryCustomerTypes]"
+      }
+   ],
+   "UseDatabaseNames": false,
+   "UseFluentApiOnly": true,
+   "UseHandleBars": false,
+   "UseInflector": false,
+   "UseLegacyPluralizer": false,
+   "UseSpatial": false
+}

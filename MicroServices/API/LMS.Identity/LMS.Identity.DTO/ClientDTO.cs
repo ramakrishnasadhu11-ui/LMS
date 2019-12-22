@@ -10,60 +10,36 @@ namespace LMS.Identity.DTO.Entities.Dto
     public class ClientDto
     {
         [DataMember]
-        [JsonProperty("clientId")]
-        public int ClientId { get; set; }
+        [JsonProperty("id")]
+        public int Id { get; set; }
 
         [DataMember]
-        [JsonProperty("clientGenderId")]
-        public int ClientGenderId { get; set; }
+        [JsonProperty("firstName")]
+        public string FirstName { get; set; }
 
         [DataMember]
-        [JsonProperty("clientName")]
-        public string ClientName { get; set; }
+        [JsonProperty("lastName")]
+        public string LastName { get; set; }
 
         [DataMember]
-        [JsonProperty("phoneNumber")]
-        public int PhoneNumber { get; set; }
+        [JsonProperty("companyName")]
+        public string CompanyName { get; set; }
 
         [DataMember]
         [JsonProperty("email")]
         public string Email { get; set; }
 
         [DataMember]
-        [JsonProperty("middleName")]
-        public string MiddleName { get; set; }
-
-        [DataMember]
-        [JsonProperty("familyName")]
-        public string FamilyName { get; set; }
+        [JsonProperty("phoneNumber")]
+        public int PhoneNumber { get; set; }
 
         [DataMember]
         [JsonProperty("photo")]
         public byte[] Photo { get; set; }
 
         [DataMember]
-        [JsonProperty("address1")]
-        public string Address1 { get; set; }
-
-        [DataMember]
-        [JsonProperty("address2")]
-        public string Address2 { get; set; }
-
-        [DataMember]
-        [JsonProperty("city")]
-        public string City { get; set; }
-
-        [DataMember]
-        [JsonProperty("region")]
-        public string Region { get; set; }
-
-        [DataMember]
-        [JsonProperty("zip")]
-        public string Zip { get; set; }
-
-        [DataMember]
-        [JsonProperty("country")]
-        public string Country { get; set; }
+        [JsonProperty("numberOfStores")]
+        public int? NumberOfStores { get; set; }
 
         [DataMember]
         [JsonProperty("active")]
@@ -85,34 +61,23 @@ namespace LMS.Identity.DTO.Entities.Dto
         [JsonProperty("modifiedDate")]
         public DateTime ModifiedDate { get; set; }
 
-        [DataMember]
-        [JsonProperty("clientGender")]
-        public UserGenderDto ClientGender { get; set; }
-
         public static ClientDto FromModel(Client model)
         {
             return new ClientDto()
             {
-                ClientId = model.ClientId, 
-                ClientGenderId = model.ClientGenderId, 
-                ClientName = model.ClientName, 
-                PhoneNumber = model.PhoneNumber, 
+                Id = model.Id, 
+                FirstName = model.FirstName, 
+                LastName = model.LastName, 
+                CompanyName = model.CompanyName, 
                 Email = model.Email, 
-                MiddleName = model.MiddleName, 
-                FamilyName = model.FamilyName, 
+                PhoneNumber = model.PhoneNumber, 
                 Photo = model.Photo.ToArray(), 
-                Address1 = model.Address1, 
-                Address2 = model.Address2, 
-                City = model.City, 
-                Region = model.Region, 
-                Zip = model.Zip, 
-                Country = model.Country, 
+                NumberOfStores = model.NumberOfStores, 
                 Active = model.Active, 
                 CreatedByUserId = model.CreatedByUserId, 
                 CreatedDate = model.CreatedDate, 
                 ModifiedByUserId = model.ModifiedByUserId, 
                 ModifiedDate = model.ModifiedDate, 
-                ClientGender = UserGenderDto.FromModel(model.ClientGender), 
             }; 
         }
 
@@ -120,26 +85,19 @@ namespace LMS.Identity.DTO.Entities.Dto
         {
             return new Client()
             {
-                ClientId = ClientId, 
-                ClientGenderId = ClientGenderId, 
-                ClientName = ClientName, 
-                PhoneNumber = PhoneNumber, 
+                Id = Id, 
+                FirstName = FirstName, 
+                LastName = LastName, 
+                CompanyName = CompanyName, 
                 Email = Email, 
-                MiddleName = MiddleName, 
-                FamilyName = FamilyName, 
+                PhoneNumber = PhoneNumber, 
                 Photo = Photo.ToArray(), 
-                Address1 = Address1, 
-                Address2 = Address2, 
-                City = City, 
-                Region = Region, 
-                Zip = Zip, 
-                Country = Country, 
+                NumberOfStores = NumberOfStores, 
                 Active = Active, 
                 CreatedByUserId = CreatedByUserId, 
                 CreatedDate = CreatedDate, 
                 ModifiedByUserId = ModifiedByUserId, 
                 ModifiedDate = ModifiedDate, 
-                ClientGender = ClientGender.ToModel(), 
             }; 
         }
     }

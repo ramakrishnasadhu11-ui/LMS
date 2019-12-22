@@ -1,0 +1,78 @@
+<?xml version="1.0"?>
+<doc>
+    <assembly>
+        <name>LMS.Master.WebApi</name>
+    </assembly>
+    <members>
+        <member name="M:LMS.Master.WebApi.Controllers.MasterController.TestService">
+            <summary>
+            Test Service
+            </summary>
+            <returns></returns>
+        </member>
+        <member name="M:LMS.Master.WebApi.Controllers.MasterController.GetAllLaundryServices(LMS.Master.DTO.Entities.Dto.LaundryServicesDto)">
+            <summary>
+            Get All Laundry Service
+            </summary>
+            <returns></returns>
+        </member>
+        <member name="M:LMS.Master.WebApi.Controllers.MasterController.AddLaundryService(LMS.Master.DTO.Entities.Dto.LaundryServicesDto)">
+            <summary>
+            Add Laundry Service
+            </summary>
+            <returns></returns>
+        </member>
+        <member name="M:LMS.Master.WebApi.Controllers.MasterController.UpdateLaundryServices(LMS.Master.DTO.Entities.Dto.LaundryServicesDto)">
+            <summary>
+            Update Laundry Service
+            </summary>
+            <returns></returns>
+        </member>
+        <member name="M:LMS.Master.WebApi.Controllers.MasterController.DeleteLaundryServices(LMS.Master.DTO.Entities.Dto.LaundryServicesDto)">
+            <summary>
+            Delete Laundry Service
+            </summary>
+            <returns></returns>
+        </member>
+        <member name="M:LMS.Master.WebApi.Controllers.MasterController.GetAllLaundryServiceCustomerType(LMS.Master.DTO.Entities.Dto.LaundryServiceCustomerTypeDto)">
+            <summary>
+            GetAllLaundryServiceCustomerType
+            </summary>
+            <returns></returns>
+        </member>
+        <member name="M:LMS.Master.WebApi.Controllers.MasterController.AddlaundryServiceCustomerType(LMS.Master.DTO.Entities.Dto.LaundryServiceCustomerTypeDto)">
+            <summary>
+            Add laundry Service CustomerType
+            </summary>
+            <returns></returns>
+        </member>
+        <member name="M:LMS.Master.WebApi.Controllers.MasterController.UpdatelaundryServiceCustomerType(LMS.Master.DTO.Entities.Dto.LaundryServiceCustomerTypeDto)">
+            <summary>
+            Update laundry Service CustomerType
+            </summary>
+            <returns></returns>
+        </member>
+        <member name="M:LMS.Master.WebApi.Controllers.MasterController.DeletelaundryServiceCustomerType(LMS.Master.DTO.Entities.Dto.LaundryServiceCustomerTypeDto)">
+            <summary>
+            Delete laundry Service CustomerType
+            </summary>
+            <returns></returns>
+        </member>
+        <member name="M:LMS.Master.WebApi.Utility.ServiceExtensions.RegisterServices(Microsoft.Extensions.DependencyInjection.IServiceCollection)">
+            <summary>
+            Register All the Components with this Extension Method, All the Business Services and Repositories used in this Project
+            must be registered here for Enabling Dependency Injection
+            </summary>
+            <param name="services"></param>
+            <returns>Service Collection</returns>
+        </member>
+        <member name="M:LMS.Master.WebApi.Utility.ServiceExtensions.RegisterDatabaseContext(Microsoft.Extensions.DependencyInjection.IServiceCollection,System.String)">
+            <summary>
+            Register DB Context for the Project in this Extension Method.
+            </summary>
+            <param name="services"></param>
+            <param name="connectionString">Connection String for the Main Moduel DB</param>
+            <returns></returns>
+        </member>
+    </members>
+</doc>
