@@ -1,0 +1,55 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/4.1.1/css/bootstrap.min.css">
+    <link rel="stylesheet" type="text/css" href="~/css/custom.css">
+    <link href="https://fonts.googleapis.com/css?family=Poppins:100,300,400,500,600,700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="form-body">
+        <div class="website-logo">
+            <a href="index.html">
+                <div class="logo">
+                    <img class="logo-size" src="https://placeholder.com/wp-content/uploads/2018/10/placeholder.com-logo1.png" alt="">
+                </div>
+            </a>
+        </div>
+        <div class="row">
+            <div class="img-holder">
+                <div class="bg"></div>
+                <div class="info-holder">
+                    <img src="~/Images/loginimage.png" alt="">
+                </div>
+            </div>
+            <div class="form-holder">
+                <div class="form-content register">
+                    <div class="form-items">
+                        <img class="logo-size" src="https://placeholder.com/wp-content/uploads/2018/10/placeholder.com-logo3.png" alt="" style="
+    width: 180px;margin-bottom: 20px;OPACITY: 0.5;">
+
+                        <div class="page-links">
+                            <a href="@Url.Action("Login", "Login")">Login</a> <a href="@Url.Action("Register", "Login")">Register</a>
+                        </div>
+                        <form>
+                            <input class="form-control" type="text" name="First Name" placeholder="First Name" required>
+                            <input class="form-control" type="password" name="Last Name" placeholder="Last Name" required>
+                            <input class="form-control" type="password" name="Company Name" placeholder="Company Name" required>
+                            <input class="form-control" type="text" name="Username" placeholder="E-mail Address" required>
+                            <input class="form-control" type="text" name="Number" placeholder="Phone Number" required>
+                            <input class="form-control" type="text" name="Name" placeholder="Number of Stores" required>
+                            <div class="form-button">
+                                <button id="submit" type="submit" class="ibtn">Register</button><!--  <a href="#">Forget password?</a> -->
+                            </div>
+                            <p>Already have an account?  <a href="@Url.Action("Login", "Login")">Login</a></p>
+                        </form>
+
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
