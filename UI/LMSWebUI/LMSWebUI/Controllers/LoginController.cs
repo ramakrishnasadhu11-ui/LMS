@@ -12,5 +12,10 @@ namespace LMSWebUI.Controllers
         {
             return View("../Login/Login");
         }
+
+        public IActionResult Register()
+        {
+            return View("../Login/Register");   
+        }
     }
 }

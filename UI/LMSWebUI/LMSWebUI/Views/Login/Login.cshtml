@@ -1,16 +1,94 @@
-﻿
-@{
-    Layout = null;
-}
-
-<!DOCTYPE html>
-
-<html>
+﻿<!DOCTYPE html>
+<html lang="en">
 <head>
-    <meta name="viewport" content="width=device-width" />
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Login</title>
-    <b> Hello </b>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/4.1.1/css/bootstrap.min.css">
+    <link rel="stylesheet" type="text/css" href="~/css/custom.css">
+    <link href="https://fonts.googleapis.com/css?family=Poppins:100,300,400,500,600,700&display=swap" rel="stylesheet">
 </head>
 <body>
+    <div class="form-body">
+        <div class="website-logo">
+            <a href="index.html">
+                <div class="logo">
+                    <img class="logo-size" src="https://placeholder.com/wp-content/uploads/2018/10/placeholder.com-logo1.png" alt="">
+                </div>
+            </a>
+        </div>
+        <div class="row">
+            <div class="img-holder">
+                <div class="bg"></div>
+                <div class="info-holder">
+                    <img src="~/Images/loginimage.png" alt="">
+                </div>
+            </div>
+            <div class="form-holder">
+                <div class="form-content ">
+                    <div class="form-items" style="width: 340px;">
+                        <img class="logo-size" src="https://placeholder.com/wp-content/uploads/2018/10/placeholder.com-logo3.png" alt="" style="
+    width: 180px;margin-bottom: 20px;opacity: 0.5;">
+
+                        <div class="page-links">
+                            <a href="@Url.Action("Login", "Login")">Login</a> <a href="@Url.Action("Register", "Login")">Register</a>
+                        </div>
+                        <form>
+                            <input class="form-control" type="text" name="username" placeholder="E-mail Address" required>
+                            <input class="form-control" type="password" name="password" placeholder="Password" required>
+                            <select class="form-control" id="sel1" required="">
+                                <option>Store Name</option>
+                                <option>Store Name</option>
+                                <option>Store Name</option>
+                                <option>Store Name</option>
+                            </select>
+                            <div class="form-button">
+                                <button id="submit" type="submit" class="ibtn">Login</button> <a href="#" data-toggle="modal" data-target="#myModal">Forget password?</a>
+                            </div>
+                        </form>
+
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+
+
+    <!-- popup html -->
+    <!-- The Modal -->
+    <div class="modal" id="myModal">
+        <div class="modal-dialog">
+            <div class="modal-content">
+
+                <!-- Modal Header -->
+                <div class="modal-header">
+                    <h4 class="modal-title">Forgot Your Password?</h4>
+                    <button type="button" class="close" data-dismiss="modal" aria-hidden="true">×</button>
+                </div>
+
+                <!-- Modal body -->
+                <div class="modal-body">
+                    <div class="form-group">
+                        <input class="form-control input-lg" placeholder="E-mail Address" name="email" type="email" required> <br>
+                        <input class="form-control input-lg" placeholder="New Password" name="email" type="password" required><br>
+                        <input class="form-control input-lg" placeholder="Confirm Password" name="email" type="password" required>
+                    </div>
+                </div>
+
+                <!-- Modal footer -->
+
+                <div class="modal-footer">
+                    <button id="submit" type="submit" class="ibtn">Reset my Password</button>
+
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.4.1/jquery.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.16.0/umd/popper.min.js"></script>
+    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.4.1/js/bootstrap.min.js"></script>
 </body>
 </html>

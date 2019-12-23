@@ -10,51 +10,46 @@
             </summary>
             <returns></returns>
         </member>
-        <member name="M:LMS.Master.WebApi.Controllers.MasterController.GetAllLaundryServices(LMS.Master.DTO.Entities.Dto.LaundryServicesDto)">
+        <member name="M:LMS.Master.WebApi.Controllers.MasterController.GetAllAssignedLaundryServices(LMS.Master.DTO.Entities.Dto.AvailableLaundryServicesForClientDto)">
             <summary>
-            Get All Laundry Service
+            Get All Assigned Laundry Services to the client
             </summary>
             <returns></returns>
         </member>
-        <member name="M:LMS.Master.WebApi.Controllers.MasterController.AddLaundryService(LMS.Master.DTO.Entities.Dto.LaundryServicesDto)">
+        <member name="M:LMS.Master.WebApi.Controllers.MasterController.AssignlaundryserviceByClient(LMS.Master.DTO.Entities.Dto.AvailableLaundryServicesForClientDto)">
             <summary>
-            Add Laundry Service
+            Assign Laundryservice to the Client
             </summary>
             <returns></returns>
         </member>
-        <member name="M:LMS.Master.WebApi.Controllers.MasterController.UpdateLaundryServices(LMS.Master.DTO.Entities.Dto.LaundryServicesDto)">
+        <member name="M:LMS.Master.WebApi.Controllers.MasterController.UpdateAssignLaundryServiceByClient(LMS.Master.DTO.Entities.Dto.AvailableLaundryServicesForClientDto)">
             <summary>
-            Update Laundry Service
+            Update Assigned Laundry Service by Client
             </summary>
             <returns></returns>
         </member>
-        <member name="M:LMS.Master.WebApi.Controllers.MasterController.DeleteLaundryServices(LMS.Master.DTO.Entities.Dto.LaundryServicesDto)">
+        <!-- Badly formed XML comment ignored for member "M:LMS.Master.WebApi.Controllers.MasterController.DeleteAssignLaundryServiceByClient(LMS.Master.DTO.Entities.Dto.AvailableLaundryServicesForClientDto)" -->
+        <member name="M:LMS.Master.WebApi.Controllers.MasterController.GetAllAssignedLaundryCustomerTypeForClient(LMS.Master.DTO.Entities.Dto.AvailableLaundryCustomerTypesForClientDto)">
             <summary>
-            Delete Laundry Service
+            Get All Assigned Laundry CustomerType For Client
             </summary>
             <returns></returns>
         </member>
-        <member name="M:LMS.Master.WebApi.Controllers.MasterController.GetAllLaundryServiceCustomerType(LMS.Master.DTO.Entities.Dto.LaundryServiceCustomerTypeDto)">
+        <member name="M:LMS.Master.WebApi.Controllers.MasterController.AssignLaundryCustomerTypeForClient(LMS.Master.DTO.Entities.Dto.AvailableLaundryCustomerTypesForClientDto)">
             <summary>
-            GetAllLaundryServiceCustomerType
+            Assign LaundryCustomer Type For Client
             </summary>
             <returns></returns>
         </member>
-        <member name="M:LMS.Master.WebApi.Controllers.MasterController.AddlaundryServiceCustomerType(LMS.Master.DTO.Entities.Dto.LaundryServiceCustomerTypeDto)">
+        <member name="M:LMS.Master.WebApi.Controllers.MasterController.UpdateAssignLaundryCustomerTypeForClient(LMS.Master.DTO.Entities.Dto.AvailableLaundryCustomerTypesForClientDto)">
             <summary>
-            Add laundry Service CustomerType
+            Update Assign Laundry CustomerType For Client
             </summary>
             <returns></returns>
         </member>
-        <member name="M:LMS.Master.WebApi.Controllers.MasterController.UpdatelaundryServiceCustomerType(LMS.Master.DTO.Entities.Dto.LaundryServiceCustomerTypeDto)">
+        <member name="M:LMS.Master.WebApi.Controllers.MasterController.DeleteAssignLaundryCustomerTypeByClient(LMS.Master.DTO.Entities.Dto.AvailableLaundryCustomerTypesForClientDto)">
             <summary>
-            Update laundry Service CustomerType
-            </summary>
-            <returns></returns>
-        </member>
-        <member name="M:LMS.Master.WebApi.Controllers.MasterController.DeletelaundryServiceCustomerType(LMS.Master.DTO.Entities.Dto.LaundryServiceCustomerTypeDto)">
-            <summary>
-            Delete laundry Service CustomerType
+            Delete Assign LaundryCustomer Type By Client
             </summary>
             <returns></returns>
         </member>
