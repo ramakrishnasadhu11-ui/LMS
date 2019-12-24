@@ -125,7 +125,7 @@ namespace LMS.Identity.WebApi.Controllers
                 {
                     //Checking for email count
                     int emailCount = 0;
-                    emailCount= await _login.GetEmailCount(userEmail);
+                    emailCount= _login.GetEmailCount(userEmail);
                     if(emailCount==0)
                     {
                         LoginStatusDTO.Message = "No Email address found for this user name, please contact your Administrator to reset your password";
@@ -178,8 +178,10 @@ namespace LMS.Identity.WebApi.Controllers
                 return new APIResponse(StatusCodes.Status200OK, Common.GetEnumDescription((StatusCodeMessages)StatusCodes.Status200OK), clientId);
             else if (clientId == 0)
                 return new APIResponse(StatusCodes.Status204NoContent, Common.GetEnumDescription((StatusCodeMessages)StatusCodes.Status204NoContent), clientId);
+            else if(clientId == -1)
+                return new APIResponse(StatusCodes.Status200OK, Common.GetEnumDescription((StatusCodeMessages)StatusCodes.Status200OK), clientId);
             else
-                throw new ApiException(Common.GetEnumDescription((StatusCodeMessages)StatusCodes.Status500InternalServerError), clientId);
+                throw new ApiException(Common.GetEnumDescription((StatusCodeMessages)StatusCodes.Status500InternalServerError), 0);
 
         }
 

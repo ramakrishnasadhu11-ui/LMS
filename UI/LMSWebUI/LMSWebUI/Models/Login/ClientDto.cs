@@ -61,5 +61,7 @@ namespace LMSWebUI.Models.Login
         [JsonProperty("modifiedDate")]
         public DateTime ModifiedDate { get; set; }
 
+        public string Message { get; set; }
+
     }
 }

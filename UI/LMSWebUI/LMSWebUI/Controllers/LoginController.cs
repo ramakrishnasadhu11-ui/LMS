@@ -35,9 +35,27 @@ namespace LMSWebUI.Controllers
         }
         [HttpPost]
         [AllowAnonymous]
-        public ActionResult Register(ClientDto ClientDto)
+        public async Task<ActionResult> Register(ClientDto ClientDto)
         {
-
+            myResponse APIResponse = new myResponse();
+            if(ClientDto!=null)
+            {
+                byte[] init_photo=new byte[] { 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20 };
+                ClientDto.Photo = init_photo;
+                ClientDto.CreatedByUserId = 1;
+                ClientDto.ModifiedByUserId = 1;
+                ClientDto.Active = false;
+                APIResponse = await clientAPI.SendRequestAsync<myResponse>("/api/Login/RegisterClient", ClientDto, RestSharp.Method.POST);
+                if(APIResponse.StatusCode==200 && Convert.ToInt32(APIResponse.Result.ToString())>0)
+                    APIResponse.Message = "Client Registration Successfully.Please contact Administrator for Activation of your Store.";
+                else if(APIResponse.StatusCode == 200 && Convert.ToInt32(APIResponse.Result.ToString()) == -1)
+                    APIResponse.Message = "Your E-Mail was Already Registered with us.Please check your e-mail for further processing.";
+            }
+            else
+            {
+                APIResponse.Message = "Invalid data for this operation";
+            }
+            ClientDto.Message = APIResponse.Message;
             return View(ClientDto);
 
         }

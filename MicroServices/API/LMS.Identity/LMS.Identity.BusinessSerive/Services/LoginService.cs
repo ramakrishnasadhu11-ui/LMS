@@ -222,7 +222,7 @@ namespace LMS.Identity.BusinessSerive.Services
                 else
                     return 0;
         }
-        public async Task<int> GetEmailCount(string email)
+        public int GetEmailCount(string email)
         {
                 var ctx = new LMSDB_DevContext();
                 var Count = new SqlParameter("@Count", SqlDbType.Int);
@@ -244,54 +244,62 @@ namespace LMS.Identity.BusinessSerive.Services
             var clientId = new SqlParameter("@ClientId", SqlDbType.Int);
             clientId.Direction = ParameterDirection.Output;
             ClientDto.Active = false;
-            int status = ctx.Database.ExecuteSqlCommand("[dbo].[usp_insert_client] @FirstName,@LastName,@CompanyName,@EMail,@phoneNumber,@Photo,@NumberOfStores,@Active,@CreatedByUserId,@ModifiedByUserId,@ClientId OUT",
-                new SqlParameter("@FirstName", ClientDto.FirstName),
-                new SqlParameter("@LastName", ClientDto.LastName),
-                new SqlParameter("@CompanyName", ClientDto.CompanyName),
-                new SqlParameter("@EMail", ClientDto.Email),
-                new SqlParameter("@phoneNumber", ClientDto.PhoneNumber),
-                new SqlParameter("@Photo",ClientDto.Photo),
-                new SqlParameter("@NumberOfStores", ClientDto.NumberOfStores),
-                new SqlParameter("@Active", ClientDto.Active),
-                new SqlParameter("@CreatedByUserId", ClientDto.CreatedByUserId),
-                new SqlParameter("@ModifiedByUserId", ClientDto.ModifiedByUserId),
-                clientId);
-            if (status == 1)
+            int emailCount=GetEmailCount(ClientDto.Email);
+            if (emailCount == 0)
             {
-                var passwordgenStatus = new SqlParameter("@Status", SqlDbType.Int);
-                passwordgenStatus.Direction = ParameterDirection.Output;
-                string password = Utility.generateOTP();
-                int st = ctx.Database.ExecuteSqlCommand("usp_client_generatepassword @Client_id,@Password,@Active,@CreatedByUserId,@ModifiedByUserId,@Status OUT",
-              new SqlParameter("@Client_id", Convert.ToInt32(clientId.Value)),
-              new SqlParameter("@Password", password),
-              new SqlParameter("@Active", 1),
-              new SqlParameter("@CreatedByUserId", ClientDto.CreatedByUserId),
-              new SqlParameter("@ModifiedByUserId", ClientDto.ModifiedByUserId),
-              passwordgenStatus);
-                List<string> storeCodes =new List<string>();
-                for (int i=0;i< ClientDto.NumberOfStores;i++)
+                int status = ctx.Database.ExecuteSqlCommand("[dbo].[usp_insert_client] @FirstName,@LastName,@CompanyName,@EMail,@phoneNumber,@Photo,@NumberOfStores,@Active,@CreatedByUserId,@ModifiedByUserId,@ClientId OUT",
+                    new SqlParameter("@FirstName", ClientDto.FirstName),
+                    new SqlParameter("@LastName", ClientDto.LastName),
+                    new SqlParameter("@CompanyName", ClientDto.CompanyName),
+                    new SqlParameter("@EMail", ClientDto.Email),
+                    new SqlParameter("@phoneNumber", ClientDto.PhoneNumber),
+                    new SqlParameter("@Photo", ClientDto.Photo),
+                    new SqlParameter("@NumberOfStores", ClientDto.NumberOfStores),
+                    new SqlParameter("@Active", ClientDto.Active),
+                    new SqlParameter("@CreatedByUserId", ClientDto.CreatedByUserId),
+                    new SqlParameter("@ModifiedByUserId", ClientDto.ModifiedByUserId),
+                    clientId);
+                if (status == 1)
                 {
-                var storeInsertStatus = new SqlParameter("@Status", SqlDbType.Int);
-                storeInsertStatus.Direction = ParameterDirection.Output;
-                string storecode=Utility.GenerateStoreCode(3);
-                ctx.Database.ExecuteSqlCommand("usp_client_insertstores @Client_id,@ClientStoreCode,@CreatedByUserId,@ModifiedByUserId,@Status OUT",
-                new SqlParameter("@Client_id", Convert.ToInt32(clientId.Value)),
-                new SqlParameter("@ClientStoreCode", storecode),
-                new SqlParameter("@CreatedByUserId", ClientDto.CreatedByUserId),
-                new SqlParameter("@ModifiedByUserId", ClientDto.ModifiedByUserId),
-                storeInsertStatus);
-                    storeCodes.Add(storecode);
-                }
-                if (Convert.ToInt32(clientId.Value) > 0 && Convert.ToInt32(passwordgenStatus.Value) > 0)
-                {
-                    sendEmailToClient(ClientDto.Email, password, storeCodes);
-                    return Convert.ToInt32(clientId.Value);
+                    var passwordgenStatus = new SqlParameter("@Status", SqlDbType.Int);
+                    passwordgenStatus.Direction = ParameterDirection.Output;
+                    string password = Utility.generateOTP();
+                    int st = ctx.Database.ExecuteSqlCommand("usp_client_generatepassword @Client_id,@Password,@Active,@CreatedByUserId,@ModifiedByUserId,@Status OUT",
+                  new SqlParameter("@Client_id", Convert.ToInt32(clientId.Value)),
+                  new SqlParameter("@Password", password),
+                  new SqlParameter("@Active", false),
+                  new SqlParameter("@CreatedByUserId", ClientDto.CreatedByUserId),
+                  new SqlParameter("@ModifiedByUserId", ClientDto.ModifiedByUserId),
+                  passwordgenStatus);
+                    List<string> storeCodes = new List<string>();
+                    for (int i = 0; i < ClientDto.NumberOfStores; i++)
+                    {
+                        var storeInsertStatus = new SqlParameter("@Status", SqlDbType.Int);
+                        storeInsertStatus.Direction = ParameterDirection.Output;
+                        string storecode = Utility.GenerateStoreCode(3);
+                        ctx.Database.ExecuteSqlCommand("usp_client_insertstores @Client_id,@ClientStoreCode,@CreatedByUserId,@ModifiedByUserId,@Status OUT",
+                        new SqlParameter("@Client_id", Convert.ToInt32(clientId.Value)),
+                        new SqlParameter("@ClientStoreCode", storecode),
+                        new SqlParameter("@CreatedByUserId", ClientDto.CreatedByUserId),
+                        new SqlParameter("@ModifiedByUserId", ClientDto.ModifiedByUserId),
+                        storeInsertStatus);
+                        storeCodes.Add(storecode);
+                    }
+                    if (Convert.ToInt32(clientId.Value) > 0 && Convert.ToInt32(passwordgenStatus.Value) > 0)
+                    {
+                        sendEmailToClient(ClientDto.Email, password, storeCodes);
+                        return Convert.ToInt32(clientId.Value);
+                    }
+                    else
+                        return 0;
                 }
                 else
                     return 0;
             }
             else
-                return 0;
+            {
+                return -1;
+            }
         }
         #endregion
 
