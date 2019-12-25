@@ -222,5 +222,31 @@ namespace LMS.Identity.WebApi.Controllers
             }
             return new APIResponse(StatusCodes.Status500InternalServerError, Common.GetEnumDescription((StatusCodeMessages)StatusCodes.Status200OK), LoginStatusDTO);
         }
+
+        [HttpGet(nameof(GetClientStoreDetails))]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        public ActionResult<APIResponse> GetClientStoreDetails([FromQuery] string eMail)
+        {
+            string clientStoreDetails= _login.GetClientStoreDetails(eMail);
+            LoginStatusDTO LoginStatusDTO = new LoginStatusDTO();
+            if (clientStoreDetails.Length >=1)
+            {
+                LoginStatusDTO.Message = "Success";
+                LoginStatusDTO.MessageStatus = "Success";
+                return new APIResponse(StatusCodes.Status200OK, Common.GetEnumDescription((StatusCodeMessages)StatusCodes.Status200OK), clientStoreDetails);
+            }
+            else if (string.IsNullOrEmpty(clientStoreDetails))
+            {
+                    LoginStatusDTO.Message = "Fail";
+                    LoginStatusDTO.MessageStatus = "Fail";
+                    return new APIResponse(StatusCodes.Status404NotFound, Common.GetEnumDescription((StatusCodeMessages)StatusCodes.Status200OK), LoginStatusDTO);
+           }
+            else
+            throw new ApiException(Common.GetEnumDescription((StatusCodeMessages)StatusCodes.Status500InternalServerError), 0);
+        }
+
+
     }
 }
