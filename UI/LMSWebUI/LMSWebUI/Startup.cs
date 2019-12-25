@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using LMSClientFactory.Helper;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
@@ -14,16 +15,26 @@ namespace LMSWebUI
 {
     public class Startup
     {
-        public Startup(IConfiguration configuration)
+        public string ApiUrl { get; set; }
+        public Startup(IConfiguration configuration, IHostingEnvironment environment)
         {
             Configuration = configuration;
+            Environment = environment;
+            IConfigurationBuilder builder = new ConfigurationBuilder()
+               .SetBasePath(environment.ContentRootPath)
+               .AddJsonFile("appsettings.json", optional: true, reloadOnChange: true)
+               .AddJsonFile($"appsettings.{environment.EnvironmentName}.json", optional: true)
+               .AddEnvironmentVariables();
+            Configuration = builder.Build();
+            ApiUrl = Configuration.GetValue<string>("LoginApiUrl");
         }
 
         public IConfiguration Configuration { get; }
-
+        public IHostingEnvironment Environment { get; }
         // This method gets called by the runtime. Use this method to add services to the container.
         public void ConfigureServices(IServiceCollection services)
         {
+             services.RegisterServices(Configuration);
             services.Configure<IISOptions>(options =>
             {
                 options.AutomaticAuthentication = false;
@@ -36,7 +47,7 @@ namespace LMSWebUI
             });
 
 
-
+            services.AddTransient<IHttpClientApi>(s => new HttpClientApi(Configuration["LoginApiUrl"]));
             services.AddMvc().SetCompatibilityVersion(CompatibilityVersion.Version_2_2);
         }
 

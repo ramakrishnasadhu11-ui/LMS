@@ -1,4 +1,5 @@
-﻿<!DOCTYPE html>
+﻿@model LMSWebUI.Models.Login.ClientDto
+<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
@@ -29,22 +30,28 @@
                     <div class="form-items">
                         <img class="logo-size" src="https://placeholder.com/wp-content/uploads/2018/10/placeholder.com-logo3.png" alt="" style="
     width: 180px;margin-bottom: 20px;OPACITY: 0.5;">
-
+                        @if (Model.Message != null)
+                        {
+                            <div class="alert alert-success" role="alert"><strong>Well done!</strong><span class="glyphi glyphicon glyphicon-exclamation-sign"></span>@Model.Message</div>
+                        }
                         <div class="page-links">
                             <a href="@Url.Action("Login", "Login")">Login</a> <a href="@Url.Action("Register", "Login")">Register</a>
                         </div>
-                        <form>
-                            <input class="form-control" type="text" name="First Name" placeholder="First Name" required>
-                            <input class="form-control" type="password" name="Last Name" placeholder="Last Name" required>
-                            <input class="form-control" type="password" name="Company Name" placeholder="Company Name" required>
-                            <input class="form-control" type="text" name="Username" placeholder="E-mail Address" required>
-                            <input class="form-control" type="text" name="Number" placeholder="Phone Number" required>
-                            <input class="form-control" type="text" name="Name" placeholder="Number of Stores" required>
-                            <div class="form-button">
-                                <button id="submit" type="submit" class="ibtn">Register</button><!--  <a href="#">Forget password?</a> -->
-                            </div>
-                            <p>Already have an account?  <a href="@Url.Action("Login", "Login")">Login</a></p>
-                        </form>
+                        @using (Html.BeginForm("Register", "Login", FormMethod.Post, new { @class = "form" }))
+                        {
+                            <form>
+                                @Html.TextBoxFor(m => m.FirstName, new { @placeholder = "First Name", @class = "form-control", required = "required" })
+                                @Html.TextBoxFor(m => m.LastName, new { @placeholder = "Last Name", @class = "form-control", required = "required" })
+                                @Html.TextBoxFor(m => m.CompanyName, new { @placeholder = "Company Name", @class = "form-control", required = "required" })
+                                @Html.TextBoxFor(m => m.Email, new { @placeholder = "E-mail Address", @class = "form-control", required = "required" })
+                                @Html.TextBoxFor(m => m.PhoneNumber, new { @placeholder = "Phone Number", @class = "form-control", required = "required" })
+                                @Html.TextBoxFor(m => m.NumberOfStores, new { @placeholder = "Number of Stores", @class = "form-control", required = "required" })
+                                <div class="form-button">
+                                    <button id="submit" type="submit" class="ibtn">Register</button><!--  <a href="#">Forget password?</a> -->
+                                </div>
+                                <p>Already have an account?  <a href="@Url.Action("Login", "Login")">Login</a></p>
+                            </form>
+                        }
 
                     </div>
                 </div>
