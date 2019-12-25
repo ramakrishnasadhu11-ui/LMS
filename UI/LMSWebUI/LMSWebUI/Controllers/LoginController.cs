@@ -21,8 +21,10 @@ namespace LMSWebUI.Controllers
         public async Task<IActionResult> Login()
         {
             myResponse APIResponse = new myResponse();
-            APIResponse = await clientAPI.SendRequestAsync<myResponse>("/api/Login/TestService", RestSharp.Method.GET);
-            return View("../Login/Login");
+            ClientLoginDto ClientLoginDto = new ClientLoginDto();
+            //APIResponse = await clientAPI.SendRequestAsync<myResponse>("/api/Login/TestService", RestSharp.Method.GET);
+            return View(ClientLoginDto);
+          //  return View("../Login/Login");
         }
 
         [HttpGet]

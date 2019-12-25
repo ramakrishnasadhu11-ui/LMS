@@ -13,6 +13,8 @@ html, body {
     height: 100%;
 }
 
+
+
 .form-body {
     background-color: #0093FF;
     height: 100%;
@@ -45,7 +47,7 @@ html, body {
 
 .website-logo .logo {
     display: inline-block;
-    background-image: url("https://placeholder.com/wp-content/uploads/2018/10/placeholder.com-logo1.png");
+    /*background-image: url("https://placeholder.com/wp-content/uploads/2018/10/placeholder.com-logo1.png");*/
     background-size: contain;
     background-repeat: no-repeat;
 }
@@ -137,11 +139,11 @@ html, body {
     position: absolute;
     top: 0;
     left: 0;
-    width: 550px;
+    width: 45%;
     min-height: 700px;
     height: 100%;
     overflow: hidden;
-    background-color: #f1fbf9;
+    background-color: #007fb6;
     padding: 60px;
     text-align: center;
     z-index: 999;
@@ -205,7 +207,7 @@ select.form-control:not([size]):not([multiple]) {
 
 .img-holder .info-holder img {
     width: 100%;
-    max-width: 378px;
+    max-width: 500px;
 }
 
 .img-holder .info-holder img.md-size {
@@ -265,7 +267,7 @@ select.form-control:not([size]):not([multiple]) {
     justify-content: center;
     -webkit-align-items: center;
     align-items: center;
-    padding: 60px;
+   /* padding: 60px;*/
     min-height: 100%;
 }
 
@@ -314,7 +316,7 @@ select.form-control:not([size]):not([multiple]) {
 .ibtn{border-radius: 6px;
     border: 0;
     padding: 6px 28px;
-    background-color: #00b095;
+    background-color: #007fb6;
     color: #fff;
     font-size: 14px;
     font-weight: 500;
@@ -414,7 +416,7 @@ select.form-control:not([size]):not([multiple]) {
 }
 
 .form-content .page-links a.active:after {
-    background-color: #00b095;
+    background-color: #007fb6;
 }
 
 .form-content .page-links a:hover:after, .form-content .page-links a:focus:after {
@@ -691,7 +693,7 @@ select.form-control:not([size]):not([multiple]) {
     border-radius: 6px;
     border: 0;
     padding: 6px 28px;
-    background-color: #00b095;
+    background-color: #007fb6;
     color: #fff;
     font-size: 14px;
     font-weight: 500;
@@ -765,14 +767,14 @@ select.form-control:not([size]):not([multiple]) {
 .form-content .other-links span {
     font-size: 12px;
     font-weight: 300;
-    color: #fff;
+    color: #000;
     margin-right: 20px;
 }
 
 .form-content .other-links a {
     font-size: 12px;
     font-weight: 700;
-    color: #fff;
+    color: #000;
     margin-right: 10px;
 }
 
