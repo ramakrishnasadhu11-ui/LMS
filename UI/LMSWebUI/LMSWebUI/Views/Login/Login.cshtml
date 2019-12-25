@@ -1,10 +1,10 @@
-﻿@model LMSWebUI.Models.Login.ClientDto
+﻿@model LMSWebUI.Models.Login.ClientLoginDto
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Login</title>
+    <title>ELS Login</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/4.1.1/css/bootstrap.min.css">
     <link rel="stylesheet" type="text/css" href="~/css/custom.css">
     <link href="https://fonts.googleapis.com/css?family=Poppins:100,300,400,500,600,700&display=swap" rel="stylesheet">
@@ -14,7 +14,7 @@
         <div class="website-logo">
             <a href="index.html">
                 <div class="logo">
-                    <img class="logo-size" src="https://placeholder.com/wp-content/uploads/2018/10/placeholder.com-logo1.png" alt="">
+                    <img class="logo-size" src="~/Images/els-white.png" alt="">
                 </div>
             </a>
         </div>
@@ -26,17 +26,17 @@
                 </div>
             </div>
             <div class="form-holder">
-                <div class="form-content ">
+                <div class="form-content">
                     <div class="form-items" style="width: 340px;">
-                        <img class="logo-size" src="https://placeholder.com/wp-content/uploads/2018/10/placeholder.com-logo3.png" alt="" style="
-    width: 180px;margin-bottom: 20px;opacity: 0.5;">
-
+                        <img class="logo-size" src="~/Images/els-blue-web.png" alt="" style="
+    width: 180px;margin-bottom: 20px;">
                         <div class="page-links">
                             <a href="@Url.Action("Login", "Login")">Login</a> <a href="@Url.Action("Register", "Login")">Register</a>
                         </div>
                         <form>
-                            <input class="form-control" type="text" name="username" placeholder="E-mail Address" required>
-                            <input class="form-control" type="password" name="password" placeholder="Password" required>
+
+                            @Html.TextBoxFor(m => m.Email, new { @placeholder = "E-Mail", @class = "form-control", required = "required", id = "userEmail", @onblur = "return yourFunction(this)" })
+                            @Html.TextBoxFor(m => m.Password, new { @placeholder = "password", @class = "form-control", required = "required", @type = "password" })
                             <select class="form-control" id="sel1" required="">
                                 <option>Store Name</option>
                                 <option>Store Name</option>
@@ -47,7 +47,9 @@
                                 <button id="submit" type="submit" class="ibtn">Login</button> <a href="#" data-toggle="modal" data-target="#myModal">Forget password?</a>
                             </div>
                         </form>
-
+                        <div class="other-links">
+                            <span><i>The best way to manage your Dry cleaning and Laundry business</span></i>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -91,5 +93,14 @@
     <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.4.1/jquery.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.16.0/umd/popper.min.js"></script>
     <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.4.1/js/bootstrap.min.js"></script>
-</body>
-</html>
+
+    <script type='text/javascript'>
+        function yourFunction($event) {
+            debugger
+            alert("hello");
+            var userEmail = $("#userEmail").get(0).value;
+            
+        }
+    </script>
+</body >
+</html >
