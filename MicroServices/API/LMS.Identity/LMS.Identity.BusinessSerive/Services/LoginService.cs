@@ -330,5 +330,40 @@ namespace LMS.Identity.BusinessSerive.Services
 
 
         }
+
+        #region GetClientStoreDetails
+        public string GetClientStoreDetails(string eMail)
+        {
+            var ctx = new LMSDB_DevContext();
+            var count = new SqlParameter("@Count", SqlDbType.Int);
+            count.Direction = ParameterDirection.Output;
+            var StoresDetails = new SqlParameter("@StoresDetails", SqlDbType.VarChar);
+            StoresDetails.Direction = ParameterDirection.Output;
+            StoresDetails.Size = 100;
+
+            ctx.Database.ExecuteSqlCommand("[dbo].[usp_CheckClientStoresCount] @Email,@Count OUT",
+                 new SqlParameter("@Email", eMail),
+                 count);
+
+            if(Convert.ToInt32(count.Value)>=1)
+            {
+                ctx.Database.ExecuteSqlCommand("[dbo].[usp_GetStoresDetailsByClient] @Email,@StoresDetails OUT",
+               new SqlParameter("@Email", eMail),
+               StoresDetails);
+
+                if(StoresDetails.Value.ToString().Length>0)
+                {
+                    return StoresDetails.Value.ToString();
+                }
+                else
+                {
+                    return string.Empty;
+                }
+            }
+            return string.Empty;
+
+            
+        }
+        #endregion
     }
 }

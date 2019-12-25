@@ -61,5 +61,15 @@ namespace LMSWebUI.Controllers
             return View(ClientDto);
 
         }
+
+        [HttpGet]
+        [AllowAnonymous]
+        public async Task<string> GetAllStoresByClient(string clientUrl)
+        {
+
+            return "jjjj";
+
+        }
+
         }
     }

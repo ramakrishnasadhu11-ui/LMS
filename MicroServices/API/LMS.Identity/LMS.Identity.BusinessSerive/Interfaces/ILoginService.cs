@@ -17,5 +17,7 @@ namespace LMS.Identity.BusinessSerive.Interfaces
         int GetEmailCount(string email);
         int ClientLogin(ClientLoginDto ClientLoginDto);
         int RegisterClient(ClientDto ClientDto);
+
+        string GetClientStoreDetails(string eMail);
     }
 }

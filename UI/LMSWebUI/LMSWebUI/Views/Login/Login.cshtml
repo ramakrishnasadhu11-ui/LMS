@@ -30,7 +30,7 @@
                     <div class="form-items" style="width: 340px;">
                         <img class="logo-size" src="~/Images/els-blue-web.png" alt="" style="
     width: 180px;margin-bottom: 20px;">
-                        <div class="page-links"> 
+                        <div class="page-links">
                             <a href="@Url.Action("Login", "Login")">Login</a> <a href="@Url.Action("Register", "Login")">Register</a>
                         </div>
                         <form>
@@ -93,14 +93,40 @@
     <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.4.1/jquery.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.16.0/umd/popper.min.js"></script>
     <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.4.1/js/bootstrap.min.js"></script>
-
-    <script type='text/javascript'>
-        function yourFunction($event) {
-            debugger
-            alert("hello");
-            var userEmail = $("#userEmail").get(0).value;
-            
-        }
-    </script>
-</body >
+        <script type='text/javascript'>
+            function yourFunction($event) {
+                debugger
+                alert("hello");
+                var userEmail = $("#userEmail").get(0).value;
+                var url = "/Login/GetAllStoresByClient?clientUrl" + userEmail;
+                var model = {
+                    'clientUrl': $("#userEmail").get(0).value,
+                            }
+                $.ajax({
+                    type: "GET",
+                    url: '@Url.Action("GetAllStoresByClient", "Login")',
+                    data: model,
+                    success: function (data) {
+                        alert(data);
+                        //location.reload(true);
+                        //localStorage.setItem('successMessage', "Deleted Successfully."); //set
+                    },
+                    error: function () {
+                        BootstrapDialog.show({
+                            title: 'Warning Alert',
+                            message: 'Error occurred while processing your request.',
+                            buttons: [{
+                                label: 'OK',
+                                cssClass: 'btn btn-success btn-middle',
+                                action: function (dialog) {
+                                    dialog.close();
+                                }
+                            }]
+                        });
+                    }
+                });
+               }
+        </script>
+        
+    </body>
 </html >
