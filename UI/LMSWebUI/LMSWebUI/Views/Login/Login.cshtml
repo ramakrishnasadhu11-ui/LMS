@@ -30,25 +30,19 @@
                     <div class="form-items" style="width: 340px;">
                         <img class="logo-size" src="~/Images/els-blue-web.png" alt="" style="
     width: 180px;margin-bottom: 20px;">
+                        <div id="information"> <span class="glyphi glyphicon glyphicon-exclamation-sign"></span> </div>
                         <div class="page-links">
-                            <a href="@Url.Action("Login", "Login")">Login</a> <a href="@Url.Action("Register", "Login")">Register</a>
+                            <a class="active" href="@Url.Action("Login", "Login")">Login</a> <a href="@Url.Action("Register", "Login")">Register</a>
                         </div>
                         <form>
 
                             @Html.TextBoxFor(m => m.Email, new { @placeholder = "E-Mail", @class = "form-control", required = "required", id = "userEmail", @onblur = "return BindClientStores()" })
-                            @Html.TextBoxFor(m => m.Password, new { @placeholder = "password", @class = "form-control", required = "required", id="userPassword", @type = "password" })
-                            @Html.DropDownList("Store", new  List <SelectListItem>
-                            {
+                            @Html.TextBoxFor(m => m.Password, new { @placeholder = "password", @class = "form-control", required = "required", id = "userPassword", @type = "password" })
 
-                            }, "Select Store")
-                            @*<select class="form-control" id="sel1" required="">
-            <option>Store Name</option>
-            <option>Store Name</option>
-            <option>Store Name</option>
-            <option>Store Name</option>
-        </select>*@
-                            <div class="form-button">
-                                <button id="submit" type="submit" class="ibtn">Login</button> <a href="#" data-toggle="modal" data-target="#myModal">Forget password?</a>
+                            @Html.DropDownListFor(x => x.StoreCode, new List<SelectListItem> { }, "Select a Store...", new {id= "Store", @style = "width:135px" })
+
+                             <div class="form-button">
+                                <button id="login" type="submit" class="ibtn">Login</button> <a href="#" data-toggle="modal" data-target="#myModal">Forget password?</a>
                             </div>
                         </form>
                         <div class="other-links">
@@ -97,39 +91,62 @@
     <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.4.1/jquery.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.16.0/umd/popper.min.js"></script>
     <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.4.1/js/bootstrap.min.js"></script>
-        <script type='text/javascript'>
-            function BindClientStores() {
+     <script type='text/javascript'>
+         $(document).ready(function () {
+            $('#information').hide();
+         });
+         function BindClientStores() {
                 var userEmail = $("#userEmail").get(0).value;
                 var url = "/Login/GetAllStoresByClient?clientUrl" + userEmail;
                 var model = {
                     'clientUrl': $("#userEmail").get(0).value,
-                }
-
-                
+             }
                 $.ajax({
                     type: "GET",
                     url: '@Url.Action("CheckClientEmail", "Login")',
                     data: model,
                     success: function (data) {
-                        alert(data);
-                        if (data != null || data > 0 )
+                        if (data > 0)
                         {
-                            $("#userPassword").focus();
+                            $('#userPassword').focus();
+                            $('#Store').empty();
+                            $('#information').empty();
+                            $('#login').prop('disabled', false);
+                            $.ajax({
+                     type: "GET",
+                     url: '@Url.Action("GetAllStoresByClient", "Login")',
+                     data: model,
+                     success: function (data) {
+                         if (data != null) {
+                             var stores = data.split(',');
+                             var mySelect = $('#Store');
+                             $.each(stores, function (val, text) {
+                                 mySelect.append(
+                                     $('<option></option>').val(val).html(text)
+                                 );
+                             });
+                         }
+                     },
+                     error: function () {
+                         BootstrapDialog.show({
+                             title: 'Warning Alert',
+                             message: 'Error occurred while processing your request.',
+                             buttons: [{
+                                 label: 'OK',
+                                 cssClass: 'btn btn-success btn-middle',
+                                 action: function (dialog) {
+                                     dialog.close();
+                                 }
+                             }]
+                         });
+                     }
+                 });
                         }
-                        else
+                        else if (data == 0)
                         {
-                            BootstrapDialog.show({
-                                title: 'Warning Alert',
-                                message: 'The Email supplied was not found with us, Please Register with us.',
-                                buttons: [{
-                                    label: 'OK',
-                                    cssClass: 'btn btn-success btn-middle',
-                                    action: function (dialog) {
-                                        dialog.close();
-                                    }
-                                }]
-                            });
-
+                            $('#information').show();
+                            $('#information').html("<p>The Email supplied was not found.Please Register with us.</p>");
+                            $('#login').prop('disabled', true);
                         }
                     },
                     error: function () {
@@ -146,39 +163,8 @@
                         });
                     }
                 });
+                              }
+    </script>
 
-                @*$.ajax({
-                    type: "GET",
-                    url: '@Url.Action("GetAllStoresByClient", "Login")',
-                    data: model,
-                    success: function (data) {
-                        if (data != null)
-                        {
-                            var stores = data.split(',');
-                            var mySelect = $('#Store');
-                            $.each(stores, function (val, text) {
-                                mySelect.append(
-                                    $('<option></option>').val(val).html(text)
-                                );
-                            });
-                        }
-                    },
-                    error: function () {
-                        BootstrapDialog.show({
-                            title: 'Warning Alert',
-                            message: 'Error occurred while processing your request.',
-                            buttons: [{
-                                label: 'OK',
-                                cssClass: 'btn btn-success btn-middle',
-                                action: function (dialog) {
-                                    dialog.close();
-                                }
-                            }]
-                        });
-                    }
-                });*@
-               }
-        </script>
-        
-    </body>
+</body>
 </html >
