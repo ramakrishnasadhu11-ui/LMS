@@ -61,26 +61,37 @@ namespace LMSWebUI.Controllers
             return View(ClientDto);
 
         }
-
         [HttpGet]
         [AllowAnonymous]
-        public async Task<string> GetAllStoresByClient(string clientUrl)
+        public async Task<string> GetAllStoresByClient(string clientEmail)
         {
             myResponse APIResponse = new myResponse();
             Dictionary<string, string> paramsGetAllStoresByClient = new Dictionary<string, string>
             {
-                { "eMail", clientUrl }
-                
+                { "eMail", clientEmail }
             };
-
-            if (!string.IsNullOrEmpty(clientUrl))
+            if (!string.IsNullOrEmpty(clientEmail))
             {
                 APIResponse = await clientAPI.SendRequestAsync<myResponse>("/api/Login/GetClientStoreDetails", paramsGetAllStoresByClient, RestSharp.Method.GET);
             }
-
             return Convert.ToString(APIResponse.Result);
-
         }
 
+        [HttpGet]
+        [AllowAnonymous]
+        public async Task<string> CheckClientEmail(string clientUrl)
+        {
+            myResponse APIResponse = new myResponse();
+            Dictionary<string, string> paramsEmail = new Dictionary<string, string>
+            {
+                { "eMail", clientUrl }
+            };
+            if (!string.IsNullOrEmpty(clientUrl))
+            {
+                APIResponse = await clientAPI.SendRequestAsync<myResponse>("/api/Login/CheckClientEmail", paramsEmail, RestSharp.Method.GET);
+            }
+            return Convert.ToString(APIResponse.Result);
         }
+
     }
+}
