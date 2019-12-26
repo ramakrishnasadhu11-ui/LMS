@@ -26,6 +26,13 @@ namespace LMSWebUI.Controllers
             return View(ClientLoginDto);
           //  return View("../Login/Login");
         }
+        [HttpGet]
+        [AllowAnonymous]
+        public async Task<ActionResult> Login(ClientLoginDto ClientLoginDto)
+        {
+
+            return View(ClientLoginDto);
+        }
 
         [HttpGet]
         [AllowAnonymous]
@@ -63,14 +70,14 @@ namespace LMSWebUI.Controllers
         }
         [HttpGet]
         [AllowAnonymous]
-        public async Task<string> GetAllStoresByClient(string clientEmail)
+        public async Task<string> GetAllStoresByClient(string clientUrl)
         {
             myResponse APIResponse = new myResponse();
             Dictionary<string, string> paramsGetAllStoresByClient = new Dictionary<string, string>
             {
-                { "eMail", clientEmail }
+                { "eMail", clientUrl }
             };
-            if (!string.IsNullOrEmpty(clientEmail))
+            if (!string.IsNullOrEmpty(clientUrl))
             {
                 APIResponse = await clientAPI.SendRequestAsync<myResponse>("/api/Login/GetClientStoreDetails", paramsGetAllStoresByClient, RestSharp.Method.GET);
             }
