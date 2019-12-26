@@ -45,7 +45,7 @@
                             <form>
                                 @Html.TextBoxFor(m => m.Email, new { @placeholder = "E-Mail", @class = "form-control", required = "required", id = "userEmail", @onblur = "return BindClientStores()" })
                                 @Html.TextBoxFor(m => m.Password, new { @placeholder = "password", @class = "form-control", required = "required", id = "userPassword", @type = "password" })
-                                @Html.DropDownListFor(x => x.StoreCode, new List<SelectListItem> { }, "Select a Store...", new { id = "Store", @style = "width:135px" })
+                                @Html.DropDownListFor(x => x.StoreCode, new List<SelectListItem> {  }, "Select a Store...", new { id = "Store", @style = "width:135px" })
                                 <div class="form-button">
                                     <button id="login" type="submit" class="ibtn">Login</button> <a href="#" data-toggle="modal" data-target="#myModal">Forget password?</a>
                                 </div>
@@ -117,6 +117,7 @@
                             $('#userPassword').focus();
                             $('#Store').empty();
                             $('#information').empty();
+                            $('#information').hide();
                             $('#login').prop('disabled', false);
                             $.ajax({
                      type: "GET",
@@ -126,9 +127,9 @@
                          if (data != null) {
                              var stores = data.split(',');
                              var mySelect = $('#Store');
-                             $.each(stores, function (val, text) {
+                             $.each(stores, function (val,text) {
                                  mySelect.append(
-                                     $('<option></option>').val(val).html(text)
+                                     $('<option></option>').val(text).html(text)
                                  );
                              });
                          }
