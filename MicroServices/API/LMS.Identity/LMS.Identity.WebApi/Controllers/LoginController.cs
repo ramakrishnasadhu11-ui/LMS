@@ -84,7 +84,7 @@ namespace LMS.Identity.WebApi.Controllers
             if (statusvalue == 1)
                 return new APIResponse(StatusCodes.Status200OK, Common.GetEnumDescription((StatusCodeMessages)StatusCodes.Status200OK), statusvalue);
             else if (statusvalue == 0)
-                return new APIResponse(StatusCodes.Status204NoContent, Common.GetEnumDescription((StatusCodeMessages)StatusCodes.Status204NoContent), statusvalue);
+                return new APIResponse(StatusCodes.Status200OK, Common.GetEnumDescription((StatusCodeMessages)StatusCodes.Status200OK), statusvalue);
             else
                 throw new ApiException(Common.GetEnumDescription((StatusCodeMessages)StatusCodes.Status500InternalServerError), 500);
         }
