@@ -66,8 +66,19 @@ namespace LMSWebUI.Controllers
         [AllowAnonymous]
         public async Task<string> GetAllStoresByClient(string clientUrl)
         {
+            myResponse APIResponse = new myResponse();
+            Dictionary<string, string> paramsGetAllStoresByClient = new Dictionary<string, string>
+            {
+                { "eMail", clientUrl }
+                
+            };
 
-            return "jjjj";
+            if (!string.IsNullOrEmpty(clientUrl))
+            {
+                APIResponse = await clientAPI.SendRequestAsync<myResponse>("/api/Login/GetClientStoreDetails", paramsGetAllStoresByClient, RestSharp.Method.GET);
+            }
+
+            return Convert.ToString(APIResponse.Result);
 
         }
 

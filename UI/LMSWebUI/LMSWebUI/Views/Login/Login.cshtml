@@ -35,14 +35,18 @@
                         </div>
                         <form>
 
-                            @Html.TextBoxFor(m => m.Email, new { @placeholder = "E-Mail", @class = "form-control", required = "required", id = "userEmail", @onblur = "return yourFunction(this)" })
+                            @Html.TextBoxFor(m => m.Email, new { @placeholder = "E-Mail", @class = "form-control", required = "required", id = "userEmail", @onblur = "return BindClientStores()" })
                             @Html.TextBoxFor(m => m.Password, new { @placeholder = "password", @class = "form-control", required = "required", @type = "password" })
-                            <select class="form-control" id="sel1" required="">
-                                <option>Store Name</option>
-                                <option>Store Name</option>
-                                <option>Store Name</option>
-                                <option>Store Name</option>
-                            </select>
+                            @Html.DropDownList("Store", new  List <SelectListItem>
+                            {
+
+                            }, "Select Store")
+                            @*<select class="form-control" id="sel1" required="">
+            <option>Store Name</option>
+            <option>Store Name</option>
+            <option>Store Name</option>
+            <option>Store Name</option>
+        </select>*@
                             <div class="form-button">
                                 <button id="submit" type="submit" class="ibtn">Login</button> <a href="#" data-toggle="modal" data-target="#myModal">Forget password?</a>
                             </div>
@@ -94,9 +98,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.16.0/umd/popper.min.js"></script>
     <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.4.1/js/bootstrap.min.js"></script>
         <script type='text/javascript'>
-            function yourFunction($event) {
-                debugger
-                alert("hello");
+            function BindClientStores() {
                 var userEmail = $("#userEmail").get(0).value;
                 var url = "/Login/GetAllStoresByClient?clientUrl" + userEmail;
                 var model = {
@@ -107,9 +109,16 @@
                     url: '@Url.Action("GetAllStoresByClient", "Login")',
                     data: model,
                     success: function (data) {
-                        alert(data);
-                        //location.reload(true);
-                        //localStorage.setItem('successMessage', "Deleted Successfully."); //set
+                        if (data != null)
+                        {
+                            var stores = data.split(',');
+                            var mySelect = $('#Store');
+                            $.each(stores, function (val, text) {
+                                mySelect.append(
+                                    $('<option></option>').val(val).html(text)
+                                );
+                            });
+                        }
                     },
                     error: function () {
                         BootstrapDialog.show({
