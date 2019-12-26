@@ -31,16 +31,14 @@
                         <img class="logo-size" src="~/Images/els-blue-web.png" alt="" style="
     width: 180px;margin-bottom: 20px;">
                         @*<div id="information"> <span class="glyphi glyphicon glyphicon-exclamation-sign"></span> </div>*@
-                        <div id="information" class="alert alert-success" role="alert"><strong>Well done!</strong><span class="glyphi glyphicon glyphicon-exclamation-sign"></span>@Model.Message</div>
                         @if (Model.Message != null)
                         {
-                            <div id="status" class="alert alert-success" role="alert"><strong>Well done!</strong><span class="glyphi glyphicon glyphicon-exclamation-sign"></span>@Model.Message</div>
+                            <div id="information" class="alert alert-success" role="alert"><strong>Well done!</strong><span class="glyphi glyphicon glyphicon-exclamation-sign"></span>@Model.Message</div>
                         }
-
                         <div class="page-links">
                             <a class="active" href="@Url.Action("Login", "Login")">Login</a> <a href="@Url.Action("Register", "Login")">Register</a>
                         </div>
-                        @using (Html.BeginForm("Login", "Login", FormMethod.Post, new { @class = "form" }))
+                        @using (Html.BeginForm("ClientLogin", "Login", FormMethod.Post, new { @class = "form" }))
                         {
                             <form>
                                 @Html.TextBoxFor(m => m.Email, new { @placeholder = "E-Mail", @class = "form-control", required = "required", id = "userEmail", @onblur = "return BindClientStores()" })
@@ -97,7 +95,7 @@
     <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.4.1/jquery.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.16.0/umd/popper.min.js"></script>
     <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.4.1/js/bootstrap.min.js"></script>
-     <script type='text/javascript'>
+    <script type='text/javascript'>
          $(document).ready(function () {
             $('#information').hide();
          });
@@ -173,4 +171,4 @@
     </script>
 
 </body>
-</html >
+</html>

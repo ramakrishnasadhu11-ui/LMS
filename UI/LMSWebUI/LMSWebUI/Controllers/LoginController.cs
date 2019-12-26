@@ -18,19 +18,38 @@ namespace LMSWebUI.Controllers
         {
             this.clientAPI = clientAPI;
         }
+        [HttpGet]
+        [AllowAnonymous]
         public async Task<IActionResult> Login()
         {
-            myResponse APIResponse = new myResponse();
             ClientLoginDto ClientLoginDto = new ClientLoginDto();
-            //APIResponse = await clientAPI.SendRequestAsync<myResponse>("/api/Login/TestService", RestSharp.Method.GET);
             return View(ClientLoginDto);
-          //  return View("../Login/Login");
         }
-        [HttpGet]
+        [HttpPost]
         [AllowAnonymous]
         public async Task<ActionResult> Login(ClientLoginDto ClientLoginDto)
         {
 
+            myResponse APIResponse = new myResponse();
+            if(ClientLoginDto!=null)
+            {
+                APIResponse = await clientAPI.SendRequestAsync<myResponse>("/api/Login/ClientLogin", ClientLoginDto, RestSharp.Method.POST);
+                if (APIResponse.StatusCode == 200 && Convert.ToInt32(APIResponse.Result.ToString()) ==1)
+                    APIResponse.Message = "Login Sucessfull.";
+                else if (APIResponse.StatusCode == 200 && Convert.ToInt32(APIResponse.Result.ToString()) == 3)
+                    APIResponse.Message = "The Email supplied was not found.";
+                else if (APIResponse.StatusCode == 200 && Convert.ToInt32(APIResponse.Result.ToString()) == 0)
+                    APIResponse.Message = "The Password supplied was not found.";
+                else if (APIResponse.StatusCode == 200 && Convert.ToInt32(APIResponse.Result.ToString()) == 2)
+                    APIResponse.Message = "The Store Code supplied was not found.";
+                else if (APIResponse.StatusCode == 200 && Convert.ToInt32(APIResponse.Result.ToString()) == -1)
+                    APIResponse.Message = "Internal Server Error Please Try Again.";
+            }
+            else
+            {
+                APIResponse.Message = "Invalid data for this operation";
+            }
+            ClientLoginDto.Message = APIResponse.Message;
             return View(ClientLoginDto);
         }
 
@@ -40,7 +59,6 @@ namespace LMSWebUI.Controllers
         {
             ClientDto ClientDto = new ClientDto();
             return View(ClientDto);
-         //   return View("../Login/Register");   
         }
         [HttpPost]
         [AllowAnonymous]
