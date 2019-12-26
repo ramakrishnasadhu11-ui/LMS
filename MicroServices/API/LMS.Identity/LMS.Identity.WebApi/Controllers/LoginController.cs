@@ -69,6 +69,26 @@ namespace LMS.Identity.WebApi.Controllers
                 throw new ApiException(Common.GetEnumDescription((StatusCodeMessages)StatusCodes.Status500InternalServerError),500);
         }
 
+
+        #region
+        /// <summary>
+        /// Check Client Email Exist or not
+        /// </summary>
+        [HttpGet(nameof(CheckClientEmail))]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+
+        public async Task<APIResponse> CheckClientEmail(string eMail)
+        {
+            int statusvalue = await _login.CheckUserEmailExist(eMail);
+            if (statusvalue == 1)
+                return new APIResponse(StatusCodes.Status200OK, Common.GetEnumDescription((StatusCodeMessages)StatusCodes.Status200OK), statusvalue);
+            else if (statusvalue == 0)
+                return new APIResponse(StatusCodes.Status204NoContent, Common.GetEnumDescription((StatusCodeMessages)StatusCodes.Status204NoContent), statusvalue);
+            else
+                throw new ApiException(Common.GetEnumDescription((StatusCodeMessages)StatusCodes.Status500InternalServerError), 500);
+        }
+        #endregion
         #region Password
         /// <summary>
         /// User can change password
