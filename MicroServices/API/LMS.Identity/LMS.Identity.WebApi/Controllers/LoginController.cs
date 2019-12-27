@@ -205,11 +205,11 @@ namespace LMS.Identity.WebApi.Controllers
 
         }
 
-        [HttpGet(nameof(ClientLogin))]
+        [HttpPost(nameof(ClientLogin))]
         [ProducesResponseType(StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
-        public ActionResult<APIResponse> ClientLogin([FromQuery] ClientLoginDto ClientLoginDto)
+        public ActionResult<APIResponse> ClientLogin(ClientLoginDto ClientLoginDto)
         {
             int returvalue;
             LoginStatusDTO LoginStatusDTO = new LoginStatusDTO();
@@ -218,29 +218,29 @@ namespace LMS.Identity.WebApi.Controllers
             returvalue = _login.ClientLogin(ClientLoginDto);
             if (returvalue == 1)
             {
-                LoginStatusDTO.Message = "Login Sucessfull";
-                LoginStatusDTO.MessageStatus = "Success";
-                return new APIResponse(StatusCodes.Status200OK, Common.GetEnumDescription((StatusCodeMessages)StatusCodes.Status200OK), LoginStatusDTO);
+                //LoginStatusDTO.Message = "Login Sucessfull";
+                //LoginStatusDTO.MessageStatus = "Success";
+                return new APIResponse(StatusCodes.Status200OK, Common.GetEnumDescription((StatusCodeMessages)StatusCodes.Status200OK), 1);
             }
             else if(returvalue == 3)
             {
-                LoginStatusDTO.Message = "The Email supplied was not found";
-                LoginStatusDTO.MessageStatus = "Fail";
-                return new APIResponse(StatusCodes.Status404NotFound, Common.GetEnumDescription((StatusCodeMessages)StatusCodes.Status200OK), LoginStatusDTO);
+                //LoginStatusDTO.Message = "The Email supplied was not found";
+                //LoginStatusDTO.MessageStatus = "Fail";
+                return new APIResponse(StatusCodes.Status200OK, Common.GetEnumDescription((StatusCodeMessages)StatusCodes.Status200OK), 3);
             }
             else if (returvalue == 0)
             {
-                LoginStatusDTO.Message = "The Password supplied was not found";
-                LoginStatusDTO.MessageStatus = "Fail";
-                return new APIResponse(StatusCodes.Status404NotFound, Common.GetEnumDescription((StatusCodeMessages)StatusCodes.Status200OK), LoginStatusDTO);
+                //LoginStatusDTO.Message = "The Password supplied was not found";
+                //LoginStatusDTO.MessageStatus = "Fail";
+                return new APIResponse(StatusCodes.Status200OK, Common.GetEnumDescription((StatusCodeMessages)StatusCodes.Status200OK), 0);
             }
             else if (returvalue == 2)
             {
-                LoginStatusDTO.Message = "The Store Code supplied was not found";
-                LoginStatusDTO.MessageStatus = "Fail";
-                return new APIResponse(StatusCodes.Status404NotFound, Common.GetEnumDescription((StatusCodeMessages)StatusCodes.Status200OK), LoginStatusDTO);
+                //LoginStatusDTO.Message = "The Store Code supplied was not found";
+                //LoginStatusDTO.MessageStatus = "Fail";
+                return new APIResponse(StatusCodes.Status200OK, Common.GetEnumDescription((StatusCodeMessages)StatusCodes.Status200OK), 2);
             }
-            return new APIResponse(StatusCodes.Status500InternalServerError, Common.GetEnumDescription((StatusCodeMessages)StatusCodes.Status200OK), LoginStatusDTO);
+            return new APIResponse(StatusCodes.Status500InternalServerError, Common.GetEnumDescription((StatusCodeMessages)StatusCodes.Status200OK), -1);
         }
 
         [HttpGet(nameof(GetClientStoreDetails))]

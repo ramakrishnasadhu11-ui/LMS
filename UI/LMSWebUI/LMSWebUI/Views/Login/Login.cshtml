@@ -30,21 +30,27 @@
                     <div class="form-items" style="width: 340px;">
                         <img class="logo-size" src="~/Images/els-blue-web.png" alt="" style="
     width: 180px;margin-bottom: 20px;">
-                        <div id="information"> <span class="glyphi glyphicon glyphicon-exclamation-sign"></span> </div>
+                        @*<div id="information"> <span class="glyphi glyphicon glyphicon-exclamation-sign"></span> </div>*@
+                        <div id="information" class="alert alert-success" role="alert"><strong>Well done!</strong><span class="glyphi glyphicon glyphicon-exclamation-sign"></span>@Model.Message</div>
+                        @if (Model.Message != null)
+                        {
+                            <div id="status" class="alert alert-success" role="alert"><strong>Well done!</strong><span class="glyphi glyphicon glyphicon-exclamation-sign"></span>@Model.Message</div>
+                        }
+
                         <div class="page-links">
                             <a class="active" href="@Url.Action("Login", "Login")">Login</a> <a href="@Url.Action("Register", "Login")">Register</a>
                         </div>
-                        <form>
-
-                            @Html.TextBoxFor(m => m.Email, new { @placeholder = "E-Mail", @class = "form-control", required = "required", id = "userEmail", @onblur = "return BindClientStores()" })
-                            @Html.TextBoxFor(m => m.Password, new { @placeholder = "password", @class = "form-control", required = "required", id = "userPassword", @type = "password" })
-
-                            @Html.DropDownListFor(x => x.StoreCode, new List<SelectListItem> { }, "Select a Store...", new {id= "Store", @style = "width:135px" })
-
-                             <div class="form-button">
-                                <button id="login" type="submit" class="ibtn">Login</button> <a href="#" data-toggle="modal" data-target="#myModal">Forget password?</a>
-                            </div>
-                        </form>
+                        @using (Html.BeginForm("Login", "Login", FormMethod.Post, new { @class = "form" }))
+                        {
+                            <form>
+                                @Html.TextBoxFor(m => m.Email, new { @placeholder = "E-Mail", @class = "form-control", required = "required", id = "userEmail", @onblur = "return BindClientStores()" })
+                                @Html.TextBoxFor(m => m.Password, new { @placeholder = "password", @class = "form-control", required = "required", id = "userPassword", @type = "password" })
+                                @Html.DropDownListFor(x => x.StoreCode, new List<SelectListItem> { }, "Select a Store...", new { id = "Store", @style = "width:135px" })
+                                <div class="form-button">
+                                    <button id="login" type="submit" class="ibtn">Login</button> <a href="#" data-toggle="modal" data-target="#ForgotPassword">Change password?</a> <a href="#" data-toggle="modal" data-target="#ChangePassword">Forget password?</a>
+                                </div>
+                            </form>
+                        }
                         <div class="other-links">
                             <span><i>The best way to manage your Dry cleaning and Laundry business</span></i>
                         </div>
@@ -53,21 +59,16 @@
             </div>
         </div>
     </div>
-
-
-
-    <!-- popup html -->
+    <!-- popup Forgot Your Password html -->
     <!-- The Modal -->
-    <div class="modal" id="myModal">
+    <div class="modal" id="ForgotPassword">
         <div class="modal-dialog">
             <div class="modal-content">
-
                 <!-- Modal Header -->
                 <div class="modal-header">
                     <h4 class="modal-title">Forgot Your Password?</h4>
                     <button type="button" class="close" data-dismiss="modal" aria-hidden="true">×</button>
                 </div>
-
                 <!-- Modal body -->
                 <div class="modal-body">
                     <div class="form-group">
@@ -76,14 +77,38 @@
                         <input class="form-control input-lg" placeholder="Confirm Password" name="email" type="password" required>
                     </div>
                 </div>
-
                 <!-- Modal footer -->
-
                 <div class="modal-footer">
                     <button id="submit" type="submit" class="ibtn">Reset my Password</button>
-
                 </div>
+            </div>
+        </div>
+    </div>
 
+
+    <!-- popup Change Your Password html -->
+    <!-- The Modal -->
+    <div class="modal" id="ChangePassword">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <!-- Modal Header -->
+                <div class="modal-header">
+                    <h4 class="modal-title">Change Password</h4>
+                    <button type="button" class="close" data-dismiss="modal" aria-hidden="true">×</button>
+                </div>
+                <!-- Modal body -->
+                <div class="modal-body">
+                    <div id="changepasswordMessage" class="alert alert-success" role="alert"><span class="glyphi glyphicon glyphicon-exclamation-sign"></span></div>
+                    <div class="form-group">
+                        <input class="form-control input-lg" placeholder="E-mail Address" name="email" type="email" required> <br>
+                        <input class="form-control input-lg" placeholder="New Password" name="email" type="password" required><br>
+                        <input class="form-control input-lg" placeholder="Confirm Password" name="email" type="password" required>
+                    </div>
+                </div>
+                <!-- Modal footer -->
+                <div class="modal-footer">
+                    <button id="submit" type="submit" class="ibtn">Reset my Password</button>
+                </div>
             </div>
         </div>
     </div>
@@ -91,7 +116,7 @@
     <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.4.1/jquery.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.16.0/umd/popper.min.js"></script>
     <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.4.1/js/bootstrap.min.js"></script>
-     <script type='text/javascript'>
+    <script type='text/javascript'>
          $(document).ready(function () {
             $('#information').hide();
          });
@@ -111,6 +136,7 @@
                             $('#userPassword').focus();
                             $('#Store').empty();
                             $('#information').empty();
+                            $('#information').hide();
                             $('#login').prop('disabled', false);
                             $.ajax({
                      type: "GET",
@@ -120,9 +146,9 @@
                          if (data != null) {
                              var stores = data.split(',');
                              var mySelect = $('#Store');
-                             $.each(stores, function (val, text) {
+                             $.each(stores, function (val,text) {
                                  mySelect.append(
-                                     $('<option></option>').val(val).html(text)
+                                     $('<option></option>').val(text).html(text)
                                  );
                              });
                          }
