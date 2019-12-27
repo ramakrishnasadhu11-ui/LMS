@@ -45,9 +45,9 @@
                             <form>
                                 @Html.TextBoxFor(m => m.Email, new { @placeholder = "E-Mail", @class = "form-control", required = "required", id = "userEmail", @onblur = "return BindClientStores()" })
                                 @Html.TextBoxFor(m => m.Password, new { @placeholder = "password", @class = "form-control", required = "required", id = "userPassword", @type = "password" })
-                                @Html.DropDownListFor(x => x.StoreCode, new List<SelectListItem> {  }, "Select a Store...", new { id = "Store", @style = "width:135px" })
+                                @Html.DropDownListFor(x => x.StoreCode, new List<SelectListItem> { }, "Select a Store...", new { id = "Store", @style = "width:135px" })
                                 <div class="form-button">
-                                    <button id="login" type="submit" class="ibtn">Login</button> <a href="#" data-toggle="modal" data-target="#myModal">Forget password?</a>
+                                    <button id="login" type="submit" class="ibtn">Login</button> <a href="#" data-toggle="modal" data-target="#ForgotPassword">Change password?</a> <a href="#" data-toggle="modal" data-target="#ChangePassword">Forget password?</a>
                                 </div>
                             </form>
                         }
@@ -59,21 +59,16 @@
             </div>
         </div>
     </div>
-
-
-
-    <!-- popup html -->
+    <!-- popup Forgot Your Password html -->
     <!-- The Modal -->
-    <div class="modal" id="myModal">
+    <div class="modal" id="ForgotPassword">
         <div class="modal-dialog">
             <div class="modal-content">
-
                 <!-- Modal Header -->
                 <div class="modal-header">
                     <h4 class="modal-title">Forgot Your Password?</h4>
                     <button type="button" class="close" data-dismiss="modal" aria-hidden="true">×</button>
                 </div>
-
                 <!-- Modal body -->
                 <div class="modal-body">
                     <div class="form-group">
@@ -82,14 +77,38 @@
                         <input class="form-control input-lg" placeholder="Confirm Password" name="email" type="password" required>
                     </div>
                 </div>
-
                 <!-- Modal footer -->
-
                 <div class="modal-footer">
                     <button id="submit" type="submit" class="ibtn">Reset my Password</button>
-
                 </div>
+            </div>
+        </div>
+    </div>
 
+
+    <!-- popup Change Your Password html -->
+    <!-- The Modal -->
+    <div class="modal" id="ChangePassword">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <!-- Modal Header -->
+                <div class="modal-header">
+                    <h4 class="modal-title">Change Password</h4>
+                    <button type="button" class="close" data-dismiss="modal" aria-hidden="true">×</button>
+                </div>
+                <!-- Modal body -->
+                <div class="modal-body">
+                    <div id="changepasswordMessage" class="alert alert-success" role="alert"><span class="glyphi glyphicon glyphicon-exclamation-sign"></span></div>
+                    <div class="form-group">
+                        <input class="form-control input-lg" placeholder="E-mail Address" name="email" type="email" required> <br>
+                        <input class="form-control input-lg" placeholder="New Password" name="email" type="password" required><br>
+                        <input class="form-control input-lg" placeholder="Confirm Password" name="email" type="password" required>
+                    </div>
+                </div>
+                <!-- Modal footer -->
+                <div class="modal-footer">
+                    <button id="submit" type="submit" class="ibtn">Reset my Password</button>
+                </div>
             </div>
         </div>
     </div>
@@ -97,7 +116,7 @@
     <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.4.1/jquery.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.16.0/umd/popper.min.js"></script>
     <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.4.1/js/bootstrap.min.js"></script>
-     <script type='text/javascript'>
+    <script type='text/javascript'>
          $(document).ready(function () {
             $('#information').hide();
          });
