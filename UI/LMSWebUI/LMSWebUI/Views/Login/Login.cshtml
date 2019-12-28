@@ -30,29 +30,23 @@
                     <div class="form-items" style="width: 340px;">
                         <img class="logo-size" src="~/Images/els-blue-web.png" alt="" style="
     width: 180px;margin-bottom: 20px;">
-                        @*<div id="information"> <span class="glyphi glyphicon glyphicon-exclamation-sign"></span> </div>*@
                         <div id="information" class="alert alert-success" role="alert"><strong>Well done!</strong><span class="glyphi glyphicon glyphicon-exclamation-sign"></span>@Model.Message</div>
-                        @if (Model.Message != null)
-                        {
-                            <div id="status" class="alert alert-success" role="alert"><strong>Well done!</strong><span class="glyphi glyphicon glyphicon-exclamation-sign"></span>@Model.Message</div>
-                        }
-
                         <div class="page-links">
                             <a class="active" href="@Url.Action("Login", "Login")">Login</a> <a href="@Url.Action("Register", "Login")">Register</a>
                         </div>
-                        @using (Html.BeginForm("Login", "Login", FormMethod.Post, new { @class = "form" }))
-                        {
+                        @*@using (Html.BeginForm("CheckIsPasswordChangedByclient", "Login", FormMethod.Post, new { @class = "form" }))
+                        {*@
                             <form>
                                 @Html.TextBoxFor(m => m.Email, new { @placeholder = "E-Mail", @class = "form-control", required = "required", id = "userEmail", @onblur = "return BindClientStores()" })
                                 @Html.TextBoxFor(m => m.Password, new { @placeholder = "password", @class = "form-control", required = "required", id = "userPassword", @type = "password" })
                                 @Html.DropDownListFor(x => x.StoreCode, new List<SelectListItem> { }, "Select a Store...", new { id = "Store", @style = "width:135px" })
                                 <div class="form-button">
-                                    <button id="login" type="submit" class="ibtn">Login</button> <a href="#" data-toggle="modal" data-target="#ForgotPassword">Change password?</a> <a href="#" data-toggle="modal" data-target="#ChangePassword">Forget password?</a>
+                                    <button id="LoginCheck" onclick="LoginValidate();" type="button" class="ibtn">Login</button> <a href="#" data-toggle="modal" data-target="#ForgotPassword">Change password?</a>
                                 </div>
                             </form>
-                        }
+                        @*}*@
                         <div class="other-links">
-                            <span><i>The best way to manage your Dry cleaning and Laundry business</span></i>
+                            <span><i>The best way to manage your Dry cleaning and Laundry business</i></span>
                         </div>
                     </div>
                 </div>
@@ -88,7 +82,7 @@
 
     <!-- popup Change Your Password html -->
     <!-- The Modal -->
-    <div class="modal" id="ChangePassword">
+    <div class="modal fade" id="ChangePassword">
         <div class="modal-dialog">
             <div class="modal-content">
                 <!-- Modal Header -->
@@ -98,29 +92,99 @@
                 </div>
                 <!-- Modal body -->
                 <div class="modal-body">
-                    <div id="changepasswordMessage" class="alert alert-success" role="alert"><span class="glyphi glyphicon glyphicon-exclamation-sign"></span></div>
+                    <lable id="lblOTPInformation"></lable>
                     <div class="form-group">
-                        <input class="form-control input-lg" placeholder="E-mail Address" name="email" type="email" required> <br>
-                        <input class="form-control input-lg" placeholder="New Password" name="email" type="password" required><br>
-                        <input class="form-control input-lg" placeholder="Confirm Password" name="email" type="password" required>
+                        @Html.TextBoxFor(m => m.Email, new { @placeholder = "E-Mail", @class = "form-control", required = "required", id = "userEmail" })
+                        @Html.TextBoxFor(m => m.NewPassword, new { @placeholder = "New password", @class = "form-control", required = "required", id = "newPassword", @type = "password" })
+                        @Html.TextBoxFor(m => m.OldPassword, new { @placeholder = "Old password", @class = "form-control", required = "required", id = "oldPassword", @type = "password" })
                     </div>
                 </div>
                 <!-- Modal footer -->
-                <div class="modal-footer">
-                    <button id="submit" type="submit" class="ibtn">Reset my Password</button>
+                    <div class="modal-footer">
+                        <button id="changepassword" class="ibtn">Change Password</button>
+                    </div>
                 </div>
             </div>
-        </div>
     </div>
 
     <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.4.1/jquery.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.16.0/umd/popper.min.js"></script>
     <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.4.1/js/bootstrap.min.js"></script>
     <script type='text/javascript'>
-         $(document).ready(function () {
+        $(document).ready(function ()
+        {
             $('#information').hide();
-         });
-         function BindClientStores() {
+        });
+
+        $("#changepassword").click(function () {
+            var model =
+            {
+                'userEmail': $("#userEmail").get(0).value,
+                'NewPassword': $("#newPassword").get(0).value,
+                'OldPassword': $("#oldPassword").get(0).value,
+            }
+                                 $.ajax
+                                ({
+                                    type: "POST",
+                                    url: '@Url.Action("ChangePassword", "Login")',
+                                    data: model,
+                                         success: function (data) {
+                                        $("#ChangePassword").hide();
+                                        $('#information').show();
+                                             $('#information').html("<p>" + data + "</p>");
+                                             $('body').removeClass('modal-open');
+                                             $('.modal-backdrop').remove();
+                                    }
+                                })
+
+        });
+        $('#LoginCheck').click(function ()
+        {
+            var model = {
+                'Email': $("#userEmail").get(0).value,
+                'Password': $("#userPassword").get(0).value,
+                'StoreCode': $("#Store").get(0).value,
+            }
+            $.ajax
+                ({
+                type: "GET",
+                url: '@Url.Action("CheckIsPasswordChangedByclient", "Login")',
+                data: model,
+                success: function (data)
+                {
+                    if (data != null)
+                    {
+                        if (data == true)
+                        {
+                            var model = {
+                                'Email': $("#userEmail").get(0).value,
+                                'Password': $("#userPassword").get(0).value,
+                                'StoreCode': $("#Store").get(0).value,
+                            }
+                            $.ajax
+                                ({
+                                    type: "POST",
+                                    url: '@Url.Action("Login", "Login")',
+                                    data: model,
+                                    success: function (data) {
+                                        $('#information').show();
+                                        $('#information').html("<p>" + data + "</p>");
+                                    }
+                                })
+
+                        }
+                        else
+                        {
+                            $('#lblOTPInformation').html("<p>An One Time Password(OTP) has been sent to: <br>" + $("#userEmail").get(0).value + "</p>");
+                            $("#ChangePassword").modal("show");
+                        }
+                        
+                    }
+                }
+            })
+        });
+         function BindClientStores()
+            {
                 var userEmail = $("#userEmail").get(0).value;
                 var url = "/Login/GetAllStoresByClient?clientUrl" + userEmail;
                 var model = {
@@ -189,8 +253,7 @@
                         });
                     }
                 });
-                              }
+        }
     </script>
-
 </body>
 </html >

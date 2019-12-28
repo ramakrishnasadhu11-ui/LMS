@@ -15,9 +15,10 @@ section.stores p {
 }
 section.stores {text-align: center;}
 section.business {
-    background: #0069d9; color: #fff;
+    background: #1f59bc; color: #fff;
 
 }
+.hero{}
 section.business .icon.d-flex.align-items-end i {
     font-size: 60px;
 }
@@ -27,6 +28,21 @@ section.business .icon.d-flex.align-items-end i {
 .footer-logo {
     width: 7.5rem;
     width: 200px;
+}
+.hero{
+    /*background-color: #1f59bc !important;*/ /*background-image: none;*/
+}
+.hero p.lead.text-muted.mt-4.mb-4{color: #fff !important}
+.hero a.btn.btn-primary{background-color: #fff !important; border:1px solid #fff !important;color: #000 !important }
+    .hero h2 b{color: #fff;}
+}
+.hero .lead {
+    font-size: 1.2rem;
+    font-weight: 300;
+    color: #fff !important;
+}
+nav.navbar.navbar-expand-lg.fixed-top.menu {
+    background: #fff;
 }
 section.business .box:hover {
     color: #000;    background-color: #fff;
@@ -79,13 +95,29 @@ section.bg-gray1 {
     font-size: 14px;
     color: #212529;
 }
+@media (min-width: 1400px){
+	section.hero .col-lg-6 img {
+    width: 90%;
+    margin: 0 auto;
+}
+.container {
+    max-width: 1270px;
+}
+}
+
+
+
 @media (min-width: 1360px){
+	section.hero .col-lg-6 img {
+    width: 70%;
+    margin: 0 auto;
+}
     section#why-us .container {
     width: 50%;
     margin: 0 auto;
 }
 .container {
-    max-width: 1270px;
+    max-width: 1200px;
 }
 
 }

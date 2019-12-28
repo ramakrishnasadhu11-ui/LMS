@@ -19,5 +19,7 @@ namespace LMS.Identity.BusinessSerive.Interfaces
         int RegisterClient(ClientDto ClientDto);
 
         string GetClientStoreDetails(string eMail);
+
+        bool CheckIsPasswordChangedByclient(string eMail);
     }
 }

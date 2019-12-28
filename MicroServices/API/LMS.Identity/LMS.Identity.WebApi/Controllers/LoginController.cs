@@ -267,6 +267,14 @@ namespace LMS.Identity.WebApi.Controllers
             throw new ApiException(Common.GetEnumDescription((StatusCodeMessages)StatusCodes.Status500InternalServerError), 0);
         }
 
-
+        [HttpGet(nameof(CheckIsPasswordChangedByclient))]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        public ActionResult<bool> CheckIsPasswordChangedByclient([FromQuery] string eMail)
+        {
+            bool status = _login.CheckIsPasswordChangedByclient(eMail);
+            return status;
+        }
     }
 }
