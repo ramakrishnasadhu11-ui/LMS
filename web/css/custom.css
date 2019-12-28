@@ -15,7 +15,7 @@ section.stores p {
 }
 section.stores {text-align: center;}
 section.business {
-    background: #0069d9; color: #fff;
+    background: #1f59bc; color: #fff;
 
 }
 .hero{}
@@ -30,7 +30,7 @@ section.business .icon.d-flex.align-items-end i {
     width: 200px;
 }
 .hero{
-    background-color: #0069d9 !important; background-image: none;
+    /*background-color: #1f59bc !important;*/ /*background-image: none;*/
 }
 .hero p.lead.text-muted.mt-4.mb-4{color: #fff !important}
 .hero a.btn.btn-primary{background-color: #fff !important; border:1px solid #fff !important;color: #000 !important }

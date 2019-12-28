@@ -11,5 +11,8 @@ namespace LMSWebUI.Models.Login
         public string Password { get; set; }
         public string StoreCode { get; set; }
         public string Message { get; set; }
+        public bool ShowDialog { get; set; }
+        public string OldPassword { get; set; }
+        public string NewPassword { get; set; }
     }
 }

@@ -311,6 +311,8 @@ namespace LMS.Identity.BusinessSerive.Services
             var AlreadyExistYesNo = new SqlParameter("@AlreadyExistYesNo", SqlDbType.Int);
             AlreadyExistYesNo.Direction = ParameterDirection.Output;
 
+
+
             ctx.Database.ExecuteSqlCommand("[dbo].[usp_userEmailCheck] @MailId,@AlreadyExistYesNo OUT",
                  new SqlParameter("@MailId", ClientLoginDto.Email),
                  AlreadyExistYesNo);
@@ -363,6 +365,25 @@ namespace LMS.Identity.BusinessSerive.Services
             return string.Empty;
 
             
+        }
+        #endregion
+
+        #region CheckIsPasswordChanged
+        public bool CheckIsPasswordChangedByclient(string eMail)
+        {
+            var ctx = new LMSDB_DevContext();
+            var isPasswordChanged = new SqlParameter("@isPasswordChanged", SqlDbType.Bit);
+            isPasswordChanged.Direction = ParameterDirection.Output;
+
+            ctx.Database.ExecuteSqlCommand("[dbo].[usp_checkIsPasswordChangedByclient] @Email,@isPasswordChanged OUT",
+                 new SqlParameter("@Email", eMail),
+                 isPasswordChanged);
+
+            return Convert.ToBoolean(isPasswordChanged.Value);
+
+
+
+
         }
         #endregion
     }

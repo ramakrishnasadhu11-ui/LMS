@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.Mvc;
 using VMD.RESTApiResponseWrapper.Core.Wrappers;
 using LMSWebUI.Models.Login;
 using Microsoft.AspNetCore.Authorization;
+using Newtonsoft.Json;
 
 namespace LMSWebUI.Controllers
 {
@@ -27,7 +28,7 @@ namespace LMSWebUI.Controllers
         }
         [HttpPost]
         [AllowAnonymous]
-        public async Task<ActionResult> Login(ClientLoginDto ClientLoginDto)
+        public async Task<string> Login(ClientLoginDto ClientLoginDto)
         {
 
             myResponse APIResponse = new myResponse();
@@ -49,8 +50,10 @@ namespace LMSWebUI.Controllers
             {
                 APIResponse.Message = "Invalid data for this operation";
             }
-            ClientLoginDto.Message = APIResponse.Message;
-            return View(ClientLoginDto);
+            return APIResponse.Message;
+          //  ClientLoginDto.Message = APIResponse.Message;
+          // return View("~/Views/Login/Login.cshtml", ClientLoginDto);
+          //return View(ClientLoginDto);
         }
 
         [HttpGet]
@@ -116,6 +119,59 @@ namespace LMSWebUI.Controllers
                 APIResponse = await clientAPI.SendRequestAsync<myResponse>("/api/Login/CheckClientEmail", paramsEmail, RestSharp.Method.GET);
             }
             return Convert.ToString(APIResponse.Result);
+        }
+
+        [HttpGet]
+        [AllowAnonymous]
+        public async Task<bool> CheckIsPasswordChangedByclient(ClientLoginDto ClientLoginDto)
+        {
+            myResponse APIResponse = new myResponse();
+            Dictionary<string, string> paramsEmail = new Dictionary<string, string>
+            {
+                { "eMail", ClientLoginDto.Email }
+            };
+            APIResponse = await clientAPI.SendRequestAsync<myResponse>("/api/Login/CheckIsPasswordChangedByclient", paramsEmail, RestSharp.Method.GET);
+            if (Convert.ToBoolean(APIResponse.Result) == false)
+            {
+                return false;
+             //   ClientLoginDto.ShowDialog = true;
+               // return View("~/Views/Login/Login.cshtml", ClientLoginDto);
+            }
+            else
+            {
+                return true;
+             //    ClientLoginDto.ShowDialog = false;
+            //    await Login(ClientLoginDto);
+            }
+         //   return View("~/Views/Login/Login.cshtml", ClientLoginDto);
+        }
+
+        [HttpPost]
+        [AllowAnonymous]
+        public async Task<string> ChangePassword(string userEmail, string NewPassword, string OldPassword)
+        {
+            myResponse APIResponse = new myResponse();
+            Dictionary<string, string> paramsChangePassword = new Dictionary<string, string>
+            {
+                { "userEmail", userEmail },
+                { "NewPassword", NewPassword },
+                { "OldPassword", OldPassword }
+            };
+            APIResponse = await clientAPI.SendRequestAsync<myResponse>("/api/Login/ChangePassword", paramsChangePassword, RestSharp.Method.GET);
+            if(Convert.ToInt32(APIResponse.StatusCode)==200)
+            {
+                var obj = APIResponse.Result;
+                string output = JsonConvert.SerializeObject(obj);
+                var deserializedObj = JsonConvert.DeserializeObject<myResponse>(output);
+                return deserializedObj.Message;
+            }
+            else
+            {
+                var obj = APIResponse.Result;
+                string output = JsonConvert.SerializeObject(obj);
+                var deserializedObj = JsonConvert.DeserializeObject<myResponse>(output);
+                return deserializedObj.Message;
+            }
         }
 
     }
