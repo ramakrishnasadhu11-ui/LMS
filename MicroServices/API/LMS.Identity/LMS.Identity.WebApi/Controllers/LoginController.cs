@@ -42,43 +42,35 @@ namespace LMS.Identity.WebApi.Controllers
            return StatusCode((int)insertTenantResult.StatusCode, insertTenantResult.ResultSet);
         }
 
-        ///// <summary>
-        ///// Get User Gender
-        ///// </summary>
-        //[HttpGet(nameof(GetUserGenders))]
-        //[ProducesResponseType(StatusCodes.Status200OK)]
-        //[ProducesResponseType(StatusCodes.Status400BadRequest)]
-        //public async Task<APIResponse> GetUserGenders()
-        //{
-        //    var genderList = await _login.UserGender();
-        //    if (genderList.Count>0)
-        //        return new APIResponse(StatusCodes.Status200OK, Common.GetEnumDescription((StatusCodeMessages)StatusCodes.Status200OK), genderList);
-        //    else if (genderList.Count == 0)
-        //        return new APIResponse(StatusCodes.Status204NoContent, Common.GetEnumDescription((StatusCodeMessages)StatusCodes.Status204NoContent), genderList);
-        //    else
-        //        throw new ApiException(Common.GetEnumDescription((StatusCodeMessages)StatusCodes.Status500InternalServerError),500);
-        //}
 
+        #region
+        /// <summary>
+        /// Check Tenant Email Exist or not
+        /// </summary>
+        [HttpGet(nameof(TenantLogin))]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
 
-        //#region
-        ///// <summary>
-        ///// Check Client Email Exist or not
-        ///// </summary>
-        //[HttpGet(nameof(CheckClientEmail))]
-        //[ProducesResponseType(StatusCodes.Status200OK)]
-        //[ProducesResponseType(StatusCodes.Status400BadRequest)]
+        public async Task<ActionResult> TenantLogin(string eMail,string password)
+        {
+         var loginResult = await _login.TenantLogin(eMail,password);
+           return StatusCode((int)loginResult.StatusCode, loginResult.ResultSet); 
+        }
 
-        //public async Task<APIResponse> CheckClientEmail(string eMail)
-        //{
-        //    int statusvalue = await _login.CheckUserEmailExist(eMail);
-        //    if (statusvalue == 1)
-        //        return new APIResponse(StatusCodes.Status200OK, Common.GetEnumDescription((StatusCodeMessages)StatusCodes.Status200OK), statusvalue);
-        //    else if (statusvalue == 0)
-        //        return new APIResponse(StatusCodes.Status200OK, Common.GetEnumDescription((StatusCodeMessages)StatusCodes.Status200OK), statusvalue);
-        //    else
-        //        throw new ApiException(Common.GetEnumDescription((StatusCodeMessages)StatusCodes.Status500InternalServerError), 500);
-        //}
-        //#endregion
+        /// <summary>
+        /// ChangePassword 
+        /// </summary>
+        [HttpGet(nameof(changePassword))]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+
+        public async Task<ActionResult> changePassword(string eMail,string oldPassword,string newPassword)
+        {
+         var changepasswordResult = await _login.changePassword(eMail,oldPassword,newPassword);
+           return StatusCode((int)changepasswordResult.StatusCode, changepasswordResult.ResultSet); 
+        }
+       
+        #endregion
         //#region Password
         ///// <summary>
         ///// User can change password
@@ -174,26 +166,6 @@ namespace LMS.Identity.WebApi.Controllers
         //}
         //#endregion
 
-
-        //[HttpPost(nameof(RegisterClient))]
-        //[ProducesResponseType(StatusCodes.Status200OK)]
-        //[ProducesResponseType(StatusCodes.Status400BadRequest)]
-        //[ProducesResponseType(StatusCodes.Status404NotFound)]
-        //public ActionResult<APIResponse> RegisterClient(ClientDto ClientDto)
-        //{
-        //    if (ClientDto == null)
-        //        return BadRequest("Invalid data for this operation");
-        //    int clientId = _login.RegisterClient(ClientDto);
-        //    if (clientId > 0)
-        //        return new APIResponse(StatusCodes.Status200OK, Common.GetEnumDescription((StatusCodeMessages)StatusCodes.Status200OK), clientId);
-        //    else if (clientId == 0)
-        //        return new APIResponse(StatusCodes.Status204NoContent, Common.GetEnumDescription((StatusCodeMessages)StatusCodes.Status204NoContent), clientId);
-        //    else if(clientId == -1)
-        //        return new APIResponse(StatusCodes.Status200OK, Common.GetEnumDescription((StatusCodeMessages)StatusCodes.Status200OK), clientId);
-        //    else
-        //        throw new ApiException(Common.GetEnumDescription((StatusCodeMessages)StatusCodes.Status500InternalServerError), 0);
-
-        //}
 
         //[HttpPost(nameof(ClientLogin))]
         //[ProducesResponseType(StatusCodes.Status200OK)]

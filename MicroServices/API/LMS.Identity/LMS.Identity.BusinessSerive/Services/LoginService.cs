@@ -83,6 +83,64 @@ namespace LMS.Identity.BusinessSerive.Services
             }
             return ActionSet.ActionReturnType(HttpStatusCode.InternalServerError, new IOResponse { TenantId = "", Message = IdentityValidationMessage.IDENTITY_INSERT_ERROR_MESSAGE });
            }
+        public async Task<ActionReturnType> TenantLogin(string eMail,string password)
+        {
+            if(!string.IsNullOrEmpty(eMail))
+            {
+            var emailfilter = Builders<TenantEntity>.Filter.Where(em => em.Email == eMail.Trim());
+            var tenantregistryresult = await _tenantRegisry.Find(emailfilter).FirstOrDefaultAsync();
+                if(tenantregistryresult==null)
+                  return ActionSet.ActionReturnType(HttpStatusCode.NotFound, new IOResponse { Email = eMail, Message = IdentityValidationMessage.IDENTITY_DATANOTFOUND_LOGIN_MESSAGE });
+                    string tenantId=tenantregistryresult.TenantId;
+                    var passwordfilter=Builders<TenantStoreInfoEntity>.Filter.Where(tsi => tsi.TenantId ==tenantId && tsi.Password== password);
+                    var tenantstoreinforesult= await _tenantStores.Find(passwordfilter).FirstOrDefaultAsync();
+
+                if(tenantstoreinforesult!=null && tenantstoreinforesult.IsPasswordChanged==false)
+                {
+                     return ActionSet.ActionReturnType(HttpStatusCode.OK, new IOResponse { Email = eMail, Message = IdentityValidationMessage.IDENTITY_DATAFOUND_PASSWORDCHANGE_MESSAGE });
+                }
+                else if(tenantstoreinforesult!=null && tenantstoreinforesult.IsPasswordChanged==true)
+                {
+                     return ActionSet.ActionReturnType(HttpStatusCode.OK, new IOResponse { Email = eMail, Message = IdentityValidationMessage.IDENTITY_DATAFOUND_LOGIN_MESSAGE });
+                }
+             }
+           else
+            { 
+                 return ActionSet.ActionReturnType(HttpStatusCode.BadRequest, new IOResponse { Email = eMail, Message = IdentityValidationMessage.IDENTITY_TENANT_NOT_FOUND });
+            }
+             return ActionSet.ActionReturnType(HttpStatusCode.InternalServerError, new IOResponse { Email = "", Message = IdentityValidationMessage.IDENTITY_LOGINTENANT_ERROR_MESSAGE });
+        }
+
+        public async Task<ActionReturnType> changePassword(string eMail,string oldPassword,string newPassword)
+        {
+            if(!string.IsNullOrEmpty(eMail) && !string.IsNullOrEmpty(oldPassword) &&  !string.IsNullOrEmpty(newPassword))
+            {
+                 var emailfilter = Builders<TenantEntity>.Filter.Where(em => em.Email == eMail.Trim());
+                 var tenantregistryresult = await _tenantRegisry.Find(emailfilter).FirstOrDefaultAsync();
+                if(tenantregistryresult==null)
+                  return ActionSet.ActionReturnType(HttpStatusCode.NotFound, new IOResponse { Email = eMail, Message = IdentityValidationMessage.IDENTITY_DATANOTFOUND_LOGIN_MESSAGE });
+                    string tenantId=tenantregistryresult.TenantId;
+                    var passwordfilter=Builders<TenantStoreInfoEntity>.Filter.Where(tsi => tsi.TenantId ==tenantId && tsi.Password== oldPassword);
+                    var tenantstoreinforesult= await _tenantStores.Find(passwordfilter).FirstOrDefaultAsync();
+                 if(tenantstoreinforesult!=null && tenantstoreinforesult.IsPasswordChanged==false && tenantstoreinforesult.Password==oldPassword.Trim())
+                {
+                     var updatefilter = Builders<TenantStoreInfoEntity>.Update
+                        .Set(tsi => tsi.IsPasswordChanged, true)
+                        .Set(tsi => tsi.Password, newPassword);
+                      await _tenantStores.UpdateOneAsync(passwordfilter, updatefilter);
+                     return ActionSet.ActionReturnType(HttpStatusCode.OK, new IOResponse { Email = eMail, Message = IdentityValidationMessage.IDENTITY_DATAFOUND_PASSWORDCHANGESUCCESS_MESSAGE });
+                }
+                else if(tenantstoreinforesult!=null && tenantstoreinforesult.IsPasswordChanged==true)
+                {
+                     return ActionSet.ActionReturnType(HttpStatusCode.OK, new IOResponse { Email = eMail, Message = IdentityValidationMessage.IDENTITY_DATAFOUND_PASSWORDALREADYCHANGED_MESSAGE });
+                }
+            }
+            else
+            {
+              return ActionSet.ActionReturnType(HttpStatusCode.OK, new IOResponse { Email = eMail, Message = IdentityValidationMessage.IDENTITY_TENANTPASSWORDDATA_NOT_FOUND });
+            }
+              return ActionSet.ActionReturnType(HttpStatusCode.InternalServerError, new IOResponse { Email = "", Message = IdentityValidationMessage.IDENTITY_LOGINTENANT_ERROR_MESSAGE });
+        }
 
         private async Task<bool> CreateTenantUserInfoAsync(TenantDto tenantDto,string tenantid)
         {
@@ -199,8 +257,7 @@ namespace LMS.Identity.BusinessSerive.Services
         string SuccessMessage {get;set;}
         }
 
-
-        //public async Task<int> ForgotPassword(string email)
+               //public async Task<int> ForgotPassword(string email)
         //{
         //    var ctx = new LMSDB_DevContext();
         //    string password = string.Empty;
