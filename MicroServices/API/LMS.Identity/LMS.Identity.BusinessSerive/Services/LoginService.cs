@@ -111,6 +111,42 @@ namespace LMS.Identity.BusinessSerive.Services
              return ActionSet.ActionReturnType(HttpStatusCode.InternalServerError, new IOResponse { Email = "", Message = IdentityValidationMessage.IDENTITY_LOGINTENANT_ERROR_MESSAGE });
         }
 
+        public async Task<ActionReturnType> forgotPassword(string eMail)
+        {
+            if(!string.IsNullOrEmpty(eMail))
+            {
+                 var emailfilter = Builders<TenantEntity>.Filter.Where(em => em.Email == eMail.Trim());
+                 var tenantregistryresult = await _tenantRegisry.Find(emailfilter).FirstOrDefaultAsync();
+                if(tenantregistryresult==null)
+                  return ActionSet.ActionReturnType(HttpStatusCode.NotFound, new IOResponse { Email = eMail, Message = IdentityValidationMessage.IDENTITY_DATANOTFOUND_LOGIN_MESSAGE });
+                    string tenantId=tenantregistryresult.TenantId;
+                    var passwordfilter=Builders<TenantStoreInfoEntity>.Filter.Where(tsi => tsi.TenantId ==tenantId);
+                    var tenantstoreinforesult= await _tenantStores.Find(passwordfilter).FirstOrDefaultAsync();
+                if(tenantstoreinforesult!=null)
+                {
+                     string password = string.Empty;
+                     password = Utility.encode(eMail,8);
+          
+                    var updatefilter = Builders<TenantStoreInfoEntity>.Update
+                        .Set(tsi => tsi.IsPasswordChanged, false)
+                        .Set(tsi => tsi.Password, password);
+
+                      await _tenantStores.UpdateOneAsync(passwordfilter, updatefilter);
+                     sendEmailToChangePassword(eMail, password);
+
+                     return ActionSet.ActionReturnType(HttpStatusCode.OK, new IOResponse { Email = eMail, Message = IdentityValidationMessage.IDENTITY_DATAFOUND_PASSWORDCHANGESUCCESS_MESSAGE });
+                }
+                else
+                { 
+                      return ActionSet.ActionReturnType(HttpStatusCode.BadRequest, new IOResponse { Email = eMail, Message = IdentityValidationMessage.IDENTITY_TENANT_NOT_FOUND });
+                }
+            }
+            else
+            {
+                  return ActionSet.ActionReturnType(HttpStatusCode.BadRequest, new IOResponse { Email = eMail, Message = IdentityValidationMessage.IDENTITY_TENANT_NOT_FOUND });
+            }
+        }
+
         public async Task<ActionReturnType> changePassword(string eMail,string oldPassword,string newPassword)
         {
             if(!string.IsNullOrEmpty(eMail) && !string.IsNullOrEmpty(oldPassword) &&  !string.IsNullOrEmpty(newPassword))
@@ -163,7 +199,29 @@ namespace LMS.Identity.BusinessSerive.Services
             sendEmailToRegisterTenant(tenantDto.Email, password,storeCodes);
             return true;
         }
+        private bool sendEmailToChangePassword(string eMail,string password)
+        {
+            StringBuilder sb = new StringBuilder();
+             sb.Append("<table border=\"1\">");
+             sb.Append("<tr bgcolor=\"#B2BEB5\"><td><b>Tenant Email</td><td><b>Password</td></tr>");
+             sb.Append("<tr>" +
+                       "<td>" + eMail + "</td>" +
+                       "<td>" + password + "</td>" +
+                       "</tr>");
+             sb.Append("</table>");
+             sb.Append("</br> </br> </br> </br> </br></br>");
+             sb.Append("<p>P.S. This is an automated email please do not reply.</p>");
+             sb.Append("</br>");
+             sb.Append("Regards,");
+             sb.Append("</br>");
+             sb.Append("LMS Inc");
+             string ReportSubject = _mailSubject;
+             string ReportBody = sb.ToString();
+            string FileName=string.Empty;
+            SendMail(eMail,FileName, ReportSubject, ReportBody);
+            return true;
 
+        }
         private bool sendEmailToRegisterTenant(string eMail,string password,List<string> storeCodes)
         {
             StringBuilder sb = new StringBuilder();

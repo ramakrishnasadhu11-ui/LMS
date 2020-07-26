@@ -26,5 +26,10 @@
             ChangePassword 
             </summary>
         </member>
+        <member name="M:LMS.Identity.WebApi.Controllers.LoginController.forgotPassword(System.String)">
+            <summary>
+            forgotPassword 
+            </summary>
+        </member>
     </members>
 </doc>

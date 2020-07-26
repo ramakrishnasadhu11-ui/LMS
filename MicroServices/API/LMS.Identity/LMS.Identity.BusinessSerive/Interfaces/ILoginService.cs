@@ -10,17 +10,6 @@ namespace LMS.Identity.BusinessSerive.Interfaces
        Task<ActionReturnType> Register(TenantDto tenantDto);
        Task<ActionReturnType> TenantLogin(string eMail,string password);
        Task<ActionReturnType> changePassword (string eMail,string oldPassword,string newPassword);
-        //int RegisterUser(CustomerDto ClientDto);
-        //Task<List<UserGenderDto>> UserGender();
-        //Task<int> ClientChangePassword(string email, string NewPassword, string OldPassword);
-        //Task<int> CheckUserEmailExist(string email);
-        //Task<int> ForgotPassword(string email);
-        //int GetEmailCount(string email);
-        //int ClientLogin(ClientLoginDto ClientLoginDto);
-        //int RegisterClient(ClientDto ClientDto);
-
-        //string GetClientStoreDetails(string eMail);
-
-        //bool CheckIsPasswordChangedByclient(string eMail);
+       Task<ActionReturnType> forgotPassword(string eMail);
     }
 }

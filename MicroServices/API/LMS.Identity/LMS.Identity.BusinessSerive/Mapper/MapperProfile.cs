@@ -10,7 +10,6 @@ namespace LMS.Identity.BusinessSerive.Mapper
         {
             AllowNullDestinationValues = true;
             CreateMap<TenantDto, TenantEntity>().IgnoreAllPropertiesWithAnInaccessibleSetter().ReverseMap();
-         //   CreateMap<SurveyDataDto, SurveyData>().ReverseMap();
         }
     }
 }

@@ -70,6 +70,18 @@ namespace LMS.Identity.WebApi.Controllers
            return StatusCode((int)changepasswordResult.StatusCode, changepasswordResult.ResultSet); 
         }
        
+         /// <summary>
+        /// forgotPassword 
+        /// </summary>
+        [HttpGet(nameof(forgotPassword))]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+
+        public async Task<ActionResult> forgotPassword(string eMail)
+        {
+         var forgotpasswordResult = await _login.forgotPassword(eMail);
+           return StatusCode((int)forgotpasswordResult.StatusCode, forgotpasswordResult.ResultSet); 
+        }
         #endregion
         //#region Password
         ///// <summary>
