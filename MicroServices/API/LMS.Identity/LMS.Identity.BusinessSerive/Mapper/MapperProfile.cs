@@ -1,10 +1,6 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
-using AutoMapper;
-using LMS.Identity.DataModels;
-using LMS.Identity.DataModels.Entities;
-using LMS.Identity.DTO.Entities.Dto;
+﻿using AutoMapper;
+using LMS.Identity.DTO;
+using LMS.Identity.DTO.Entities;
 
 namespace LMS.Identity.BusinessSerive.Mapper
 {
@@ -13,8 +9,7 @@ namespace LMS.Identity.BusinessSerive.Mapper
         public MapperProfile()
         {
             AllowNullDestinationValues = true;
-
-            CreateMap<UserGender, UserGenderDto>().ReverseMap();
+            CreateMap<TenantDto, TenantEntity>().IgnoreAllPropertiesWithAnInaccessibleSetter().ReverseMap();
          //   CreateMap<SurveyDataDto, SurveyData>().ReverseMap();
         }
     }

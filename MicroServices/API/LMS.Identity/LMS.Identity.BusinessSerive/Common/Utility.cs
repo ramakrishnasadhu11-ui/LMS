@@ -1,30 +1,79 @@
 ﻿using Microsoft.VisualBasic;
 using System;
 using System.Collections.Generic;
+using System.IO;
+using System.Net.Mail;
+using System.Security.Cryptography;
 using System.Text;
+using System.Text.RegularExpressions;
 
 namespace LMS.Identity.BusinessSerive.Common
 {
     public static class Utility
     {
         #region Encode Password
-        public static string encode(string email)
+        public static string encode(string email,int length)
         {
-            char strChar;
-            int bcode = 212;
-            string endecode = string.Empty;
-
-            while (email.Length > 0)
-            {
-                strChar = email[0];
-                email = email.Substring(1, email.Length - 1);
-                strChar = Strings.ChrW(bcode ^ Strings.AscW(strChar));
-
-                endecode += strChar;
-            }
-            return endecode;
+         return  GenerateDynamicCryptoString(email, length);
         }
         #endregion
+
+        public static string GenerateDynamicCryptoString(string pattern, int length, bool isPassword = false)
+        {
+            if (length != 0)
+            {
+                RNGCryptoServiceProvider provider = CreateRNGCryptoServiceProvider();
+                StringBuilder sb;
+                do
+                {
+                    sb = new StringBuilder();
+                    var byteArray = new byte[length > 3 ? length : 4];
+                    provider.GetBytes(byteArray);
+
+                    int patternLength = pattern.Length;
+
+                    //Gets character on index based from the pattern passed
+                    for (var i = 0; i < byteArray.Length; i++)
+                    {
+                        byte x = byteArray[i];
+                        while (x >= patternLength)
+                            x = Convert.ToByte(x % patternLength);
+                        sb.Append(pattern[x]);
+                    }
+
+                    //Below condition checks if atleast one special character is avaible in generated string.
+                    isPassword = HasSpecialCharacters(sb, pattern, isPassword);
+                } while (isPassword);
+
+                return sb.ToString();
+            }
+
+            return string.Empty;
+        }
+         private static bool HasSpecialCharacters(StringBuilder sb, string pattern, bool isPassword)
+        {
+            //Below condition checks if atleast one special character is avaible in generated string.
+            if (isPassword)
+            {
+                var regex = new Regex("[a-zA-Z0-9]*");
+                var specialChars = regex.Replace(pattern, "");
+                if (!string.IsNullOrEmpty(specialChars))
+                {
+                    var specialCharsRegex = new Regex("[" + specialChars + "]");
+                    isPassword = !specialCharsRegex.IsMatch(sb.ToString());
+                }
+                else
+                    isPassword = false;
+            }
+            return isPassword;
+        }
+
+
+        private static RNGCryptoServiceProvider CreateRNGCryptoServiceProvider()
+        {
+            RNGCryptoServiceProvider rngCryptoServiceProvider = new RNGCryptoServiceProvider();
+            return rngCryptoServiceProvider;
+        }
 
         public static string generateOTP()
         {
@@ -60,6 +109,7 @@ namespace LMS.Identity.BusinessSerive.Common
             }
             return new string(chars);
         }
+        
 
     }
 }

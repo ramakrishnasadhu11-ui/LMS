@@ -1,390 +1,308 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Data;
-using System.Data.SqlClient;
-using System.Threading.Tasks;
+﻿using LMS.Identity.BusinessSerive.Interfaces;
+using MongoDB.Driver;
+using LMS.Identity.DTO.Entities;
+using Microsoft.AspNetCore.Http;
+using System.Security.Authentication;
 using AutoMapper;
-using LMS.Core.Repository.UnitOfWork;
-using LMS.Identity.BusinessSerive.Interfaces;
-using LMS.Identity.BusinessSerive.Common;
-using LMS.Identity.DataModels.DataContext;
-using LMS.Identity.DTO.Entities.Dto;
-using Microsoft.EntityFrameworkCore;
-using AutoMapper.Configuration;
-using Amazon.SimpleEmail;
-using Amazon.SimpleEmail.Model;
-using System.Net;
 using LMS.Identity.DTO;
+using System;
+using System.Threading.Tasks;
+using LMS.Identity.Utilities;
+using System.Net;
+using LMS.Identity.BusinessSerive.Common;
+using System.Collections.Generic;
+using System.Text;
+using System.Net.Mail;
+using System.IO;
+using SendGrid.Helpers.Mail;
+using SendGrid;
 
 namespace LMS.Identity.BusinessSerive.Services
 {
     public class LoginService : ILoginService
     {
-        private readonly IUnitOfWork _unitOfWork;
-        private readonly IMapper _mapper;
-        private readonly IConfiguration _configuration;
+        private IMapper _mapper { get; }
+        private readonly MongoClientSettings _tenantMongoClientSettings = null;
+        private readonly IMongoDatabase _tenantDatabase = null;
+        private readonly IMongoCollection<TenantEntity> _tenantRegisry;
+        private readonly IMongoCollection<TenantStoreInfoEntity> _tenantStores;
+         private readonly ITenantRegistryConnection _tenantRegistryConnection;
+         private readonly IMailConfiguration _mailConfiguration;
+        private readonly string _mailSubject,_mailFrom,_sender,_smtpServer,_reciever,_username,_password;
+         private readonly int _port;
 
-        public LoginService(IUnitOfWork unitOfWork, IMapper mapper)
+        public LoginService(IHttpContextAccessor httpContextAccessor, ITenantRegistryConnection tenantRegistryConnection, IMailConfiguration mailConfiguration,IMapper mapper)
         {
-            this._unitOfWork = unitOfWork;
-            this._mapper = mapper;
+             _mapper = mapper ?? throw new ArgumentNullException(nameof(mapper));
+            _tenantRegistryConnection = tenantRegistryConnection;
+            _mailConfiguration = mailConfiguration;
+            _tenantMongoClientSettings = MongoClientSettings.FromUrl(new MongoUrl(_tenantRegistryConnection.ConnectionString));
+            _mailFrom=_mailConfiguration.MailFrom;
+            _sender=_mailConfiguration.Sender;
+            _smtpServer=_mailConfiguration.SmtpServer;
+            _reciever=_mailConfiguration.Reciever;
+            _port=_mailConfiguration.Port;
+            _username=_mailConfiguration.Username;
+             _username=_mailConfiguration.Username;
+            _password=_mailConfiguration.Password;
+            _mailSubject=_mailConfiguration.MailSubject;
+            _tenantMongoClientSettings.SslSettings = new SslSettings() { EnabledSslProtocols = SslProtocols.Tls12 };
+            _tenantMongoClientSettings.ConnectTimeout = new System.TimeSpan(_tenantRegistryConnection.ConnectTimeoutInSeconds * System.TimeSpan.TicksPerSecond);
+            var tenantRegisterClient = new MongoClient(_tenantMongoClientSettings);
+            if (tenantRegisterClient != null)
+                _tenantDatabase = tenantRegisterClient.GetDatabase(_tenantRegistryConnection.DatabaseName);
+
+             _tenantRegisry = _tenantDatabase.GetCollection<TenantEntity>(_tenantRegistryConnection.TenantRegisryCollectionName);
+            _tenantStores = _tenantDatabase.GetCollection<TenantStoreInfoEntity>(_tenantRegistryConnection.TenantStoreInfoCollectionName);
         }
 
-        #region AddCustomer
-        public int RegisterUser(CustomerDto CustomertDto)
-        {
+           public async Task<ActionReturnType> Register(TenantDto tenantDto)
+           {
+            if(tenantDto==null)
+            {
+                 return ActionSet.ActionReturnType(HttpStatusCode.NoContent, new IOResponse { TenantId = "", Message = IdentityValidationMessage.IDENTITY_DATANOTFOUND_ERROR_MESSAGE });
+            }
+            else if(tenantDto!=null)
+            {
+                 var emailfilter = Builders<TenantEntity>.Filter.Where(em => em.Email == tenantDto.Email);
+                 var result = await _tenantRegisry.Find(emailfilter).FirstOrDefaultAsync();
+                 if (result!=null)
+                   {
+                     return ActionSet.ActionReturnType(HttpStatusCode.AlreadyReported, new IOResponse { Message = IdentityValidationMessage.IDENTITY_DATAFOUND_ERROR_MESSAGE});
+                   }
            
-             var ctx = new LMSDB_DevContext();
-            var customerId = new SqlParameter("@CustomerId", SqlDbType.Int);
-            customerId.Direction = ParameterDirection.Output;
-            CustomertDto.Active = false;
-                 int status =ctx.Database.ExecuteSqlCommand("[dbo].usp_insert_customer @CustomerGenderID,@CustomerName,@phoneNumber,@EMail,@MiddleName,@FamilyName,@Photo,@Address1,@Address2,@City,@Region,@Zip,@Country,@Active,@CreatedByUserId,@ModifiedByUserId,@CustomerId OUT",
-                 new SqlParameter("@CustomerGenderID", CustomertDto.CustomerGenderId),
-                 new SqlParameter("@CustomerName", CustomertDto.CustomerName),
-                 new SqlParameter("@phoneNumber", CustomertDto.PhoneNumber),
-                 new SqlParameter("@EMail", CustomertDto.Email),
-                 new SqlParameter("@MiddleName", CustomertDto.MiddleName),
-                 new SqlParameter("@FamilyName", CustomertDto.FamilyName),
-                 new SqlParameter("@Photo", CustomertDto.Photo),
-                 new SqlParameter("@Address1", CustomertDto.Address1),
-                 new SqlParameter("@Address2", CustomertDto.Address2),
-                 new SqlParameter("@City", CustomertDto.City),
-                 new SqlParameter("@Region", CustomertDto.Region),
-                 new SqlParameter("@Zip", CustomertDto.Zip),
-                 new SqlParameter("@Country", CustomertDto.Country),
-                 new SqlParameter("@Active", CustomertDto.Active),
-                 new SqlParameter("@CreatedByUserId", CustomertDto.CreatedByUserId),
-                 new SqlParameter("@ModifiedByUserId", CustomertDto.ModifiedByUserId),
-                 customerId);
-
-            if (status == 1)
-            {
-                string password = string.Empty;
-                password = Utility.encode(CustomertDto.Email);
-                var passwordgenStatus = new SqlParameter("@Status", SqlDbType.Int);
-                passwordgenStatus.Direction = ParameterDirection.Output;
-                 int st = ctx.Database.ExecuteSqlCommand("usp_client_generatepassword @User_id,@Password,@Active,@CreatedByUserId,@ModifiedByUserId,@Status OUT",
-                 new SqlParameter("@User_id", Convert.ToInt32(customerId.Value)),
-                 new SqlParameter("@Password", password),
-                 new SqlParameter("@Active", 1),
-                 new SqlParameter("@CreatedByUserId", CustomertDto.CreatedByUserId),
-                 new SqlParameter("@ModifiedByUserId", CustomertDto.ModifiedByUserId),
-                 passwordgenStatus);
-                if (Convert.ToInt32(customerId.Value) > 0 && Convert.ToInt32(passwordgenStatus.Value) > 0)
-                {
-                   sendEmailToUser(CustomertDto.Email, password);
-                    return Convert.ToInt32(customerId.Value);
-                }
-                else
-                    return 0;
+                var tenantData = _mapper.Map<TenantEntity>(tenantDto);
+                var guid = Guid.NewGuid();
+                var tenantid = Convert.ToString(guid);
+                tenantData.TenantId=tenantid;
+                tenantData.ModifiedDate=DateTime.UtcNow;
+                tenantData.CreatedDate=DateTime.UtcNow;
+                await  _tenantRegisry.InsertOneAsync(tenantData);
+                await CreateTenantUserInfoAsync(tenantDto,tenantid);
+                return ActionSet.ActionReturnType(HttpStatusCode.Created, new IOResponse { TenantId = tenantid, Message = IdentityValidationMessage.IDENTITY_INSERT_SUCCESS_MESSAGE, TenantName = tenantDto.TenantName  });
             }
-            else
-                return 0;
-        }
-        #endregion
-        public async Task<int> ForgotPassword(string email)
+            return ActionSet.ActionReturnType(HttpStatusCode.InternalServerError, new IOResponse { TenantId = "", Message = IdentityValidationMessage.IDENTITY_INSERT_ERROR_MESSAGE });
+           }
+
+        private async Task<bool> CreateTenantUserInfoAsync(TenantDto tenantDto,string tenantid)
         {
-            var ctx = new LMSDB_DevContext();
             string password = string.Empty;
-            password = Utility.generateOTP();
-            var @Status = new SqlParameter("@Status", SqlDbType.Int);
-            @Status.Direction = ParameterDirection.Output;
-            int st =ctx.Database.ExecuteSqlCommand("[dbo].[usp_clientForgotPassword] @Email,@NewPassword,@Status OUT",
-            new SqlParameter("@Email", email),
-            new SqlParameter("@NewPassword", password),
-            Status);
-            if (Convert.ToInt32(Status.Value)==1)
+            password = Utility.encode(tenantDto.Email,8);
+            TenantStoreInfoEntity TenantStoreInfoEntity=new TenantStoreInfoEntity();
+            TenantStoreInfoEntity.TenantId=tenantid;
+            TenantStoreInfoEntity.Name=tenantDto.TenantName;
+            TenantStoreInfoEntity.Status="ÏnActive";
+            TenantStoreInfoEntity.IsPasswordChanged=false;
+            TenantStoreInfoEntity.Password=password;
+            List<string> storeCodes = new List<string>();
+            for (int i = 0; i < tenantDto.NoOfStores; i++)
             {
-                sendEmailToUser(email, password);
-                return Convert.ToInt32(Status.Value);
+                 string code = Utility.GenerateStoreCode(3);
+                storeCodes.Add(code);
             }
-            else
-                return 0;
-        }
-        public bool sendEmailToUser(string eMail,string password)
-        {
-            Console.WriteLine("Sending Email...");
-            string key1 = string.Empty;
-            string key2 = string.Empty;
-            key1 = "AKIA6BLJZLG25YT4C6E7";
-            key2 = "Gb9Zc50N2AYCNFX00IV+wCuPzzbxvq0u/lmCTJqB";
-            using (var client = new AmazonSimpleEmailServiceClient(key1, key2, Amazon.RegionEndpoint.USEast1))
-            {
-                var sendRequest = new SendEmailRequest
-                {
-                    Source = "laundrymanagementsoftware@gmail.com",
-                    Destination = new Destination { ToAddresses = { eMail } },
-                    Message = new Message
-                    {
-                        Subject = new Content("Hello from the Amazon Simple Email Service!"),
-                        Body = new Body
-                        {
-                            Html = new Content("<html>" +
-                                               "<body>" +
-                                               "<h2>Hello from Laundry Management Software Mail Service</h2>" +
-                                               "<ul>" +
-                                               "<li><b>Thanks for Registration</b></li>" +
-                                               "<b>Your Password is</b>" +
-                                               "<b>" +
-                                               password +
-                                               "</b>" +
-                                               "</body>" +
-                                               "</html>")
-                        }
-                    }
-                };
-                var response = client.SendEmailAsync(sendRequest).Result;
-                return response.HttpStatusCode == HttpStatusCode.OK;
-            }
-
-        }
-        public bool sendEmailToClient(string eMail, string password,List<string> storeCodes)
-        {
-            string store_codes = string.Empty;
-            foreach(string stcode in storeCodes)
-            {
-                store_codes += stcode + ",";
-            }
-            Console.WriteLine("Sending Email...");
-            string key1 = string.Empty;
-            string key2 = string.Empty;
-            key1 = "AKIA6BLJZLG25YT4C6E7";
-            key2 = "Gb9Zc50N2AYCNFX00IV+wCuPzzbxvq0u/lmCTJqB";
-            using (var client = new AmazonSimpleEmailServiceClient(key1, key2, Amazon.RegionEndpoint.USEast1))
-            {
-                var sendRequest = new SendEmailRequest
-                {
-                    Source = "laundrymanagementsoftware@gmail.com",
-                    Destination = new Destination { ToAddresses = { eMail } },
-                    Message = new Message
-                    {
-                        Subject = new Content("EDS Software!"),
-                        Body = new Body
-                        {
-                            Html = new Content("<html>" +
-                                               "<body>" +
-                                               "<h2>Welcome to Excel Dry Cleaning Mail Service</h2>" +
-                                               "<ul>" +
-                                               "<li><b>Thanks for Registration</b></li>" +
-                                               "<b>Password: </b>" +
-                                               "<b>" +
-                                               password +
-                                               "</b><br>" +
-                                               "<b>Store Code: </b>" +
-                                               "<b>" +
-                                               store_codes +
-                                               "</b><br>" +
-                                               "</body>" +
-                                               "</html>")
-                        }
-                    }
-                };
-                var response = client.SendEmailAsync(sendRequest).Result;
-                return response.HttpStatusCode == HttpStatusCode.OK;
-            }
-
-        }
-        public async Task<List<UserGenderDto>> UserGender()
-        {
-            var ctx = new LMSDB_DevContext();
-                var list = await ctx.UserGender.FromSql("exec[dbo].[usp_get_gender]").ToListAsync();
-            return _mapper.Map<List<UserGenderDto>>(list);
+            TenantStoreInfoEntity.Storecodes=storeCodes;
+            await _tenantStores.InsertOneAsync(TenantStoreInfoEntity);
+            sendEmailToRegisterTenant(tenantDto.Email, password,storeCodes);
+            return true;
         }
 
-        public async Task<int> CheckUserEmailExist(string email)
+        private bool sendEmailToRegisterTenant(string eMail,string password,List<string> storeCodes)
         {
-            var ctx = new LMSDB_DevContext();
-
-            var AlreadyExistYesNo = new SqlParameter("@AlreadyExistYesNo", SqlDbType.Int);
-            AlreadyExistYesNo.Direction = ParameterDirection.Output;
-
-            ctx.Database.ExecuteSqlCommand("[dbo].[usp_userEmailCheck] @MailId,@AlreadyExistYesNo OUT",
-                 new SqlParameter("@MailId", email),
-                 AlreadyExistYesNo);
-            if (Convert.ToInt32(AlreadyExistYesNo.Value) > 0)
-                return 1;
-            else
-                return 0;
+            StringBuilder sb = new StringBuilder();
+             sb.Append("<table border=\"1\">");
+             sb.Append("<tr bgcolor=\"#B2BEB5\"><td><b>Tenant Email</td><td><b>Password</td><td><b>Store Count</td><td><b>SoreCodes</td><td><b>Status</td></tr>");
+             sb.Append("<tr>" +
+                       "<td>" + eMail + "</td>" +
+                       "<td>" + password + "</td>" +
+                       "<td bgcolor=\"#13EC31\">" + storeCodes.Count + "</td>" +
+                       "<td bgcolor=\"#13EC31\">" + string.Join(",", storeCodes)  + "</td>" +
+                       "<td bgcolor=\"#13EC31\"> InActive </td>" +
+                       "</tr>");
+             sb.Append("</table>");
+             sb.Append("</br> </br> </br> </br> </br></br>");
+             sb.Append("<p>P.S. This is an automated email please do not reply.</p>");
+             sb.Append("</br>");
+             sb.Append("Regards,");
+             sb.Append("</br>");
+             sb.Append("LMS Inc");
+             string ReportSubject = _mailSubject;
+             string ReportBody = sb.ToString();
+            string FileName=string.Empty;
+            SendMail(eMail,FileName, ReportSubject, ReportBody);
+            return true;
         }
-
-        public async Task<int> ClientChangePassword(string email, string NewPassword, string OldPassword)
+         public async void SendMail(string eMail,string successFile, string subject, string body)
         {
-                var ctx = new LMSDB_DevContext();
-                var Status = new SqlParameter("@Status", SqlDbType.Int);
-                @Status.Direction = ParameterDirection.Output;
-                ctx.Database.ExecuteSqlCommand("[dbo].[usp_clientChangePassword] @MailId,@NewPassword,@OLdPassword,@Status OUT",
-                     new SqlParameter("@MailId", email),
-                     new SqlParameter("@NewPassword", NewPassword),
-                     new SqlParameter("@OLdPassword", OldPassword),
-                     @Status);
-                if (Convert.ToInt32(@Status.Value) == 1)
-                    return 1;
-                else
-                    return 0;
-        }
-        public int GetEmailCount(string email)
-        {
-                var ctx = new LMSDB_DevContext();
-                var Count = new SqlParameter("@Count", SqlDbType.Int);
-                @Count.Direction = ParameterDirection.Output;
-                ctx.Database.ExecuteSqlCommand("[dbo].[usp_CheckUserEmailCount] @MailId,@Count OUT",
-                     new SqlParameter("@MailId", email),
-                     @Count);
-                if(Convert.ToInt32(@Count.Value) == 1)
-                    return 1;
-                else
-                    return 0;
-        }
-
-        #region AddClient
-        public int RegisterClient(ClientDto ClientDto)
-        {
-            
-            var ctx = new LMSDB_DevContext();
-            var clientId = new SqlParameter("@ClientId", SqlDbType.Int);
-            clientId.Direction = ParameterDirection.Output;
-            ClientDto.Active = false;
-            int emailCount=GetEmailCount(ClientDto.Email);
-            if (emailCount == 0)
+            try
             {
-                int status = ctx.Database.ExecuteSqlCommand("[dbo].[usp_insert_client] @FirstName,@LastName,@CompanyName,@EMail,@phoneNumber,@Photo,@NumberOfStores,@Active,@CreatedByUserId,@ModifiedByUserId,@ClientId OUT",
-                    new SqlParameter("@FirstName", ClientDto.FirstName),
-                    new SqlParameter("@LastName", ClientDto.LastName),
-                    new SqlParameter("@CompanyName", ClientDto.CompanyName),
-                    new SqlParameter("@EMail", ClientDto.Email),
-                    new SqlParameter("@phoneNumber", ClientDto.PhoneNumber),
-                    new SqlParameter("@Photo", ClientDto.Photo),
-                    new SqlParameter("@NumberOfStores", ClientDto.NumberOfStores),
-                    new SqlParameter("@Active", ClientDto.Active),
-                    new SqlParameter("@CreatedByUserId", ClientDto.CreatedByUserId),
-                    new SqlParameter("@ModifiedByUserId", ClientDto.ModifiedByUserId),
-                    clientId);
-                if (status == 1)
-                {
-                    var passwordgenStatus = new SqlParameter("@Status", SqlDbType.Int);
-                    passwordgenStatus.Direction = ParameterDirection.Output;
-                    string password = Utility.generateOTP();
-                    int st = ctx.Database.ExecuteSqlCommand("usp_client_generatepassword @Client_id,@Password,@Active,@CreatedByUserId,@ModifiedByUserId,@Status OUT",
-                  new SqlParameter("@Client_id", Convert.ToInt32(clientId.Value)),
-                  new SqlParameter("@Password", password),
-                  new SqlParameter("@Active", false),
-                  new SqlParameter("@CreatedByUserId", ClientDto.CreatedByUserId),
-                  new SqlParameter("@ModifiedByUserId", ClientDto.ModifiedByUserId),
-                  passwordgenStatus);
-                    List<string> storeCodes = new List<string>();
-                    for (int i = 0; i < ClientDto.NumberOfStores; i++)
-                    {
-                        var storeInsertStatus = new SqlParameter("@Status", SqlDbType.Int);
-                        storeInsertStatus.Direction = ParameterDirection.Output;
-                        string storecode = Utility.GenerateStoreCode(3);
-                        ctx.Database.ExecuteSqlCommand("usp_client_insertstores @Client_id,@ClientStoreCode,@CreatedByUserId,@ModifiedByUserId,@Status OUT",
-                        new SqlParameter("@Client_id", Convert.ToInt32(clientId.Value)),
-                        new SqlParameter("@ClientStoreCode", storecode),
-                        new SqlParameter("@CreatedByUserId", ClientDto.CreatedByUserId),
-                        new SqlParameter("@ModifiedByUserId", ClientDto.ModifiedByUserId),
-                        storeInsertStatus);
-                        storeCodes.Add(storecode);
-                    }
-                    if (Convert.ToInt32(clientId.Value) > 0 && Convert.ToInt32(passwordgenStatus.Value) > 0)
-                    {
-                        sendEmailToClient(ClientDto.Email, password, storeCodes);
-                        return Convert.ToInt32(clientId.Value);
-                    }
-                    else
-                        return 0;
-                }
-                else
-                    return 0;
+                var apiKey ="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";
+                var client = new SendGridClient(apiKey);
+                var from = new EmailAddress(_mailFrom, "Excel Laundry Services");
+                  List<EmailAddress> tos = new List<EmailAddress>
+                  {
+                      new EmailAddress(eMail, "ELS Tenant"),
+                  };
+        
+               var msg = MailHelper.CreateSingleEmailToMultipleRecipients(from, tos, subject, "", body, false);
+               var response = await client.SendEmailAsync(msg);
             }
-            else
+            catch (Exception ex)
             {
-                return -1;
+                throw ex;
             }
         }
-        #endregion
-
-        public int ClientLogin(ClientLoginDto ClientLoginDto)
+        public class TenantRegistryConnection : ITenantRegistryConnection
         {
-            var ctx = new LMSDB_DevContext();
-            var status = new SqlParameter("@Status", SqlDbType.Int);
-            status.Direction = ParameterDirection.Output;
-            var AlreadyExistYesNo = new SqlParameter("@AlreadyExistYesNo", SqlDbType.Int);
-            AlreadyExistYesNo.Direction = ParameterDirection.Output;
-
-
-
-            ctx.Database.ExecuteSqlCommand("[dbo].[usp_userEmailCheck] @MailId,@AlreadyExistYesNo OUT",
-                 new SqlParameter("@MailId", ClientLoginDto.Email),
-                 AlreadyExistYesNo);
-            if (Convert.ToInt32(AlreadyExistYesNo.Value) > 0)
-            {
-                ctx.Database.ExecuteSqlCommand("[dbo].[usp_clientlogincheck] @Email,@Password,@StoreCode,@status OUT",
-                new SqlParameter("@Email", ClientLoginDto.Email),
-                new SqlParameter("@Password", ClientLoginDto.Password),
-                new SqlParameter("@StoreCode", ClientLoginDto.StoreCode),
-                 status);
-                return Convert.ToInt32(status.Value);
-            }
-            else
-            {
-                return 3;
-            }
-
-
+        public string ConnectionString { get; set; }
+        public string DatabaseName { get; set; }
+        public string TenantRegisryCollectionName { get; set; }
+        public string TenantStoreInfoCollectionName { get; set; }
+        public int ConnectTimeoutInSeconds { get; set; }
         }
-
-        #region GetClientStoreDetails
-        public string GetClientStoreDetails(string eMail)
+         public interface ITenantRegistryConnection
         {
-            var ctx = new LMSDB_DevContext();
-            var count = new SqlParameter("@Count", SqlDbType.Int);
-            count.Direction = ParameterDirection.Output;
-            var StoresDetails = new SqlParameter("@StoresDetails", SqlDbType.VarChar);
-            StoresDetails.Direction = ParameterDirection.Output;
-            StoresDetails.Size = 100;
-
-            ctx.Database.ExecuteSqlCommand("[dbo].[usp_CheckClientStoresCount] @Email,@Count OUT",
-                 new SqlParameter("@Email", eMail),
-                 count);
-
-            if(Convert.ToInt32(count.Value)>=1)
-            {
-                ctx.Database.ExecuteSqlCommand("[dbo].[usp_GetStoresDetailsByClient] @Email,@StoresDetails OUT",
-               new SqlParameter("@Email", eMail),
-               StoresDetails);
-
-                if(StoresDetails.Value.ToString().Length>0)
-                {
-                    return StoresDetails.Value.ToString();
-                }
-                else
-                {
-                    return string.Empty;
-                }
-            }
-            return string.Empty;
-
+        string ConnectionString { get; set; }
+        string DatabaseName { get; set; }
+        string TenantRegisryCollectionName { get; set; }
+        string TenantStoreInfoCollectionName {get;set;}
+        int ConnectTimeoutInSeconds { get; set; }
             
         }
-        #endregion
 
-        #region CheckIsPasswordChanged
-        public bool CheckIsPasswordChangedByclient(string eMail)
+         public class MailConfiguration : IMailConfiguration
         {
-            var ctx = new LMSDB_DevContext();
-            var isPasswordChanged = new SqlParameter("@isPasswordChanged", SqlDbType.Bit);
-            isPasswordChanged.Direction = ParameterDirection.Output;
-
-            ctx.Database.ExecuteSqlCommand("[dbo].[usp_checkIsPasswordChangedByclient] @Email,@isPasswordChanged OUT",
-                 new SqlParameter("@Email", eMail),
-                 isPasswordChanged);
-
-            return Convert.ToBoolean(isPasswordChanged.Value);
-
-
-
-
+        public string MailSubject { get; set; }
+        public string MailFrom { get; set; }
+        public string Sender { get; set; }
+        public string SmtpServer {get;set;}
+        public string Reciever { get; set; }
+        public int Port { get; set; }
+        public string Username {get;set;}
+        public string Password {get;set;}
+        public string AlertMailSubject {get;set;}
+        public string ErrorMessage {get;set;}
+        public string SuccessMessage {get;set;}
         }
-        #endregion
+       
+        public interface IMailConfiguration
+        {
+        string MailSubject { get; set; }
+        string MailFrom { get; set; }
+        string Sender { get; set; }
+        string SmtpServer {get;set;}
+        string Reciever {get;set;}
+        int Port { get; set; }
+        string Username {get;set;}
+        string Password {get;set;}
+        string AlertMailSubject {get;set;}
+        string ErrorMessage {get;set;}
+        string SuccessMessage {get;set;}
+        }
+
+
+        //public async Task<int> ForgotPassword(string email)
+        //{
+        //    var ctx = new LMSDB_DevContext();
+        //    string password = string.Empty;
+        //    password = Utility.generateOTP();
+        //    var @Status = new SqlParameter("@Status", SqlDbType.Int);
+        //    @Status.Direction = ParameterDirection.Output;
+        //    int st =ctx.Database.ExecuteSqlCommand("[dbo].[usp_clientForgotPassword] @Email,@NewPassword,@Status OUT",
+        //    new SqlParameter("@Email", email),
+        //    new SqlParameter("@NewPassword", password),
+        //    Status);
+        //    if (Convert.ToInt32(Status.Value)==1)
+        //    {
+        //        sendEmailToUser(email, password);
+        //        return Convert.ToInt32(Status.Value);
+        //    }
+        //    else
+        //        return 0;
+        //}
+        
+         
+       
+        //public async Task<int> ClientChangePassword(string email, string NewPassword, string OldPassword)
+        //{
+        //        var ctx = new LMSDB_DevContext();
+        //        var Status = new SqlParameter("@Status", SqlDbType.Int);
+        //        @Status.Direction = ParameterDirection.Output;
+        //        ctx.Database.ExecuteSqlCommand("[dbo].[usp_clientChangePassword] @MailId,@NewPassword,@OLdPassword,@Status OUT",
+        //             new SqlParameter("@MailId", email),
+        //             new SqlParameter("@NewPassword", NewPassword),
+        //             new SqlParameter("@OLdPassword", OldPassword),
+        //             @Status);
+        //        if (Convert.ToInt32(@Status.Value) == 1)
+        //            return 1;
+        //        else
+        //            return 0;
+        //}
+        //public int GetEmailCount(string email)
+        //{
+        //        var ctx = new LMSDB_DevContext();
+        //        var Count = new SqlParameter("@Count", SqlDbType.Int);
+        //        @Count.Direction = ParameterDirection.Output;
+        //        ctx.Database.ExecuteSqlCommand("[dbo].[usp_CheckUserEmailCount] @MailId,@Count OUT",
+        //             new SqlParameter("@MailId", email),
+        //             @Count);
+        //        if(Convert.ToInt32(@Count.Value) == 1)
+        //            return 1;
+        //        else
+        //            return 0;
+        //}
+
+        
+
+        //}
+
+        //#region GetClientStoreDetails
+        //public string GetClientStoreDetails(string eMail)
+        //{
+        //    var ctx = new LMSDB_DevContext();
+        //    var count = new SqlParameter("@Count", SqlDbType.Int);
+        //    count.Direction = ParameterDirection.Output;
+        //    var StoresDetails = new SqlParameter("@StoresDetails", SqlDbType.VarChar);
+        //    StoresDetails.Direction = ParameterDirection.Output;
+        //    StoresDetails.Size = 100;
+
+        //    ctx.Database.ExecuteSqlCommand("[dbo].[usp_CheckClientStoresCount] @Email,@Count OUT",
+        //         new SqlParameter("@Email", eMail),
+        //         count);
+
+        //    if(Convert.ToInt32(count.Value)>=1)
+        //    {
+        //        ctx.Database.ExecuteSqlCommand("[dbo].[usp_GetStoresDetailsByClient] @Email,@StoresDetails OUT",
+        //       new SqlParameter("@Email", eMail),
+        //       StoresDetails);
+
+        //        if(StoresDetails.Value.ToString().Length>0)
+        //        {
+        //            return StoresDetails.Value.ToString();
+        //        }
+        //        else
+        //        {
+        //            return string.Empty;
+        //        }
+        //    }
+        //    return string.Empty;
+
+            
+        //}
+        //#endregion
+
+        //#region CheckIsPasswordChanged
+        //public bool CheckIsPasswordChangedByclient(string eMail)
+        //{
+        //    var ctx = new LMSDB_DevContext();
+        //    var isPasswordChanged = new SqlParameter("@isPasswordChanged", SqlDbType.Bit);
+        //    isPasswordChanged.Direction = ParameterDirection.Output;
+
+        //    ctx.Database.ExecuteSqlCommand("[dbo].[usp_checkIsPasswordChangedByclient] @Email,@isPasswordChanged OUT",
+        //         new SqlParameter("@Email", eMail),
+        //         isPasswordChanged);
+
+        //    return Convert.ToBoolean(isPasswordChanged.Value);
+        //}
+        //#endregion
     }
 }
