@@ -28,7 +28,7 @@ namespace LMS.Identity.BusinessSerive.Services
         private readonly IMongoCollection<TenantStoreInfoEntity> _tenantStores;
          private readonly ITenantRegistryConnection _tenantRegistryConnection;
          private readonly IMailConfiguration _mailConfiguration;
-        private readonly string _mailSubject,_mailFrom,_sender,_smtpServer,_reciever,_username,_password;
+        private readonly string _mailSubject,_mailFrom,_sender,_smtpServer,_reciever,_username,_password,_apikey;
          private readonly int _port;
 
         public LoginService(IHttpContextAccessor httpContextAccessor, ITenantRegistryConnection tenantRegistryConnection, IMailConfiguration mailConfiguration,IMapper mapper)
@@ -46,6 +46,7 @@ namespace LMS.Identity.BusinessSerive.Services
              _username=_mailConfiguration.Username;
             _password=_mailConfiguration.Password;
             _mailSubject=_mailConfiguration.MailSubject;
+            _apikey=_mailConfiguration.ApiKey;
             _tenantMongoClientSettings.SslSettings = new SslSettings() { EnabledSslProtocols = SslProtocols.Tls12 };
             _tenantMongoClientSettings.ConnectTimeout = new System.TimeSpan(_tenantRegistryConnection.ConnectTimeoutInSeconds * System.TimeSpan.TicksPerSecond);
             var tenantRegisterClient = new MongoClient(_tenantMongoClientSettings);
@@ -251,7 +252,8 @@ namespace LMS.Identity.BusinessSerive.Services
         {
             try
             {
-                var apiKey ="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";
+                var apiKey=_apikey;
+             //   var apiKey ="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";
                 var client = new SendGridClient(apiKey);
                 var from = new EmailAddress(_mailFrom, "Excel Laundry Services");
                   List<EmailAddress> tos = new List<EmailAddress>
@@ -298,6 +300,8 @@ namespace LMS.Identity.BusinessSerive.Services
         public string AlertMailSubject {get;set;}
         public string ErrorMessage {get;set;}
         public string SuccessMessage {get;set;}
+
+        public string ApiKey {get;set;}
         }
        
         public interface IMailConfiguration
@@ -313,6 +317,7 @@ namespace LMS.Identity.BusinessSerive.Services
         string AlertMailSubject {get;set;}
         string ErrorMessage {get;set;}
         string SuccessMessage {get;set;}
+        string ApiKey {get;set;}
         }
 
                //public async Task<int> ForgotPassword(string email)
