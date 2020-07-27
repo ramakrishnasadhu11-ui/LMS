@@ -1,4 +1,4 @@
-﻿@model LMSWebUI.Models.Login.ClientDto
+﻿@model LMSWebUI.Models.Login.TenantDto
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -29,22 +29,22 @@
                 <div class="form-content register">
                     <div class="form-items" style="width: 340px;">
                         <img class="logo-size" src="~/Images/els-blue-web.png" alt="" style="width: 180px;margin-bottom: 20px;">
-                        @if (Model.Message != null)
+                        @*@if (Model.Message != null)
                         {
                             <div class="alert alert-success" role="alert"><strong>Well done!</strong><span class="glyphi glyphicon glyphicon-exclamation-sign"></span>@Model.Message</div>
-                        }
+                        }*@
                         <div class="page-links">
                             <a href="@Url.Action("Login", "Login")">Login</a> <a class="active" href="@Url.Action("Register", "Login")">Register</a>
                         </div>
                         @using (Html.BeginForm("Register", "Login", FormMethod.Post, new { @class = "form" }))
                         {
                             <form>
-                                @Html.TextBoxFor(m => m.FirstName, new { @placeholder = "First Name", @class = "form-control", required = "required" })
-                                @Html.TextBoxFor(m => m.LastName, new { @placeholder = "Last Name", @class = "form-control", required = "required" })
-                                @Html.TextBoxFor(m => m.CompanyName, new { @placeholder = "Company Name", @class = "form-control", required = "required" })
+                                @Html.TextBoxFor(m => m.FamilyName, new { @placeholder = "First Name", @class = "form-control", required = "required" })
+                                @Html.TextBoxFor(m => m.MiddleName, new { @placeholder = "Last Name", @class = "form-control", required = "required" })
+                                @Html.TextBoxFor(m => m.TenantName, new { @placeholder = "Company Name", @class = "form-control", required = "required" })
                                 @Html.TextBoxFor(m => m.Email, new { @placeholder = "E-mail Address", @class = "form-control", required = "required" })
                                 @Html.TextBoxFor(m => m.PhoneNumber, new { @placeholder = "Phone Number", @class = "form-control", required = "required" })
-                                @Html.TextBoxFor(m => m.NumberOfStores, new { @placeholder = "Number of Stores", @class = "form-control", required = "required" })
+                                @Html.TextBoxFor(m => m.NoOfStores, new { @placeholder = "Number of Stores", @class = "form-control", required = "required" })
                                 <div class="form-button">
                                     <button id="submit" type="submit" class="ibtn">Register</button><!--  <a href="#">Forget password?</a> -->
                                 </div>

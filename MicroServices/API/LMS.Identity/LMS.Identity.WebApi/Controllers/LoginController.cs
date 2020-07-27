@@ -3,10 +3,11 @@ using Microsoft.AspNetCore.Mvc;
 using LMS.Identity.BusinessSerive.Interfaces;
 using Microsoft.AspNetCore.Http;
 using LMS.Identity.DTO;
+using LMS.Identity.Utilities;
 
 namespace LMS.Identity.WebApi.Controllers
 {
-    [Route("api/[controller]")]
+    [Route("Login")]
     [ApiController]
     public class LoginController : ControllerBase
     {
@@ -31,10 +32,11 @@ namespace LMS.Identity.WebApi.Controllers
         /// </summary>
         /// <returns></returns>
         [HttpPost(nameof(RegisterTenant))]
-        [ProducesResponseType(StatusCodes.Status200OK)]
-        [ProducesResponseType(StatusCodes.Status400BadRequest)]
-        [ProducesResponseType(StatusCodes.Status404NotFound)]
-        public async Task<ActionResult> RegisterTenant([FromForm] TenantDto tenantDto)
+        [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(Result<LoginIoResponse>))]
+        [ProducesResponseType(StatusCodes.Status201Created, Type = typeof(Result<LoginIoResponse>))]
+        [ProducesResponseType(StatusCodes.Status500InternalServerError, Type = typeof(Result<object>))]
+        [ProducesResponseType(StatusCodes.Status400BadRequest, Type = typeof(Result<object>))]
+        public async Task<ActionResult> RegisterTenant([FromBody] TenantDto tenantDto)
         {
             if (tenantDto == null)
                 return BadRequest("Invalid data for this operation");

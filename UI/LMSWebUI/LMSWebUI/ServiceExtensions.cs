@@ -21,27 +21,7 @@ namespace LMSWebUI
             this IServiceCollection services, IConfiguration configuration)
         {
            
-            //services.AddTransient<IRatingAPIClient, RatingAPIClient>();  // Ratings API Client 
-            //services.AddTransient<IHttpClientApi>(s => new HttpClientApi(configuration.GetValue<string>("RatingApiUrl")));
             services.AddTransient<IHttpClientApi>(s => new HttpClientApi(configuration.GetValue<string>("LoginApiUrl")));
-
-            //var myType = typeof(IInject);
-
-            //var types = assemblyList.SelectMany(asm => asm.GetExportedTypes());
-
-            //var typesToRun = (from t in types
-            //                  where myType.IsAssignableFrom(t)
-            //                        && t.Name != myType.Name
-            //                  select t).ToList();
-
-            //typesToRun.ForEach(t =>
-            //{
-            //    var instance = (IInject)Activator.CreateInstance(t);
-            //    instance.InjectTypes(services, configuration);
-            //});
-
-
-
             return services;
         }
 
