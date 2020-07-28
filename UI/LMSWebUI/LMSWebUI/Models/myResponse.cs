@@ -39,5 +39,14 @@ namespace LMSWebUI.Models
         /// </summary>
         [StringLength(maximumLength: int.MaxValue)]
         public string TenantId { get; set; }
+
+          /// <summary>
+        ///  TenantName
+        /// </summary>
+        [StringLength(maximumLength: int.MaxValue)]
+      
+         public string TenantName { get; set; }
+
+
     }
 }

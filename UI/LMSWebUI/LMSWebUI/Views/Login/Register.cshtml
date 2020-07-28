@@ -29,25 +29,27 @@
                 <div class="form-content register">
                     <div class="form-items" style="width: 340px;">
                         <img class="logo-size" src="~/Images/els-blue-web.png" alt="" style="width: 180px;margin-bottom: 20px;">
-                        @*@if (Model.Message != null)
+                        @{
+                             bool disablebtn = false;
+                        }
+                        @if (Model.Message != null)
                         {
                             <div class="alert alert-success" role="alert"><strong>Well done!</strong><span class="glyphi glyphicon glyphicon-exclamation-sign"></span>@Model.Message</div>
-                        }*@
+                            disablebtn=true;
+                        }
                         <div class="page-links">
                             <a href="@Url.Action("Login", "Login")">Login</a> <a class="active" href="@Url.Action("Register", "Login")">Register</a>
                         </div>
                         @using (Html.BeginForm("Register", "Login", FormMethod.Post, new { @class = "form" }))
                         {
-                            <form>
+                            <form asp-action="Post">
                                 @Html.TextBoxFor(m => m.FamilyName, new { @placeholder = "First Name", @class = "form-control", required = "required" })
                                 @Html.TextBoxFor(m => m.MiddleName, new { @placeholder = "Last Name", @class = "form-control", required = "required" })
                                 @Html.TextBoxFor(m => m.TenantName, new { @placeholder = "Company Name", @class = "form-control", required = "required" })
                                 @Html.TextBoxFor(m => m.Email, new { @placeholder = "E-mail Address", @class = "form-control", required = "required" })
                                 @Html.TextBoxFor(m => m.PhoneNumber, new { @placeholder = "Phone Number", @class = "form-control", required = "required" })
                                 @Html.TextBoxFor(m => m.NoOfStores, new { @placeholder = "Number of Stores", @class = "form-control", required = "required" })
-                                <div class="form-button">
-                                    <button id="submit" type="submit" class="ibtn">Register</button><!--  <a href="#">Forget password?</a> -->
-                                </div>
+                                <button id="submit" type="submit" class="ibtn" disabled="@(disablebtn ? "disabled" : null)">Register</button>
                                 <p>Already have an account?  <a href="@Url.Action("Login", "Login")">Login</a></p>
                             </form>
                         }
@@ -57,5 +59,16 @@
             </div>
         </div>
     </div>
+     <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.4.1/jquery.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.16.0/umd/popper.min.js"></script>
+    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.4.1/js/bootstrap.min.js"></script>
+    <script type='text/javascript'>
+        $(function ()
+        {
+         $("input[type=submit]").click({
+         $('input[type=submit]').attr('disabled', 'disabled');
+    });
+});
+    </script>
 </body>
 </html>

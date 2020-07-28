@@ -10,13 +10,24 @@ namespace LMS.Identity.DTO
          /// <summary>
         ///  Message
         /// </summary>
+        
         [StringLength(maximumLength: int.MaxValue)]
         public string Message { get; set; }
 
         /// <summary>
-        ///  Guid
+        ///  TenantId
         /// </summary>
         [StringLength(maximumLength: int.MaxValue)]
         public string TenantId { get; set; }
+
+         /// <summary>
+        ///  TenantName
+        /// </summary>
+        [StringLength(maximumLength: int.MaxValue)]
+      
+         public string TenantName { get; set; }
+
+
+       
     }
 }

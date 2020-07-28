@@ -20,5 +20,6 @@ namespace LMSWebUI.Models.Login
        public string Region { get; set; }
        public string Zip { get; set; }
        public string Country { get; set; }
+       public string Message{get;set;}
     }
 }

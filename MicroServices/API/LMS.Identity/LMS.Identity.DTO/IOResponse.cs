@@ -28,6 +28,7 @@ namespace LMS.Identity.DTO
        
           [StringLength(maximumLength: int.MaxValue)]
         public string Email { get; set; }
+
        
     }
 }

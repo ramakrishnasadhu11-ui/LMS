@@ -69,23 +69,26 @@ namespace LMSWebUI.Controllers
         [AllowAnonymous]
         public async Task<ActionResult> Register(TenantDto TenantDto)
         {
+            LoginIoResponse responseMessage=new LoginIoResponse();
             try
             {
             myResponse APIResponse = new myResponse();
             if(TenantDto!=null)
             {
-                LoginIoResponse responseMessage = await clientAPI.SendRequestAsync<LoginIoResponse>("/RegisterTenant", TenantDto, RestSharp.Method.POST);
-                //if (responseMessage.StatusCode.Equals(System.Net.HttpStatusCode.OK))
-                //{
-                //    //string responseString = await responseMessage.Content.ReadAsStringAsync();
-                //    //LoginIoResponse responseObj = JsonConvert.DeserializeObject<LoginIoResponse>(responseString);
-
-                //}
+                    responseMessage = await clientAPI.SendRequestAsync<LoginIoResponse>("/RegisterTenant", TenantDto, RestSharp.Method.POST);
+                    if (responseMessage!=null && !string.IsNullOrEmpty(responseMessage.TenantId))
+                    {
+                        TenantDto.Message=responseMessage.Message;
+                        return View(TenantDto);            
+                    }
                 }
             else
             {
+                    TenantDto.Message=responseMessage.Message;
+                    return View(TenantDto);            
             }
-            return View(TenantDto);
+            TenantDto.Message=responseMessage.Message;
+            return View(TenantDto);            
             }
             catch(Exception ex)
             {
