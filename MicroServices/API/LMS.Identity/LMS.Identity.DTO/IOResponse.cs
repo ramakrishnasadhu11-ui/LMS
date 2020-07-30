@@ -23,12 +23,29 @@ namespace LMS.Identity.DTO
         [StringLength(maximumLength: int.MaxValue)]
         public string TenantId { get; set; }
        
-         [StringLength(maximumLength: int.MaxValue)]
+        /// <summary>
+        ///  TenantName
+        /// </summary>
+       
+        [StringLength(maximumLength: int.MaxValue)]
         public string TenantName { get; set; }
        
-          [StringLength(maximumLength: int.MaxValue)]
+         /// <summary>
+        ///  Email
+        /// </summary>
+       
+        [StringLength(maximumLength: int.MaxValue)]
         public string Email { get; set; }
 
-       
+        /// <summary>
+        ///  StatusCode
+        /// </summary>
+        [StringLength(maximumLength: int.MaxValue)]
+        public string StatusCode { get; set; }
+
+        /// <summary>
+        ///  StoreCodea
+        /// </summary>
+        public List<string> Storecodes { get; set; }
     }
 }

@@ -40,13 +40,22 @@ namespace LMSWebUI.Models
         [StringLength(maximumLength: int.MaxValue)]
         public string TenantId { get; set; }
 
-          /// <summary>
+        /// <summary>
         ///  TenantName
         /// </summary>
         [StringLength(maximumLength: int.MaxValue)]
-      
-         public string TenantName { get; set; }
+        public string TenantName { get; set; }
 
+        /// <summary>
+        ///  StatusCode
+        /// </summary>
+        [StringLength(maximumLength: int.MaxValue)]
+        public string StatusCode { get; set; }
 
+         /// <summary>
+        ///  StoreCodea
+        /// </summary>
+        public List<string> Storecodes { get; set; }
+   
     }
 }

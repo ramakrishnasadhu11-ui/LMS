@@ -84,6 +84,66 @@ namespace LMS.Identity.WebApi.Controllers
          var forgotpasswordResult = await _login.forgotPassword(eMail);
            return StatusCode((int)forgotpasswordResult.StatusCode, forgotpasswordResult.ResultSet); 
         }
+
+         /// <summary>
+        /// CheckTenantEmail 
+        /// </summary>
+        [HttpGet(nameof(CheckTenantEmail))]
+        [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(Result<LoginIoResponse>))]
+        [ProducesResponseType(StatusCodes.Status201Created, Type = typeof(Result<LoginIoResponse>))]
+        [ProducesResponseType(StatusCodes.Status500InternalServerError, Type = typeof(Result<object>))]
+        [ProducesResponseType(StatusCodes.Status400BadRequest, Type = typeof(Result<object>))]
+        public async Task<ActionResult> CheckTenantEmail(string eMail)
+        {
+         var forgotpasswordResult = await _login.CheckTenantEmail(eMail);
+           return StatusCode((int)forgotpasswordResult.StatusCode, forgotpasswordResult.ResultSet); 
+        }
+
+
+         /// <summary>
+        /// GetTenantStoreDetails 
+        /// </summary>
+        [HttpGet(nameof(GetTenantStoreDetails))]
+        [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(Result<LoginIoResponse>))]
+        [ProducesResponseType(StatusCodes.Status201Created, Type = typeof(Result<LoginIoResponse>))]
+        [ProducesResponseType(StatusCodes.Status500InternalServerError, Type = typeof(Result<object>))]
+        [ProducesResponseType(StatusCodes.Status400BadRequest, Type = typeof(Result<object>))]
+        public async Task<ActionResult> GetTenantStoreDetails(string eMail)
+        {
+         var forgotpasswordResult = await _login.GetTenantStoreDetails(eMail);
+           return StatusCode((int)forgotpasswordResult.StatusCode, forgotpasswordResult.ResultSet); 
+        }
+
+         /// <summary>
+        /// CheckIsPasswordChangedBytenant 
+        /// </summary>
+        [HttpGet(nameof(CheckIsPasswordChangedBytenant))]
+        [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(Result<LoginIoResponse>))]
+        [ProducesResponseType(StatusCodes.Status201Created, Type = typeof(Result<LoginIoResponse>))]
+        [ProducesResponseType(StatusCodes.Status500InternalServerError, Type = typeof(Result<object>))]
+        [ProducesResponseType(StatusCodes.Status400BadRequest, Type = typeof(Result<object>))]
+       public async Task<ActionResult> CheckIsPasswordChangedBytenant(string eMail)
+        {
+            var passwordChangedBytenantStatus = await _login.CheckIsPasswordChangedBytenant(eMail);
+           return StatusCode((int)passwordChangedBytenantStatus.StatusCode, passwordChangedBytenantStatus.ResultSet); 
+        }
+
+         /// <summary>
+        /// change password 
+        /// </summary>
+        [HttpPost(nameof(changepassword))]
+        [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(Result<LoginIoResponse>))]
+        [ProducesResponseType(StatusCodes.Status201Created, Type = typeof(Result<LoginIoResponse>))]
+        [ProducesResponseType(StatusCodes.Status500InternalServerError, Type = typeof(Result<object>))]
+        [ProducesResponseType(StatusCodes.Status400BadRequest, Type = typeof(Result<object>))]
+       public async Task<ActionResult> changepassword([FromBody] ChangePasswordDto ChangePasswordDto)
+        {
+            var passwordChangedBytenantStatus = await _login.changepassword(ChangePasswordDto.Email,ChangePasswordDto.NewPassword,ChangePasswordDto.OldPassword);
+           return StatusCode((int)passwordChangedBytenantStatus.StatusCode, passwordChangedBytenantStatus.ResultSet); 
+        }
+
+
+
         #endregion
         //#region Password
         ///// <summary>
@@ -219,29 +279,7 @@ namespace LMS.Identity.WebApi.Controllers
         //    return new APIResponse(StatusCodes.Status500InternalServerError, Common.GetEnumDescription((StatusCodeMessages)StatusCodes.Status200OK), -1);
         //}
 
-        //[HttpGet(nameof(GetClientStoreDetails))]
-        //[ProducesResponseType(StatusCodes.Status200OK)]
-        //[ProducesResponseType(StatusCodes.Status400BadRequest)]
-        //[ProducesResponseType(StatusCodes.Status404NotFound)]
-        //public ActionResult<APIResponse> GetClientStoreDetails([FromQuery] string eMail)
-        //{
-        //    string clientStoreDetails= _login.GetClientStoreDetails(eMail);
-        //    LoginStatusDTO LoginStatusDTO = new LoginStatusDTO();
-        //    if (clientStoreDetails.Length >=1)
-        //    {
-        //        LoginStatusDTO.Message = "Success";
-        //        LoginStatusDTO.MessageStatus = "Success";
-        //        return new APIResponse(StatusCodes.Status200OK, Common.GetEnumDescription((StatusCodeMessages)StatusCodes.Status200OK), clientStoreDetails);
-        //    }
-        //    else if (string.IsNullOrEmpty(clientStoreDetails))
-        //    {
-        //            LoginStatusDTO.Message = "Fail";
-        //            LoginStatusDTO.MessageStatus = "Fail";
-        //            return new APIResponse(StatusCodes.Status404NotFound, Common.GetEnumDescription((StatusCodeMessages)StatusCodes.Status200OK), LoginStatusDTO);
-        //   }
-        //    else
-        //    throw new ApiException(Common.GetEnumDescription((StatusCodeMessages)StatusCodes.Status500InternalServerError), 0);
-        //}
+
 
         //[HttpGet(nameof(CheckIsPasswordChangedByclient))]
         //[ProducesResponseType(StatusCodes.Status200OK)]

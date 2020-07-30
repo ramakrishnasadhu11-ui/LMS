@@ -27,7 +27,15 @@ namespace LMS.Identity.DTO
       
          public string TenantName { get; set; }
 
+        /// <summary>
+        ///  StatusCode
+        /// </summary>
+        [StringLength(maximumLength: int.MaxValue)]
+         public string StatusCode { get; set; }
 
-       
+        /// <summary>
+        ///  StoreCodea
+        /// </summary>
+        public List<string> Storecodes { get; set; }
     }
 }

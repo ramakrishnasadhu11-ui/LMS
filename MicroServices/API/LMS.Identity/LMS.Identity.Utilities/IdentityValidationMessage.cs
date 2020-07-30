@@ -16,6 +16,9 @@ namespace LMS.Identity.Utilities
         public const string IDENTITY_DATAFOUND_PASSWORDCHANGE_MESSAGE = "Need to change Password";
         public const string IDENTITY_DATAFOUND_PASSWORDCHANGESUCCESS_MESSAGE = "Password Changed Successfully";
         public const string IDENTITY_DATANOTFOUND_LOGIN_MESSAGE = "Tenant Login Not Found";
+        public const string IDENTITY_DATANOTFOUND_EMAIL_MESSAGE = "Email Suppplied was Not Found";
+        public const string IDENTITY_DATAFOUNDCHANGEPASSWORDL_MESSAGE = "Password Changed Successfully";
+        public const string IDENTITY_DATAFOUND_EMAIL_MESSAGE = "Email Suppplied was Found";
         public const string IDENTITY_TENANT_NOT_FOUND = "Tenant Information is Missing in the Request";
         public const string IDENTITY_TENANTPASSWORDDATA_NOT_FOUND = "Tenant Password Information is Missing in the Request";
     }

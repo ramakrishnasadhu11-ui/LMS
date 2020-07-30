@@ -97,48 +97,61 @@ namespace LMSWebUI.Controllers
         }
         [HttpGet]
         [AllowAnonymous]
-        public async Task<string> GetAllStoresByClient(string clientUrl)
+        public async Task<string> GetAllStoresByTenant(string tenantEmail)
         {
-            myResponse APIResponse = new myResponse();
+             LoginIoResponse responseMessage=new LoginIoResponse();
             Dictionary<string, string> paramsGetAllStoresByClient = new Dictionary<string, string>
             {
-                { "eMail", clientUrl }
+                { "eMail", tenantEmail }
             };
-            if (!string.IsNullOrEmpty(clientUrl))
+            if (!string.IsNullOrEmpty(tenantEmail))
             {
-                APIResponse = await clientAPI.SendRequestAsync<myResponse>("/api/Login/GetClientStoreDetails", paramsGetAllStoresByClient, RestSharp.Method.GET);
+                 responseMessage = await clientAPI.SendRequestAsync<LoginIoResponse>("/GetTenantStoreDetails", paramsGetAllStoresByClient, RestSharp.Method.GET);
+                 if (responseMessage!=null && responseMessage.StatusCode=="200")
+                    {
+                    return string.Join(",", responseMessage.Storecodes.ToArray());
+                    //   return responseMessage.Storecodes;             
+                    }
             }
-            return "";
-           // return Convert.ToString(APIResponse.Result);
+            return string.Join(",", responseMessage.Storecodes.ToArray());
         }
 
         [HttpGet]
         [AllowAnonymous]
-        public async Task<string> CheckClientEmail(string clientUrl)
+        public async Task<int> CheckTenantEmail(string tenantEmail)
         {
-            myResponse APIResponse = new myResponse();
+            LoginIoResponse responseMessage=new LoginIoResponse();
             Dictionary<string, string> paramsEmail = new Dictionary<string, string>
             {
-                { "eMail", clientUrl }
+                { "eMail", tenantEmail }
             };
-            if (!string.IsNullOrEmpty(clientUrl))
-            {
-                APIResponse = await clientAPI.SendRequestAsync<myResponse>("/api/Login/CheckClientEmail", paramsEmail, RestSharp.Method.GET);
-            }
-            return "";
+             responseMessage = await clientAPI.SendRequestAsync<LoginIoResponse>("/CheckTenantEmail", paramsEmail, RestSharp.Method.GET);
+                    if (responseMessage!=null && responseMessage.StatusCode=="200")
+                    {
+                       return Convert.ToInt32(responseMessage.StatusCode);             
+                    }
+            return Convert.ToInt32(responseMessage.StatusCode);
           //  return Convert.ToString(APIResponse.Result);
         }
 
         [HttpGet]
         [AllowAnonymous]
-        public async Task<bool> CheckIsPasswordChangedByclient(ClientLoginDto ClientLoginDto)
+        public async Task<bool> CheckIsPasswordChangedByTenant(string Email)
         {
-            myResponse APIResponse = new myResponse();
+            LoginIoResponse responseMessage=new LoginIoResponse();
             Dictionary<string, string> paramsEmail = new Dictionary<string, string>
             {
-                { "eMail", ClientLoginDto.Email }
+                { "eMail", Email }
             };
-            APIResponse = await clientAPI.SendRequestAsync<myResponse>("/api/Login/CheckIsPasswordChangedByclient", paramsEmail, RestSharp.Method.GET);
+           responseMessage = await clientAPI.SendRequestAsync<LoginIoResponse>("/CheckIsPasswordChangedBytenant", paramsEmail, RestSharp.Method.GET);
+            if (responseMessage!=null && responseMessage.StatusCode=="200" && responseMessage.Message.ToLower()=="false")
+            {
+                 return false;
+            }
+            else
+            {
+                return true;
+            }
             //if (Convert.ToBoolean(APIResponse.Result) == false)
             //{
             //    return false;
@@ -151,37 +164,41 @@ namespace LMSWebUI.Controllers
             // //    ClientLoginDto.ShowDialog = false;
             ////    await Login(ClientLoginDto);
             //}
-            return true;
          //   return View("~/Views/Login/Login.cshtml", ClientLoginDto);
         }
 
         [HttpPost]
         [AllowAnonymous]
-        public async Task<string> ChangePassword(string userEmail, string NewPassword, string OldPassword)
+        public async Task<string> ChangePassword(string Email, string NewPassword, string OldPassword)
         {
-            myResponse APIResponse = new myResponse();
-            Dictionary<string, string> paramsChangePassword = new Dictionary<string, string>
+            LoginIoResponse responseMessage=new LoginIoResponse();
+            ChangePasswordDto ChangePasswordDto=new ChangePasswordDto(); 
+            ChangePasswordDto.Email=Email;
+            ChangePasswordDto.NewPassword=NewPassword;
+            ChangePasswordDto.OldPassword=OldPassword;
+             responseMessage = await clientAPI.SendRequestAsync<LoginIoResponse>("/changepassword", ChangePasswordDto, RestSharp.Method.POST);
+             if (responseMessage!=null && responseMessage.StatusCode=="200")
             {
-                { "userEmail", userEmail },
-                { "NewPassword", NewPassword },
-                { "OldPassword", OldPassword }
-            };
-            APIResponse = await clientAPI.SendRequestAsync<myResponse>("/api/Login/ChangePassword", paramsChangePassword, RestSharp.Method.GET);
-            if(Convert.ToInt32(APIResponse.StatusCode)==200)
-            {
-                //var obj = APIResponse.Result;
-                //string output = JsonConvert.SerializeObject(obj);
-                //var deserializedObj = JsonConvert.DeserializeObject<myResponse>(output);
-                //return deserializedObj.Message;
+                 return responseMessage.Message;
             }
             else
             {
+                return responseMessage.Message;
+            }
+
                 //var obj = APIResponse.Result;
                 //string output = JsonConvert.SerializeObject(obj);
                 //var deserializedObj = JsonConvert.DeserializeObject<myResponse>(output);
                 //return deserializedObj.Message;
-            }
-            return "";
+            //}
+            //else
+            //{
+                //var obj = APIResponse.Result;
+                //string output = JsonConvert.SerializeObject(obj);
+                //var deserializedObj = JsonConvert.DeserializeObject<myResponse>(output);
+                //return deserializedObj.Message;
+            //}
+           // return "";
         }
 
     }
