@@ -14,6 +14,7 @@ namespace LMS.Identity.Utilities
         public const string IDENTITY_DATAFOUND_LOGIN_MESSAGE = "Tenant Login Successfully";
         public const string IDENTITY_DATAFOUND_PASSWORDALREADYCHANGED_MESSAGE = "Password Already Changed Successfully";
         public const string IDENTITY_DATAFOUND_PASSWORDCHANGE_MESSAGE = "Need to change Password";
+        public const string IDENTITY_DATAFOUND_CHANGEPASSWORDSUCCESS_MESSAGE = "Password Sent to Registered Email Successfully";
         public const string IDENTITY_DATAFOUND_PASSWORDCHANGESUCCESS_MESSAGE = "Password Changed Successfully";
         public const string IDENTITY_DATANOTFOUND_LOGIN_MESSAGE = "Tenant Login Not Found";
         public const string IDENTITY_DATANOTFOUND_EMAIL_MESSAGE = "Email Suppplied was Not Found";

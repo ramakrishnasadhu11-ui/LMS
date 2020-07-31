@@ -110,7 +110,6 @@ namespace LMSWebUI.Controllers
                  if (responseMessage!=null && responseMessage.StatusCode=="200")
                     {
                     return string.Join(",", responseMessage.Storecodes.ToArray());
-                    //   return responseMessage.Storecodes;             
                     }
             }
             return string.Join(",", responseMessage.Storecodes.ToArray());
@@ -131,7 +130,6 @@ namespace LMSWebUI.Controllers
                        return Convert.ToInt32(responseMessage.StatusCode);             
                     }
             return Convert.ToInt32(responseMessage.StatusCode);
-          //  return Convert.ToString(APIResponse.Result);
         }
 
         [HttpGet]
@@ -152,20 +150,26 @@ namespace LMSWebUI.Controllers
             {
                 return true;
             }
-            //if (Convert.ToBoolean(APIResponse.Result) == false)
-            //{
-            //    return false;
-            // //   ClientLoginDto.ShowDialog = true;
-            //   // return View("~/Views/Login/Login.cshtml", ClientLoginDto);
-            //}
-            //else
-            //{
-            //    return true;
-            // //    ClientLoginDto.ShowDialog = false;
-            ////    await Login(ClientLoginDto);
-            //}
-         //   return View("~/Views/Login/Login.cshtml", ClientLoginDto);
         }
+
+        [HttpGet]
+        [AllowAnonymous]
+        public async Task<string> forgotpassword(string Email)
+        {
+            LoginIoResponse responseMessage=new LoginIoResponse();
+            ChangePasswordDto forgotPasswordDto=new ChangePasswordDto(); 
+            forgotPasswordDto.Email=Email;
+             responseMessage = await clientAPI.SendRequestAsync<LoginIoResponse>("/forgotpassword", forgotPasswordDto, RestSharp.Method.POST);
+             if (responseMessage!=null && responseMessage.StatusCode=="200")
+            {
+                 return responseMessage.Message;
+            }
+            else
+            {
+                return responseMessage.Message;
+            }
+        }
+
 
         [HttpPost]
         [AllowAnonymous]
@@ -185,21 +189,6 @@ namespace LMSWebUI.Controllers
             {
                 return responseMessage.Message;
             }
-
-                //var obj = APIResponse.Result;
-                //string output = JsonConvert.SerializeObject(obj);
-                //var deserializedObj = JsonConvert.DeserializeObject<myResponse>(output);
-                //return deserializedObj.Message;
-            //}
-            //else
-            //{
-                //var obj = APIResponse.Result;
-                //string output = JsonConvert.SerializeObject(obj);
-                //var deserializedObj = JsonConvert.DeserializeObject<myResponse>(output);
-                //return deserializedObj.Message;
-            //}
-           // return "";
         }
-
     }
 }

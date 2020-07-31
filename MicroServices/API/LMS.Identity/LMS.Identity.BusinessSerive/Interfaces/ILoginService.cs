@@ -14,7 +14,9 @@ namespace LMS.Identity.BusinessSerive.Interfaces
        Task<ActionReturnType> CheckTenantEmail(string eMail);
        Task<ActionReturnType> GetTenantStoreDetails(string eMail);
         Task<ActionReturnType> CheckIsPasswordChangedBytenant(string eMail);
-         Task<ActionReturnType> changepassword(string Email,string NewPassword,string OldPassword);
+        Task<ActionReturnType> changepassword(string Email,string NewPassword,string OldPassword);
+        Task<ActionReturnType> forgotpassword(string Email);
+        
 
         
         

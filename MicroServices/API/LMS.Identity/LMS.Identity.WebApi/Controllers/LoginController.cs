@@ -142,6 +142,19 @@ namespace LMS.Identity.WebApi.Controllers
            return StatusCode((int)passwordChangedBytenantStatus.StatusCode, passwordChangedBytenantStatus.ResultSet); 
         }
 
+           /// <summary>
+        /// change password 
+        /// </summary>
+        [HttpPost(nameof(forgotpassword))]
+        [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(Result<LoginIoResponse>))]
+        [ProducesResponseType(StatusCodes.Status201Created, Type = typeof(Result<LoginIoResponse>))]
+        [ProducesResponseType(StatusCodes.Status500InternalServerError, Type = typeof(Result<object>))]
+        [ProducesResponseType(StatusCodes.Status400BadRequest, Type = typeof(Result<object>))]
+       public async Task<ActionResult> forgotpassword([FromBody] ChangePasswordDto ChangePasswordDto)
+        {
+            var forgotpasswordStatus = await _login.forgotpassword(ChangePasswordDto.Email);
+           return StatusCode((int)forgotpasswordStatus.StatusCode, forgotpasswordStatus.ResultSet); 
+        }
 
 
         #endregion

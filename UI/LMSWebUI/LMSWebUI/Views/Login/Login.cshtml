@@ -66,14 +66,12 @@
                 <!-- Modal body -->
                 <div class="modal-body">
                     <div class="form-group">
-                        <input class="form-control input-lg" placeholder="E-mail Address" name="email" type="email" required> <br>
-                        <input class="form-control input-lg" placeholder="New Password" name="email" type="password" required><br>
-                        <input class="form-control input-lg" placeholder="Confirm Password" name="email" type="password" required>
+                        @Html.TextBoxFor(m => m.Email, new { @placeholder = "E-Mail", @class = "form-control", required = "required", id = "tenantforgotpasswordEmail" })
                     </div>
                 </div>
                 <!-- Modal footer -->
                 <div class="modal-footer">
-                    <button id="submit" type="submit" class="ibtn">Reset my Password</button>
+                    <button id="forgotpassword" type="submit" class="ibtn">Reset my Password</button>
                 </div>
             </div>
         </div>
@@ -94,7 +92,7 @@
                 <div class="modal-body">
                     <lable id="lblOTPInformation"></lable>
                     <div class="form-group">
-                        @Html.TextBoxFor(m => m.Email, new { @placeholder = "E-Mail", @class = "form-control", required = "required", id = "userEmail" })
+                        @Html.TextBoxFor(m => m.Email, new { @placeholder = "E-Mail", @class = "form-control", required = "required", id = "tenantEmail" })
                         @Html.TextBoxFor(m => m.NewPassword, new { @placeholder = "New password", @class = "form-control", required = "required", id = "newPassword", @type = "password" })
                         @Html.TextBoxFor(m => m.OldPassword, new { @placeholder = "Old password", @class = "form-control", required = "required", id = "oldPassword", @type = "password" })
                     </div>
@@ -115,11 +113,33 @@
         {
             $('#information').hide();
         });
+        $("#forgotpassword").click(function () {
+            var model =
+            {
+                'Email': $("#tenantforgotpasswordEmail").get(0).value,
+            }
+                                 $.ajax
+                                ({
+                                    type: "GET",
+                                    url: '@Url.Action("forgotpassword", "Login")',
+                                    data: model,
+                                         success: function (data) {
+                                        $("#forgotpassword").hide();
+                                             $('#information').show();
+                                             $('#ForgotPassword').hide();
+                                             $('#information').html("<p>" + data + "</p>");
+                                             $('body').removeClass('modal-open');
+                                             $('.modal-backdrop').remove();
+                                    }
+                                })
+
+        });
+      
 
         $("#changepassword").click(function () {
             var model =
             {
-                'Email': $("#userEmail").get(0).value,
+                'Email': $("#tenantEmail").get(0).value,
                 'NewPassword': $("#newPassword").get(0).value,
                 'OldPassword': $("#oldPassword").get(0).value,
             }
@@ -143,9 +163,6 @@
             var model = {
                     'Email': $("#tenantEmail").get(0).value,
              }
-            //alert($("#tenantEmail").val());
-            //alert($("#tenantPassword").val());
-            //alert($("#Store option:selected").text());
             $.ajax
                 ({
                 type: "GET",

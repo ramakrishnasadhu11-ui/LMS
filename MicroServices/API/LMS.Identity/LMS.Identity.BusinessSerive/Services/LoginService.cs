@@ -135,7 +135,7 @@ namespace LMS.Identity.BusinessSerive.Services
                       await _tenantStores.UpdateOneAsync(passwordfilter, updatefilter);
                      sendEmailToChangePassword(eMail, password);
 
-                     return ActionSet.ActionReturnType(HttpStatusCode.OK, new IOResponse { Email = eMail, Message = IdentityValidationMessage.IDENTITY_DATAFOUND_PASSWORDCHANGESUCCESS_MESSAGE });
+                     return ActionSet.ActionReturnType(HttpStatusCode.OK, new IOResponse { Email = eMail, Message = IdentityValidationMessage.IDENTITY_DATAFOUND_CHANGEPASSWORDSUCCESS_MESSAGE });
                 }
                 else
                 { 
@@ -352,6 +352,37 @@ namespace LMS.Identity.BusinessSerive.Services
                       await _tenantStores.UpdateOneAsync(changepasswordfilter,updatepassfilter);
                     return ActionSet.ActionReturnType(HttpStatusCode.OK, new IOResponse {StatusCode="200", Email = Email, Message=IdentityValidationMessage.IDENTITY_DATAFOUNDCHANGEPASSWORDL_MESSAGE });
                     }
+            }
+             else
+            {
+                     return ActionSet.ActionReturnType(HttpStatusCode.OK, new IOResponse {StatusCode="200", Email = Email, Message = IdentityValidationMessage.IDENTITY_DATANOTFOUND_EMAIL_MESSAGE });
+            }
+              return ActionSet.ActionReturnType(HttpStatusCode.InternalServerError, new IOResponse {StatusCode="500", Email = Email, Message = IdentityValidationMessage.IDENTITY_LOGINTENANT_ERROR_MESSAGE });
+        }
+
+         public async Task<ActionReturnType> forgotpassword(string Email)
+        {
+            if(!string.IsNullOrEmpty(Email))
+            {
+                 var emailfilter = Builders<TenantEntity>.Filter.Where(em => em.Email == Email.Trim());
+                 var tenantfogotpasswordresult = await _tenantRegisry.Find(emailfilter).FirstOrDefaultAsync();
+                if(tenantfogotpasswordresult==null)
+                  return ActionSet.ActionReturnType(HttpStatusCode.NotFound, new IOResponse {StatusCode="404", Email = Email, Message = IdentityValidationMessage.IDENTITY_DATANOTFOUND_EMAIL_MESSAGE });
+
+                string tenantId=tenantfogotpasswordresult.TenantId;
+                    var forgotpasswordfilter=Builders<TenantStoreInfoEntity>.Filter.Where(tsi => tsi.TenantId ==tenantId);
+                    var forgotpassresult= await _tenantStores.Find(forgotpasswordfilter).FirstOrDefaultAsync();
+                    if(forgotpassresult!=null)
+                    {
+                    string password = string.Empty;
+                    password = Utility.encode(Email,8);
+                    var updatepassfilter = Builders<TenantStoreInfoEntity>.Update
+                        .Set(upf => upf.IsPasswordChanged, false)
+                        .Set(tsi => tsi.Password, password);
+                      await _tenantStores.UpdateOneAsync(forgotpasswordfilter,updatepassfilter);
+                     sendEmailToChangePassword(Email, password);
+                     return ActionSet.ActionReturnType(HttpStatusCode.OK, new IOResponse { Email = Email, Message = IdentityValidationMessage.IDENTITY_DATAFOUND_CHANGEPASSWORDSUCCESS_MESSAGE });
+                  }
             }
              else
             {
