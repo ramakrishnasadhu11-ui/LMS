@@ -60,6 +60,19 @@ namespace LMS.Identity.WebApi.Controllers
         }
 
         /// <summary>
+        /// Check Tenant Email Exist or not
+        /// </summary>
+        [HttpGet(nameof(TenantprofileDetails))]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+
+        public async Task<ActionResult> TenantprofileDetails(string eMail)
+        {
+         var loginResult = await _login.TenantProfileDetails(eMail);
+           return StatusCode((int)loginResult.StatusCode, loginResult.ResultSet); 
+        }
+
+        /// <summary>
         /// ChangePassword 
         /// </summary>
         [HttpGet(nameof(changePassword))]

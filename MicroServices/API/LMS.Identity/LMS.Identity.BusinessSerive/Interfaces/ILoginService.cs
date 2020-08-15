@@ -9,6 +9,7 @@ namespace LMS.Identity.BusinessSerive.Interfaces
     {
        Task<ActionReturnType> Register(TenantDto tenantDto);
        Task<ActionReturnType> TenantLogin(string eMail,string password);
+        Task<ActionReturnType> TenantProfileDetails(string eMail);
        Task<ActionReturnType> changePassword (string eMail,string oldPassword,string newPassword);
        Task<ActionReturnType> forgotPassword(string eMail);
        Task<ActionReturnType> CheckTenantEmail(string eMail);

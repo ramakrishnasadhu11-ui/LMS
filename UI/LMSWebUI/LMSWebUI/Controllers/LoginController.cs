@@ -10,6 +10,7 @@ using LMSWebUI.Models.Login;
 using Microsoft.AspNetCore.Authorization;
 using Newtonsoft.Json;
 using System.Net.Http;
+using Microsoft.AspNetCore.Http;
 
 namespace LMSWebUI.Controllers
 {
@@ -22,42 +23,59 @@ namespace LMSWebUI.Controllers
         }
         [HttpGet]
         [AllowAnonymous]
-        public async Task<IActionResult> Login()
+        public IActionResult Login()
         {
             ClientLoginDto ClientLoginDto = new ClientLoginDto();
             return View(ClientLoginDto);
         }
+        [HttpGet]
+        [AllowAnonymous]
+        public async Task<IActionResult> TenantProfileDetailsAsync(string tenantEmail)
+        {
+            LoginIoResponse responseMessage=new LoginIoResponse();
+            Dictionary<string, string> paramsGetAllStoresByClient = new Dictionary<string, string>
+            {
+                { "eMail", tenantEmail }
+            };
+            if (!string.IsNullOrEmpty(tenantEmail))
+            {
+                 responseMessage = await clientAPI.SendRequestAsync<LoginIoResponse>("/TenantprofileDetails", paramsGetAllStoresByClient, RestSharp.Method.GET);
+            }
+            return View();
+        }
         [HttpPost]
         [AllowAnonymous]
-        public async Task<string> Login(ClientLoginDto ClientLoginDto)
+        public async Task<bool> Login(string Email,string Password,string Store)
         {
-
             myResponse APIResponse = new myResponse();
-            if(ClientLoginDto!=null)
+            if(!string.IsNullOrWhiteSpace(Email))
             {
-                //APIResponse = await clientAPI.SendRequestAsync<myResponse>("/api/Login/ClientLogin", ClientLoginDto, RestSharp.Method.POST);
-                //if (APIResponse.StatusCode == 200 && Convert.ToInt32(APIResponse.Result.ToString()) ==1)
-                //    APIResponse.Message = "Login Sucessfull.";
-                //else if (APIResponse.StatusCode == 200 && Convert.ToInt32(APIResponse.Result.ToString()) == 3)
-                //    APIResponse.Message = "The Email supplied was not found.";
-                //else if (APIResponse.StatusCode == 200 && Convert.ToInt32(APIResponse.Result.ToString()) == 0)
-                //    APIResponse.Message = "The Password supplied was not found.";
-                //else if (APIResponse.StatusCode == 200 && Convert.ToInt32(APIResponse.Result.ToString()) == 2)
-                //    APIResponse.Message = "The Store Code supplied was not found.";
-                //else if (APIResponse.StatusCode == 200 && Convert.ToInt32(APIResponse.Result.ToString()) == -1)
-                //    APIResponse.Message = "Internal Server Error Please Try Again.";
-            }
-            else
+            LoginIoResponse responseMessage=new LoginIoResponse();
+            Dictionary<string, string> parmsLogin = new Dictionary<string, string>
             {
-            //    APIResponse.Message = "Invalid data for this operation";
+                { "eMail", Email },
+                { "Password", Password }
+            };
+            responseMessage = await clientAPI.SendRequestAsync<LoginIoResponse>("/TenantLogin", parmsLogin, RestSharp.Method.GET);
+                 if (responseMessage!=null && responseMessage.StatusCode=="200")
+                    {
+                    HttpContext.Session.SetString("TenantName",Email);
+                    HttpContext.Session.SetString("TenantStore",Store);
+                    return true;
+                    }
+                 else
+                {
+                    return false;
+                }
             }
-            return "";
-           // return APIResponse.Message;
-          //  ClientLoginDto.Message = APIResponse.Message;
-          // return View("~/Views/Login/Login.cshtml", ClientLoginDto);
-          //return View(ClientLoginDto);
+            return false;
         }
 
+        [HttpGet]
+        public IActionResult Logout()
+        {
+            return RedirectToAction("Login");
+        }
         [HttpGet]
         [AllowAnonymous]
         public IActionResult Register()

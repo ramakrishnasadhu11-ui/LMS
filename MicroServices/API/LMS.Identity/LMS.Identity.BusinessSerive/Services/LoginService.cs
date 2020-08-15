@@ -91,25 +91,25 @@ namespace LMS.Identity.BusinessSerive.Services
             var emailfilter = Builders<TenantEntity>.Filter.Where(em => em.Email == eMail.Trim());
             var tenantregistryresult = await _tenantRegisry.Find(emailfilter).FirstOrDefaultAsync();
                 if(tenantregistryresult==null)
-                  return ActionSet.ActionReturnType(HttpStatusCode.NotFound, new IOResponse { Email = eMail, Message = IdentityValidationMessage.IDENTITY_DATANOTFOUND_LOGIN_MESSAGE });
+                  return ActionSet.ActionReturnType(HttpStatusCode.NotFound, new IOResponse {StatusCode="200", Email = eMail, Message = IdentityValidationMessage.IDENTITY_DATANOTFOUND_LOGIN_MESSAGE });
                     string tenantId=tenantregistryresult.TenantId;
                     var passwordfilter=Builders<TenantStoreInfoEntity>.Filter.Where(tsi => tsi.TenantId ==tenantId && tsi.Password== password);
                     var tenantstoreinforesult= await _tenantStores.Find(passwordfilter).FirstOrDefaultAsync();
 
                 if(tenantstoreinforesult!=null && tenantstoreinforesult.IsPasswordChanged==false)
                 {
-                     return ActionSet.ActionReturnType(HttpStatusCode.OK, new IOResponse { Email = eMail, Message = IdentityValidationMessage.IDENTITY_DATAFOUND_PASSWORDCHANGE_MESSAGE });
+                     return ActionSet.ActionReturnType(HttpStatusCode.OK, new IOResponse {StatusCode="200", Email = eMail, Message = IdentityValidationMessage.IDENTITY_DATAFOUND_PASSWORDCHANGE_MESSAGE });
                 }
                 else if(tenantstoreinforesult!=null && tenantstoreinforesult.IsPasswordChanged==true)
                 {
-                     return ActionSet.ActionReturnType(HttpStatusCode.OK, new IOResponse { Email = eMail, Message = IdentityValidationMessage.IDENTITY_DATAFOUND_LOGIN_MESSAGE });
+                     return ActionSet.ActionReturnType(HttpStatusCode.OK, new IOResponse {StatusCode="200", Email = eMail, Message = IdentityValidationMessage.IDENTITY_DATAFOUND_LOGIN_MESSAGE });
                 }
              }
            else
             { 
-                 return ActionSet.ActionReturnType(HttpStatusCode.BadRequest, new IOResponse { Email = eMail, Message = IdentityValidationMessage.IDENTITY_TENANT_NOT_FOUND });
+                 return ActionSet.ActionReturnType(HttpStatusCode.BadRequest, new IOResponse {StatusCode="200", Email = eMail, Message = IdentityValidationMessage.IDENTITY_TENANT_NOT_FOUND });
             }
-             return ActionSet.ActionReturnType(HttpStatusCode.InternalServerError, new IOResponse { Email = "", Message = IdentityValidationMessage.IDENTITY_LOGINTENANT_ERROR_MESSAGE });
+             return ActionSet.ActionReturnType(HttpStatusCode.InternalServerError, new IOResponse {StatusCode="500", Email = "", Message = IdentityValidationMessage.IDENTITY_LOGINTENANT_ERROR_MESSAGE });
         }
 
         public async Task<ActionReturnType> forgotPassword(string eMail)
@@ -148,6 +148,21 @@ namespace LMS.Identity.BusinessSerive.Services
             }
         }
 
+         public async Task<ActionReturnType> TenantProfileDetails(string eMail)
+        {
+             if(!string.IsNullOrEmpty(eMail))
+            {
+                 var emailfilter = Builders<TenantEntity>.Filter.Where(em => em.Email == eMail.Trim());
+                 var tenantregistryresult = await _tenantRegisry.Find(emailfilter).FirstOrDefaultAsync();
+                if(tenantregistryresult==null)
+                  return ActionSet.ActionReturnType(HttpStatusCode.NotFound, new IOResponse {StatusCode="404", Email = eMail, Message = IdentityValidationMessage.IDENTITY_DATANOTFOUND_EMAIL_MESSAGE });
+                else
+                     return ActionSet.ActionReturnType(HttpStatusCode.OK, new IOResponse {StatusCode="200", Address=tenantregistryresult.Address, Country=tenantregistryresult.Country, PhoneNumber=tenantregistryresult.PhoneNumber, Email = eMail, TenantName=tenantregistryresult.TenantName, Message = IdentityValidationMessage.IDENTITY_DATAFOUND_EMAIL_MESSAGE });
+            }
+              return ActionSet.ActionReturnType(HttpStatusCode.InternalServerError, new IOResponse {StatusCode="500", Email = "", Message = IdentityValidationMessage.IDENTITY_LOGINTENANT_ERROR_MESSAGE });
+        }
+
+        
         public async Task<ActionReturnType> changePassword(string eMail,string oldPassword,string newPassword)
         {
             if(!string.IsNullOrEmpty(eMail) && !string.IsNullOrEmpty(oldPassword) &&  !string.IsNullOrEmpty(newPassword))

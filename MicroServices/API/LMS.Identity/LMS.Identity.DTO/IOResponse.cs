@@ -47,5 +47,21 @@ namespace LMS.Identity.DTO
         ///  StoreCodea
         /// </summary>
         public List<string> Storecodes { get; set; }
+
+        /// <summary>
+        ///  PhoneNumber
+        /// </summary>
+        public int PhoneNumber {get;set;}
+
+        /// <summary>
+        ///  Address
+        /// </summary>
+         public string Address {get;set;}
+
+        /// <summary>
+        ///  Country
+        /// </summary>
+         public string Country {get;set;}
+
     }
 }

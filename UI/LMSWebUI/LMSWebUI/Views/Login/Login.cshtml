@@ -160,8 +160,9 @@
         });
         $('#LoginCheck').click(function ()
         {
-            var model = {
-                    'Email': $("#tenantEmail").get(0).value,
+             var model = {
+                'Email': $("#tenantEmail").get(0).value
+                
              }
             $.ajax
                 ({
@@ -177,16 +178,21 @@
                             var model = {
                                 'Email': $("#tenantEmail").get(0).value,
                                 'Password': $("#tenantPassword").get(0).value,
-                                'StoreCode': $("#Store option:selected").text(),
+                                'Store': $("#Store option:selected").val()
                             }
+                             var newUrl= '@Url.Action("Index","Dashboard")';
                             $.ajax
                                 ({
                                     type: "POST",
                                     url: '@Url.Action("Login", "Login")',
                                     data: model,
                                     success: function (data) {
-                                        $('#information').show();
-                                        $('#information').html("<p>" + data + "</p>");
+                                        if (data == true)
+                                            window.location.href = newUrl;
+                                        else {
+                                         $('#information').show();
+                                         $('#information').html("<p> Login Supplied was not Found... </p>");
+                                        }
                                     }
                                 })
 

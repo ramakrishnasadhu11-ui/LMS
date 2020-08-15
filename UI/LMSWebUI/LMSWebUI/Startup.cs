@@ -39,15 +39,19 @@ namespace LMSWebUI
             {
                 options.AutomaticAuthentication = false;
             });
-            services.Configure<CookiePolicyOptions>(options =>
-            {
-                // This lambda determines whether user consent for non-essential cookies is needed for a given request.
-                options.CheckConsentNeeded = context => true;
-                options.MinimumSameSitePolicy = SameSiteMode.None;
-            });
+            //services.Configure<CookiePolicyOptions>(options =>
+            //{
+            //    // This lambda determines whether user consent for non-essential cookies is needed for a given request.
+            //    options.CheckConsentNeeded = context => true;
+            //    options.MinimumSameSitePolicy = SameSiteMode.None;
+            //});
 
 
             services.AddTransient<IHttpClientApi>(s => new HttpClientApi(Configuration["LoginApiUrl"]));
+            services.AddSession(options => 
+            {  
+               options.IdleTimeout = TimeSpan.FromMinutes(60);//You can set Time   
+           });  
             services.AddMvc().SetCompatibilityVersion(CompatibilityVersion.Version_2_2);
         }
 
@@ -68,7 +72,7 @@ namespace LMSWebUI
             app.UseHttpsRedirection();
             app.UseStaticFiles();
             app.UseCookiePolicy();
-
+            app.UseSession();
             app.UseMvc(routes =>
             {
                 routes.MapRoute(

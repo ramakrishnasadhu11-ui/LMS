@@ -1,0 +1,126 @@
+﻿<!DOCTYPE html>
+
+<html>
+<head>
+   <meta name="viewport" content="width=device-width, initial-scale=1">
+<link type="text/css" href="~/headerfiles/style.css" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
+    <style>
+body {font-family: Arial, Helvetica, sans-serif;}
+
+.navbar {
+  width: 100%;
+  background-color: #555;
+  overflow: auto;
+}
+
+.navbar a {
+  float: left;
+  padding: 12px;
+  color: white;
+  text-decoration: none;
+  font-size: 17px;
+}
+
+.navbar a:hover {
+  background-color: #000;
+}
+
+.active {
+  background-color: #4CAF50;
+}
+</style>
+</head>
+<body style="background-color: darkgray">
+    <table  width="100%" cellpadding="0" cellspacing="0">
+		<tr>
+ 	 	 <td width="100%" align="center" valign="bottom" height="30px">
+ <ul id="cnet" class="istylem1">
+	<li class="istylei0"><a href="#"><span>Customer</span></a>
+	<div><h1></h1><h2></h2><ul class="istylem0">
+		<li class="istylei-1"><a href="#"><b>Home</b></a></li>
+		<li><a href="#"><b>CustomerPreferences</b></a></li>
+		<li><a href="testlink.html">Add New</a></li>
+		<li><a href="#"><i>Customer Advances</i></a></li>
+	</ul></div>
+	</li>
+	 <li class="istylei0"><a href="#"><span>Drop</span></a>
+	<div><h1></h1><h2></h2><ul class="istylem0">
+		<li><a href="#"><b>Edit Order</b></a></li>
+		<li><a href="testlink.html">Cancel Order</a></li>
+	</ul></div>
+	</li>
+
+	 <li class="istylei0"><a href="#"><span>Process</span></a>
+	<div><h1></h1><h2></h2><ul class="istylem0">
+		<li><a href="#"><b>Print Barcode</b></a></li>
+		<li><a href="testlink.html">Packing Stickers</a></li>
+		<li><a href="testlink.html">Workshop Note</a></li>
+	</ul></div>
+	</li>
+
+	  <li class="istylei0"><a href="#"><span>PickUp</span></a>
+	<div><h1></h1><h2></h2><ul class="istylem0">
+		<li><a href="#"><b>Multiple Payment And Delivery</b></a></li>
+		<li><a href="testlink.html">Assign To Driver</a></li>
+	</ul></div>
+	</li>
+
+	 <li class="istylei0"><a href="#"><span>Account</span></a>
+	<div><h1></h1><h2></h2><ul class="istylem0">
+		<li><a href="#"><b>Cash/Day Book</b></a></li>
+		<li><a href="testlink.html">Detail Cash/Day Book</a></li>
+		<li><a href="testlink.html">Expenses</a></li>
+		<li><a href="testlink.html">Payment Type</a></li>
+		<li><a href="testlink.html">Tax Report</a></li>
+	</ul></div>
+	</li>
+	 <li class="istylei0"><a href="#"><span>Reports</span></a>
+	<div><h1></h1><h2></h2><ul class="istylem0">
+		<li><a href="#"><b>Orders</b></a></li>
+		<li><a href="testlink.html">Sales and Delivery</a></li>
+		<li><a href="testlink.html">Service Wise Order</a></li>
+		<li><a href="testlink.html">Category Wise Order</a></li>
+		<li><a href="testlink.html">Service And Garment</a></li>
+		<li><a href="testlink.html">Garment Wise</a></li>
+		<li><a href="testlink.html">Garment Status</a></li>
+		<li><a href="testlink.html">Returned Garments</a></li>
+		<li><a href="testlink.html">Daily Customer Addition</a></li>
+		<li><a href="testlink.html">Cancel Booking</a></li>
+		<li><a href="testlink.html">Without Ticket Delivery</a></li>
+		<li><a href="testlink.html">Order by locally</a></li>
+		<li><a href="testlink.html">Pending Stock</a></li>
+	</ul></div>
+	</li>
+	  <li class="istylei0"><a href="#"><span>Master Data</span></a>
+	<div><h1></h1><h2></h2><ul class="istylem0">
+		<li><a href="#"><b>Orders</b></a></li>
+		<li><a href="testlink.html">Laundry Services</a></li>
+	</ul></div>
+	</li>
+	  <li class="istylei0"><a href="#"><span>Admin</span></a>
+	<div><h1></h1><h2></h2><ul class="istylem0">
+		<li><a href="#"><b>Set Up</b></a></li>
+		<li><a href="testlink.html">Barcode Configurator</a></li>
+		<li><a href="testlink.html">Search Invoice</a></li>
+		<li><a href="testlink.html">SMS Configuration</a></li>
+		<li><a href="testlink.html">Daily Dashboard</a></li>
+		<li><a href="testlink.html">Payment Gateway Setup</a></li>
+		<li><a href="testlink.html">Email Configuration</a></li>
+		<li><a href="testlink.html">Discount Restriction</a></li>
+		<li><a href="testlink.html">Sticker Configuration</a></li>
+		<li><a href="testlink.html">QDC Marketplace</a></li>
+	</ul></div>
+	</li>
+	</ul>
+    <input type="button" value="Edit" /> &nbsp;
+    <input type="button" value="Search" />
+     </td>
+  </tr>
+		</table>
+	<div style="background-color:antiquewhite; text-align:center"><b> You have 2 pending Pick up requests </b></div>
+    <div>
+        @RenderBody()
+    </div>
+</body>
+</html>

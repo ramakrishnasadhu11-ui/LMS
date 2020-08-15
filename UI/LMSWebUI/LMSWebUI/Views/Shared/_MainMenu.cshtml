@@ -1,0 +1,26 @@
+﻿<ul class="sidebar-menu" data-widget="tree">
+<!-- Optionally, you can add icons to the links -->
+<li><a href="/Dashboard/Index"><i class="fa fa-dashboard"></i> <span>Customer</span></a></li>
+<li><a href="/Dashboard/Index"><i class="fa fa-dashboard"></i> <span>Reports</span></a></li>
+<li><a href="/Dashboard/Index"><i class="fa fa-dashboard"></i> <span>SetUp</span></a></li>
+<li><a href="/Dashboard/Index"><i class="fa fa-dashboard"></i> <span>Support</span></a></li>
+</ul>
+<script>
+    $(function() {
+        $.ajax(
+        {
+            type: "POST",
+            url: '@Url.Action("GetDashboardsList", "Dashboard")',
+            error: function (result) {
+                alert(result);
+            },
+            success: function (result) {
+                var menu = null;
+                $.each( result, function( key, value ) {
+                    menu += '<li><a href="/Dashboard/Dashboard/'+value.id+'">'+value.name+'</a></li>';
+                });
+                $("#menu").html(menu);
+            }
+        });
+});
+</script>

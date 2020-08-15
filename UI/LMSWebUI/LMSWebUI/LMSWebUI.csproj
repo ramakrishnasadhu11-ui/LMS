@@ -5,18 +5,42 @@
     <AspNetCoreHostingModelV2>InProcess</AspNetCoreHostingModelV2>
   </PropertyGroup>
 
+  <ItemGroup>
+    <Compile Remove="Models\Common\**" />
+    <Content Remove="Models\Common\**" />
+    <EmbeddedResource Remove="Models\Common\**" />
+    <None Remove="Models\Common\**" />
+  </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="Microsoft.AspNetCore.App" />
-    <PackageReference Include="Microsoft.AspNetCore.Razor.Design" Version="2.2.0" PrivateAssets="All" />
-    <PackageReference Include="Microsoft.VisualStudio.Web.CodeGeneration.Design" Version="2.2.3" />
-    <PackageReference Include="VMD.RESTApiResponseWrapper.Core" Version="1.0.4" />
+    <None Include="wwwroot\dist\.DS_Store" />
+    <None Include="wwwroot\dist\css\adminlte.css.map" />
+    <None Include="wwwroot\dist\css\adminlte.min.css.map" />
+    <None Include="wwwroot\dist\img\.DS_Store" />
+    <None Include="wwwroot\dist\js\.DS_Store" />
+    <None Include="wwwroot\dist\js\adminlte.js" />
+    <None Include="wwwroot\dist\js\adminlte.min.js" />
+    <None Include="wwwroot\dist\js\demo.js" />
+    <None Include="wwwroot\dist\js\pages\dashboard.js" />
+    <None Include="wwwroot\dist\js\pages\dashboard2.js" />
+    <None Include="wwwroot\headerfiles\data.js" />
+    <None Include="wwwroot\headerfiles\dmenu.js" />
+    <None Include="wwwroot\headerfiles\dmenu_add.js" />
+    <None Include="wwwroot\headerfiles\dmenu_ajax.js" />
+    <None Include="wwwroot\headerfiles\dmenu_cf.js" />
+    <None Include="wwwroot\headerfiles\dmenu_dyn.js" />
+    <None Include="wwwroot\headerfiles\dmenu_key.js" />
+    <None Include="wwwroot\headerfiles\dmenu_popup.js" />
+    <None Include="wwwroot\headerfiles\dmenu_search.js" />
   </ItemGroup>
 
 
   <ItemGroup>
-    <Folder Include="Models\Common\" />
-    <Folder Include="Views\Shared\" />
+    <PackageReference Include="Microsoft.AspNetCore.App" />
+    <PackageReference Include="Microsoft.AspNetCore.Razor.Design" Version="2.2.0" PrivateAssets="All" />
+    <PackageReference Include="Microsoft.AspNetCore.Session" Version="2.2.0" />
+    <PackageReference Include="Microsoft.VisualStudio.Web.CodeGeneration.Design" Version="2.2.4" />
+    <PackageReference Include="VMD.RESTApiResponseWrapper.Core" Version="1.0.4" />
   </ItemGroup>
 
 
