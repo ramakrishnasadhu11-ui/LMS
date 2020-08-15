@@ -32,12 +32,12 @@ body {font-family: Arial, Helvetica, sans-serif;}
 }
 
 .input-field {
-  width: 50%;
+  width: 100%;
   padding: 10px;
   outline: none;
 }
 .input1-field {
-  width: 100%;
+  width: 50%;
   padding: 10px;
   outline: none;
 }
@@ -74,10 +74,15 @@ body {font-family: Arial, Helvetica, sans-serif;}
     <br />
     <div class="input-container">
     <i class="fa fa-search icon"></i>
-    <input class="input1-field" type="text" placeholder="Search Customer here to Edit/Delete a Customer" name="usrnm">
+    <input class="input-field" type="text" placeholder="Search Customer here to Edit/Delete a Customer" name="usrnm">
   </div>
-  <div><b>Customer Code</b></div>
-  <br />
+  <div class="input-container">&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;
+    <label class="input1-field"><b>Customer Code</b></label>
+    <i class="fa fa-users icon"></i>
+    <input class="input2-field" type="text" placeholder="Membership ID" name="membershipid">
+    <i class="fa fa-barcode icon"></i>
+    <input class="input2-field" type="text" placeholder="Barcode" name="barcode">
+  </div>
   <div class="input-container">
    <i class="fa fa-user icon"></i>
    <select class="input2-field" name = "dropdown">
@@ -86,23 +91,58 @@ body {font-family: Arial, Helvetica, sans-serif;}
             <option value = "Ms">Ms</option>
             <option value = "Dr">Dr</option>
    </select>
-       <input class="input2-field" type="text" placeholder="Name" name="usrnm">
+      <input class="input2-field" type="text" placeholder="Name" name="usrnm">
+      <i class="fa fa-birthday-cake icon"></i>
+      <input class="input2-field" type="text" placeholder="Birthday" name="birthday">
+      <i class="fa fa-birthday-cake icon"></i>
+      <input class="input2-field" type="text" placeholder="Anniversary" name="anniversary">
   </div>
-  @*<div class="input-container">
-    <i class="fa fa-user icon"></i>
-     <input class="input1-field" type="text" placeholder="Name" name="usrnm">
-  </div>*@
   <div class="input-container">
+    <textarea class="input2-field" placeholder="Address here..."></textarea>
+    <textarea class="input2-field" placeholder="Area Location here..."></textarea>
+      <i class="fa fa-birthday-cake icon"></i>
+      <input class="input2-field" type="text" placeholder="Birthday" name="birthday">
+      <i class="fa fa-birthday-cake icon"></i>
+      <input class="input2-field" type="text" placeholder="Anniversary" name="anniversary">
+  </div>
+    <div class="input-container">
+    <i class="fa fa-birthday-cake icon"></i>
+    <input class="input1-field" type="text" placeholder="Pin Code" name="pincode">
+    <i class="fa fa-birthday-cake icon"></i>
+    <input class="input2-field" type="text" placeholder="Remarks" name="remarks">
+    <i class="fa fa-birthday-cake icon"></i>
+    <input class="input2-field" type="text" placeholder="Home Delivery" name="homedelivery">
+  </div>
+    <div class="input-container">
+    <i class="fa fa-phone-alt"></i>
+    <input class="input2-field" type="text" placeholder="Phone Number" name="pincode">
     <i class="fa fa-envelope icon"></i>
-    <input class="input-field" type="text" placeholder="Email" name="email">
+    <input class="input2-field" type="text" placeholder="Email ID" name="emailid">
+    <i class="fa fa-birthday-cake icon"></i>
+    <input class="input2-field" type="text" placeholder="Marketing Source" name="source">
+    <i class="fa fa-birthday-cake icon"></i>
+    <input class="input2-field" type="text" placeholder="Phone" name="phone">
   </div>
-  
-  <div class="input-container">
-    <i class="fa fa-key icon"></i>
-    <input class="input-field" type="password" placeholder="Password" name="psw">
+    <div class="input-container">
+    <i class="fa fa-phone-alt"></i>
+    <input class="input2-field" type="text" placeholder="Preference" name="preference">
+    <i class="fa fa-envelope icon"></i>
+    <input class="input2-field" type="text" placeholder="Select Communication Preference" name="communication">
+    <i class="fa fa-birthday-cake icon"></i>
+    <input class="input2-field" type="text" placeholder="Customer Advance" name="advance">
+    <i class="fa fa-birthday-cake icon"></i>
+    <input class="input2-field" type="text" placeholder="OTP" name="otp">
   </div>
-
-  <button type="submit" class="btn">Register</button>
+    </div>
+    <div class="input-container">
+    <i class="fa fa-phone-alt"></i>
+    <input class="input1-field" type="text" placeholder="Rate List" name="ratelist">
+    <i class="fa fa-birthday-cake icon"></i>
+    <input class="input2-field" type="text" placeholder="Facebook Id" name="facebookid">
+    <i class="fa fa-birthday-cake icon"></i>
+    <input class="input2-field" type="text" placeholder="Registration Source" name="registrationspurce">
+  </div>
+  <button style="width:auto" type="submit" class="btn">Save</button>
 </form>
 
 </body>
