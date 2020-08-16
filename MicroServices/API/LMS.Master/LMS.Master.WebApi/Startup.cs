@@ -1,87 +1,98 @@
 ﻿using AutoMapper;
+using Lamar;
 using LMS.Master.BusinessSerive.Mapper;
-using LMS.Master.WebApi.Utility;
-using LMS.SwaggerUI;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging;
 using Swashbuckle.AspNetCore.Swagger;
+using System;
+using System.IO;
+using System.Reflection;
 using IConfiguration = Microsoft.Extensions.Configuration.IConfiguration;
 namespace LMS.Master.WebApi
 {
     public class Startup
     {
-        private IHostingEnvironment environment;
         public IConfiguration Configuration { get; }
-        public Startup(IConfiguration configuration, IHostingEnvironment _environment)
+        public Startup(IConfiguration configuration)
         {
-            environment = _environment;
-            IConfigurationBuilder builder = new ConfigurationBuilder()
-           .SetBasePath(environment.ContentRootPath)
-           .AddJsonFile("appsettings.json", optional: true, reloadOnChange: true)
-           .AddJsonFile($"appsettings.{environment.EnvironmentName}.json", optional: true)
-           .AddEnvironmentVariables();
-            Configuration = builder.Build();
+             Configuration = configuration;
         }
-        public void ConfigureServices(IServiceCollection services)
+          public void ConfigureContainer(ServiceRegistry services)
         {
-            services.AddMvc().SetCompatibilityVersion(CompatibilityVersion.Version_2_2);
-            services.RegisterServices();
-            services.AddAutoMapper();
-            services.AddCors();
-            services.Configure<ApiBehaviorOptions>(options => { options.SuppressModelStateInvalidFilter = true; });
-            services.AddEntityFrameworkSqlServer();
-            var mapperconfig = new MapperConfiguration(op =>
+             services.AddMvc()
+                     .SetCompatibilityVersion(CompatibilityVersion.Version_2_2);
+
+             //var tenantRegistryOptions = Configuration.GetSection(TenantRegistryOptions.TenantRegistryConnection).Get<TenantRegistryOptions>();
+            //services.AddSingleton(tenantRegistryOptions);
+             //services.Configure<TenantRegistryConnection>(
+             //             Configuration.GetSection(nameof(TenantRegistryConnection)));
+             //services.AddSingleton<ITenantRegistryConnection>(sp =>
+             //   sp.GetRequiredService<IOptions<TenantRegistryConnection>>().Value);
+
+             //services.Configure<MailConfiguration>(
+             //             Configuration.GetSection(nameof(MailConfiguration)));
+             //services.AddSingleton<IMailConfiguration>(sp =>
+             //   sp.GetRequiredService<IOptions<MailConfiguration>>().Value);
+
+           
+            var xmlFile = $"{Assembly.GetExecutingAssembly().GetName().Name}.xml";
+            var xmlPath = Path.Combine(AppContext.BaseDirectory, xmlFile);
+            var xmlPathModel = Path.Combine(AppContext.BaseDirectory, "LMS.Master.WebApi.xml");
+            services.AddSwaggerGen(c =>
             {
-                op.AddProfile<MapperProfile>();
+                c.SwaggerDoc("v1",
+                    new Info
+                    {
+                        Title = "LMS Identity API",
+                        Description = "LMS Identity API"
+                    });
+                c.IncludeXmlComments(xmlPath);
+                c.IncludeXmlComments(xmlPathModel);
             });
-            IMapper mapper = mapperconfig.CreateMapper();
+            var mappingConfig = new MapperConfiguration(mc =>
+            {
+                mc.AddProfile(new MapperProfile());
+            });
+            IMapper mapper = mappingConfig.CreateMapper();
             services.AddSingleton(mapper);
-            services.RegisterDatabaseContext(Configuration.GetConnectionString("ModuleDB"));
-            SwaggerAPIMetaData metaData = new SwaggerAPIMetaData
-            {
-                Name = "v1",
-                SwaggerInfo = new Info { Title = "Common Data API", Version = "v1" }
-            };
 
-            services.AddSwaggerGen(swagger =>
+             services.AddCors(c =>
             {
-                swagger.DescribeAllEnumsAsStrings();
-                swagger.DescribeAllParametersInCamelCase();
-                swagger.SwaggerDoc("v1", new Swashbuckle.AspNetCore.Swagger.Info { Title = "LMS Master API", Version = "v1" });
+                c.AddPolicy("AllowOrigin", options => options.AllowAnyOrigin().AllowAnyHeader().AllowAnyMethod());
             });
         }
-
-        // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
-        public void Configure(IApplicationBuilder app, IHostingEnvironment env, ILoggerFactory loggerFactory)
+        public void Configure(IApplicationBuilder app, IHostingEnvironment env)
         {
             if (env.IsDevelopment())
             {
                 app.UseDeveloperExceptionPage();
             }
-            app.UseCors(builder => builder
-          .AllowAnyOrigin()
-          .AllowAnyMethod()
-          .AllowAnyHeader()
-         .AllowCredentials());
-            app.UseMiddleware(typeof(APIResponseMiddleware));
-            app.UseMvc();
-            app.UseSwagger();
+            else
+            {
+                 app.UseHsts();
+            }
+            app.UseHttpsRedirection();
             app.UseSwaggerUI(c =>
             {
                 c.SwaggerEndpoint("../swagger/v1/swagger.json", "My First Swagger");
             });
-
             app.UseHttpsRedirection();
             app.UseMvc();
-
-            //app.Run(async (context) =>
-            //{
-            //    await context.Response.WriteAsync("Hello World!");
-            //});
+            app.UseSwagger();
+            app.UseSwaggerUI(c =>
+            {
+                if (env.IsDevelopment())
+                {
+                    c.SwaggerEndpoint("/swagger/v1/swagger.json", "LMS Master Api v1");
+                }
+                else
+                {
+                    c.SwaggerEndpoint(Configuration["VirtualDirectory"] + "/swagger/v1/swagger.json", "LMS Master Api v1");
+                }
+            });
+            app.UseCors(options => options.AllowAnyOrigin().AllowAnyHeader().AllowAnyMethod());
         }
     }
 }

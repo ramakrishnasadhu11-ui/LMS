@@ -1,4 +1,4 @@
-﻿
+﻿@model LMSWebUI.Models.Customer.CustomerInfoDto 
 @{
     ViewData["Title"] = "Index";
     Layout = "~/Views/Shared/_HeaderMenuItemsLayout.cshtml";
@@ -9,6 +9,10 @@
     <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.4.1/jquery.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.16.0/umd/popper.min.js"></script>
     <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.4.1/js/bootstrap.min.js"></script>
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.16.0/umd/popper.min.js"></script>
+    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <!-- Add icon library -->
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
@@ -49,7 +53,23 @@ body {font-family: Arial, Helvetica, sans-serif;}
 .input-field:focus {
   border: 2px solid dodgerblue;
 }
-
+.relative {
+            padding: 10px;
+            position:fixed;
+            margin: 10px;
+        }
+        
+        .navitem {
+            display: inline-block;
+            width: 100px;
+            height: 100px;
+            text-align: center;
+            border: gray;
+            background-color:gainsboro;
+            color:black;
+            cursor: pointer;
+            font-weight: bold;
+        }
 /* Set a style for the submit button */
 .btn {
   background-color: dodgerblue;
@@ -67,12 +87,26 @@ body {font-family: Arial, Helvetica, sans-serif;}
 </style>
 </head>
 <body>
-
-<form style="max-width:"1500px;margin:auto">
-  <div class="btn"><b>Customer Create/Update/Delete</b></div>
-    <br />
-    <br />
-    <div class="input-container">
+      @if (TempData["UserMessage"] !=null)
+      {
+        @using Newtonsoft.Json;
+        @if (TempData["UserMessage"] != null)
+        {
+            var returnmessage =TempData["UserMessage"];
+            var message=JsonConvert.DeserializeObject<LMSWebUI.Models.MessageDto>(returnmessage.ToString());
+            <div class="input-field">
+            <div class="alert @message.CssClassName alert-dismissible fade show" id="alertstatus">
+              <button type="button" class="close" data-dismiss="alert">&times;</button>
+              <strong>@message.Title</strong> @message.DisplayMessage.
+              </div>
+            </div>
+         }
+      }
+     <div class="btn"><b>Customer Create/Update/Delete</b></div>
+     @using (Html.BeginForm("AddCustomer","Customer", FormMethod.Post, new { @class = "form" }))
+   {
+    <form>
+  <div class="input-container">
     <i class="fa fa-search icon"></i>
     <input class="input-field" type="text" placeholder="Search Customer here to Edit/Delete a Customer" name="usrnm">
   </div>
@@ -91,21 +125,22 @@ body {font-family: Arial, Helvetica, sans-serif;}
             <option value = "Ms">Ms</option>
             <option value = "Dr">Dr</option>
    </select>
-      <input class="input2-field" type="text" placeholder="Name" name="usrnm">
+      @Html.TextBoxFor(m => m.CustomerName, new { @placeholder = "Name", @class = "form-control, input2-field", required = "required", id = "name"})
       <i class="fa fa-birthday-cake icon"></i>
       <input class="input2-field" type="text" placeholder="Birthday" name="birthday">
       <i class="fa fa-birthday-cake icon"></i>
       <input class="input2-field" type="text" placeholder="Anniversary" name="anniversary">
   </div>
   <div class="input-container">
-    <textarea class="input2-field" placeholder="Address here..."></textarea>
+    @*<textarea class="input2-field" placeholder="Address here..."></textarea>*@
+      @Html.TextAreaFor(m=> m.Address, new { @placeholder = "Address here...", @class = "form-control, input2-field", required = "required", id = "address"})
     <textarea class="input2-field" placeholder="Area Location here..."></textarea>
       <i class="fa fa-birthday-cake icon"></i>
       <input class="input2-field" type="text" placeholder="Birthday" name="birthday">
       <i class="fa fa-birthday-cake icon"></i>
       <input class="input2-field" type="text" placeholder="Anniversary" name="anniversary">
   </div>
-    <div class="input-container">
+  <div class="input-container">
     <i class="fa fa-birthday-cake icon"></i>
     <input class="input1-field" type="text" placeholder="Pin Code" name="pincode">
     <i class="fa fa-birthday-cake icon"></i>
@@ -113,7 +148,7 @@ body {font-family: Arial, Helvetica, sans-serif;}
     <i class="fa fa-birthday-cake icon"></i>
     <input class="input2-field" type="text" placeholder="Home Delivery" name="homedelivery">
   </div>
-    <div class="input-container">
+  <div class="input-container">
     <i class="fa fa-phone-alt"></i>
     <input class="input2-field" type="text" placeholder="Phone Number" name="pincode">
     <i class="fa fa-envelope icon"></i>
@@ -123,7 +158,7 @@ body {font-family: Arial, Helvetica, sans-serif;}
     <i class="fa fa-birthday-cake icon"></i>
     <input class="input2-field" type="text" placeholder="Phone" name="phone">
   </div>
-    <div class="input-container">
+  <div class="input-container">
     <i class="fa fa-phone-alt"></i>
     <input class="input2-field" type="text" placeholder="Preference" name="preference">
     <i class="fa fa-envelope icon"></i>
@@ -133,8 +168,7 @@ body {font-family: Arial, Helvetica, sans-serif;}
     <i class="fa fa-birthday-cake icon"></i>
     <input class="input2-field" type="text" placeholder="OTP" name="otp">
   </div>
-    </div>
-    <div class="input-container">
+  <div class="input-container">
     <i class="fa fa-phone-alt"></i>
     <input class="input1-field" type="text" placeholder="Rate List" name="ratelist">
     <i class="fa fa-birthday-cake icon"></i>
@@ -142,9 +176,29 @@ body {font-family: Arial, Helvetica, sans-serif;}
     <i class="fa fa-birthday-cake icon"></i>
     <input class="input2-field" type="text" placeholder="Registration Source" name="registrationspurce">
   </div>
-  <button style="width:auto" type="submit" class="btn">Save</button>
-</form>
-
+  <div class="relative">
+         <input class="navitem" type="submit" id="custsave" value="Save" >
+         <button class="navitem" type="button" id="custnew" style="display:none">Add New Customer</button>
+         <button class="navitem" type="button" id="custedit" style="display:none">Edit</button>
+         <button class="navitem" type="button" id="custdelete" style="display:none">Delete</button>
+         <button class="navitem" type="button" id="custadvance" style="display:none">Advance Balance Adjustments</button>
+         <button class="navitem" type="button" id="custdetails" style="display:none">Customer Details</button>
+         <button class="navitem" type="button" id="custpickup" style="display:none">Schedule Pick Up</button>
+         <button class="navitem" type="button" id="custdrop" style="display:none">Schedule Drop</button>
+         <button class="navitem" type="button" id="custperpiece" style="display:none">Create Order Per Pieces</button>
+         <button class="navitem" type="button" id="custperweight" style="display:none">Create Order Per Weight</button>
+    </div>
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.4.1/jquery.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.16.0/umd/popper.min.js"></script>
+    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.4.1/js/bootstrap.min.js"></script>
+    <script type='text/javascript'>
+        $("#alertstatus").fadeTo(2000, 500).slideUp(500, function ()
+        {
+            $("#success-alert").slideUp(500);
+        });
+   </script>
+    </form>
+     }
 </body>
 </html>
 
