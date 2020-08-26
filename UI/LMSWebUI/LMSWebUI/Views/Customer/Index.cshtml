@@ -1,7 +1,7 @@
 ﻿@model LMSWebUI.Models.Customer.CustomerInfoDto 
 @{
-    ViewData["Title"] = "Index";
-    Layout = "~/Views/Shared/_HeaderMenuItemsLayout.cshtml";
+    ViewData["Title"] = "Customer";
+   Layout = "~/Views/Shared/_HeaderMenuItemsLayout.cshtml";
 }
 <!DOCTYPE html>
 <html>
@@ -97,10 +97,13 @@ body {font-family: Arial, Helvetica, sans-serif;}
             <div class="input-field">
             <div class="alert @message.CssClassName alert-dismissible fade show" id="alertstatus">
               <button type="button" class="close" data-dismiss="alert">&times;</button>
-              <strong>@message.Title</strong> @message.DisplayMessage.
+              <strong style="align-content:center">@message.Title</strong> @message.DisplayMessage.
               </div>
             </div>
-         }
+            <script type="text/javascript">
+                document.getElementById("custsave").hidden = true;
+            </script>
+        }
       }
      <div class="btn"><b>Customer Create/Update/Delete</b></div>
      @using (Html.BeginForm("AddCustomer","Customer", FormMethod.Post, new { @class = "form" }))
@@ -125,7 +128,7 @@ body {font-family: Arial, Helvetica, sans-serif;}
             <option value = "Ms">Ms</option>
             <option value = "Dr">Dr</option>
    </select>
-      @Html.TextBoxFor(m => m.CustomerName, new { @placeholder = "Name", @class = "form-control, input2-field", required = "required", id = "name"})
+      @Html.TextBoxFor(m => m.CustomerName, new { @placeholder = "Name", @class = "form-control, input2-field", id = "name"})
       <i class="fa fa-birthday-cake icon"></i>
       <input class="input2-field" type="text" placeholder="Birthday" name="birthday">
       <i class="fa fa-birthday-cake icon"></i>
@@ -133,7 +136,7 @@ body {font-family: Arial, Helvetica, sans-serif;}
   </div>
   <div class="input-container">
     @*<textarea class="input2-field" placeholder="Address here..."></textarea>*@
-      @Html.TextAreaFor(m=> m.Address, new { @placeholder = "Address here...", @class = "form-control, input2-field", required = "required", id = "address"})
+      @Html.TextAreaFor(m=> m.Address, new { @placeholder = "Address here...", @class = "form-control, input2-field", id = "address"})
     <textarea class="input2-field" placeholder="Area Location here..."></textarea>
       <i class="fa fa-birthday-cake icon"></i>
       <input class="input2-field" type="text" placeholder="Birthday" name="birthday">
@@ -176,25 +179,37 @@ body {font-family: Arial, Helvetica, sans-serif;}
     <i class="fa fa-birthday-cake icon"></i>
     <input class="input2-field" type="text" placeholder="Registration Source" name="registrationspurce">
   </div>
-  <div class="relative">
-         <input class="navitem" type="submit" id="custsave" value="Save" >
-         <button class="navitem" type="button" id="custnew" style="display:none">Add New Customer</button>
-         <button class="navitem" type="button" id="custedit" style="display:none">Edit</button>
-         <button class="navitem" type="button" id="custdelete" style="display:none">Delete</button>
-         <button class="navitem" type="button" id="custadvance" style="display:none">Advance Balance Adjustments</button>
-         <button class="navitem" type="button" id="custdetails" style="display:none">Customer Details</button>
-         <button class="navitem" type="button" id="custpickup" style="display:none">Schedule Pick Up</button>
-         <button class="navitem" type="button" id="custdrop" style="display:none">Schedule Drop</button>
-         <button class="navitem" type="button" id="custperpiece" style="display:none">Create Order Per Pieces</button>
-         <button class="navitem" type="button" id="custperweight" style="display:none">Create Order Per Weight</button>
-    </div>
+      <div class="relative">
+         <input class="navitem" type="submit"  id="custsave" value="Save" >
+         <button class="navitem" type="button" id="custnew">Add New Customer</button>
+         <button class="navitem" type="button" id="custedit">Edit</button>
+         <button class="navitem" type="button" id="custdelete">Delete</button>
+         <button class="navitem" type="button" id="custadvance">Advance Balance Adjustments</button>
+         <button class="navitem" type="button" id="custdetails">Customer Details</button>
+         <button class="navitem" type="button" id="custpickup">Schedule Pick Up</button>
+         <button class="navitem" type="button" id="custdrop">Schedule Drop</button>
+         <button class="navitem" type="button" id="custperpiece">Create Order Per Pieces</button>
+         <button class="navitem" type="button" id="custperweight">Create Order Per Weight</button>
+   </div>
     <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.4.1/jquery.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.16.0/umd/popper.min.js"></script>
     <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.4.1/js/bootstrap.min.js"></script>
     <script type='text/javascript'>
-        $("#alertstatus").fadeTo(2000, 500).slideUp(500, function ()
+         $("#alertstatus").fadeTo(2000, 500).slideUp(500, function ()
         {
             $("#success-alert").slideUp(500);
+         });
+        $(document).ready(function () {
+            $('#custsave').show();
+            $('#custnew').hide();
+            $('#custedit').hide();
+            $('#custdelete').hide();
+            $('#custadvance').hide();
+            $('#custdetails').hide();
+            $('#custpickup').hide();
+            $('#custdrop').hide();
+            $('#custperpiece').hide();
+            $('#custperweight').hide();
         });
    </script>
     </form>

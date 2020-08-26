@@ -6,7 +6,7 @@ using System.Text;
 
 namespace LMS.Master.DTO.Entity
 {
-    class CustomerEntity
+    public class CustomerEntity
     {
         [BsonId]
         [BsonRepresentation(BsonType.ObjectId)]
@@ -21,5 +21,12 @@ namespace LMS.Master.DTO.Entity
         public string TenantName {get;set;}
         [BsonElement]
         public string CustCode {get;set;}
+
+        [BsonElement]
+        public DateTime CreatedDate {get;set;}
+
+        [BsonElement]
+        public DateTime ModifiedDate {get;set;}
+
     }
 }

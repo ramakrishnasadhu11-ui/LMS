@@ -22,6 +22,7 @@ namespace LMSWebUI
         {
            
             services.AddTransient<IHttpClientApi>(s => new HttpClientApi(configuration.GetValue<string>("LoginApiUrl")));
+         //   services.AddTransient<IHttpClientApi>(s1 => new HttpClientApi(configuration.GetValue<string>("CustomerApiUrl")));
             return services;
         }
 

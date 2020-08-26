@@ -11,6 +11,7 @@ using Microsoft.AspNetCore.Authorization;
 using Newtonsoft.Json;
 using System.Net.Http;
 using Microsoft.AspNetCore.Http;
+using RestSharp;
 
 namespace LMSWebUI.Controllers
 {
@@ -19,7 +20,10 @@ namespace LMSWebUI.Controllers
         private readonly IHttpClientApi clientAPI;
         public LoginController(IHttpClientApi clientAPI)
         {
-            this.clientAPI = clientAPI;
+          //  new HttpClientApi("https://localhost:44351/Login");
+            this.clientAPI = new HttpClientApi("https://localhost:44351/Login");
+             
+            
         }
         [HttpGet]
         [AllowAnonymous]

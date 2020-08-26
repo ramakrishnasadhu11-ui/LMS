@@ -3,10 +3,12 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using LMSClientFactory.Helper;
+using LMSWebUI.Helpers;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.HttpsPolicy;
+using Microsoft.AspNetCore.Internal;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -27,6 +29,7 @@ namespace LMSWebUI
                .AddEnvironmentVariables();
             Configuration = builder.Build();
             ApiUrl = Configuration.GetValue<string>("LoginApiUrl");
+
         }
 
         public IConfiguration Configuration { get; }
@@ -46,8 +49,9 @@ namespace LMSWebUI
             //    options.MinimumSameSitePolicy = SameSiteMode.None;
             //});
 
+           // services.AddTransient<IHttpClientApi>(s => new HttpClientApi(Configuration["LoginApiUrl"]));
+         //   services.AddTransient<IHttpClientApi>(s => new HttpClientApi(Configuration["CustomerApiUrl"]));
 
-            services.AddTransient<IHttpClientApi>(s => new HttpClientApi(Configuration["LoginApiUrl"]));
             services.AddSession(options => 
             {  
                options.IdleTimeout = TimeSpan.FromMinutes(60);//You can set Time   
@@ -69,7 +73,9 @@ namespace LMSWebUI
                 app.UseHsts();
             }
 
-            app.UseHttpsRedirection();
+             app.UseHttpsRedirection();
+
+           
             app.UseStaticFiles();
             app.UseCookiePolicy();
             app.UseSession();

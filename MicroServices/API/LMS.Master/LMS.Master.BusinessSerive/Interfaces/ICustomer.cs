@@ -1,4 +1,5 @@
 ﻿using LMS.Master.DTO;
+using LMS.Master.Utilities;
 using System;
 using System.Collections.Generic;
 using System.Text;
@@ -9,6 +10,6 @@ namespace LMS.Master.BusinessSerive.Interfaces
 {
     public interface ICustomer
     {
-        Task<ActionReturnType> Register(CustomerDto customerDto);
+        Task<ActionReturnType> AddCustomer(CustomerDto customerDto);
     }
 }

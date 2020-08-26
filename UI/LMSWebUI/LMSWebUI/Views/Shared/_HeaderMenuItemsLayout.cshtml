@@ -1,34 +1,273 @@
 ﻿<!DOCTYPE html>
-
 <html>
 <head>
-   <meta name="viewport" content="width=device-width, initial-scale=1">
-<link type="text/css" href="~/headerfiles/style.css" rel="stylesheet">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+@*<link rel="stylesheet" type="text/css" href="~/headerfiles/style.css">*@
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
     <style>
 body {font-family: Arial, Helvetica, sans-serif;}
+ul#cnet div{display:none}
+ul#cnet li:hover>*{display:block}
+ul#cnet li:hover{position:relative;}
+ul#cnet div{
+	position: absolute;left:-1px;top:98%;}
+ul#cnet ul div{
+	position: absolute;left:98%;top:-2px;}
+		ul#cnet, ul#cnet ul {
+			margin: 0px;
+			list-style: none;
+			padding: 1px 0 1px 1px;
+			background-color: transparent;
+			border-width: 0px;
+			border-style: solid;
+			border-color: #999999;
+		}
 
-.navbar {
-  width: 100%;
-  background-color: #555;
-  overflow: auto;
-}
+			ul#cnet div {
+				background-image: url(sub.gif);
+			}
 
-.navbar a {
-  float: left;
-  padding: 12px;
-  color: white;
-  text-decoration: none;
-  font-size: 17px;
-}
+			ul#cnet h1, ul#cnet h2 {
+				margin: 0;
+				font-size: 0;
+				position: absolute;
+				width: 10px;
+				height: 10px;
+				background-image: url(sub.gif);
+			}
 
-.navbar a:hover {
-  background-color: #000;
-}
+			ul#cnet h1 {
+				left: 100%;
+				top: 0;
+				background-position: 100% 0;
+			}
 
-.active {
-  background-color: #4CAF50;
-}
+			ul#cnet h2 {
+				left: 0;
+				top: 100%;
+				background-position: 0 100%;
+			}
+
+		ul#cnet {
+			display: block;
+			font-size: 0;
+			zoom: 1;
+			height: 30px;
+			float: left;
+		}
+
+			ul#cnet ul {
+				width: 209px;
+				position: relative;
+				left: 10px;
+				top: 10px;
+				border: none;
+				background-image: url(sub.gif);
+				background-position: 100% 100%;
+				padding: 1px 11px 10px 1px;
+			}
+
+			ul#cnet li {
+				display: block;
+				zoom: 1;
+				margin: 0 1px 0 0;
+				font-size: 0;
+				float: left;
+			}
+
+			ul#cnet ul li {
+				margin: 0 0 1px;
+			}
+
+			ul#cnet a:active, ul#cnet a:focus {
+				outline-style: none
+			}
+
+			ul#cnet a, ul#cnet li.dis a:hover, ul#cnet li.sep a:hover {
+				display: block;
+				vertical-align: middle;
+				background-color: #FFFFFF;
+				border: 0px 0px 1px 0px solid #E6E6E6;
+				text-align: left;
+				text-decoration: none;
+				padding: 6px 5px;
+				font: normal 9pt arial,helvetica;
+				color: #3B6285;
+				text-decoration: none;
+				cursor: default;
+			}
+
+			ul#cnet span {
+				overflow: hidden;
+			}
+
+			ul#cnet ul li {
+				float: none;
+			}
+
+				ul#cnet ul a, ul#cnet ul li.dis a:hover {
+					text-align: left;
+					white-space: nowrap;
+				}
+
+			ul#cnet li.sep {
+				text-align: left;
+				padding: 0px;
+				line-height: 0;
+				height: 100%;
+			}
+
+				ul#cnet li.sep span {
+					float: none;
+					padding-right: 0;
+					width: 1px;
+					height: 100%;
+					display: inline-block;
+					background-color: #999999;
+					background-image: none;
+				}
+
+			ul#cnet ul li.sep span {
+				width: 100%;
+				height: 3px;
+			}
+
+			ul#cnet li:hover > a {
+				background-color: #EBEBEB;
+				border-color: #E6E6E6;
+				border-style: none;
+				font: normal 9pt arial,helvetica;
+				color: #3B6285;
+				text-decoration: underline;
+			}
+
+			ul#cnet li.dis a {
+				color: #AAAAAA !important;
+			}
+
+			ul#cnet img {
+				border: none;
+				vertical-align: middle;
+				margin-right: 12px;
+				width: 24px;
+				height: 24px;
+			}
+
+			ul#cnet ul img {
+				width: 16px;
+				height: 16px;
+			}
+
+			ul#cnet img.over {
+				display: none
+			}
+
+			ul#cnet li.dis a:hover img.over {
+				display: none !important
+			}
+
+			ul#cnet li.dis a:hover img.def {
+				display: inline !important
+			}
+
+			ul#cnet li:hover > a img.def {
+				display: none
+			}
+
+			ul#cnet li:hover > a img.over {
+				display: inline
+			}
+
+			ul#cnet span {
+				display: block;
+				background-image: url(arrow.gif);
+				background-position: right center;
+				background-repeat: no-repeat;
+				padding-right: 22px;
+				font: bold 17px arial,helvetica;
+			}
+
+			ul#cnet li:hover > a > span {
+				background-image: url(arrow_o.gif);
+			}
+
+			ul#cnet li.istylei0 {
+				s margin-right:6px;
+				background-color: #DEDEDE;
+				background-image: url(top.png);
+			}
+
+				ul#cnet li.istylei0 > a {
+					height: 13px;
+					background-color: #DEDEDE;
+					background-image: url(top.png);
+					font: bold 12px arial,helvetica;
+					color: #484848;
+					text-decoration: none;
+					margin: 0 -5px 0 5px;
+					background-position: 100% 0;
+				}
+
+				ul#cnet li.istylei0:hover > a {
+					background-color: #1E5B7E;
+					background-image: url(top.png);
+					font: bold 12px arial,helvetica;
+					color: #FFFFFF;
+					text-decoration: none;
+				}
+
+				ul#cnet li.istylei0:hover {
+					background-color: #1E5B7E;
+					background-image: url(top.png);
+					font: bold 12px arial,helvetica;
+					color: #FFFFFF;
+					text-decoration: none;
+				}
+
+			ul#cnet li.istylei1 > a {
+				height: 13px;
+				background-color: transparent;
+				background-image: url(sub-item-normal.gif);
+			}
+
+			ul#cnet li.istylei1:hover > a {
+				background-color: transparent;
+				background-image: url(sub-item-over.gif);
+			}
+
+		ul.istylem1 {
+			padding: 0px 0 0 0px;
+		}
+
+			ul.istylem1 > li > a {
+				padding: 5px 20px;
+			}
+
+			ul.istylem1 > li {
+				margin: 0 0px 0px 0;
+			}
+
+		.navbar {
+			width: 100%;
+			background-color: #555;
+			overflow: auto;
+		}
+
+			.navbar a {
+				float: left;
+				padding: 12px;
+				color: white;
+				text-decoration: none;
+				font-size: 17px;
+			}
+
+				.navbar a:hover {
+					background-color: #000;
+				}
+
+		.active {
+			background-color: #4CAF50;
+		}
 </style>
 </head>
 <body style="background-color: darkgray">

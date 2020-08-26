@@ -1,0 +1,17 @@
+{
+  "Login": {
+    "DebugUrl": "https://localhost:44351/",
+    "Name": "Login",
+    "Version": "v1"
+  },
+  "Dashboard": {
+    "DebugUrl": "",
+    "Name": "Dashboard",
+    "Version": "v1"
+  },
+  "Customer": {
+    "DebugUrl": "https://localhost:44352/",
+    "Name": "Customer",
+    "Version": "v1"
+  }
+}

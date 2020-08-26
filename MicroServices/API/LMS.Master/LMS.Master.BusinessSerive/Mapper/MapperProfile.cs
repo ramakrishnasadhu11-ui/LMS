@@ -1,4 +1,6 @@
 ﻿using AutoMapper;
+using LMS.Master.DTO;
+using LMS.Master.DTO.Entity;
 
 namespace LMS.Master.BusinessSerive.Mapper
 {
@@ -7,10 +9,7 @@ namespace LMS.Master.BusinessSerive.Mapper
         public MapperProfile()
         {
             AllowNullDestinationValues = true;
-            //CreateMap<AvailableLaundryServicesForClient, AvailableLaundryServicesForClientDto>().ReverseMap();
-            //CreateMap<AvailableLaundryCustomerTypesForClient, AvailableLaundryCustomerTypesForClientDto>().ReverseMap();
-            ////  CreateMap<UserGender, UserGenderDto>().ReverseMap();
-            //   CreateMap<SurveyDataDto, SurveyData>().ReverseMap();
+            CreateMap<CustomerEntity, CustomerDto>().ReverseMap();
         }
     }
 }

@@ -80,7 +80,7 @@ namespace LMS.Identity.BusinessSerive.Services
                 tenantData.CreatedDate=DateTime.UtcNow;
                 await  _tenantRegisry.InsertOneAsync(tenantData);
                 await CreateTenantUserInfoAsync(tenantDto,tenantid);
-                return ActionSet.ActionReturnType(HttpStatusCode.Created, new IOResponse {StatusCode="201", TenantId = tenantid, Message = IdentityValidationMessage.IDENTITY_INSERT_SUCCESS_MESSAGE, TenantName = tenantDto.TenantName  });
+                return ActionSet.ActionReturnType(HttpStatusCode.Created, new IOResponse {StatusCode="200", TenantId = tenantid, Message = IdentityValidationMessage.IDENTITY_INSERT_SUCCESS_MESSAGE, TenantName = tenantDto.TenantName  });
             }
             return ActionSet.ActionReturnType(HttpStatusCode.InternalServerError, new IOResponse {StatusCode="500", TenantId = "", Message = IdentityValidationMessage.IDENTITY_INSERT_ERROR_MESSAGE });
            }
