@@ -34,8 +34,8 @@
                         }
                         @if (Model.Message != null)
                         {
-                            <div class="alert alert-success" role="alert"><strong>Well done!</strong><span class="glyphi glyphicon glyphicon-exclamation-sign"></span>@Model.Message</div>
-                            disablebtn=true;
+                            <div class="alert alert-success" role="alert"><strong>Well done!</strong><span class="glyphi glyphicon glyphicon-exclamation-sign"></span>@Model.Message <p> <a href="@Url.Action("Login", "Login")">Login</a> </p></div>
+                            disablebtn=true; 
                         }
                         <div class="page-links">
                             <a href="@Url.Action("Login", "Login")">Login</a> <a class="active" href="@Url.Action("Register", "Login")">Register</a>

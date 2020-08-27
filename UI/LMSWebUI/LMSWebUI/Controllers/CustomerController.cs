@@ -22,11 +22,13 @@ namespace LMSWebUI.Controllers
         }
         public IActionResult Index()
         {
-            return View();
+            CustomerInfoDto CustomerInfoDto=new CustomerInfoDto();
+            CustomerInfoDto.disableStatus=false;
+            return View(CustomerInfoDto);
         }
 
         [HttpPost]
-        public async Task<ActionResult> AddCustomer(CustomerInfoDto CustomerInfoDto)
+        public async Task<ActionResult> Index(CustomerInfoDto CustomerInfoDto)
         { 
             if(!!string.IsNullOrWhiteSpace(CustomerInfoDto.CustomerName))
             { 
@@ -51,8 +53,10 @@ namespace LMSWebUI.Controllers
                     responseMessage = await clientAPI.SendRequestAsync<CustomerIOResponse>("/InsertCustomer", CustomerInfoDto, RestSharp.Method.POST);
                     if (responseMessage!=null && responseMessage.StatusCode=="200")
                     {
+                         TempData["isHideButton"]="true";
+                         CustomerInfoDto.disableStatus=true;
                          TempData["UserMessage"]=JsonConvert.SerializeObject(new MessageDto() {  CssClassName = "alert-success", Title = "Success!", DisplayMessage = responseMessage.Message });
-                         return RedirectToAction("Index","Customer");
+                         return View(CustomerInfoDto);
                     }
             }
             else

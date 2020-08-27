@@ -12,6 +12,8 @@ namespace LMSWebUI.Models.Customer
         public string StoreCode {get;set;}
         public string TenantName {get;set;}
         public string CustCode {get;set;}
+
+        public bool disableStatus {get;set;}
       
     }
 }

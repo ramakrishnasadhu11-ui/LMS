@@ -212,7 +212,7 @@ namespace LMS.Identity.BusinessSerive.Services
             }
             TenantStoreInfoEntity.Storecodes=storeCodes;
             await _tenantStores.InsertOneAsync(TenantStoreInfoEntity);
-            sendEmailToRegisterTenant(tenantDto.Email, password,storeCodes);
+          //  sendEmailToRegisterTenant(tenantDto.Email, password,storeCodes);
             return true;
         }
         private bool sendEmailToChangePassword(string eMail,string password)

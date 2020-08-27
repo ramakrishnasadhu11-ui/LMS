@@ -87,26 +87,9 @@ body {font-family: Arial, Helvetica, sans-serif;}
 </style>
 </head>
 <body>
-      @if (TempData["UserMessage"] !=null)
-      {
-        @using Newtonsoft.Json;
-        @if (TempData["UserMessage"] != null)
-        {
-            var returnmessage =TempData["UserMessage"];
-            var message=JsonConvert.DeserializeObject<LMSWebUI.Models.MessageDto>(returnmessage.ToString());
-            <div class="input-field">
-            <div class="alert @message.CssClassName alert-dismissible fade show" id="alertstatus">
-              <button type="button" class="close" data-dismiss="alert">&times;</button>
-              <strong style="align-content:center">@message.Title</strong> @message.DisplayMessage.
-              </div>
-            </div>
-            <script type="text/javascript">
-                document.getElementById("custsave").hidden = true;
-            </script>
-        }
-      }
+     @await Html.PartialAsync("_LayoutStatus");
      <div class="btn"><b>Customer Create/Update/Delete</b></div>
-     @using (Html.BeginForm("AddCustomer","Customer", FormMethod.Post, new { @class = "form" }))
+     @using (Html.BeginForm("Index","Customer", FormMethod.Post, new { @class = "form" }))
    {
     <form>
   <div class="input-container">
@@ -115,11 +98,16 @@ body {font-family: Arial, Helvetica, sans-serif;}
   </div>
   <div class="input-container">&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;
     <label class="input1-field"><b>Customer Code</b></label>
+         </div>
+
+@if(Model.disableStatus==false)
+      {
+    <div>
     <i class="fa fa-users icon"></i>
     <input class="input2-field" type="text" placeholder="Membership ID" name="membershipid">
     <i class="fa fa-barcode icon"></i>
     <input class="input2-field" type="text" placeholder="Barcode" name="barcode">
-  </div>
+   </div>
   <div class="input-container">
    <i class="fa fa-user icon"></i>
    <select class="input2-field" name = "dropdown">
@@ -128,16 +116,15 @@ body {font-family: Arial, Helvetica, sans-serif;}
             <option value = "Ms">Ms</option>
             <option value = "Dr">Dr</option>
    </select>
-      @Html.TextBoxFor(m => m.CustomerName, new { @placeholder = "Name", @class = "form-control, input2-field", id = "name"})
+      @Html.TextBoxFor(m => m.CustomerName, new { @placeholder = "Name",@class = "form-control maintain-text ", id = "name"})
       <i class="fa fa-birthday-cake icon"></i>
       <input class="input2-field" type="text" placeholder="Birthday" name="birthday">
       <i class="fa fa-birthday-cake icon"></i>
       <input class="input2-field" type="text" placeholder="Anniversary" name="anniversary">
   </div>
   <div class="input-container">
-    @*<textarea class="input2-field" placeholder="Address here..."></textarea>*@
-      @Html.TextAreaFor(m=> m.Address, new { @placeholder = "Address here...", @class = "form-control, input2-field", id = "address"})
-    <textarea class="input2-field" placeholder="Area Location here..."></textarea>
+        @Html.TextAreaFor(m=> m.Address, new { @placeholder = "Address here...", @class ="form-control maintain-text", id = "address"})
+      <textarea class="input2-field" placeholder="Area Location here..."></textarea>
       <i class="fa fa-birthday-cake icon"></i>
       <input class="input2-field" type="text" placeholder="Birthday" name="birthday">
       <i class="fa fa-birthday-cake icon"></i>
@@ -179,8 +166,78 @@ body {font-family: Arial, Helvetica, sans-serif;}
     <i class="fa fa-birthday-cake icon"></i>
     <input class="input2-field" type="text" placeholder="Registration Source" name="registrationspurce">
   </div>
+      }
+      else
+      {
+            <div class="input-container">
+   <i class="fa fa-user icon"></i>
+   <select class="input2-field" name = "dropdown" disabled="disabled">
+            <option value = "Mr">Mr</option>
+            <option value = "Mrs">Mrs</option>
+            <option value = "Ms">Ms</option>
+            <option value = "Dr">Dr</option>
+   </select>
+      @Html.TextBoxFor(m => m.CustomerName, new { @placeholder = "Name",@class = "form-control maintain-text ", id = "name",@disabled = "disabled"})
+      <i class="fa fa-birthday-cake icon"></i>
+      <input class="input2-field" type="text" placeholder="Birthday" name="birthday" disabled="disabled">
+      <i class="fa fa-birthday-cake icon"></i>
+      <input class="input2-field" type="text" placeholder="Anniversary" name="anniversary" disabled="disabled" >
+  </div>
+  <div class="input-container">
+        @Html.TextAreaFor(m=> m.Address, new { @placeholder = "Address here...", @class ="form-control maintain-text", id = "address",@disabled = "disabled"})
+      <textarea class="input2-field" placeholder="Area Location here..." disabled="disabled"></textarea>
+      <i class="fa fa-birthday-cake icon"></i>
+      <input class="input2-field" type="text" placeholder="Birthday" name="birthday" disabled="disabled">
+      <i class="fa fa-birthday-cake icon"></i>
+      <input class="input2-field" type="text" placeholder="Anniversary" name="anniversary" disabled="disabled">
+  </div>
+  <div class="input-container">
+    <i class="fa fa-birthday-cake icon"></i>
+    <input class="input1-field" type="text" placeholder="Pin Code" name="pincode" disabled="disabled">
+    <i class="fa fa-birthday-cake icon"></i>
+    <input class="input2-field" type="text" placeholder="Remarks" name="remarks" disabled="disabled">
+    <i class="fa fa-birthday-cake icon"></i>
+    <input class="input2-field" type="text" placeholder="Home Delivery" name="homedelivery" disabled="disabled">
+  </div>
+  <div class="input-container">
+    <i class="fa fa-phone-alt"></i>
+    <input class="input2-field" type="text" placeholder="Phone Number" name="pincode" disabled="disabled">
+    <i class="fa fa-envelope icon"></i>
+    <input class="input2-field" type="text" placeholder="Email ID" name="emailid" disabled="disabled">
+    <i class="fa fa-birthday-cake icon"></i>
+    <input class="input2-field" type="text" placeholder="Marketing Source" name="source" disabled="disabled">
+    <i class="fa fa-birthday-cake icon"></i>
+    <input class="input2-field" type="text" placeholder="Phone" name="phone" disabled="disabled">
+  </div>
+  <div class="input-container">
+    <i class="fa fa-phone-alt"></i>
+    <input class="input2-field" type="text" placeholder="Preference" name="preference" disabled="disabled">
+    <i class="fa fa-envelope icon"></i>
+    <input class="input2-field" type="text" placeholder="Select Communication Preference" name="communication" disabled="disabled">
+    <i class="fa fa-birthday-cake icon"></i>
+    <input class="input2-field" type="text" placeholder="Customer Advance" name="advance" disabled="disabled">
+    <i class="fa fa-birthday-cake icon"></i>
+    <input class="input2-field" type="text" placeholder="OTP" name="otp" disabled="disabled">
+  </div>
+  <div class="input-container">
+    <i class="fa fa-phone-alt"></i>
+    <input class="input1-field" type="text" placeholder="Rate List" name="ratelist" disabled="disabled">
+    <i class="fa fa-birthday-cake icon"></i>
+    <input class="input2-field" type="text" placeholder="Facebook Id" name="facebookid" disabled="disabled">
+    <i class="fa fa-birthday-cake icon"></i>
+    <input class="input2-field" type="text" placeholder="Registration Source" name="registrationspurce" disabled="disabled">
+  </div>
+      }
+
       <div class="relative">
-         <input class="navitem" type="submit"  id="custsave" value="Save" >
+        @{ var hideButton = false;
+            bool.TryParse(TempData["isHideButton"] as string,out hideButton);
+            if(!hideButton)
+            {
+                 <input class="navitem" type="submit"  id="custsave" value="Save">
+            }
+            else if(hideButton)
+            { 
          <button class="navitem" type="button" id="custnew">Add New Customer</button>
          <button class="navitem" type="button" id="custedit">Edit</button>
          <button class="navitem" type="button" id="custdelete">Delete</button>
@@ -190,27 +247,21 @@ body {font-family: Arial, Helvetica, sans-serif;}
          <button class="navitem" type="button" id="custdrop">Schedule Drop</button>
          <button class="navitem" type="button" id="custperpiece">Create Order Per Pieces</button>
          <button class="navitem" type="button" id="custperweight">Create Order Per Weight</button>
+            }
+       }
    </div>
     <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.4.1/jquery.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.16.0/umd/popper.min.js"></script>
     <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.4.1/js/bootstrap.min.js"></script>
     <script type='text/javascript'>
+        //$("#custsave").click(function ()
+        //{               
+        //$("#address,#name").addAttr("disabled");              
+        //});   
          $("#alertstatus").fadeTo(2000, 500).slideUp(500, function ()
         {
             $("#success-alert").slideUp(500);
-         });
-        $(document).ready(function () {
-            $('#custsave').show();
-            $('#custnew').hide();
-            $('#custedit').hide();
-            $('#custdelete').hide();
-            $('#custadvance').hide();
-            $('#custdetails').hide();
-            $('#custpickup').hide();
-            $('#custdrop').hide();
-            $('#custperpiece').hide();
-            $('#custperweight').hide();
-        });
+            });
    </script>
     </form>
      }
