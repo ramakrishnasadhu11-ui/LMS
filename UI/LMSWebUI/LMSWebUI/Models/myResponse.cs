@@ -83,7 +83,7 @@ namespace LMSWebUI.Models
         ///  TenantId
         /// </summary>
         [StringLength(maximumLength: int.MaxValue)]
-        public string TenantId { get; set; }
+         public string CustCode { get; set; }
        
         /// <summary>
         ///  TenantName
@@ -124,6 +124,11 @@ namespace LMSWebUI.Models
         ///  Country
         /// </summary>
          public string Country {get;set;}
+
+         /// <summary>
+        ///  CustomerNames
+        /// </summary>
+         public List<string> CustomerNames {get;set;}
 
     }
 }

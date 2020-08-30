@@ -29,7 +29,7 @@ namespace LMS.Master.WebApi.Controllers
             return "I am Live";
         }
 
-          /// <summary>
+        /// <summary>
         /// New Customer
         /// </summary>
         /// <returns></returns>
@@ -44,6 +44,20 @@ namespace LMS.Master.WebApi.Controllers
                 return BadRequest("Invalid data for this operation");
             var insertcustomerResult =await _customer.AddCustomer(customerDto);
            return StatusCode((int)insertcustomerResult.StatusCode, insertcustomerResult.ResultSet);
+        }
+        /// <summary>
+        /// Get Customers
+        /// </summary>
+        /// <returns></returns>
+        [HttpGet(nameof(GetCustomers))]
+        [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(Result<CustomerIOResponse>))]
+        [ProducesResponseType(StatusCodes.Status201Created, Type = typeof(Result<CustomerIOResponse>))]
+        [ProducesResponseType(StatusCodes.Status500InternalServerError, Type = typeof(Result<object>))]
+        [ProducesResponseType(StatusCodes.Status400BadRequest, Type = typeof(Result<object>))]
+        public ActionResult GetCustomers(string eMail)
+        {
+            var insertcustomerResult =_customer.GetCustomers();
+            return StatusCode((int)insertcustomerResult.StatusCode, insertcustomerResult.ResultSet);
         }
     }
 }

@@ -21,7 +21,7 @@ namespace LMS.Master.DTO
         ///  TenantId
         /// </summary>
         [StringLength(maximumLength: int.MaxValue)]
-        public string TenantId { get; set; }
+        public string CustCode { get; set; }
        
         /// <summary>
         ///  TenantName
@@ -62,6 +62,12 @@ namespace LMS.Master.DTO
         ///  Country
         /// </summary>
          public string Country {get;set;}
+
+        /// <summary>
+        ///  CustomerNames
+        /// </summary>
+         public List<string> CustomerNames {get;set;}
+
 
     }
 }

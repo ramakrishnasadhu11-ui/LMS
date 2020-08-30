@@ -11,5 +11,6 @@ namespace LMS.Master.BusinessSerive.Interfaces
     public interface ICustomer
     {
         Task<ActionReturnType> AddCustomer(CustomerDto customerDto);
+        ActionReturnType GetCustomers();
     }
 }

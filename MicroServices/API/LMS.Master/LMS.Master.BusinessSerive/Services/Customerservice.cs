@@ -4,12 +4,15 @@ using LMS.Master.DTO;
 using LMS.Master.DTO.Entity;
 using LMS.Master.Utilities;
 using Microsoft.AspNetCore.Http;
+using MongoDB.Bson;
 using MongoDB.Driver;
 using System;
 using System.Collections.Generic;
 using System.Net;
 using System.Security.Authentication;
+using System.Security.Cryptography;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 
 namespace LMS.Master.BusinessSerive.Services
@@ -36,6 +39,21 @@ namespace LMS.Master.BusinessSerive.Services
                 _tenantCustomersDatabase = tenantRegisterClient.GetDatabase(_tenantCustomerRegistryConnection.DatabaseName);
              _customerEntity = _tenantCustomersDatabase.GetCollection<CustomerEntity>(_tenantCustomerRegistryConnection.TenantCustomersCollectionName);
         }
+
+          public ActionReturnType GetCustomers()
+        {
+                var result = _customerEntity.Find(new BsonDocument()).ToList();
+                List<string> listnames=new List<string>(); 
+                foreach(CustomerEntity doc in result)
+                 {
+                 listnames.Add(doc.CustomerName);
+                 }    
+                if (result!=null)
+                 {
+                     return ActionSet.ActionReturnType(HttpStatusCode.OK, new CustomerIOResponse {StatusCode="200", CustomerNames=listnames});
+                 }
+             return ActionSet.ActionReturnType(HttpStatusCode.InternalServerError, new CustomerIOResponse {StatusCode="500", Message = CustomerValidationMessage.CUSTOMER_INSERT_ERROR_MESSAGE });
+        }
         public async Task<ActionReturnType> AddCustomer(CustomerDto customerDto)
         {
             if(customerDto==null)
@@ -51,15 +69,77 @@ namespace LMS.Master.BusinessSerive.Services
                      return ActionSet.ActionReturnType(HttpStatusCode.AlreadyReported, new CustomerIOResponse {StatusCode="208", Message = CustomerValidationMessage.CUSTOMER_DATAFOUND_ERROR_MESSAGE});
                  }
                var customerData = _mapper.Map<CustomerEntity>(customerDto);
-               var guid = Guid.NewGuid();
-               var customerid = Convert.ToString(guid);
-               customerData.CustCode="Cust-"+customerid;
+              string customerCode=  GenerateRandomID();
+               customerData.CustCode="Cust-"+customerCode;
                customerData.CreatedDate=DateTime.UtcNow;
                customerData.ModifiedDate=DateTime.UtcNow;
                await  _customerEntity.InsertOneAsync(customerData);
-              return ActionSet.ActionReturnType(HttpStatusCode.Created, new CustomerIOResponse {StatusCode="200", Message = CustomerValidationMessage.CUSTOMER_INSERT_SUCCESS_MESSAGE });
+              return ActionSet.ActionReturnType(HttpStatusCode.Created, new CustomerIOResponse {CustCode=customerData.CustCode, StatusCode="200", Message = CustomerValidationMessage.CUSTOMER_INSERT_SUCCESS_MESSAGE });
             }
              return ActionSet.ActionReturnType(HttpStatusCode.InternalServerError, new CustomerIOResponse {StatusCode="500", Message = CustomerValidationMessage.CUSTOMER_INSERT_ERROR_MESSAGE });
+        }
+          private static string GenerateRandomID()
+        {
+            string srcrandomId = LMSRandom("ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789", 8);
+            return srcrandomId;
+        }
+         public static string LMSRandom(string pattern, int length, bool isPassword = false)
+        {
+            return GenerateDynamicCryptoString(pattern, length, isPassword);
+        }
+         public static string GenerateDynamicCryptoString(string pattern, int length, bool isPassword = false)
+        {
+            if (length != 0)
+            {
+                RNGCryptoServiceProvider provider = CreateRNGCryptoServiceProvider();
+                StringBuilder sb;
+                do
+                {
+                    sb = new StringBuilder();
+                    var byteArray = new byte[length > 3 ? length : 4];
+                    provider.GetBytes(byteArray);
+
+                    int patternLength = pattern.Length;
+
+                    //Gets character on index based from the pattern passed
+                    for (var i = 0; i < byteArray.Length; i++)
+                    {
+                        byte x = byteArray[i];
+                        while (x >= patternLength)
+                            x = Convert.ToByte(x % patternLength);
+                        sb.Append(pattern[x]);
+                    }
+
+                    //Below condition checks if atleast one special character is avaible in generated string.
+                    isPassword = HasSpecialCharacters(sb, pattern, isPassword);
+                } while (isPassword);
+
+                return sb.ToString();
+            }
+
+            return string.Empty;
+        }
+          private static bool HasSpecialCharacters(StringBuilder sb, string pattern, bool isPassword)
+        {
+            //Below condition checks if atleast one special character is avaible in generated string.
+            if (isPassword)
+            {
+                var regex = new Regex("[a-zA-Z0-9]*");
+                var specialChars = regex.Replace(pattern, "");
+                if (!string.IsNullOrEmpty(specialChars))
+                {
+                    var specialCharsRegex = new Regex("[" + specialChars + "]");
+                    isPassword = !specialCharsRegex.IsMatch(sb.ToString());
+                }
+                else
+                    isPassword = false;
+            }
+            return isPassword;
+        }
+       private static RNGCryptoServiceProvider CreateRNGCryptoServiceProvider()
+        {
+            RNGCryptoServiceProvider rngCryptoServiceProvider = new RNGCryptoServiceProvider();
+            return rngCryptoServiceProvider;
         }
         public interface ITenantCustomerRegistryConnection
         {

@@ -26,6 +26,20 @@ namespace LMSWebUI.Controllers
             CustomerInfoDto.disableStatus=false;
             return View(CustomerInfoDto);
         }
+        public async Task<JsonResult> GetCustomers()
+        {
+            CustomerIOResponse responseMessage=new CustomerIOResponse();
+            Dictionary<string, string> paramsGetAllStoresByClient = new Dictionary<string, string>
+            {
+                { "eMail", "" }
+            };
+             responseMessage = await clientAPI.SendRequestAsync<CustomerIOResponse>("/GetCustomers", paramsGetAllStoresByClient, RestSharp.Method.GET);
+                    if (responseMessage!=null && responseMessage.StatusCode=="200")
+                    {
+                      return Json(responseMessage.CustomerNames);
+                     }
+               return Json(responseMessage.CustomerNames);
+         }
 
         [HttpPost]
         public async Task<ActionResult> Index(CustomerInfoDto CustomerInfoDto)
@@ -56,6 +70,7 @@ namespace LMSWebUI.Controllers
                          TempData["isHideButton"]="true";
                          CustomerInfoDto.disableStatus=true;
                          TempData["UserMessage"]=JsonConvert.SerializeObject(new MessageDto() {  CssClassName = "alert-success", Title = "Success!", DisplayMessage = responseMessage.Message });
+                        TempData["customerCode"]=responseMessage.CustCode;
                          return View(CustomerInfoDto);
                     }
             }
