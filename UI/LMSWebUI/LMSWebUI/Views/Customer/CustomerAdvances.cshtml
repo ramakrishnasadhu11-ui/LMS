@@ -1,0 +1,439 @@
+@model LMSWebUI.Models.Customer.CustomerAdvanceDto
+@{
+    ViewData["Title"] = "Customer Advances";
+    Layout = "~/Views/Shared/_HeaderMenuItemsLayout.cshtml";
+}
+
+<style>
+.adv-page,
+.adv-page input,
+.adv-page select,
+.adv-page button,
+.adv-page label,
+.adv-page textarea,
+.adv-page table {
+    font-family: Arial, Helvetica, sans-serif;
+}
+
+.adv-page {
+    padding: 20px;
+}
+
+.adv-box {
+    max-width: 1040px;
+    margin: 0 auto;
+    background: var(--els-surface);
+    border-radius: 10px;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+    overflow: hidden;
+}
+
+.adv-title {
+    background: linear-gradient(90deg, var(--els-primary) 0%, var(--els-primary-dark) 100%);
+    color: #fff;
+    padding: 14px 20px;
+    font-size: 20px;
+    font-weight: 600;
+}
+
+.adv-body {
+    padding: 20px;
+}
+
+.adv-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(280px, 1fr));
+    gap: 14px;
+}
+
+.adv-field {
+    display: flex;
+    flex-direction: column;
+}
+
+.adv-field label {
+    font-size: 13px;
+    margin-bottom: 6px;
+    color: var(--els-text);
+}
+
+.adv-hint {
+    margin-top: 6px;
+    font-size: 12px;
+    color: var(--els-text-muted, #6b7280);
+}
+
+.adv-field input,
+.adv-field select,
+.adv-field textarea {
+    border: 1px solid var(--els-border);
+    border-radius: 6px;
+    padding: 10px;
+    background: var(--els-surface);
+    color: var(--els-text);
+}
+
+.adv-field textarea {
+    resize: vertical;
+    min-height: 74px;
+}
+
+.adv-balance {
+    margin-top: 16px;
+    padding: 12px 14px;
+    border-radius: 8px;
+    background: rgba(54, 107, 202, 0.12);
+    color: var(--els-text);
+    font-size: 16px;
+    font-weight: 600;
+}
+
+.adv-actions {
+    margin-top: 20px;
+    display: flex;
+    gap: 12px;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+}
+
+.adv-btn {
+    min-width: 150px;
+    min-height: 44px;
+    border: 1px solid transparent;
+    border-radius: 8px;
+    background: linear-gradient(180deg, var(--els-primary-light) 0%, var(--els-primary) 100%);
+    color: #fff;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.adv-btn.secondary {
+    background: linear-gradient(180deg, #8f99a4 0%, #6f7a86 100%);
+}
+
+.adv-btn.tertiary {
+    background: linear-gradient(180deg, #3f8f7b 0%, #2b6f5e 100%);
+}
+
+.adv-history {
+    margin-top: 18px;
+    border: 1px solid var(--els-border);
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.adv-history table {
+    width: 100%;
+    border-collapse: collapse;
+    background: var(--els-surface);
+}
+
+.adv-history th,
+.adv-history td {
+    border-bottom: 1px solid var(--els-border);
+    padding: 10px;
+    font-size: 13px;
+    color: var(--els-text);
+    text-align: left;
+}
+
+.adv-history th {
+    background: rgba(48, 96, 189, 0.12);
+    font-weight: 700;
+}
+
+.toast-message {
+    position: fixed;
+    right: 24px;
+    top: 80px;
+    z-index: 9999;
+    min-width: 260px;
+    max-width: 380px;
+    padding: 12px 16px;
+    border-radius: 8px;
+    color: #fff;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
+    font-weight: 600;
+    display: none;
+}
+
+.toast-message.success {
+    background: #2f8f46;
+}
+
+.toast-message.error {
+    background: #b63838;
+}
+
+@@media (max-width: 768px) {
+    .adv-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .adv-actions {
+        justify-content: stretch;
+        flex-direction: column;
+    }
+
+    .adv-btn {
+        width: 100%;
+    }
+}
+</style>
+
+<div id="customerAdvToast" class="toast-message"></div>
+@if (TempData["CustomerAdvancesToast"] != null)
+{
+    <script type="text/javascript">
+        window.customerAdvToastMessage = '@Html.Raw(System.Text.Encodings.Web.JavaScriptEncoder.Default.Encode(Convert.ToString(TempData["CustomerAdvancesToast"])))';
+    </script>
+}
+
+<section class="adv-page">
+    <div class="adv-box">
+        <div class="adv-title">Customer Advances - Balance Adjustments</div>
+        <div class="adv-body">
+            @using (Html.BeginForm("CustomerAdvances", "Customer", FormMethod.Post))
+            {
+                @Html.HiddenFor(m => m.CustCode, new { id = "custCode" })
+                <div class="adv-grid">
+                    <div class="adv-field">
+                        <label for="customerName">Customer Name</label>
+                        @Html.TextBoxFor(m => m.CustomerName, new { @class = "form-control", id = "customerName", placeholder = "Choose customer", list = "customerNameList", autocomplete = "off" })
+                        <datalist id="customerNameList"></datalist>
+                        <div class="adv-hint">Select a customer from your logged-in store list, then click Load History.</div>
+                    </div>
+
+                    <div class="adv-field">
+                        <label for="customerCodeDisplay">Customer Code</label>
+                        <input type="text" id="customerCodeDisplay" value="@(Model?.CustCode ?? string.Empty)" readonly="readonly" />
+                    </div>
+
+                    <div class="adv-field">
+                        <label for="advanceAmount">Amount</label>
+                        @Html.TextBoxFor(m => m.AdvanceAmount, new { @class = "form-control", id = "advanceAmount", type = "number", min = "0.01", step = "0.01" })
+                    </div>
+
+                    <div class="adv-field">
+                        <label for="transactionType">Transaction Type</label>
+                        @Html.DropDownListFor(m => m.TransactionType, new SelectList(new[] { "Credit", "Debit" }), new { @class = "form-control", id = "transactionType" })
+                    </div>
+
+                    <div class="adv-field" style="grid-column: 1 / -1;">
+                        <label for="notes">Notes</label>
+                        @Html.TextAreaFor(m => m.Notes, new { @class = "form-control", id = "notes", maxlength = "500", placeholder = "Reason for adjustment" })
+                    </div>
+                </div>
+
+                <div class="adv-balance">Current Balance: <span id="advanceBalance">@Model.Balance.ToString("0.00")</span></div>
+
+                <div class="adv-actions">
+                    <button type="button" class="adv-btn tertiary" id="loadAdvanceBtn">Load History</button>
+                    <button type="button" class="adv-btn secondary" onclick="window.location.href='@Url.Action("Index", "Customer")'">Back to Customer</button>
+                    <button type="submit" class="adv-btn">Save Advance</button>
+                </div>
+            }
+
+            <div class="adv-history">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Date (UTC)</th>
+                            <th>Type</th>
+                            <th>Amount</th>
+                            <th>Notes</th>
+                        </tr>
+                    </thead>
+                    <tbody id="advanceHistoryBody">
+                        @if (Model.Transactions != null && Model.Transactions.Count > 0)
+                        {
+                            foreach (var txn in Model.Transactions)
+                            {
+                                <tr>
+                                    <td>@txn.CreatedDate.ToString("yyyy-MM-dd HH:mm")</td>
+                                    <td>@txn.TransactionType</td>
+                                    <td>@txn.AdvanceAmount.ToString("0.00")</td>
+                                    <td>@txn.Notes</td>
+                                </tr>
+                            }
+                        }
+                        else
+                        {
+                            <tr>
+                                <td colspan="4">No transactions found.</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</section>
+
+<script type="text/javascript">
+    (function () {
+        function showToast(message, isSuccess) {
+            var toast = document.getElementById("customerAdvToast");
+            if (!toast) {
+                window.alert(message || "Operation completed.");
+                return;
+            }
+
+            toast.classList.remove("success", "error");
+            toast.classList.add(isSuccess ? "success" : "error");
+            toast.textContent = message || "Operation completed.";
+            toast.style.display = "block";
+
+            if (window.__advToastTimer) {
+                clearTimeout(window.__advToastTimer);
+            }
+
+            window.__advToastTimer = setTimeout(function () {
+                toast.style.display = "none";
+            }, 3200);
+        }
+
+        function renderHistoryRows(transactions) {
+            var tbody = document.getElementById("advanceHistoryBody");
+            if (!tbody) {
+                return;
+            }
+
+            tbody.innerHTML = "";
+            if (!transactions || !transactions.length) {
+                tbody.innerHTML = "<tr><td colspan='4'>No transactions found.</td></tr>";
+                return;
+            }
+
+            transactions.forEach(function (txn) {
+                var row = document.createElement("tr");
+                var createdDate = txn.CreatedDate || txn.createdDate || "";
+                var type = txn.TransactionType || txn.transactionType || "";
+                var amount = txn.AdvanceAmount || txn.advanceAmount || 0;
+                var notes = txn.Notes || txn.notes || "";
+
+                row.innerHTML = "<td>" + createdDate.toString().replace("T", " ").substring(0, 16) + "</td>"
+                    + "<td>" + type + "</td>"
+                    + "<td>" + Number(amount).toFixed(2) + "</td>"
+                    + "<td>" + notes + "</td>";
+                tbody.appendChild(row);
+            });
+        }
+
+        function loadHistory() {
+            var customerNameInput = document.getElementById("customerName");
+            var customerName = customerNameInput ? customerNameInput.value.trim() : "";
+            var customerCode = document.getElementById("custCode") ? document.getElementById("custCode").value.trim() : "";
+
+            if (!customerName) {
+                showToast("Please enter customer name.", false);
+                return;
+            }
+
+            fetch('@Url.Action("GetCustomerAdvances", "Customer")' + '?customerName=' + encodeURIComponent(customerName) + '&customerCode=' + encodeURIComponent(customerCode), {
+                method: 'GET',
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            })
+                .then(function (response) { return response.json(); })
+                .then(function (data) {
+                    if (!data || !data.success) {
+                        showToast((data && data.message) || "Unable to fetch customer advances.", false);
+                        renderHistoryRows([]);
+                        document.getElementById("advanceBalance").textContent = "0.00";
+                        document.getElementById("custCode").value = "";
+                        document.getElementById("customerCodeDisplay").value = "";
+                        return;
+                    }
+
+                    var balance = data.balance || 0;
+                    document.getElementById("advanceBalance").textContent = Number(balance).toFixed(2);
+                    document.getElementById("custCode").value = data.customerCode || "";
+                    document.getElementById("customerCodeDisplay").value = data.customerCode || "";
+                    renderHistoryRows(data.transactions || []);
+                })
+                .catch(function (error) {
+                    var message = error && error.message ? error.message : "Unable to fetch customer advances.";
+                    showToast(message, false);
+                });
+        }
+
+        function loadCustomerSuggestions() {
+            fetch('@Url.Action("GetCustomers", "Customer")', {
+                method: 'GET',
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            })
+                .then(function (response) { return response.json(); })
+                .then(function (customers) {
+                    var list = document.getElementById("customerNameList");
+                    if (!list) {
+                        return;
+                    }
+
+                    list.innerHTML = "";
+                    (customers || []).forEach(function (name) {
+                        if (!name) {
+                            return;
+                        }
+
+                        var option = document.createElement("option");
+                        option.value = name;
+                        list.appendChild(option);
+                    });
+                })
+                .catch(function () {
+                    // keep manual typing as fallback
+                });
+        }
+
+        document.addEventListener("DOMContentLoaded", function () {
+            if (window.customerAdvToastMessage) {
+                showToast(window.customerAdvToastMessage, true);
+            }
+
+            var loadBtn = document.getElementById("loadAdvanceBtn");
+            if (loadBtn) {
+                loadBtn.addEventListener("click", function (e) {
+                    e.preventDefault();
+                    loadHistory();
+                });
+            }
+
+            loadCustomerSuggestions();
+
+            var customerNameInput = document.getElementById("customerName");
+            if (customerNameInput) {
+                customerNameInput.addEventListener("change", function () {
+                    var custCode = document.getElementById("custCode");
+                    var custCodeDisplay = document.getElementById("customerCodeDisplay");
+                    var balance = document.getElementById("advanceBalance");
+                    var historyBody = document.getElementById("advanceHistoryBody");
+
+                    if (custCode) {
+                        custCode.value = "";
+                    }
+
+                    if (custCodeDisplay) {
+                        custCodeDisplay.value = "";
+                    }
+
+                    if (balance) {
+                        balance.textContent = "0.00";
+                    }
+
+                    if (historyBody) {
+                        historyBody.innerHTML = "<tr><td colspan='4'>No transactions found.</td></tr>";
+                    }
+                });
+            }
+
+            var hasCustomer = document.getElementById("customerName") && document.getElementById("customerName").value;
+            if (hasCustomer) {
+                loadHistory();
+            }
+        });
+    })();
+</script>

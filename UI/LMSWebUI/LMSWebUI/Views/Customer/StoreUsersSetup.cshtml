@@ -1,0 +1,264 @@
+@{
+    ViewData["Title"] = "Store Users Setup";
+    Layout = "~/Views/Shared/_HeaderMenuItemsLayout.cshtml";
+    var tenantName = Convert.ToString(ViewData["TenantName"] ?? "-");
+    var storeCode = Convert.ToString(ViewData["StoreCode"] ?? "-");
+    var allowedStores = ((IEnumerable<string>)(ViewData["AllowedStores"] ?? Enumerable.Empty<string>()))
+        .Where(x => !string.IsNullOrWhiteSpace(x))
+        .Distinct(StringComparer.OrdinalIgnoreCase)
+        .ToList();
+}
+
+<style>
+.admin-setup-page,
+.admin-setup-page input,
+.admin-setup-page button,
+.admin-setup-page label,
+.admin-setup-page textarea,
+.admin-setup-page select {
+    font-family: Arial, Helvetica, sans-serif;
+}
+
+.admin-setup-page { padding: 20px; }
+.admin-setup-box {
+    max-width: 980px;
+    margin: 0 auto;
+    background: var(--els-surface);
+    border-radius: 10px;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+    overflow: hidden;
+}
+.admin-setup-title {
+    background: linear-gradient(90deg, var(--els-primary) 0%, var(--els-primary-dark) 100%);
+    color: #fff;
+    padding: 14px 20px;
+    font-size: 20px;
+    font-weight: 600;
+}
+.admin-setup-body { padding: 20px; }
+.admin-setup-note {
+    border: 1px solid var(--els-border);
+    border-radius: 8px;
+    background: var(--els-accent);
+    padding: 12px;
+    margin-bottom: 16px;
+    color: var(--els-text);
+}
+.admin-setup-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+.admin-btn {
+    min-width: 180px;
+    min-height: 42px;
+    border: 1px solid transparent;
+    border-radius: 8px;
+    background: linear-gradient(180deg, var(--els-primary-light) 0%, var(--els-primary) 100%);
+    color: #fff;
+    font-weight: 600;
+    cursor: pointer;
+}
+.admin-btn.secondary {
+    background: linear-gradient(180deg, #8f99a4 0%, #6f7a86 100%);
+}
+</style>
+
+<section class="admin-setup-page">
+    <div class="admin-setup-box">
+        <div class="admin-setup-title">Store Users Setup</div>
+        <div class="admin-setup-body">
+            <div class="admin-setup-note">
+                <div><b>Tenant:</b> @tenantName</div>
+                <div><b>Store:</b> @storeCode</div>
+                <div style="margin-top:6px;">This page is reserved for store user and role configuration.</div>
+            </div>
+
+            <div class="admin-setup-note" style="margin-top:12px;">
+                <label for="targetStoreCodeDisplay"><b>Store for user setup</b></label>
+                <input type="text" id="targetStoreCodeDisplay" class="form-control" value="@storeCode" readonly disabled
+                       style="width:100%; max-width:300px; padding:8px; border:1px solid var(--els-border); border-radius:6px; margin-top:6px; background:var(--els-background);" />
+                <input type="hidden" id="targetStoreCode" value="@storeCode" />
+                <div style="margin-top:6px; font-size:12px; color:var(--els-text-muted, #6b7280);">
+                    Store users can only be created for the currently logged-in store.
+                </div>
+            </div>
+
+            <div class="admin-setup-note" style="margin-top:12px;">
+                <div style="display:grid; grid-template-columns: 1fr 1fr auto; gap:10px; align-items:end;">
+                    <div>
+                        <label for="storeUserEmail"><b>Store User Email</b></label>
+                        <input type="email" id="storeUserEmail" class="form-control" style="width:100%; padding:8px; border:1px solid var(--els-border); border-radius:6px;" placeholder="store.user@domain.com" />
+                    </div>
+                    <div>
+                        <label for="storeUserPassword"><b>Password</b></label>
+                        <input type="password" id="storeUserPassword" class="form-control" style="width:100%; padding:8px; border:1px solid var(--els-border); border-radius:6px;" placeholder="Enter password" />
+                    </div>
+                    <div>
+                        <button type="button" class="admin-btn" id="createStoreUserBtn">Create Store User</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="admin-setup-note" style="margin-top:12px;">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                    <b>Existing Store Users</b>
+                    <button type="button" class="admin-btn secondary" id="refreshStoreUsersBtn" style="min-width:140px; min-height:36px;">Refresh</button>
+                </div>
+                <div id="storeUsersList">No store users found.</div>
+            </div>
+
+            <div class="admin-setup-actions">
+                <button type="button" class="admin-btn" onclick="window.location.href='@Url.Action("SetupCreateOrder", "Customer", new { setupOnly = true })'">Go to Store Price Configuration</button>
+                <button type="button" class="admin-btn secondary" onclick="window.location.href='@Url.Action("Index", "Dashboard")'">Back to Dashboard</button>
+            </div>
+        </div>
+    </div>
+</section>
+
+<script>
+(function () {
+    function renderUsers(users) {
+        var host = document.getElementById("storeUsersList");
+        if (!host) return;
+
+        if (!users || !users.length) {
+            host.textContent = "No store users found.";
+            return;
+        }
+
+        var html = "<table style='width:100%; border-collapse:collapse;'><thead><tr>"
+            + "<th style='text-align:left; border-bottom:1px solid var(--els-border); padding:6px;'>Email</th>"
+            + "<th style='text-align:left; border-bottom:1px solid var(--els-border); padding:6px;'>Role</th>"
+            + "<th style='text-align:left; border-bottom:1px solid var(--els-border); padding:6px;'>Active</th>"
+            + "<th style='text-align:left; border-bottom:1px solid var(--els-border); padding:6px;'>Created Date</th>"
+            + "<th style='text-align:left; border-bottom:1px solid var(--els-border); padding:6px;'>Action</th>"
+            + "</tr></thead><tbody>";
+
+        users.forEach(function (u) {
+            var email = (u.email || u.Email || "");
+            var isActive = !!(u.isActive ?? u.IsActive);
+            var actionText = isActive ? "Deactivate" : "Activate";
+
+            html += "<tr>"
+                + "<td style='padding:6px; border-bottom:1px solid var(--els-border);'>" + email + "</td>"
+                + "<td style='padding:6px; border-bottom:1px solid var(--els-border);'>" + (u.role || u.Role || "StoreUser") + "</td>"
+                + "<td style='padding:6px; border-bottom:1px solid var(--els-border);'>" + (isActive ? "Yes" : "No") + "</td>"
+                + "<td style='padding:6px; border-bottom:1px solid var(--els-border);'>" + (u.createdDate || u.CreatedDate || "") + "</td>"
+                + "<td style='padding:6px; border-bottom:1px solid var(--els-border);'>"
+                + "<button type='button' class='admin-btn secondary toggle-store-user-status-btn'"
+                + " data-email='" + encodeURIComponent(email) + "'"
+                + " data-active='" + (isActive ? "true" : "false") + "'"
+                + " style='min-width:120px; min-height:34px;'>" + actionText + "</button>"
+                + "</td>"
+                + "</tr>";
+        });
+
+        html += "</tbody></table>";
+        host.innerHTML = html;
+
+        var actionButtons = host.querySelectorAll('.toggle-store-user-status-btn');
+        actionButtons.forEach(function (btn) {
+            btn.addEventListener('click', function () {
+                var encodedEmail = btn.getAttribute('data-email') || '';
+                var currentActive = (btn.getAttribute('data-active') || '').toLowerCase() === 'true';
+                var nextActive = !currentActive;
+                var userEmail = decodeURIComponent(encodedEmail);
+
+                if (!userEmail) {
+                    window.alert('User email is required.');
+                    return;
+                }
+
+                var body = new URLSearchParams();
+                body.append('userEmail', userEmail);
+                body.append('isActive', nextActive ? 'true' : 'false');
+
+                fetch('@Url.Action("SetStoreUserActiveStatus", "Login")', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    body: body.toString()
+                })
+                .then(function (r) { return r.json(); })
+                .then(function (data) {
+                    if (!data || !data.success) {
+                        window.alert((data && data.message) || 'Unable to update store user status.');
+                        return;
+                    }
+
+                    window.alert(data.message || 'Store user status updated successfully.');
+                    loadUsers();
+                })
+                .catch(function () {
+                    window.alert('Unable to update store user status.');
+                });
+            });
+        });
+    }
+
+    function loadUsers() {
+        var selectedStore = (document.getElementById("targetStoreCode") || {}).value || "";
+        var requestUrl = '@Url.Action("GetStoreUsers", "Customer")';
+        if (selectedStore) {
+            requestUrl += "?storeCode=" + encodeURIComponent(selectedStore);
+        }
+
+        fetch(requestUrl, {
+            method: 'GET',
+            headers: { 'X-Requested-With': 'XMLHttpRequest' }
+        })
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+            if (!data || !data.success) {
+                renderUsers([]);
+                return;
+            }
+            renderUsers(data.users || []);
+        })
+        .catch(function () { renderUsers([]); });
+    }
+
+    var createBtn = document.getElementById("createStoreUserBtn");
+    if (createBtn) {
+        createBtn.addEventListener("click", function () {
+            var email = (document.getElementById("storeUserEmail") || {}).value || "";
+            var password = (document.getElementById("storeUserPassword") || {}).value || "";
+
+            var body = new URLSearchParams();
+            body.append("email", email);
+            body.append("password", password);
+            body.append("role", "StoreUser");
+            body.append("storeCode", ((document.getElementById("targetStoreCode") || {}).value || "").trim());
+
+            fetch('@Url.Action("CreateStoreUser", "Customer")', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
+                body: body.toString()
+            })
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                if (!data || !data.success) {
+                    window.alert((data && data.message) || "Unable to create store user.");
+                    return;
+                }
+                window.alert(data.message || "Store user created successfully.");
+                var pwd = document.getElementById("storeUserPassword");
+                if (pwd) pwd.value = "";
+                loadUsers();
+            })
+            .catch(function () { window.alert("Unable to create store user."); });
+        });
+    }
+
+    var refreshBtn = document.getElementById("refreshStoreUsersBtn");
+    if (refreshBtn) {
+        refreshBtn.addEventListener("click", function () { loadUsers(); });
+    }
+
+    var storeSelector = document.getElementById("targetStoreCode");
+
+    loadUsers();
+})();
+</script>

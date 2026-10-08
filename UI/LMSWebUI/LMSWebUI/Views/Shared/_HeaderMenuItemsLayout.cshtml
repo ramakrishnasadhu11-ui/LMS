@@ -1,365 +1,218 @@
-﻿<!DOCTYPE html>
+﻿@using Microsoft.AspNetCore.Http
+@{
+	var userRole = Context?.Session?.GetString("UserRole");
+	var isAdminUser = string.Equals(userRole, "Admin", StringComparison.OrdinalIgnoreCase)
+		|| string.Equals(userRole, "SuperAdmin", StringComparison.OrdinalIgnoreCase);
+	var currentController = Convert.ToString(ViewContext.RouteData.Values["controller"]);
+	var currentAction = Convert.ToString(ViewContext.RouteData.Values["action"]);
+
+	bool IsActiveHeaderMenu(string actionName, string controllerName)
+	{
+		return string.Equals(currentController, controllerName, StringComparison.OrdinalIgnoreCase)
+			&& string.Equals(currentAction, actionName, StringComparison.OrdinalIgnoreCase);
+	}
+}
+
+<!DOCTYPE html>
 <html>
 <head>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 @*<link rel="stylesheet" type="text/css" href="~/headerfiles/style.css">*@
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
-    <style>
-body {font-family: Arial, Helvetica, sans-serif;}
-ul#cnet div{display:none}
-ul#cnet li:hover>*{display:block}
-ul#cnet li:hover{position:relative;}
-ul#cnet div{
-	position: absolute;left:-1px;top:98%;}
-ul#cnet ul div{
-	position: absolute;left:98%;top:-2px;}
-		ul#cnet, ul#cnet ul {
-			margin: 0px;
-			list-style: none;
-			padding: 1px 0 1px 1px;
-			background-color: transparent;
-			border-width: 0px;
-			border-style: solid;
-			border-color: #999999;
+<link rel="stylesheet" href="~/css/app-theme.css">
+<style>
+	.header-menu-body #cnet {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 8px;
+		justify-content: center;
+		padding: 0;
+		margin: 0;
+		list-style: none;
+	}
+
+	.header-menu-body #cnet > li.istylei0 {
+		list-style: none;
+	}
+
+	.header-menu-body #cnet > li.istylei0 > a {
+		display: inline-block;
+		padding: 10px 16px;
+		border: 1px solid var(--els-border);
+		border-radius: 10px;
+		background: var(--els-surface);
+		color: var(--els-text);
+		font-weight: 700;
+		text-decoration: none;
+		box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
+		transition: all 0.18s ease;
+	}
+
+	.header-menu-body #cnet > li.istylei0 > a:hover {
+		background: var(--els-accent);
+		border-color: var(--els-primary-light);
+		transform: translateY(-1px);
+	}
+
+	.header-menu-body #cnet > li.istylei0 > a > span {
+		color: inherit;
+	}
+
+	.header-menu-body #cnet > li.istylei0 > a.header-back-link {
+		background: var(--els-accent);
+		border-color: var(--els-primary-light);
+		color: var(--els-primary-dark);
+	}
+
+		.header-menu-body #cnet > li.istylei0 > a.header-back-link i {
+			margin-right: 6px;
 		}
 
-			ul#cnet div {
-				background-image: url(sub.gif);
-			}
+	.header-menu-body #cnet .istylem0 {
+		display: grid;
+		grid-template-columns: 1fr;
+		gap: 8px;
+		padding: 10px;
+		background: var(--els-surface);
+		border: 1px solid var(--els-border);
+		border-radius: 10px;
+		box-shadow: 0 8px 22px rgba(0, 0, 0, 0.12);
+	}
 
-			ul#cnet h1, ul#cnet h2 {
-				margin: 0;
-				font-size: 0;
-				position: absolute;
-				width: 10px;
-				height: 10px;
-				background-image: url(sub.gif);
-			}
+	.header-menu-body #cnet .istylem0 li {
+		margin: 0;
+		padding: 0;
+	}
 
-			ul#cnet h1 {
-				left: 100%;
-				top: 0;
-				background-position: 100% 0;
-			}
+	.header-menu-body #cnet .istylem0 li a {
+		display: block;
+		padding: 9px 12px;
+		border: 1px solid var(--els-border);
+		border-radius: 8px;
+		background: var(--els-background);
+		color: var(--els-text);
+		font-weight: 600;
+		text-decoration: none;
+		transition: all 0.18s ease;
+	}
 
-			ul#cnet h2 {
-				left: 0;
-				top: 100%;
-				background-position: 0 100%;
-			}
+	.header-menu-body #cnet .istylem0 li a:hover {
+		background: var(--els-accent);
+		border-color: var(--els-primary-light);
+		transform: translateY(-1px);
+	}
 
-		ul#cnet {
-			display: block;
-			font-size: 0;
-			zoom: 1;
-			height: 30px;
-			float: left;
-		}
-
-			ul#cnet ul {
-				width: 209px;
-				position: relative;
-				left: 10px;
-				top: 10px;
-				border: none;
-				background-image: url(sub.gif);
-				background-position: 100% 100%;
-				padding: 1px 11px 10px 1px;
-			}
-
-			ul#cnet li {
-				display: block;
-				zoom: 1;
-				margin: 0 1px 0 0;
-				font-size: 0;
-				float: left;
-			}
-
-			ul#cnet ul li {
-				margin: 0 0 1px;
-			}
-
-			ul#cnet a:active, ul#cnet a:focus {
-				outline-style: none
-			}
-
-			ul#cnet a, ul#cnet li.dis a:hover, ul#cnet li.sep a:hover {
-				display: block;
-				vertical-align: middle;
-				background-color: #FFFFFF;
-				border: 0px 0px 1px 0px solid #E6E6E6;
-				text-align: left;
-				text-decoration: none;
-				padding: 6px 5px;
-				font: normal 9pt arial,helvetica;
-				color: #3B6285;
-				text-decoration: none;
-				cursor: default;
-			}
-
-			ul#cnet span {
-				overflow: hidden;
-			}
-
-			ul#cnet ul li {
-				float: none;
-			}
-
-				ul#cnet ul a, ul#cnet ul li.dis a:hover {
-					text-align: left;
-					white-space: nowrap;
-				}
-
-			ul#cnet li.sep {
-				text-align: left;
-				padding: 0px;
-				line-height: 0;
-				height: 100%;
-			}
-
-				ul#cnet li.sep span {
-					float: none;
-					padding-right: 0;
-					width: 1px;
-					height: 100%;
-					display: inline-block;
-					background-color: #999999;
-					background-image: none;
-				}
-
-			ul#cnet ul li.sep span {
-				width: 100%;
-				height: 3px;
-			}
-
-			ul#cnet li:hover > a {
-				background-color: #EBEBEB;
-				border-color: #E6E6E6;
-				border-style: none;
-				font: normal 9pt arial,helvetica;
-				color: #3B6285;
-				text-decoration: underline;
-			}
-
-			ul#cnet li.dis a {
-				color: #AAAAAA !important;
-			}
-
-			ul#cnet img {
-				border: none;
-				vertical-align: middle;
-				margin-right: 12px;
-				width: 24px;
-				height: 24px;
-			}
-
-			ul#cnet ul img {
-				width: 16px;
-				height: 16px;
-			}
-
-			ul#cnet img.over {
-				display: none
-			}
-
-			ul#cnet li.dis a:hover img.over {
-				display: none !important
-			}
-
-			ul#cnet li.dis a:hover img.def {
-				display: inline !important
-			}
-
-			ul#cnet li:hover > a img.def {
-				display: none
-			}
-
-			ul#cnet li:hover > a img.over {
-				display: inline
-			}
-
-			ul#cnet span {
-				display: block;
-				background-image: url(arrow.gif);
-				background-position: right center;
-				background-repeat: no-repeat;
-				padding-right: 22px;
-				font: bold 17px arial,helvetica;
-			}
-
-			ul#cnet li:hover > a > span {
-				background-image: url(arrow_o.gif);
-			}
-
-			ul#cnet li.istylei0 {
-				s margin-right:6px;
-				background-color: #DEDEDE;
-				background-image: url(top.png);
-			}
-
-				ul#cnet li.istylei0 > a {
-					height: 13px;
-					background-color: #DEDEDE;
-					background-image: url(top.png);
-					font: bold 12px arial,helvetica;
-					color: #484848;
-					text-decoration: none;
-					margin: 0 -5px 0 5px;
-					background-position: 100% 0;
-				}
-
-				ul#cnet li.istylei0:hover > a {
-					background-color: #1E5B7E;
-					background-image: url(top.png);
-					font: bold 12px arial,helvetica;
-					color: #FFFFFF;
-					text-decoration: none;
-				}
-
-				ul#cnet li.istylei0:hover {
-					background-color: #1E5B7E;
-					background-image: url(top.png);
-					font: bold 12px arial,helvetica;
-					color: #FFFFFF;
-					text-decoration: none;
-				}
-
-			ul#cnet li.istylei1 > a {
-				height: 13px;
-				background-color: transparent;
-				background-image: url(sub-item-normal.gif);
-			}
-
-			ul#cnet li.istylei1:hover > a {
-				background-color: transparent;
-				background-image: url(sub-item-over.gif);
-			}
-
-		ul.istylem1 {
-			padding: 0px 0 0 0px;
-		}
-
-			ul.istylem1 > li > a {
-				padding: 5px 20px;
-			}
-
-			ul.istylem1 > li {
-				margin: 0 0px 0px 0;
-			}
-
-		.navbar {
-			width: 100%;
-			background-color: #555;
-			overflow: auto;
-		}
-
-			.navbar a {
-				float: left;
-				padding: 12px;
-				color: white;
-				text-decoration: none;
-				font-size: 17px;
-			}
-
-				.navbar a:hover {
-					background-color: #000;
-				}
-
-		.active {
-			background-color: #4CAF50;
-		}
+	.header-menu-body #cnet .istylem0 li a.active {
+		background: var(--els-accent);
+		border-color: var(--els-primary);
+		color: var(--els-primary-dark);
+		box-shadow: 0 0 0 1px color-mix(in srgb, var(--els-primary) 30%, transparent);
+	}
 </style>
+<script>
+	(function () {
+		try {
+			var selectedTheme = localStorage.getItem('els-theme');
+			if (selectedTheme === 'dark') {
+				document.documentElement.setAttribute('data-theme', 'dark');
+			} else {
+				document.documentElement.removeAttribute('data-theme');
+			}
+		} catch (e) {
+			document.documentElement.removeAttribute('data-theme');
+		}
+	})();
+</script>
 </head>
-<body style="background-color: darkgray">
+<body class="header-menu-body">
     <table  width="100%" cellpadding="0" cellspacing="0">
 		<tr>
  	 	 <td width="100%" align="center" valign="bottom" height="30px">
+	  <div class="header-theme-toggle-wrap">
+	   <button id="themeToggleHeader" type="button" class="theme-toggle-btn" onclick="toggleTheme()">Dark Theme</button>
+	 </div>
  <ul id="cnet" class="istylem1">
-	<li class="istylei0"><a href="#"><span>Customer</span></a>
-	<div><h1></h1><h2></h2><ul class="istylem0">
-		<li class="istylei-1"><a href="#"><b>Home</b></a></li>
-		<li><a href="#"><b>CustomerPreferences</b></a></li>
-		<li><a href="testlink.html">Add New</a></li>
-		<li><a href="#"><i>Customer Advances</i></a></li>
-	</ul></div>
-	</li>
-	 <li class="istylei0"><a href="#"><span>Drop</span></a>
-	<div><h1></h1><h2></h2><ul class="istylem0">
-		<li><a href="#"><b>Edit Order</b></a></li>
-		<li><a href="testlink.html">Cancel Order</a></li>
-	</ul></div>
-	</li>
+	@if (isAdminUser)
+	{
+		@* Keep only screens (not post-order actions) visible for admins as well. *@
+		<li class="istylei0"><a href="#"><span>Quick Access</span></a>
+		<div><h1></h1><h2></h2><ul class="istylem0">
+			<li><a class="@(IsActiveHeaderMenu("SetupCreateOrder", "Customer") ? "active" : string.Empty)" href="@Url.Action("SetupCreateOrder", "Customer")">Create Laundry Order</a></li>
+			<li><a class="@(IsActiveHeaderMenu("CustomerAdvances", "Customer") ? "active" : string.Empty)" href="@Url.Action("CustomerAdvances", "Customer")">Customer Advances</a></li>
+			<li style="padding:6px 2px; border-top:1px dashed var(--els-border); color:#64748b; font-size:11px; line-height:1.35;">
+				Print Tags / Print Bill / Download PDF / Send Bill Email are available only after order creation on Create Laundry Order screen.
+			</li>
+		</ul></div>
+		</li>
 
-	 <li class="istylei0"><a href="#"><span>Process</span></a>
-	<div><h1></h1><h2></h2><ul class="istylem0">
-		<li><a href="#"><b>Print Barcode</b></a></li>
-		<li><a href="testlink.html">Packing Stickers</a></li>
-		<li><a href="testlink.html">Workshop Note</a></li>
-	</ul></div>
-	</li>
+		if (!IsActiveHeaderMenu("Index", "Dashboard"))
+		{
+			<li class="istylei0"><a class="header-back-link" href="@Url.Action("Index", "Dashboard")"><i class="fa fa-arrow-left"></i> <span>Back to Dashboard</span></a></li>
+		}
+	}
+	else
+	{
+		<li class="istylei0"><a href="#"><span>Customer</span></a>
+		<div><h1></h1><h2></h2><ul class="istylem0">
+			<li class="istylei-1"><a class="@(IsActiveHeaderMenu("Index", "Dashboard") || IsActiveHeaderMenu("MyDashboard", "Dashboard") ? "active" : string.Empty)" href="@Url.Action("Index", "Dashboard", new { searchMode = "customer" })"><b>Search Customer</b></a></li>
+			<li><a class="@(IsActiveHeaderMenu("Index", "Dashboard") || IsActiveHeaderMenu("MyDashboard", "Dashboard") ? "active" : string.Empty)" href="@Url.Action("Index", "Dashboard", new { searchMode = "invoice" })"><b>Search Invoice</b></a></li>
+			<li><a class="@(IsActiveHeaderMenu("AddNewCustomer", "Customer") || IsActiveHeaderMenu("Index", "Customer") ? "active" : string.Empty)" href="@Url.Action("AddNewCustomer", "Customer")">Create Customer</a></li>
+			<li><a class="@(IsActiveHeaderMenu("Index", "Customer") ? "active" : string.Empty)" href="@Url.Action("Index", "Customer", new { mode = "update" })">Update Customer</a></li>
+			<li><a class="@(IsActiveHeaderMenu("CustomerAdvances", "Customer") ? "active" : string.Empty)" href="@Url.Action("CustomerAdvances", "Customer")">Customer Advances</a></li>
+		</ul></div>
+		</li>
 
-	  <li class="istylei0"><a href="#"><span>PickUp</span></a>
-	<div><h1></h1><h2></h2><ul class="istylem0">
-		<li><a href="#"><b>Multiple Payment And Delivery</b></a></li>
-		<li><a href="testlink.html">Assign To Driver</a></li>
-	</ul></div>
-	</li>
+		<li class="istylei0"><a href="#"><span>Orders</span></a>
+		<div><h1></h1><h2></h2><ul class="istylem0">
+			<li class="istylei-1"><a class="@(IsActiveHeaderMenu("SetupCreateOrder", "Customer") ? "active" : string.Empty)" href="@Url.Action("SetupCreateOrder", "Customer")"><b>Create Laundry Order</b></a></li>
+			<li><a class="@(IsActiveHeaderMenu("OrderWorkflow", "Customer") ? "active" : string.Empty)" href="@Url.Action("OrderWorkflow", "Customer")">Order Workflow</a></li>
+			<li><a class="@(IsActiveHeaderMenu("Index", "Dashboard") || IsActiveHeaderMenu("MyDashboard", "Dashboard") ? "active" : string.Empty)" href="@Url.Action("Index", "Dashboard", new { searchMode = "customer" })">Search Customer Orders</a></li>
+			<li><a class="@(IsActiveHeaderMenu("SetupCreateOrder", "Customer") ? "active" : string.Empty)" href="@Url.Action("SetupCreateOrder", "Customer", new { orderMode = "pieces" })">Quick Order Entry (Pieces)</a></li>
+			<li><a class="@(IsActiveHeaderMenu("SetupCreateOrder", "Customer") ? "active" : string.Empty)" href="@Url.Action("SetupCreateOrder", "Customer", new { orderMode = "weight" })">Quick Order Entry (Weight)</a></li>
+		</ul></div>
+		</li>
 
-	 <li class="istylei0"><a href="#"><span>Account</span></a>
-	<div><h1></h1><h2></h2><ul class="istylem0">
-		<li><a href="#"><b>Cash/Day Book</b></a></li>
-		<li><a href="testlink.html">Detail Cash/Day Book</a></li>
-		<li><a href="testlink.html">Expenses</a></li>
-		<li><a href="testlink.html">Payment Type</a></li>
-		<li><a href="testlink.html">Tax Report</a></li>
-	</ul></div>
-	</li>
-	 <li class="istylei0"><a href="#"><span>Reports</span></a>
-	<div><h1></h1><h2></h2><ul class="istylem0">
-		<li><a href="#"><b>Orders</b></a></li>
-		<li><a href="testlink.html">Sales and Delivery</a></li>
-		<li><a href="testlink.html">Service Wise Order</a></li>
-		<li><a href="testlink.html">Category Wise Order</a></li>
-		<li><a href="testlink.html">Service And Garment</a></li>
-		<li><a href="testlink.html">Garment Wise</a></li>
-		<li><a href="testlink.html">Garment Status</a></li>
-		<li><a href="testlink.html">Returned Garments</a></li>
-		<li><a href="testlink.html">Daily Customer Addition</a></li>
-		<li><a href="testlink.html">Cancel Booking</a></li>
-		<li><a href="testlink.html">Without Ticket Delivery</a></li>
-		<li><a href="testlink.html">Order by locally</a></li>
-		<li><a href="testlink.html">Pending Stock</a></li>
-	</ul></div>
-	</li>
-	  <li class="istylei0"><a href="#"><span>Master Data</span></a>
-	<div><h1></h1><h2></h2><ul class="istylem0">
-		<li><a href="#"><b>Orders</b></a></li>
-		<li><a href="testlink.html">Laundry Services</a></li>
-	</ul></div>
-	</li>
-	  <li class="istylei0"><a href="#"><span>Admin</span></a>
-	<div><h1></h1><h2></h2><ul class="istylem0">
-		<li><a href="#"><b>Set Up</b></a></li>
-		<li><a href="testlink.html">Barcode Configurator</a></li>
-		<li><a href="testlink.html">Search Invoice</a></li>
-		<li><a href="testlink.html">SMS Configuration</a></li>
-		<li><a href="testlink.html">Daily Dashboard</a></li>
-		<li><a href="testlink.html">Payment Gateway Setup</a></li>
-		<li><a href="testlink.html">Email Configuration</a></li>
-		<li><a href="testlink.html">Discount Restriction</a></li>
-		<li><a href="testlink.html">Sticker Configuration</a></li>
-		<li><a href="testlink.html">QDC Marketplace</a></li>
-	</ul></div>
-	</li>
+		<li class="istylei0"><a href="#"><span>Store Operations</span></a>
+		<div><h1></h1><h2></h2><ul class="istylem0">
+			<li class="istylei-1"><a class="@(IsActiveHeaderMenu("Index", "Dashboard") || IsActiveHeaderMenu("MyDashboard", "Dashboard") ? "active" : string.Empty)" href="@Url.Action("Index", "Dashboard", new { searchMode = "customer" })"><b>Live Counter Dashboard</b></a></li>
+			<li><a class="@(IsActiveHeaderMenu("MyDashboard", "Dashboard") || IsActiveHeaderMenu("Index", "Dashboard") ? "active" : string.Empty)" href="@Url.Action("MyDashboard", "Dashboard")">Day Summary</a></li>
+		</ul></div>
+		</li>
+	}
 	</ul>
-    <input type="button" value="Edit" /> &nbsp;
-    <input type="button" value="Search" />
      </td>
   </tr>
 		</table>
-	<div style="background-color:antiquewhite; text-align:center"><b> You have 2 pending Pick up requests </b></div>
-    <div>
-        @RenderBody()
-    </div>
+	@await Html.PartialAsync("_LayoutStatus")
+	<div>
+		@RenderBody()
+	</div>
+
+<script>
+	function toggleTheme() {
+		var current = document.documentElement.getAttribute('data-theme');
+		var next = current === 'dark' ? 'light' : 'dark';
+
+		if (next === 'dark') {
+			document.documentElement.setAttribute('data-theme', 'dark');
+		} else {
+			document.documentElement.removeAttribute('data-theme');
+		}
+
+		localStorage.setItem('els-theme', next);
+		syncThemeButtonText();
+	}
+
+	function syncThemeButtonText() {
+		var isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+		var toggle = document.getElementById('themeToggleHeader');
+		if (toggle) {
+			toggle.textContent = isDark ? 'Light Theme' : 'Dark Theme';
+		}
+	}
+
+	syncThemeButtonText();
+</script>
+@RenderSection("Scripts", required: false)
 </body>
 </html>

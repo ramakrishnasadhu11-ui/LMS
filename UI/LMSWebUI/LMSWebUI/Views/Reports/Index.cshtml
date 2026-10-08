@@ -1,0 +1,73 @@
+@model LMSWebUI.Models.DashBoard.TenantInfoDto
+@{
+    Layout = "~/Views/Shared/_Layout.cshtml";
+    var tenantName = Model?.TenantName ?? "-";
+    var tenantStore = Model?.TenantStore ?? "-";
+}
+<style>
+    .reports-page {
+        padding: 24px;
+    }
+
+    .reports-box {
+        max-width: 1200px;
+        margin: 0 auto;
+        border-radius: 10px;
+        box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+        overflow: visible;
+    }
+
+    .reports-header {
+        padding: 18px 24px;
+        border-bottom: 1px solid var(--els-primary-light, #dbe5f1);
+    }
+
+        .reports-header h2 {
+            margin: 0;
+            font-size: 20px;
+            font-weight: 700;
+            color: var(--els-primary-dark, #1b3a5c);
+        }
+
+    .reports-header-subtitle {
+        margin: 6px 0 0;
+        font-size: 13px;
+        color: #64748b;
+    }
+
+    .reports-body {
+        padding: 24px;
+    }
+
+    .reports-meta {
+        font-size: 12px;
+        color: #64748b;
+        margin-bottom: 16px;
+    }
+
+    .reports-placeholder {
+        border: 1px dashed var(--els-primary-light, #dbe5f1);
+        border-radius: 10px;
+        padding: 32px;
+        text-align: center;
+        color: #64748b;
+        font-size: 14px;
+    }
+</style>
+
+<section class="content reports-page">
+    <div class="box reports-box">
+        <div class="reports-header">
+            <h2>Reports - @tenantStore Store</h2>
+            <p class="reports-header-subtitle">Operational and financial reports for this store.</p>
+        </div>
+        <div class="reports-body">
+            <div class="reports-meta">
+                Tenant: <b>@tenantName</b> | Store: <b>@tenantStore</b>
+            </div>
+            <div class="reports-placeholder">
+                No reports have been configured yet. Add report content here.
+            </div>
+        </div>
+    </div>
+</section>

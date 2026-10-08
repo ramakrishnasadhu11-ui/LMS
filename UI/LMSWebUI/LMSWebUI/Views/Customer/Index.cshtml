@@ -1,129 +1,127 @@
 ﻿@model LMSWebUI.Models.Customer.CustomerInfoDto 
+@using Microsoft.AspNetCore.Http
+@using Newtonsoft.Json
 @{
-    ViewData["Title"] = "Customer";
    Layout = "~/Views/Shared/_HeaderMenuItemsLayout.cshtml";
+   var hideButton = false;
+   bool.TryParse(Convert.ToString(TempData.Peek("isHideButton")), out hideButton);
+   var updateSearchTerm = Convert.ToString(ViewData["UpdateSearchTerm"]);
+   var updateSearchNotFound = Convert.ToBoolean(ViewData["UpdateSearchNotFound"] ?? false);
+   var actionMode = Convert.ToString(ViewData["CustomerActionMode"] ?? "create").Trim().ToLowerInvariant();
+   var pageTitle = actionMode == "update"
+       ? "Customer Update"
+       : actionMode == "delete"
+           ? "Customer Delete"
+           : "Customer Create";
+   ViewData["Title"] = pageTitle;
 }
-<!DOCTYPE html>
-<html>
-<head>
-    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.4.1/jquery.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.16.0/umd/popper.min.js"></script>
-    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.4.1/js/bootstrap.min.js"></script>
-    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
-    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.16.0/umd/popper.min.js"></script>
-    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<!-- Add icon library -->
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
+
 <style>
-body {font-family: Arial, Helvetica, sans-serif;}
-* {box-sizing: border-box;}
-
-.input-container {
-  display: -ms-flexbox; /* IE10 */
-  display: flex;
-  width: 100%;
-  margin-bottom: 15px;
+.customer-page,
+.customer-page input,
+.customer-page textarea,
+.customer-page select,
+.customer-page button {
+    font-family: Arial, Helvetica, sans-serif;
 }
 
-.icon {
-  padding: 10px;
-  background: dodgerblue;
-  color: white;
-  min-width: 50px;
-  text-align: center;
+.customer-page * { box-sizing: border-box; }
+
+.customer-page {
+    padding: 20px;
 }
 
-.input-field {
-  width: 100%;
-  padding: 10px;
-  outline: none;
+.customer-box {
+    max-width: 1400px;
+    margin: 0 auto;
+    background: var(--els-surface);
+    border-radius: 10px;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+    overflow: hidden;
 }
-.input1-field {
-  width: 50%;
-  padding: 10px;
-  outline: none;
+
+.customer-title {
+    background: linear-gradient(90deg, var(--els-primary) 0%, var(--els-primary-dark) 100%);
+    color: #fff;
+    padding: 14px 20px;
+    font-size: 20px;
+    font-weight: 600;
 }
-.input2-field {
-  width: 25%;
-  padding: 10px;
-  outline: none;
+
+.customer-body {
+    padding: 20px;
 }
-.input-field:focus {
-  border: 2px solid dodgerblue;
-}
-.relative {
-            padding: 10px;
-            position:fixed;
-            margin: 10px;
-        }
-        
-        .navitem {
-            display: inline-block;
-            width: 100px;
-            height: 100px;
-            text-align: center;
-            border: gray;
-            background-color:gainsboro;
-            color:black;
-            cursor: pointer;
-            font-weight: bold;
-        }
-/* Set a style for the submit button */
-.btn {
-  background-color: dodgerblue;
-  color: white;
-  padding: 15px 20px;
-  border: none;
-  cursor: pointer;
-  width: 100%;
-  opacity: 0.9;
-}
-.btn:hover {
-  opacity: 1;
-}
- input[type="text"], select {
-        width: 250px;
-    }
-    a:link, a:active, a:visited, a:hover {
-        text-decoration: none;
-        color: black;
-    }
-    /*--- DROPDOWN ---*/
-    #nav ul {
-        list-style: none;
-        position: absolute;
-        padding: 0;
-        margin: 0;
-        list-style-type: none;
-    }
-    * { box-sizing: border-box; }
-body {
-  font: 16px Arial;
-}
+
 .autocomplete {
-  /*the container must be positioned relative:*/
   position: relative;
   display: inline-block;
 }
-input {
-  border: 1px solid transparent;
-  background-color: #f1f1f1;
+
+.customer-search {
+    width: 100% !important;
+    border: 1px solid var(--els-border);
+    border-radius: 6px;
+}
+
+.customer-code {
+    margin: 15px 0;
+    font-size: 15px;
+}
+
+.input-container {
+    display: flex;
+    width: 100%;
+    gap: 10px;
+    margin-bottom: 12px;
+    align-items: stretch;
+}
+
+.icon {
+    padding: 10px;
+    background: var(--els-primary);
+    color: #fff;
+    min-width: 42px;
+    text-align: center;
+    border-radius: 4px;
+}
+
+.input-field,
+.input1-field,
+.input2-field {
+    padding: 10px;
+    outline: none;
+    border: 1px solid var(--els-border);
+    border-radius: 4px;
+}
+
+.input1-field { width: 50%; }
+.input2-field { width: 25%; }
+
+.customer-page input {
+  border: 1px solid var(--els-border);
+  background-color: var(--els-surface);
   padding: 10px;
   font-size: 16px;
+  color: var(--els-text);
 }
-input[type=text] {
-  background-color: #f1f1f1;
+.customer-page input[type=text] {
+  background-color: var(--els-surface);
   width: 100%;
 }
-input[type=submit] {
-  background-color: DodgerBlue;
+.customer-page input:focus,
+.customer-page textarea:focus,
+.customer-page select:focus {
+  border-color: #7eaed6;
+  box-shadow: 0 0 0 0.2rem rgba(31, 95, 143, 0.15);
+  outline: none;
+}
+.customer-page input[type=submit] {
+  background-color: var(--els-primary);
   color: #fff;
 }
-.autocomplete-items {
+.customer-page .autocomplete-items {
   position: absolute;
-  border: 1px solid #d4d4d4;
+  border: 1px solid var(--els-border);
   border-bottom: none;
   border-top: none;
   z-index: 99;
@@ -132,278 +130,1070 @@ input[type=submit] {
   left: 0;
   right: 0;
 }
-.autocomplete-items div {
+.customer-page .autocomplete-items div {
   padding: 10px;
   cursor: pointer;
-  background-color: #fff;
-  border-bottom: 1px solid #d4d4d4;
+  background-color: var(--els-surface);
+  border-bottom: 1px solid var(--els-border);
 }
-.autocomplete-items div:hover {
+.customer-page .autocomplete-items div:hover {
   /*when hovering an item:*/
-  background-color: #e9e9e9;
+  background-color: var(--els-accent);
 }
-.autocomplete-active {
+.customer-page .autocomplete-active {
   /*when navigating through the items using the arrow keys:*/
-  background-color: DodgerBlue !important;
+  background-color: var(--els-primary) !important;
   color: #ffffff;
 }
+
+.maintain-text,
+textarea.maintain-text {
+    border-radius: 4px;
+    border: 1px solid var(--els-border);
+}
+
+.nav-actions {
+    margin-top: 20px;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 12px;
+    padding-top: 14px;
+    border-top: 1px solid var(--els-border);
+}
+
+#customerActions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+}
+
+.navitem {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 140px;
+    min-height: 46px;
+    border: 1px solid transparent;
+    border-radius: 8px;
+    background: linear-gradient(180deg, var(--els-primary-light) 0%, var(--els-primary) 100%);
+    color: #fff;
+    padding: 10px 16px;
+    text-align: center;
+    cursor: pointer;
+    font-weight: 600;
+    font-size: 14px;
+    letter-spacing: 0.2px;
+    transition: transform 0.15s ease, box-shadow 0.2s ease, background 0.2s ease;
+    box-shadow: 0 2px 6px rgba(31, 95, 143, 0.25);
+}
+
+.navitem:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(31, 95, 143, 0.3);
+    background: linear-gradient(180deg, var(--els-primary) 0%, var(--els-primary-dark) 100%);
+}
+
+.navitem:active {
+    transform: translateY(0);
+    box-shadow: 0 1px 4px rgba(31, 95, 143, 0.25);
+}
+
+.navitem:focus-visible {
+    outline: 3px solid rgba(31, 95, 143, 0.35);
+    outline-offset: 1px;
+}
+
+/* Button spinner */
+.btn-spinner {
+    display: inline-block;
+    vertical-align: middle;
+    width: 16px;
+    height: 16px;
+    border: 2px solid rgba(255,255,255,0.3);
+    border-top-color: #fff;
+    border-radius: 50%;
+    animation: customer-btn-spin 0.8s linear infinite;
+    margin-right: 8px;
+}
+
+@@keyframes customer-btn-spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+#custdelete {
+    background: linear-gradient(180deg, #dc6f6b 0%, var(--els-danger) 100%);
+    box-shadow: 0 2px 6px rgba(201, 48, 44, 0.25);
+}
+
+#custdelete:hover {
+    background: linear-gradient(180deg, #e28582 0%, var(--els-danger) 100%);
+    box-shadow: 0 4px 12px rgba(201, 48, 44, 0.3);
+}
+
+#custnew {
+    background: linear-gradient(180deg, #66c066 0%, var(--els-success) 100%);
+    box-shadow: 0 2px 6px rgba(68, 157, 68, 0.25);
+}
+
+#custnew:hover {
+    background: linear-gradient(180deg, #7ccc7c 0%, var(--els-success) 100%);
+    box-shadow: 0 4px 12px rgba(68, 157, 68, 0.3);
+}
+
+@@media (max-width: 768px) {
+    .nav-actions {
+        gap: 10px;
+    }
+
+    .navitem {
+        flex: 1 1 calc(50% - 10px);
+        min-width: 0;
+    }
+}
+
+@@media (max-width: 520px) {
+    .navitem {
+        flex: 1 1 100%;
+    }
+}
+
+.toast-message {
+    position: fixed;
+    right: 24px;
+    top: 80px;
+    z-index: 9999;
+    min-width: 260px;
+    max-width: 380px;
+    padding: 12px 16px;
+    border-radius: 8px;
+    color: #fff;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
+    font-weight: 600;
+    display: none;
+}
+
+.toast-message.success {
+    background: #2f8f46;
+}
+
+.toast-message.error {
+    background: #b63838;
+}
+
+.field-error {
+    color: #b63838;
+    font-size: 12px;
+    margin-top: 4px;
+    display: none;
+}
+
+.field-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(220px, 1fr));
+    gap: 12px;
+    margin-bottom: 12px;
+}
+
+.field-grid .field-item {
+    display: flex;
+    flex-direction: column;
+}
+
+.field-grid label {
+    font-size: 13px;
+    margin-bottom: 5px;
+    color: var(--els-text);
+}
+
+.input-validation-error {
+    border: 1px solid #b63838 !important;
+    background-color: #fff5f5 !important;
+}
+
+.update-search-panel {
+    margin-bottom: 14px;
+    padding: 12px;
+    border: 1px solid var(--els-border);
+    border-radius: 8px;
+    background: var(--els-accent);
+}
+
+.update-search-form {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.update-search-form label {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--els-text);
+    margin: 0;
+}
+
+.update-search-form input[type=text] {
+    flex: 1 1 280px;
+    min-width: 220px;
+}
+
+.search-customer-btn {
+    min-width: 130px;
+}
 </style>
-</head>
-<body>
-     @await Html.PartialAsync("_LayoutStatus");
-     <div class="btn"><b>Customer Create/Update/Delete</b></div>
+
+</style>
+
+     @{
+         var customerUserMessageJson = Convert.ToString(TempData.Peek("UserMessage"));
+         LMSWebUI.Models.MessageDto customerUserMessage = null;
+
+         if (!string.IsNullOrWhiteSpace(customerUserMessageJson))
+         {
+             try
+             {
+                 customerUserMessage = JsonConvert.DeserializeObject<LMSWebUI.Models.MessageDto>(customerUserMessageJson);
+             }
+             catch
+             {
+                 customerUserMessage = null;
+             }
+         }
+
+         var suppressLayoutStatusMessage = customerUserMessage != null
+             && !string.IsNullOrWhiteSpace(customerUserMessage.CssClassName)
+             && customerUserMessage.CssClassName.IndexOf("alert-success", StringComparison.OrdinalIgnoreCase) >= 0;
+
+         if (suppressLayoutStatusMessage)
+         {
+             if (TempData["CustomerSaveToast"] == null && !string.IsNullOrWhiteSpace(customerUserMessage.DisplayMessage))
+             {
+                 TempData["CustomerSaveToast"] = customerUserMessage.DisplayMessage;
+             }
+
+             TempData.Remove("UserMessage");
+         }
+     }
+     <div id="customerToast" class="toast-message"></div>
+     @if (TempData["UpdateModeToast"] != null)
+     {
+         <script type="text/javascript">
+             window.updateModeToastMessage = '@Html.Raw(System.Text.Encodings.Web.JavaScriptEncoder.Default.Encode(Convert.ToString(TempData["UpdateModeToast"])))';
+         </script>
+     }
+     @if (TempData["CustomerSaveToast"] != null)
+     {
+         <script type="text/javascript">
+             window.customerSaveToastMessage = '@Html.Raw(System.Text.Encodings.Web.JavaScriptEncoder.Default.Encode(Convert.ToString(TempData["CustomerSaveToast"])))';
+         </script>
+     }
+     @if (TempData["UpdateSearchToast"] != null)
+     {
+         <script type="text/javascript">
+             window.updateSearchToastMessage = '@Html.Raw(System.Text.Encodings.Web.JavaScriptEncoder.Default.Encode(Convert.ToString(TempData["UpdateSearchToast"])))';
+         </script>
+     }
+     <script type="text/javascript">
+         document.addEventListener("DOMContentLoaded", function () {
+             if (!window.customerSaveToastMessage || window.__initialSaveToastShown) {
+                 return;
+             }
+
+             var toast = document.getElementById("customerToast");
+             if (!toast) {
+                 return;
+             }
+
+             toast.classList.remove("error");
+             toast.classList.add("success");
+             toast.textContent = "Success! " + window.customerSaveToastMessage;
+             toast.style.display = "block";
+             window.__initialSaveToastShown = true;
+
+             setTimeout(function () {
+                 toast.style.display = "none";
+             }, 3200);
+         });
+     </script>
+     <section class="customer-page">
+     <div class="customer-box">
+     <div class="customer-title">@pageTitle</div>
+     <div class="customer-body">
+     @if (hideButton)
+     {
+         <div class="update-search-panel">
+             <form method="get" action="@Url.Action("Index", "Customer")" class="update-search-form">
+                 <label for="updateCustomerSearch">@(actionMode == "delete" ? "Search Customer for Delete" : "Search Customer for Update")</label>
+                 <input type="text" id="updateCustomerSearch" name="customerName" class="form-control maintain-text" placeholder="Enter customer name" value="@(string.IsNullOrWhiteSpace(updateSearchTerm) ? Model?.CustomerName : updateSearchTerm)" />
+                 <input type="hidden" name="mode" value="@actionMode" />
+                 <button type="submit" class="navitem search-customer-btn">Search</button>
+             </form>
+         </div>
+     }
      @using (Html.BeginForm("Index","Customer", FormMethod.Post, new { @class = "form" }))
    {
-    <form>
-    <div class="autocomplete" style="width:1400px;">
-    <input id="searchCustomers" type="text" placeholder="Search Customer here to Edit/Delete a Customer">
-  </div>
-   <div>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;
-    <label class="input1-field"><b>Customer Code:</b></label>@TempData["customerCode"]  
+    <div class="customer-code">
+    <label class="input1-field"><b>Customer Code:</b></label>
+    <span id="customerCodeValue">@(string.IsNullOrWhiteSpace(Convert.ToString(TempData["customerCode"])) ? "Auto-generated on Save" : Convert.ToString(TempData["customerCode"]))</span>
+    <input type="hidden" id="customerCodeHidden" name="customerCode" value="@(TempData["customerCode"] ?? string.Empty)" />
+    @* Ensure the logged-in store/tenant are posted so server binding works even if session is missing *@
+    @{
+        var storeVal = Context?.Session?.GetString("TenantStore") ?? string.Empty;
+        var tenantVal = Context?.Session?.GetString("TenantName") ?? string.Empty;
+    }
+    <input type="hidden" id="StoreCode" name="StoreCode" value="@storeVal" />
+    <input type="hidden" id="TenantName" name="TenantName" value="@tenantVal" />
          </div>
-@if(Model.disableStatus==false)
-      {
-    <div>
-   @Html.TextBoxFor(m => m.MembershipId, new { @placeholder = "Membership ID",@class = "form-control maintain-text ", id = "membershipid"})
-   @Html.TextBoxFor(m => m.BarCode, new { @placeholder = "Barcode",@class = "form-control maintain-text ", id = "barcode"})
-   </div>
-  <div class="input-container">
-   <i class="fa fa-user icon"></i>
-   <select class="input2-field" name = "dropdown">
-            <option value = "Mr">Mr</option>
-            <option value = "Mrs">Mrs</option>
-            <option value = "Ms">Ms</option>
-            <option value = "Dr">Dr</option>
-   </select>
-      @Html.TextBoxFor(m => m.CustomerName, new { @placeholder = "Name",@class = "form-control maintain-text ", id = "name"})
-      <i class="fa fa-birthday-cake icon"></i>
-      <input class="input2-field" type="text" placeholder="Birthday" name="birthday">
-      <i class="fa fa-birthday-cake icon"></i>
-      <input class="input2-field" type="text" placeholder="Anniversary" name="anniversary">
-  </div>
-  <div class="input-container">
-        @Html.TextAreaFor(m=> m.Address, new { @placeholder = "Address here...", @class ="form-control maintain-text", id = "address"})
-      <textarea class="input2-field" placeholder="Area Location here..."></textarea>
-      <i class="fa fa-birthday-cake icon"></i>
-      <input class="input2-field" type="text" placeholder="Birthday" name="birthday">
-      <i class="fa fa-birthday-cake icon"></i>
-      <input class="input2-field" type="text" placeholder="Anniversary" name="anniversary">
-  </div>
-  <div class="input-container">
-    <i class="fa fa-birthday-cake icon"></i>
-    <input class="input1-field" type="text" placeholder="Pin Code" name="pincode">
-    <i class="fa fa-birthday-cake icon"></i>
-    <input class="input2-field" type="text" placeholder="Remarks" name="remarks">
-    <i class="fa fa-birthday-cake icon"></i>
-    <input class="input2-field" type="text" placeholder="Home Delivery" name="homedelivery">
-  </div>
-  <div class="input-container">
-    <i class="fa fa-phone-alt"></i>
-    <input class="input2-field" type="text" placeholder="Phone Number" name="pincode">
-    <i class="fa fa-envelope icon"></i>
-    <input class="input2-field" type="text" placeholder="Email ID" name="emailid">
-    <i class="fa fa-birthday-cake icon"></i>
-    <input class="input2-field" type="text" placeholder="Marketing Source" name="source">
-    <i class="fa fa-birthday-cake icon"></i>
-    <input class="input2-field" type="text" placeholder="Phone" name="phone">
-  </div>
-  <div class="input-container">
-    <i class="fa fa-phone-alt"></i>
-    <input class="input2-field" type="text" placeholder="Preference" name="preference">
-    <i class="fa fa-envelope icon"></i>
-    <input class="input2-field" type="text" placeholder="Select Communication Preference" name="communication">
-    <i class="fa fa-birthday-cake icon"></i>
-    <input class="input2-field" type="text" placeholder="Customer Advance" name="advance">
-    <i class="fa fa-birthday-cake icon"></i>
-    <input class="input2-field" type="text" placeholder="OTP" name="otp">
-  </div>
-  <div class="input-container">
-    <i class="fa fa-phone-alt"></i>
-    <input class="input1-field" type="text" placeholder="Rate List" name="ratelist">
-    <i class="fa fa-birthday-cake icon"></i>
-    <input class="input2-field" type="text" placeholder="Facebook Id" name="facebookid">
-    <i class="fa fa-birthday-cake icon"></i>
-    <input class="input2-field" type="text" placeholder="Registration Source" name="registrationspurce">
-  </div>
-      }
-      else
-      {
-            <div class="input-container">
-   <i class="fa fa-user icon"></i>
-   <select class="input2-field" name = "dropdown" disabled="disabled">
-            <option value = "Mr">Mr</option>
-            <option value = "Mrs">Mrs</option>
-            <option value = "Ms">Ms</option>
-            <option value = "Dr">Dr</option>
-   </select>
-      @Html.TextBoxFor(m => m.CustomerName, new { @placeholder = "Name",@class = "form-control maintain-text ", id = "name",@disabled = "disabled"})
-      <i class="fa fa-birthday-cake icon"></i>
-      <input class="input2-field" type="text" placeholder="Birthday" name="birthday" disabled="disabled">
-      <i class="fa fa-birthday-cake icon"></i>
-      <input class="input2-field" type="text" placeholder="Anniversary" name="anniversary" disabled="disabled" >
-  </div>
-  <div class="input-container">
-        @Html.TextAreaFor(m=> m.Address, new { @placeholder = "Address here...", @class ="form-control maintain-text", id = "address",@disabled = "disabled"})
-      <textarea class="input2-field" placeholder="Area Location here..." disabled="disabled"></textarea>
-      <i class="fa fa-birthday-cake icon"></i>
-      <input class="input2-field" type="text" placeholder="Birthday" name="birthday" disabled="disabled">
-      <i class="fa fa-birthday-cake icon"></i>
-      <input class="input2-field" type="text" placeholder="Anniversary" name="anniversary" disabled="disabled">
-  </div>
-  <div class="input-container">
-    <i class="fa fa-birthday-cake icon"></i>
-    <input class="input1-field" type="text" placeholder="Pin Code" name="pincode" disabled="disabled">
-    <i class="fa fa-birthday-cake icon"></i>
-    <input class="input2-field" type="text" placeholder="Remarks" name="remarks" disabled="disabled">
-    <i class="fa fa-birthday-cake icon"></i>
-    <input class="input2-field" type="text" placeholder="Home Delivery" name="homedelivery" disabled="disabled">
-  </div>
-  <div class="input-container">
-    <i class="fa fa-phone-alt"></i>
-    <input class="input2-field" type="text" placeholder="Phone Number" name="pincode" disabled="disabled">
-    <i class="fa fa-envelope icon"></i>
-    <input class="input2-field" type="text" placeholder="Email ID" name="emailid" disabled="disabled">
-    <i class="fa fa-birthday-cake icon"></i>
-    <input class="input2-field" type="text" placeholder="Marketing Source" name="source" disabled="disabled">
-    <i class="fa fa-birthday-cake icon"></i>
-    <input class="input2-field" type="text" placeholder="Phone" name="phone" disabled="disabled">
-  </div>
-  <div class="input-container">
-    <i class="fa fa-phone-alt"></i>
-    <input class="input2-field" type="text" placeholder="Preference" name="preference" disabled="disabled">
-    <i class="fa fa-envelope icon"></i>
-    <input class="input2-field" type="text" placeholder="Select Communication Preference" name="communication" disabled="disabled">
-    <i class="fa fa-birthday-cake icon"></i>
-    <input class="input2-field" type="text" placeholder="Customer Advance" name="advance" disabled="disabled">
-    <i class="fa fa-birthday-cake icon"></i>
-    <input class="input2-field" type="text" placeholder="OTP" name="otp" disabled="disabled">
-  </div>
-  <div class="input-container">
-    <i class="fa fa-phone-alt"></i>
-    <input class="input1-field" type="text" placeholder="Rate List" name="ratelist" disabled="disabled">
-    <i class="fa fa-birthday-cake icon"></i>
-    <input class="input2-field" type="text" placeholder="Facebook Id" name="facebookid" disabled="disabled">
-    <i class="fa fa-birthday-cake icon"></i>
-    <input class="input2-field" type="text" placeholder="Registration Source" name="registrationspurce" disabled="disabled">
-  </div>
-      }
+      <div class="input-container">
+          <i class="fa fa-user icon"></i>
+          @Html.TextBoxFor(m => m.CustomerName, new { @placeholder = "Customer Name *", @class = "form-control maintain-text", id = "name" })
+      </div>
+      <div id="nameError" class="field-error">Customer Name is required.</div>
+      <div class="input-container">
+          <i class="fa fa-map-marker icon"></i>
+          @Html.TextAreaFor(m => m.Address, new { @placeholder = "Address *", @class = "form-control maintain-text", id = "address", rows = "3" })
+      </div>
+      <div id="addressError" class="field-error">Customer Address is required.</div>
 
-      <div class="relative">
-        @{ var hideButton = false;
-            bool.TryParse(TempData["isHideButton"] as string,out hideButton);
-            if(!hideButton)
-            {
-                 <input class="navitem" type="submit"  id="custsave" value="Save">
-            }
-            else if(hideButton)
-            { 
-         <button class="navitem" type="button" id="custnew">Add New Customer</button>
-         <button class="navitem" type="button" id="custedit">Edit</button>
-         <button class="navitem" type="button" id="custdelete">Delete</button>
-         <button class="navitem" type="button" id="custadvance">Advance Balance Adjustments</button>
-         <button class="navitem" type="button" id="custdetails">Customer Details</button>
-         <button class="navitem" type="button" id="custpickup">Schedule Pick Up</button>
-         <button class="navitem" type="button" id="custdrop">Schedule Drop</button>
-         <button class="navitem" type="button" id="custperpiece">Create Order Per Pieces</button>
-         <button class="navitem" type="button" id="custperweight">Create Order Per Weight</button>
-            }
-       }
-   </div>
-    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.4.1/jquery.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.16.0/umd/popper.min.js"></script>
-    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.4.1/js/bootstrap.min.js"></script>
-    <script src="http://ajax.aspnetcdn.com/ajax/jQuery/jquery-2.0.3.min.js"></script>
-     <script type='text/javascript'>
-         var countries = ["Afghanistan", "Albania", "Algeria", "Andorra", "Angola", "Anguilla", "Antigua &amp; Barbuda", "Argentina", "Armenia", "Aruba", "Australia", "Austria", "Azerbaijan", "Bahamas", "Bahrain", "Bangladesh", "Barbados", "Belarus", "Belgium", "Belize", "Benin", "Bermuda", "Bhutan", "Bolivia", "Bosnia &amp; Herzegovina", "Botswana", "Brazil", "British Virgin Islands", "Brunei", "Bulgaria", "Burkina Faso", "Burundi", "Cambodia", "Cameroon", "Canada", "Cape Verde", "Cayman Islands", "Central Arfrican Republic", "Chad", "Chile", "China", "Colombia", "Congo", "Cook Islands", "Costa Rica", "Cote D Ivoire", "Croatia", "Cuba", "Curacao", "Cyprus", "Czech Republic", "Denmark", "Djibouti", "Dominica", "Dominican Republic", "Ecuador", "Egypt", "El Salvador", "Equatorial Guinea", "Eritrea", "Estonia", "Ethiopia", "Falkland Islands", "Faroe Islands", "Fiji", "Finland", "France", "French Polynesia", "French West Indies", "Gabon", "Gambia", "Georgia", "Germany", "Ghana", "Gibraltar", "Greece", "Greenland", "Grenada", "Guam", "Guatemala", "Guernsey", "Guinea", "Guinea Bissau", "Guyana", "Haiti", "Honduras", "Hong Kong", "Hungary", "Iceland", "India", "Indonesia", "Iran", "Iraq", "Ireland", "Isle of Man", "Israel", "Italy", "Jamaica", "Japan", "Jersey", "Jordan", "Kazakhstan", "Kenya", "Kiribati", "Kosovo", "Kuwait", "Kyrgyzstan", "Laos", "Latvia", "Lebanon", "Lesotho", "Liberia", "Libya", "Liechtenstein", "Lithuania", "Luxembourg", "Macau", "Macedonia", "Madagascar", "Malawi", "Malaysia", "Maldives", "Mali", "Malta", "Marshall Islands", "Mauritania", "Mauritius", "Mexico", "Micronesia", "Moldova", "Monaco", "Mongolia", "Montenegro", "Montserrat", "Morocco", "Mozambique", "Myanmar", "Namibia", "Nauro", "Nepal", "Netherlands", "Netherlands Antilles", "New Caledonia", "New Zealand", "Nicaragua", "Niger", "Nigeria", "North Korea", "Norway", "Oman", "Pakistan", "Palau", "Palestine", "Panama", "Papua New Guinea", "Paraguay", "Peru", "Philippines", "Poland", "Portugal", "Puerto Rico", "Qatar", "Reunion", "Romania", "Russia", "Rwanda", "Saint Pierre &amp; Miquelon", "Samoa", "San Marino", "Sao Tome and Principe", "Saudi Arabia", "Senegal", "Serbia", "Seychelles", "Sierra Leone", "Singapore", "Slovakia", "Slovenia", "Solomon Islands", "Somalia", "South Africa", "South Korea", "South Sudan", "Spain", "Sri Lanka", "St Kitts &amp; Nevis", "St Lucia", "St Vincent", "Sudan", "Suriname", "Swaziland", "Sweden", "Switzerland", "Syria", "Taiwan", "Tajikistan", "Tanzania", "Thailand", "Timor L'Este", "Togo", "Tonga", "Trinidad &amp; Tobago", "Tunisia", "Turkey", "Turkmenistan", "Turks &amp; Caicos", "Tuvalu", "Uganda", "Ukraine", "United Arab Emirates", "United Kingdom", "United States of America", "Uruguay", "Uzbekistan", "Vanuatu", "Vatican City", "Venezuela", "Vietnam", "Virgin Islands (US)", "Yemen", "Zambia", "Zimbabwe"];
-         function autocomplete(inp, arr)
-         {
-            var currentFocus;
-            inp.addEventListener("input", function(e) {
-            var a, b, i, val = this.value;
-            closeAllLists();
-            if (!val) { return false;}
-            currentFocus = -1;
-      a = document.createElement("DIV");
-      a.setAttribute("id", this.id + "autocomplete-list");
-      a.setAttribute("class", "autocomplete-items");
-      this.parentNode.appendChild(a);
-      for (i = 0; i < arr.length; i++) {
-        if (arr[i].substr(0, val.length).toUpperCase() == val.toUpperCase()) {
-          b = document.createElement("DIV");
-          b.innerHTML = "<strong>" + arr[i].substr(0, val.length) + "</strong>";
-          b.innerHTML += arr[i].substr(val.length);
-          b.innerHTML += "<input type='hidden' value='" + arr[i] + "'>";
-              b.addEventListener("click", function(e) {
-              inp.value = this.getElementsByTagName("input")[0].value;
-              closeAllLists();
-          });
-          a.appendChild(b);
-        }
-      }
-  });
-  inp.addEventListener("keydown", function(e) {
-      var x = document.getElementById(this.id + "autocomplete-list");
-      if (x) x = x.getElementsByTagName("div");
-      if (e.keyCode == 40) {
-         currentFocus++;
-        addActive(x);
-      } else if (e.keyCode == 38) { //up
-        currentFocus--;
-        addActive(x);
-      } else if (e.keyCode == 13) {
-        e.preventDefault();
-        if (currentFocus > -1) {
-          if (x) x[currentFocus].click();
-        }
-      }
-  });
-  function addActive(x) {
-    if (!x) return false;
-    removeActive(x);
-    if (currentFocus >= x.length) currentFocus = 0;
-    if (currentFocus < 0) currentFocus = (x.length - 1);
-    x[currentFocus].classList.add("autocomplete-active");
-  }
-  function removeActive(x) {
-    for (var i = 0; i < x.length; i++) {
-      x[i].classList.remove("autocomplete-active");
-    }
-  }
-  function closeAllLists(elmnt) 
-  {
-    var x = document.getElementsByClassName("autocomplete-items");
-    for (var i = 0; i < x.length; i++) {
-      if (elmnt != x[i] && elmnt != inp) {
-      x[i].parentNode.removeChild(x[i]);
-    }
-  }
-}
-document.addEventListener("click", function (e) 
-{
-    closeAllLists(e.target);
-});
-}
-       //  autocomplete(document.getElementById("searchCustomers"), countries);
+      <div class="field-grid">
 
-         $("#alertstatus").fadeTo(2000, 500).slideUp(500, function ()
+          <div class="field-item">
+              <label for="barCode">Bar Code</label>
+              @Html.TextBoxFor(m => m.BarCode, new { @placeholder = "Bar Code", @class = "form-control maintain-text", id = "barCode" })
+          </div>
+          <div class="field-item">
+              <label for="phoneNumber">Phone Number</label>
+              @Html.TextBoxFor(m => m.PhoneNumber, new { @placeholder = "Phone Number", @class = "form-control maintain-text", id = "phoneNumber" })
+              <div id="phoneError" class="field-error">Please enter a valid phone number (7-15 digits).</div>
+          </div>
+          <div class="field-item">
+              <label for="email">Email</label>
+              @Html.TextBoxFor(m => m.Email, new { @placeholder = "Email", @class = "form-control maintain-text", id = "email" })
+              <div id="emailError" class="field-error">Please enter a valid email address.</div>
+          </div>
+      </div>
+
+      <div class="nav-actions">
+        @{
+            var tempCustomerCode = Convert.ToString(TempData["customerCode"] ?? string.Empty);
+            var isLoadedCustomer = !string.IsNullOrWhiteSpace(Model?.customerCode) || !string.IsNullOrWhiteSpace(tempCustomerCode);
+        }
+
+        @* If we're in create mode but a customer is already loaded, expose actions (Update/Delete/Add New).
+           This preserves the previous UX where loading an existing customer showed edit/delete/add options. *@
+        @if (actionMode == "create")
         {
-            $("#success-alert").slideUp(500);
-         });
-         $(document).ready(function () {
-             $.ajax
-                 ({
-                     type: "GET",
-                     url: '@Url.Action("GetCustomers", "Customer")',
-                     success: function (data) {
-                           autocomplete(document.getElementById("searchCustomers"), data);
+            if (isLoadedCustomer)
+            {
+                @* Always render a hidden Save button so client-side Add New can reveal it without a full page reload *@
+                <input class="navitem" type="submit" id="custsave" value="Save" style="display:none;" />
+                <div id="customerActions" style="display:flex; flex-wrap:wrap; gap:12px;">
+                    <button class="navitem" type="button" id="custedit" onclick="return window.triggerCustomerUpdateFromButton ? window.triggerCustomerUpdateFromButton() : false;">Update</button>
+                    <button class="navitem" type="button" id="custdelete" onclick="return window.triggerCustomerDeleteFromButton ? window.triggerCustomerDeleteFromButton() : false;">Delete</button>
+                    <button class="navitem" type="button" id="custnew" onclick="return window.triggerAddNewCustomerFromButton ? window.triggerAddNewCustomerFromButton() : false;">Add New</button>
+                </div>
+            }
+            else
+            {
+                <input class="navitem" type="submit" id="custsave" value="Save" />
+                <div id="customerActions" style="display:none;"></div>
+            }
+        }
+        else if (actionMode == "update")
+        {
+            @* Keep a hidden Save button available so client-side Add New can reveal it without navigation *@
+            <input class="navitem" type="submit" id="custsave" value="Save" style="display:none;" />
+            <div id="customerActions" style="display:flex; flex-wrap:wrap; gap:12px;">
+                <button class="navitem" type="button" id="custedit" onclick="return window.triggerCustomerUpdateFromButton ? window.triggerCustomerUpdateFromButton() : false;">Update</button>
+                <button class="navitem" type="button" id="custnew" onclick="return window.triggerAddNewCustomerFromButton ? window.triggerAddNewCustomerFromButton() : false;">Add New</button>
+            </div>
+        }
+        else if (actionMode == "delete")
+        {
+            @* Keep a hidden Save button available so client-side Add New can reveal it without navigation *@
+            <input class="navitem" type="submit" id="custsave" value="Save" style="display:none;" />
+            <div id="customerActions" style="display:flex; flex-wrap:wrap; gap:12px;">
+                <button class="navitem" type="button" id="custdelete" onclick="return window.triggerCustomerDeleteFromButton ? window.triggerCustomerDeleteFromButton() : false;">Delete</button>
+                <button class="navitem" type="button" id="custnew" onclick="return window.triggerAddNewCustomerFromButton ? window.triggerAddNewCustomerFromButton() : false;">Add New</button>
+            </div>
+        }
+        else
+        {
+            <input class="navitem" type="submit" id="custsave" value="Save" />
+            <div id="customerActions" style="display:none;"></div>
+        }
+    </div>
+     <script type='text/javascript'>
+         (function () {
+             function getValue(id) {
+                 var element = document.getElementById(id);
+                 return element && element.value ? element.value : "";
+             }
+
+             function setValue(id, value) {
+                 var element = document.getElementById(id);
+                 if (element) {
+                     element.value = value || "";
+                 }
+             }
+
+             function setText(id, value) {
+                 var element = document.getElementById(id);
+                 if (element) {
+                     element.textContent = value || "";
+                 }
+             }
+
+             function setDisabled(id, disabled) {
+                 var element = document.getElementById(id);
+                 if (element) {
+                     element.disabled = !!disabled;
+                 }
+             }
+
+             function navigateToDashboard() {
+                 window.location.href = '@Url.Action("Index", "Dashboard")';
+             }
+
+             function showToast(message, isSuccess) {
+                 var toast = document.getElementById("customerToast");
+                 if (!toast) {
+                     window.alert(message || "Operation completed.");
+                     return;
+                 }
+
+                 toast.classList.remove("success", "error");
+                 toast.classList.add(isSuccess ? "success" : "error");
+                 toast.textContent = message || "Operation completed.";
+                 toast.style.display = "block";
+
+                 if (window.__customerToastTimer) {
+                     clearTimeout(window.__customerToastTimer);
+                 }
+
+                 window.__customerToastTimer = setTimeout(function () {
+                     toast.style.display = "none";
+                 }, 3200);
+             }
+
+             function resetCustomerFormToCreateMode() {
+                ["name", "address", "barCode", "phoneNumber", "email"].forEach(function (id) {
+                     setValue(id, "");
+                 });
+
+                 setValue("customerCodeHidden", "");
+                 setText("customerCodeValue", "Auto-generated on Save");
+
+                 var saveButton = document.getElementById("custsave");
+                 if (saveButton) {
+                     saveButton.style.display = "inline-flex";
+                     saveButton.disabled = false;
+                 }
+
+                 var actionContainer = document.getElementById("customerActions");
+                 if (actionContainer) {
+                     actionContainer.style.display = "none";
+                 }
+
+                 ["nameError", "addressError", "phoneError", "emailError"].forEach(function (id) {
+                     var errorElement = document.getElementById(id);
+                     if (errorElement) {
+                         errorElement.style.display = "none";
                      }
                  });
-         });
-        
-   </script>
-    </form>
+
+                 ["name", "address", "phoneNumber", "email"].forEach(function (id) {
+                     var input = document.getElementById(id);
+                     if (input) {
+                         input.classList.remove("input-validation-error");
+                     }
+                 });
+             }
+
+             function validateCustomerFields() {
+                 var isValid = true;
+                 var customerName = (getValue("name") || "").trim();
+                 var address = (getValue("address") || "").trim();
+                 var phoneNumber = getValue("phoneNumber") || "";
+                 var email = getValue("email") || "";
+                 var phonePattern = /^\d{7,15}$/;
+                 var emailPattern = /^[^\s\x40]+\x40[^\s\x40]+\.[^\s\x40]+$/;
+                // Read preferences cached on DOM load (if available)
+                var prefs = window.__customerPreferences || null;
+
+                 ["nameError", "addressError", "phoneError", "emailError"].forEach(function (id) {
+                     var errorElement = document.getElementById(id);
+                     if (errorElement) {
+                         errorElement.style.display = "none";
+                     }
+                 });
+
+                 ["name", "address", "phoneNumber", "email"].forEach(function (id) {
+                     var input = document.getElementById(id);
+                     if (input) {
+                         input.classList.remove("input-validation-error");
+                     }
+                 });
+
+                 if (!customerName) {
+                     var nameError = document.getElementById("nameError");
+                     var name = document.getElementById("name");
+                     if (nameError) {
+                         nameError.style.display = "block";
+                     }
+                     if (name) {
+                         name.classList.add("input-validation-error");
+                     }
+                     isValid = false;
+                 } else {
+                     setValue("name", customerName);
+                 }
+
+                 if (!address) {
+                     var addressError = document.getElementById("addressError");
+                     var addressInput = document.getElementById("address");
+                     if (addressError) {
+                         addressError.style.display = "block";
+                     }
+                     if (addressInput) {
+                         addressInput.classList.add("input-validation-error");
+                     }
+                     isValid = false;
+                 } else {
+                     setValue("address", address);
+                 }
+
+                var phoneRequired = prefs && prefs.RequirePhoneNumber;
+                if (phoneRequired && phoneNumber.trim().length === 0) {
+                    var phoneError = document.getElementById("phoneError");
+                    var phone = document.getElementById("phoneNumber");
+                    if (phoneError) {
+                        phoneError.textContent = 'Phone number is required.';
+                        phoneError.style.display = "block";
+                    }
+                    if (phone) {
+                        phone.classList.add("input-validation-error");
+                    }
+                    isValid = false;
+                } else if (phoneNumber.trim().length > 0) {
+                     var cleanedPhone = phoneNumber.replace(/\s+/g, "").trim();
+                     if (!phonePattern.test(cleanedPhone)) {
+                         var phoneError = document.getElementById("phoneError");
+                         var phone = document.getElementById("phoneNumber");
+                         if (phoneError) {
+                             phoneError.style.display = "block";
+                         }
+                         if (phone) {
+                             phone.classList.add("input-validation-error");
+                         }
+                         isValid = false;
+                     } else {
+                         setValue("phoneNumber", cleanedPhone);
+                     }
+                 }
+                var emailRequired = prefs && prefs.RequireEmail;
+                if (emailRequired && email.trim().length === 0) {
+                    var emailError = document.getElementById("emailError");
+                    var emailInput = document.getElementById("email");
+                    if (emailError) {
+                        emailError.textContent = 'Email is required.';
+                        emailError.style.display = "block";
+                    }
+                    if (emailInput) {
+                        emailInput.classList.add("input-validation-error");
+                    }
+                    isValid = false;
+                } else if (email.trim().length > 0) {
+                     var normalizedEmail = email.trim();
+                     if (!emailPattern.test(normalizedEmail)) {
+                         var emailError = document.getElementById("emailError");
+                         var emailInput = document.getElementById("email");
+                         if (emailError) {
+                             emailError.style.display = "block";
+                         }
+                         if (emailInput) {
+                             emailInput.classList.add("input-validation-error");
+                         }
+                         isValid = false;
+                     } else {
+                         setValue("email", normalizedEmail);
+                     }
+                 }
+
+                 return isValid;
+             }
+
+             function resolveCustomerCode(done, fail) {
+                 var customerCode = (getValue("customerCodeHidden") || "").trim();
+                 if (customerCode) {
+                     done(customerCode);
+                     return;
+                 }
+
+                 var customerName = (getValue("name") || "").trim();
+                 if (!customerName) {
+                     fail("Please enter customer name.");
+                     return;
+                 }
+
+                 fetch('@Url.Action("GetCustomerByName", "Customer")' + '?customerName=' + encodeURIComponent(customerName), {
+                     method: 'GET',
+                     headers: {
+                         'X-Requested-With': 'XMLHttpRequest'
+                     }
+                 })
+                     .then(function (response) { return response.json(); })
+                     .then(function (data) {
+                         var resolvedCode = data && data.StatusCode === "200" ? ((data.CustCode || "").trim()) : "";
+                         if (!resolvedCode) {
+                             fail((data && data.Message) ? data.Message : "Customer not found.");
+                             return;
+                         }
+
+                         setValue("customerCodeHidden", resolvedCode);
+                         setText("customerCodeValue", resolvedCode);
+                         done(resolvedCode);
+                     })
+                     .catch(function () {
+                         fail("Unable to identify customer.");
+                     });
+             }
+
+             function performCustomerDelete() {
+                 if (!confirm("Are you sure you want to delete this customer?")) {
+                     return false;
+                 }
+
+                 setDisabled("custdelete", true);
+
+                 resolveCustomerCode(function (resolvedCode) {
+                     var customerName = (getValue("name") || "").trim();
+                     var body = new URLSearchParams();
+                     body.append("customerCode", resolvedCode);
+                     body.append("customerName", customerName);
+
+                     fetch('@Url.Action("DeleteCustomer", "Customer")', {
+                         method: 'POST',
+                         headers: {
+                             'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
+                             'X-Requested-With': 'XMLHttpRequest'
+                         },
+                         body: body.toString()
+                     })
+                         .then(function (response) { return response.json(); })
+                         .then(function (response) {
+                             if (response && response.success) {
+                                 showToast(response.message || "Customer deleted successfully.", true);
+                                 resetCustomerFormToCreateMode();
+                                 navigateToDashboard();
+                                 return;
+                             }
+
+                             showToast((response && response.message) || "Failed to delete customer.", false);
+                             setDisabled("custdelete", false);
+                         })
+                         .catch(function (error) {
+                             var apiError = (error && error.message) ? ("Failed to delete customer. " + error.message) : "Failed to delete customer.";
+                             showToast(apiError, false);
+                             setDisabled("custdelete", false);
+                         });
+                 }, function (message) {
+                     showToast(message, false);
+                     setDisabled("custdelete", false);
+                 });
+
+                 return false;
+             }
+
+             function handleCustomerUpdateClick(e) {
+                 if (e) {
+                     e.preventDefault();
+                     e.stopPropagation();
+                 }
+
+                 if (!validateCustomerFields()) {
+                     showToast("Please correct validation errors before update.", false);
+                     return false;
+                 }
+
+                 var editButton = document.getElementById("custedit");
+                 if (editButton) {
+                     editButton.disabled = true;
+                 }
+
+                 resolveCustomerCode(function (resolvedCode) {
+                     var updatePayload = new URLSearchParams();
+                     updatePayload.append("CustomerName", getValue("name") || "");
+                     updatePayload.append("Address", getValue("address") || "");
+                     // MembershipId removed from UI
+                     updatePayload.append("BarCode", getValue("barCode") || "");
+                     updatePayload.append("PhoneNumber", getValue("phoneNumber") || "");
+                     updatePayload.append("Email", getValue("email") || "");
+                     updatePayload.append("customerCode", resolvedCode || "");
+
+                     fetch('@Url.Action("UpdateCustomer", "Customer")', {
+                         method: "POST",
+                         headers: {
+                             "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
+                             "X-Requested-With": "XMLHttpRequest"
+                         },
+                         body: updatePayload.toString()
+                     })
+                         .then(function (response) { return response.json(); })
+                         .then(function (response) {
+                             if (response && response.success) {
+                                 if (response.customerCode) {
+                                     setValue("customerCodeHidden", response.customerCode);
+                                     setText("customerCodeValue", response.customerCode);
+                                 }
+                                 showToast(response.message || "Customer updated successfully.", true);
+                                 navigateToDashboard();
+                                 return;
+                             }
+
+                             showToast((response && response.message) || "Failed to update customer.", false);
+                             if (editButton) {
+                                 editButton.disabled = false;
+                             }
+                         })
+                         .catch(function (error) {
+                             var apiError = (error && error.message)
+                                 ? ("Failed to update customer. " + error.message)
+                                 : "Failed to update customer.";
+                             showToast(apiError, false);
+                             if (editButton) {
+                                 editButton.disabled = false;
+                             }
+                         });
+                 }, function (message) {
+                     showToast(message, false);
+                     if (editButton) {
+                         editButton.disabled = false;
+                     }
+                 });
+
+                 return false;
+             }
+
+             window.triggerAddNewCustomerFromButton = function () {
+                 // If we're already on the Customer Index page, perform a client-side reset to the Create UI
+                 // so the user sees the same blank Create screen immediately. Otherwise navigate to the
+                 // server AddNewCustomer endpoint which will render a fresh Create view.
+                 try {
+                     var path = window.location.pathname || "";
+                     if (path.indexOf('/Customer/Index') !== -1 || path.match(/\/Customer(\/?$)/i)) {
+                         resetCustomerFormToCreateMode();
+                         return false;
+                     }
+                 } catch (e) {
+                     // ignore and fallback to server navigation
+                 }
+
+                 window.location.href = '@Url.Action("AddNewCustomer", "Customer")';
+                 return false;
+             };
+
+             window.triggerCustomerUpdateFromButton = function () {
+                 return handleCustomerUpdateClick();
+             };
+
+             window.triggerCustomerDeleteFromButton = function () {
+                 return performCustomerDelete();
+             };
+
+            function redirectToSetupCreateOrder(orderMode) {
+                if (window.__createOrderRedirectInProgress) {
+                    return false;
+                }
+
+                var customerName = (getValue("name") || "").trim();
+                var customerCode = (getValue("customerCodeHidden") || "").trim();
+
+                if (!customerName) {
+                    showToast("Please search/select a customer first.", false);
+                    return false;
+                }
+
+                window.__createOrderRedirectInProgress = true;
+
+                var navigate = function (resolvedCustomerCode) {
+                    var url = '@Url.Action("SetupCreateOrder", "Customer")';
+                    var query = [];
+
+                    query.push("customerName=" + encodeURIComponent(customerName));
+
+                    if (resolvedCustomerCode) {
+                        query.push("customerCode=" + encodeURIComponent(resolvedCustomerCode));
+                    }
+
+                    if (orderMode) {
+                        query.push("orderMode=" + encodeURIComponent(orderMode));
+                    }
+
+                    if (query.length > 0) {
+                        url += "?" + query.join("&");
+                    }
+
+                    window.location.href = url;
+                };
+
+                var onFailure = function (message) {
+                    window.__createOrderRedirectInProgress = false;
+                    showToast(message || "Unable to load customer. Please try again.", false);
+                };
+
+                if (customerCode) {
+                    navigate(customerCode);
+                    return false;
+                }
+
+                fetch('@Url.Action("GetCustomerByName", "Customer")' + '?customerName=' + encodeURIComponent(customerName), {
+                    method: 'GET',
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest'
+                    }
+                })
+                    .then(function (response) { return response.json(); })
+                    .then(function (data) {
+                        if (data && data.StatusCode === "403") {
+                            onFailure(data.Message || "Customer belongs to another store and cannot be accessed.");
+                            return;
+                        }
+
+                        var resolvedCode = data && data.StatusCode === "200" ? ((data.CustCode || "").trim()) : "";
+                        if (!resolvedCode) {
+                            var notFoundMessage = (data && data.Message) ? data.Message : "Customer not found. Please select a valid customer first.";
+                            onFailure(notFoundMessage);
+                            return;
+                        }
+
+                        setValue("customerCodeHidden", resolvedCode);
+                        setText("customerCodeValue", resolvedCode);
+                        navigate(resolvedCode);
+                    })
+                    .catch(function () {
+                        onFailure("Unable to resolve customer code. Please try again.");
+                    });
+
+                return false;
+            }
+
+            window.triggerCreateOrderPerPiecesFromButton = function () {
+                return redirectToSetupCreateOrder("pieces");
+            };
+
+            window.triggerCreateOrderPerWeightFromButton = function () {
+                return redirectToSetupCreateOrder("weight");
+            };
+
+             window.__custEditClick = handleCustomerUpdateClick;
+             window.__custDeleteClick = function (e) {
+                 if (e) {
+                     e.preventDefault();
+                     e.stopPropagation();
+                 }
+                 return performCustomerDelete();
+             };
+
+             window.showCustomerToast = showToast;
+             window.resetCustomerFormToCreateMode = resetCustomerFormToCreateMode;
+
+             document.addEventListener("DOMContentLoaded", function () {
+                // Apply customer preferences driven UI adjustments
+                try {
+                    var prefsJson = @Html.Raw(ViewData["CustomerPreferences"] ?? "null");
+                    if (prefsJson) {
+                        var prefs = (typeof prefsJson === 'string') ? JSON.parse(prefsJson) : prefsJson;
+                        // cache for validators
+                        window.__customerPreferences = prefs || null;
+                        // Always require phone and email for laundry customer creation UI
+                        var phoneLabel = document.querySelector('label[for="phoneNumber"]');
+                        if (phoneLabel) phoneLabel.textContent = 'Phone Number *';
+                        var emailLabel = document.querySelector('label[for="email"]');
+                        if (emailLabel) emailLabel.textContent = 'Email *';
+                        if (prefs && prefs.AutoGenerateCustomerCode) {
+                            // hide manual barcode field when auto-generate is enabled
+                            var barcodeField = document.getElementById('barCode');
+                            if (barcodeField) barcodeField.parentElement.style.display = 'none';
+                        }
+                    } else {
+                        window.__customerPreferences = null;
+                    }
+                } catch (e) {
+                    window.__customerPreferences = null;
+                }
+                 if (window.updateModeToastMessage) {
+                     showToast(window.updateModeToastMessage, true);
+                 }
+
+                 if (window.customerSaveToastMessage && !window.__initialSaveToastShown) {
+                     showToast("Success! " + window.customerSaveToastMessage, true);
+                     window.__initialSaveToastShown = true;
+                 }
+
+                 if (window.updateSearchToastMessage) {
+                     showToast(window.updateSearchToastMessage, false);
+                 }
+
+                 ["name", "address", "phoneNumber", "email"].forEach(function (id) {
+                     var element = document.getElementById(id);
+                     if (element) {
+                         element.addEventListener("input", validateCustomerFields);
+                         element.addEventListener("blur", validateCustomerFields);
+                     }
+                 });
+
+                 var form = document.querySelector(".form");
+                 if (form) {
+                     form.addEventListener("submit", function (e) {
+                         if (!validateCustomerFields()) {
+                             e.preventDefault();
+                             return false;
+                         }
+
+                         var saveButton = document.getElementById("custsave");
+
+                         // Only perform AJAX submit for create mode; preserve normal POST for update/delete
+                         var isCreateMode = '@(actionMode == "create" ? "true" : "false")' === "true";
+                         if (!isCreateMode) {
+                             if (saveButton) saveButton.disabled = true;
+                             return; // allow normal form submit
+                         }
+
+                         // AJAX submit for create
+                         e.preventDefault();
+                         if (saveButton) {
+                            saveButton.disabled = true;
+                            try {
+                                // show spinner inside the button using CSS class (styles moved to CSS)
+                                saveButton.dataset.origValue = saveButton.value || '';
+                                saveButton.innerHTML = '<span class="btn-spinner" aria-hidden="true"></span>Processing...';
+                            } catch (err) { }
+                         }
+
+                         // Collect form values (prefer name attributes generated by Html helpers)
+                         var toCollect = [
+                             'CustomerName', 'Address', 'BarCode', 'PhoneNumber', 'Email',
+                             'customerCode', 'StoreCode', 'TenantName'
+                         ];
+
+                         var collectFields = function () {
+                             var payload = new URLSearchParams();
+                             toCollect.forEach(function (n) {
+                                 var el = document.querySelector('[name="' + n + '"]') || document.getElementById(n) || document.getElementById(n.toLowerCase());
+                                 var v = el ? (el.value || '') : '';
+                                 payload.append(n, v);
+                             });
+                             return payload;
+                         };
+
+                         var payload = collectFields();
+
+                         fetch('@Url.Action("Index", "Customer")', {
+                             method: 'POST',
+                             headers: {
+                                 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
+                                 'X-Requested-With': 'XMLHttpRequest'
+                             },
+                             body: payload.toString()
+                         })
+                             .then(function (resp) { return resp.json(); })
+                            .then(function (data) {
+                                if (data && data.success) {
+                                    // display returned customer code if provided
+                                    if (data.customerCode) {
+                                        setText('customerCodeValue', data.customerCode);
+                                        setValue('customerCodeHidden', data.customerCode);
+                                    }
+
+                                    // reset other form fields to create state (keep displayed code)
+                                    ['name','address','barCode','phoneNumber','email'].forEach(function(id){ setValue(id, ''); });
+
+                                    // If server requested a redirect, navigate immediately (do not show success toast)
+                                    if (data.redirect) {
+                                        setTimeout(function() {
+                                            window.location.href = data.redirect;
+                                        }, 800);
+                                        return;
+                                    }
+
+                                    // Show success toast only when not redirecting
+                                    if (data.message && data.message.length > 0) {
+                                        showToast(data.message, true);
+                                    }
+                                } else {
+                                    showToast((data && data.message) || 'Unable to save customer.', false);
+                                }
+
+                                if (saveButton) {
+                                    saveButton.disabled = false;
+                                    try {
+                                        var orig = saveButton.dataset.origValue || 'Save';
+                                        saveButton.innerHTML = orig;
+                                    } catch (err) { }
+                                }
+                            })
+                             .catch(function () {
+                                 showToast('Unable to save customer. Please try again.', false);
+                                 if (saveButton) {
+                                     saveButton.disabled = false;
+                                     try { saveButton.value = 'Save'; } catch (err) { }
+                                 }
+                             });
+
+                         return false;
+                     });
+                 }
+
+                 var customerActions = document.getElementById("customerActions");
+                 if (customerActions) {
+                     customerActions.addEventListener("click", function (e) {
+                         if (!e || !e.target) {
+                             return;
+                         }
+
+                         if (e.target.id === "custedit") {
+                             handleCustomerUpdateClick(e);
+                         }
+
+                         if (e.target.id === "custdelete") {
+                             window.__custDeleteClick(e);
+                         }
+                     });
+                 }
+
+                 var alertStatus = document.getElementById("alertstatus");
+                 if (alertStatus) {
+                     setTimeout(function () {
+                         alertStatus.style.display = "none";
+                     }, 2400);
+                 }
+
+                 var custEditBtn = document.getElementById("custedit");
+                 if (custEditBtn) {
+                     custEditBtn.onclick = handleCustomerUpdateClick;
+                 }
+
+                 var custDeleteBtn = document.getElementById("custdelete");
+                 if (custDeleteBtn) {
+                     custDeleteBtn.onclick = window.__custDeleteClick;
+                 }
+
+                 var custNewBtn = document.getElementById("custnew");
+                 if (custNewBtn) {
+                     custNewBtn.addEventListener("click", function (e) {
+                         e.preventDefault();
+                         window.triggerAddNewCustomerFromButton();
+                     });
+                 }
+             });
+         })();
+    </script>
      }
-</body>
-</html>
+     </div>
+     </div>
+     </section>
 
 

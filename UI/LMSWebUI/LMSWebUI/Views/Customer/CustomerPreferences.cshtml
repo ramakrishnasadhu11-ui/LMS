@@ -1,0 +1,244 @@
+@model LMSWebUI.Models.Customer.CustomerPreferencesDto
+@{
+    ViewData["Title"] = "Customer Preferences";
+    Layout = "~/Views/Shared/_HeaderMenuItemsLayout.cshtml";
+}
+
+<style>
+.preferences-page,
+.preferences-page input,
+.preferences-page select,
+.preferences-page button,
+.preferences-page label {
+    font-family: Arial, Helvetica, sans-serif;
+}
+
+.preferences-page {
+    padding: 20px;
+}
+
+.preferences-box {
+    max-width: 980px;
+    margin: 0 auto;
+    background: var(--els-surface);
+    border-radius: 10px;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+    overflow: hidden;
+}
+
+.preferences-title {
+    background: linear-gradient(90deg, var(--els-primary) 0%, var(--els-primary-dark) 100%);
+    color: #fff;
+    padding: 14px 20px;
+    font-size: 20px;
+    font-weight: 600;
+}
+
+.preferences-body {
+    padding: 20px;
+}
+
+.preference-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(280px, 1fr));
+    gap: 14px;
+}
+
+.preference-item {
+    display: flex;
+    flex-direction: column;
+}
+
+.preference-item label {
+    font-size: 13px;
+    margin-bottom: 6px;
+    color: var(--els-text);
+}
+
+.preference-item select,
+.preference-item input[type="number"] {
+    border: 1px solid var(--els-border);
+    border-radius: 6px;
+    padding: 10px;
+    background: var(--els-surface);
+    color: var(--els-text);
+}
+
+.preference-checkbox {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    border: 1px solid var(--els-border);
+    border-radius: 6px;
+    padding: 10px;
+    min-height: 44px;
+    background: var(--els-surface);
+}
+
+.preference-checkbox input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+}
+
+.preference-actions {
+    margin-top: 20px;
+    display: flex;
+    gap: 12px;
+    justify-content: flex-end;
+}
+
+.pref-btn {
+    min-width: 150px;
+    min-height: 44px;
+    border: 1px solid transparent;
+    border-radius: 8px;
+    background: linear-gradient(180deg, var(--els-primary-light) 0%, var(--els-primary) 100%);
+    color: #fff;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.pref-btn.secondary {
+    background: linear-gradient(180deg, #8f99a4 0%, #6f7a86 100%);
+}
+
+.toast-message {
+    position: fixed;
+    right: 24px;
+    top: 80px;
+    z-index: 9999;
+    min-width: 260px;
+    max-width: 380px;
+    padding: 12px 16px;
+    border-radius: 8px;
+    color: #fff;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
+    font-weight: 600;
+    display: none;
+}
+
+.toast-message.success {
+    background: #2f8f46;
+}
+
+.toast-message.error {
+    background: #b63838;
+}
+
+@@media (max-width: 768px) {
+    .preference-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .preference-actions {
+        justify-content: stretch;
+        flex-direction: column;
+    }
+
+    .pref-btn {
+        width: 100%;
+    }
+}
+</style>
+
+<div id="customerPreferencesToast" class="toast-message"></div>
+@if (TempData["CustomerPreferencesToast"] != null)
+{
+    <script type="text/javascript">
+        window.customerPreferencesToastMessage = '@Html.Raw(System.Text.Encodings.Web.JavaScriptEncoder.Default.Encode(Convert.ToString(TempData["CustomerPreferencesToast"])))';
+    </script>
+}
+
+<section class="preferences-page">
+    <div class="preferences-box">
+        <div class="preferences-title">Customer Preferences - Laundry Management</div>
+        <div class="preferences-body">
+            @using (Html.BeginForm("CustomerPreferences", "Customer", FormMethod.Post))
+            {
+                <div class="preference-grid">
+                    <div class="preference-item">
+                        <label>Default Service Type</label>
+                        @Html.DropDownListFor(m => m.DefaultServiceType, new SelectList(new[] { "Dry Clean", "Wash & Fold", "Steam Press", "Premium Care" }), new { @class = "form-control" })
+                    </div>
+
+                    <div class="preference-item">
+                        <label>Default Payment Mode</label>
+                        @Html.DropDownListFor(m => m.DefaultPaymentMode, new SelectList(new[] { "Cash", "UPI", "Card", "Wallet" }), new { @class = "form-control" })
+                    </div>
+
+                    <div class="preference-item">
+                        <label>Default Starch Level</label>
+                        @Html.DropDownListFor(m => m.DefaultStarchLevel, new SelectList(new[] { "None", "Light", "Medium", "Heavy" }), new { @class = "form-control" })
+                    </div>
+
+                    <div class="preference-item">
+                        <label>Pickup Reminder Hours</label>
+                        @Html.TextBoxFor(m => m.PickupReminderHours, new { type = "number", min = "0", max = "168" })
+                    </div>
+
+                    <div class="preference-item">
+                        <label>Loyalty Points Per Order</label>
+                        @Html.TextBoxFor(m => m.LoyaltyPointsPerOrder, new { type = "number", min = "0", max = "100" })
+                    </div>
+
+                    <div class="preference-item preference-checkbox">
+                        @Html.CheckBoxFor(m => m.AutoGenerateCustomerCode)
+                        <label for="AutoGenerateCustomerCode">Auto-generate Customer Code</label>
+                    </div>
+
+                    <div class="preference-item preference-checkbox">
+                        @Html.CheckBoxFor(m => m.EnableSmsNotifications)
+                        <label for="EnableSmsNotifications">Enable SMS Notifications</label>
+                    </div>
+
+                    <div class="preference-item preference-checkbox">
+                        @Html.CheckBoxFor(m => m.EnableEmailNotifications)
+                        <label for="EnableEmailNotifications">Enable Email Notifications</label>
+                    </div>
+
+                    <div class="preference-item preference-checkbox">
+                        @Html.CheckBoxFor(m => m.RequirePhoneNumber)
+                        <label for="RequirePhoneNumber">Require Phone Number on Registration</label>
+                    </div>
+
+                    <div class="preference-item preference-checkbox">
+                        @Html.CheckBoxFor(m => m.RequireEmail)
+                        <label for="RequireEmail">Require Email on Registration</label>
+                    </div>
+
+                    <div class="preference-item preference-checkbox">
+                        @Html.CheckBoxFor(m => m.AllowDuplicatePhoneNumber)
+                        <label for="AllowDuplicatePhoneNumber">Allow Duplicate Phone Number</label>
+                    </div>
+                </div>
+
+                <div class="preference-actions">
+                    <button type="button" class="pref-btn secondary" onclick="window.location.href='@Url.Action("Index", "Customer")'">Back to Customer</button>
+                    <button type="submit" class="pref-btn">Save Preferences</button>
+                </div>
+            }
+        </div>
+    </div>
+</section>
+
+<script type="text/javascript">
+    document.addEventListener("DOMContentLoaded", function () {
+        if (!window.customerPreferencesToastMessage) {
+            return;
+        }
+
+        var toast = document.getElementById("customerPreferencesToast");
+        if (!toast) {
+            return;
+        }
+
+        toast.classList.remove("error");
+        toast.classList.add("success");
+        toast.textContent = window.customerPreferencesToastMessage;
+        toast.style.display = "block";
+
+        setTimeout(function () {
+            toast.style.display = "none";
+        }, 3200);
+    });
+</script>

@@ -1,0 +1,89 @@
+@model LMSWebUI.Models.Customer.OrderCompletionContextDto
+@{
+    Layout = null;
+    System.Collections.Generic.IEnumerable<LMSWebUI.Models.Customer.LaundryOrderItemDto> items = Model?.Items ?? System.Linq.Enumerable.Empty<LMSWebUI.Models.Customer.LaundryOrderItemDto>();
+    var printableItems = items.Where(x => x != null).ToList();
+    var hasItems = false;
+    foreach (var item in printableItems)
+    {
+        hasItems = true;
+        break;
+    }
+
+    var fallbackPieceCount = Model?.TotalPieces > 0 ? Model.TotalPieces : 1;
+    var totalPiecesFromItems = printableItems.Sum(x => x.Quantity > 0 ? x.Quantity : 0);
+    var useFallbackPiecesForSingleItem = fallbackPieceCount > 1 && printableItems.Count == 1 && totalPiecesFromItems <= 1;
+    var perTagPieceCount = useFallbackPiecesForSingleItem
+        ? fallbackPieceCount
+        : (totalPiecesFromItems > 0 ? totalPiecesFromItems : fallbackPieceCount);
+    var runningPieceIndex = 0;
+}
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <title>Print Tags - @Model?.OrderNo</title>
+    <style>
+        body { font-family: Arial, Helvetica, sans-serif; margin: 12px; }
+        .noprint { margin-bottom:10px; }
+        .tag-grid { display:grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap:10px; }
+        .tag-card { border: 1px dashed #334155; border-radius:8px; padding:10px; min-height:120px; }
+        .tag-title { font-size:16px; font-weight:700; margin-bottom:6px; }
+        .tag-row { font-size:12px; margin:2px 0; }
+        @@media print { .noprint { display:none; } }
+    </style>
+</head>
+<body>
+    <div class="noprint"><button onclick="window.print()">Print Tags</button></div>
+
+    <div class="tag-grid">
+        @if (hasItems)
+        {
+            foreach (var item in printableItems)
+            {
+                var qty = item.Quantity > 0 ? item.Quantity : 1;
+                if (useFallbackPiecesForSingleItem && qty <= 1)
+                {
+                    qty = fallbackPieceCount;
+                }
+                for (var i = 1; i <= qty; i++)
+                {
+                    runningPieceIndex++;
+                    var defaultTagNo = string.IsNullOrWhiteSpace(Model?.OrderNo)
+                        ? ("TAG-P" + runningPieceIndex.ToString("00"))
+                        : (Model.OrderNo + "-P" + runningPieceIndex.ToString("00"));
+                    var displayTagNo = !string.IsNullOrWhiteSpace(item.TagNo) ? item.TagNo : defaultTagNo;
+                    <div class="tag-card">
+                        <div class="tag-title">@displayTagNo</div>
+                        <div class="tag-row"><b>Invoice:</b> @(string.IsNullOrWhiteSpace(Model?.InvoiceNo) ? Model?.OrderNo : Model?.InvoiceNo)</div>
+                        <div class="tag-row"><b>Customer:</b> @Model?.CustomerName</div>
+                        <div class="tag-row"><b>Service:</b> @Model?.ServiceType</div>
+                        <div class="tag-row"><b>Piece:</b> @i/@perTagPieceCount</div>
+                    </div>
+                }
+            }
+        }
+        else
+        {
+            for (var piece = 1; piece <= fallbackPieceCount; piece++)
+            {
+                runningPieceIndex++;
+                var defaultTagNo = string.IsNullOrWhiteSpace(Model?.OrderNo)
+                    ? ("TAG-P" + runningPieceIndex.ToString("00"))
+                    : (Model.OrderNo + "-P" + runningPieceIndex.ToString("00"));
+                <div class="tag-card">
+                    <div class="tag-title">@defaultTagNo</div>
+                    <div class="tag-row"><b>Invoice:</b> @(string.IsNullOrWhiteSpace(Model?.InvoiceNo) ? Model?.OrderNo : Model?.InvoiceNo)</div>
+                    <div class="tag-row"><b>Customer:</b> @Model?.CustomerName</div>
+                    <div class="tag-row"><b>Service:</b> @Model?.ServiceType</div>
+                    <div class="tag-row"><b>Piece:</b> @piece/@fallbackPieceCount</div>
+                </div>
+            }
+        }
+    </div>
+
+    <script>
+        window.onload = function () { setTimeout(function(){ window.print(); }, 150); };
+    </script>
+</body>
+</html>

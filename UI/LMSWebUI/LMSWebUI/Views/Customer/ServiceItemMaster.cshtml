@@ -1,0 +1,674 @@
+@model LMSWebUI.Models.Admin.ServiceItemMasterViewModel
+@{
+    ViewData["Title"] = "Service & Item Master";
+    Layout = "~/Views/Shared/_HeaderMenuItemsLayout.cshtml";
+}
+
+@* This page shows messages as a floating toast, so drop any pending TempData message
+   to stop the shared _LayoutStatus partial from rendering a duplicate alert bar. *@
+@{ TempData.Remove("UserMessage"); }
+
+<style>
+.master-page,
+.master-page input,
+.master-page button,
+.master-page label,
+.master-page select,
+.master-page table {
+    font-family: Arial, Helvetica, sans-serif;
+    box-sizing: border-box;
+}
+
+.master-page { padding: 20px; }
+.master-box {
+    max-width: 1180px;
+    margin: 0 auto;
+    background: var(--els-surface);
+    border-radius: 10px;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+    overflow: hidden;
+}
+.master-title {
+    background: linear-gradient(90deg, var(--els-primary) 0%, var(--els-primary-dark) 100%);
+    color: #fff;
+    padding: 14px 20px;
+    font-size: 20px;
+    font-weight: 600;
+}
+.master-body { padding: 20px; }
+.master-note {
+    border: 1px solid var(--els-border);
+    border-radius: 8px;
+    background: var(--els-accent);
+    padding: 12px;
+    margin-bottom: 16px;
+    color: var(--els-text);
+    font-size: 13px;
+}
+.master-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 14px;
+    font-size: 12px;
+    font-weight: 600;
+}
+.master-import {
+    border: 1px solid var(--els-border);
+    border-radius: 8px;
+    padding: 12px;
+    margin-bottom: 14px;
+    background: var(--els-surface);
+}
+.master-import-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    margin-top: 8px;
+}
+.master-import-row input[type="file"] {
+    max-width: 340px;
+    font-size: 12px;
+    border: 1px solid var(--els-border);
+    border-radius: 6px;
+    padding: 6px 8px;
+    background: var(--els-surface);
+    color: var(--els-text);
+}
+.master-import-hint {
+    font-size: 12px;
+    color: var(--els-muted);
+    margin-top: 6px;
+}
+.master-import-hint code {
+    font-family: Consolas, 'Courier New', monospace;
+    background: #f6f8fa;
+    border: 1px solid var(--els-border);
+    border-radius: 4px;
+    padding: 1px 5px;
+}
+.master-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+}
+.master-panel {
+    border: 1px solid var(--els-border);
+    border-radius: 8px;
+    padding: 12px;
+    background: var(--els-surface);
+}
+.master-panel.full { grid-column: 1 / -1; }
+.master-panel-title {
+    font-size: 13px;
+    font-weight: 700;
+    margin-bottom: 10px;
+    color: var(--els-text);
+}
+.master-field { display: flex; flex-direction: column; gap: 4px; margin-bottom: 8px; }
+.master-field label { font-size: 12px; font-weight: 600; color: var(--els-text); }
+.master-field input,
+.master-field select {
+    border: 1px solid var(--els-border);
+    border-radius: 6px;
+    min-height: 38px;
+    padding: 7px 10px;
+    background: var(--els-surface);
+    color: var(--els-text);
+    width: 100%;
+}
+.master-form-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+.master-btn {
+    min-height: 38px;
+    border: 1px solid transparent;
+    border-radius: 6px;
+    background: linear-gradient(180deg, var(--els-primary-light) 0%, var(--els-primary) 100%);
+    color: #fff;
+    font-weight: 600;
+    cursor: pointer;
+    padding: 0 16px;
+}
+.master-btn.secondary { background: linear-gradient(180deg, #8f99a4 0%, #6f7a86 100%); }
+.master-table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+.master-table th,
+.master-table td {
+    border-bottom: 1px solid var(--els-border);
+    padding: 7px 8px;
+    font-size: 12px;
+    text-align: left;
+    color: var(--els-text);
+}
+.master-table th { background: rgba(48, 96, 189, 0.12); font-weight: 700; }
+.master-empty { padding: 12px; font-size: 12px; color: var(--els-muted); }
+.row-action {
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    font-weight: 700;
+    font-size: 12px;
+    padding: 0 4px;
+}
+.row-action.remove { color: #b63838; }
+.row-action.restore { color: #2f8f46; }
+.status-pill {
+    display: inline-block;
+    border-radius: 10px;
+    padding: 2px 8px;
+    font-size: 11px;
+    font-weight: 700;
+}
+.status-pill.active { background: #e3f4e8; color: #216b36; }
+.status-pill.inactive { background: #f6e3e3; color: #8f2b2b; }
+
+.toast-message {
+    position: fixed;
+    right: 24px;
+    top: 80px;
+    z-index: 9999;
+    min-width: 260px;
+    max-width: 380px;
+    padding: 12px 16px;
+    border-radius: 8px;
+    color: #fff;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
+    font-weight: 600;
+    display: none;
+}
+.toast-message.success { background: #2f8f46; }
+.toast-message.error { background: #b63838; }
+
+@@media (max-width: 900px) {
+    .master-grid { grid-template-columns: 1fr; }
+    .master-form-row { grid-template-columns: 1fr; }
+}
+</style>
+
+<div id="masterToast" class="toast-message"></div>
+
+<section class="master-page">
+    <div class="master-box">
+        <div class="master-title">Service &amp; Item Master</div>
+        <div class="master-body">
+            <div class="master-note">
+                <div><b>Tenant:</b> @Model.TenantName</div>
+                <div><b>Store:</b> @Model.StoreCode</div>
+                <div style="margin-top:6px;">
+                    Service types, categories, and items maintained here belong only to this store.
+                    Add service types and categories first, then map items to them. Prices are set in Store Price Configuration.
+                </div>
+            </div>
+
+            <div class="master-import">
+                <div class="master-panel-title">Load Service Types &amp; Categories from Excel/CSV</div>
+                <div class="master-import-hint">
+                    Download the default list, open it in Excel, keep or edit the rows, save as CSV, then upload it here.
+                    Names that already exist in this store are skipped, so you can safely re-upload. You can still add
+                    your own entries manually using the panels below.
+                </div>
+                <div class="master-import-row">
+                    <a class="master-btn secondary" style="text-decoration:none; display:inline-flex; align-items:center;"
+                       href="~/templates/StoreServiceCategoryMasterTemplate.csv" download>Download Default List</a>
+                    <input type="file" id="masterCsvFile" accept=".csv,text/csv" />
+                    <button type="button" class="master-btn" id="importMastersBtn">Upload &amp; Load</button>
+                </div>
+                <div class="master-import-hint">
+                    Required columns: <code>MasterType,Name,Description</code>. <code>MasterType</code> must be
+                    <code>Service</code> or <code>Category</code>. Description is optional.
+                </div>
+            </div>
+
+            <div class="master-toolbar">
+                <label style="display:flex; align-items:center; gap:6px;">
+                    <input type="checkbox" id="showInactiveChk" /> Show removed entries
+                </label>
+                <button type="button" class="master-btn secondary" id="refreshMastersBtn">Refresh</button>
+            </div>
+
+            <div class="master-grid">
+                <div class="master-panel">
+                    <div class="master-panel-title">Service Types</div>
+                    <div class="master-field">
+                        <label for="serviceNameInput">Service Type Name</label>
+                        <input type="text" id="serviceNameInput" maxlength="128" placeholder="e.g. Dry Clean" />
+                    </div>
+                    <div class="master-field">
+                        <label for="serviceDescInput">Description</label>
+                        <input type="text" id="serviceDescInput" maxlength="256" placeholder="Optional" />
+                    </div>
+                    <button type="button" class="master-btn" id="addServiceBtn">Add Service Type</button>
+                    <div id="serviceTableWrap"></div>
+                </div>
+
+                <div class="master-panel">
+                    <div class="master-panel-title">Categories</div>
+                    <div class="master-field">
+                        <label for="categoryNameInput">Category Name</label>
+                        <input type="text" id="categoryNameInput" maxlength="128" placeholder="e.g. Men" />
+                    </div>
+                    <div class="master-field">
+                        <label for="categoryDescInput">Description</label>
+                        <input type="text" id="categoryDescInput" maxlength="256" placeholder="Optional" />
+                    </div>
+                    <button type="button" class="master-btn" id="addCategoryBtn">Add Category</button>
+                    <div id="categoryTableWrap"></div>
+                </div>
+
+                <div class="master-panel full">
+                    <div class="master-panel-title">Items</div>
+                    <div class="master-form-row">
+                        <div class="master-field">
+                            <label for="itemServiceSelect">Service Type</label>
+                            <select id="itemServiceSelect"></select>
+                        </div>
+                        <div class="master-field">
+                            <label for="itemCategorySelect">Category</label>
+                            <select id="itemCategorySelect"></select>
+                        </div>
+                        <div class="master-field">
+                            <label for="itemNameInput">Item Name</label>
+                            <input type="text" id="itemNameInput" maxlength="128" placeholder="e.g. Shirt" />
+                        </div>
+                    </div>
+                    <div class="master-field">
+                        <label for="itemDescInput">Description</label>
+                        <input type="text" id="itemDescInput" maxlength="256" placeholder="Optional" />
+                    </div>
+                    <button type="button" class="master-btn" id="addItemBtn">Add Item</button>
+                    <div id="itemTableWrap"></div>
+                </div>
+            </div>
+
+            <div style="margin-top:16px; display:flex; gap:10px; flex-wrap:wrap;">
+                <button type="button" class="master-btn secondary" onclick="window.location.href='@Url.Action("Index", "Dashboard")'">Back to Dashboard</button>
+                <button type="button" class="master-btn secondary" onclick="window.location.href='@Url.Action("SetupCreateOrder", "Customer", new { setupOnly = true })'">Go to Store Price Configuration</button>
+            </div>
+        </div>
+    </div>
+</section>
+
+<script type="text/javascript">
+    (function () {
+        var masterData = { serviceTypes: [], categories: [], items: [] };
+        var toastTimer = null;
+
+        function showToast(message, isSuccess) {
+            var toast = document.getElementById("masterToast");
+            if (!toast) {
+                return;
+            }
+
+            toast.classList.remove("success", "error");
+            toast.classList.add(isSuccess ? "success" : "error");
+            toast.textContent = message || "Operation completed.";
+            toast.style.display = "block";
+
+            if (toastTimer) {
+                clearTimeout(toastTimer);
+            }
+
+            toastTimer = setTimeout(function () {
+                toast.style.display = "none";
+            }, 3200);
+        }
+
+        function showInactive() {
+            var chk = document.getElementById("showInactiveChk");
+            return !!(chk && chk.checked);
+        }
+
+        function escapeHtml(value) {
+            return (value === null || value === undefined ? "" : String(value))
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#39;");
+        }
+
+        function prop(row, pascalName, camelName) {
+            var value = row[pascalName];
+            return value === undefined ? row[camelName] : value;
+        }
+
+        function postForm(url, fields) {
+            var body = new URLSearchParams();
+            Object.keys(fields).forEach(function (key) {
+                body.append(key, fields[key] === null || fields[key] === undefined ? "" : fields[key]);
+            });
+
+            return fetch(url, {
+                method: "POST",
+                credentials: "same-origin",
+                headers: {
+                    "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
+                    "X-Requested-With": "XMLHttpRequest"
+                },
+                body: body.toString()
+            }).then(function (response) {
+                if (!response.ok) {
+                    throw new Error("Request failed.");
+                }
+                return response.json();
+            });
+        }
+
+        function renderMasterTable(wrapId, rows, emptyText, kind) {
+            var wrap = document.getElementById(wrapId);
+            if (!wrap) {
+                return;
+            }
+
+            if (!rows.length) {
+                wrap.innerHTML = '<div class="master-empty">' + emptyText + '</div>';
+                return;
+            }
+
+            var html = '<table class="master-table"><thead><tr>'
+                + '<th>Name</th><th>Description</th><th>Status</th><th>Action</th>'
+                + '</tr></thead><tbody>';
+
+            rows.forEach(function (row) {
+                var name = prop(row, "Name", "name");
+                var isActive = !!prop(row, "IsActive", "isActive");
+                html += '<tr>'
+                    + '<td>' + escapeHtml(name) + '</td>'
+                    + '<td>' + escapeHtml(prop(row, "Description", "description") || "-") + '</td>'
+                    + '<td><span class="status-pill ' + (isActive ? "active" : "inactive") + '">' + (isActive ? "Active" : "Removed") + '</span></td>'
+                    + '<td><button type="button" class="row-action ' + (isActive ? "remove" : "restore") + '"'
+                    + ' data-kind="' + kind + '" data-name="' + escapeHtml(name) + '" data-active="' + (isActive ? "false" : "true") + '">'
+                    + (isActive ? "Remove" : "Restore") + '</button></td>'
+                    + '</tr>';
+            });
+
+            wrap.innerHTML = html + '</tbody></table>';
+
+            Array.prototype.forEach.call(wrap.querySelectorAll(".row-action"), function (button) {
+                button.addEventListener("click", function () {
+                    setServiceMasterStatus(button.getAttribute("data-kind"), button.getAttribute("data-name"), button.getAttribute("data-active") === "true");
+                });
+            });
+        }
+
+        function renderItemsTable() {
+            var wrap = document.getElementById("itemTableWrap");
+            if (!wrap) {
+                return;
+            }
+
+            if (!masterData.items.length) {
+                wrap.innerHTML = '<div class="master-empty">No items added for this store yet.</div>';
+                return;
+            }
+
+            var html = '<table class="master-table"><thead><tr>'
+                + '<th>Service Type</th><th>Category</th><th>Item Name</th><th>Description</th><th>Status</th><th>Action</th>'
+                + '</tr></thead><tbody>';
+
+            masterData.items.forEach(function (row) {
+                var serviceType = prop(row, "ServiceType", "serviceType");
+                var category = prop(row, "Category", "category");
+                var itemName = prop(row, "ItemName", "itemName");
+                var isActive = !!prop(row, "IsActive", "isActive");
+
+                html += '<tr>'
+                    + '<td>' + escapeHtml(serviceType) + '</td>'
+                    + '<td>' + escapeHtml(category) + '</td>'
+                    + '<td>' + escapeHtml(itemName) + '</td>'
+                    + '<td>' + escapeHtml(prop(row, "Description", "description") || "-") + '</td>'
+                    + '<td><span class="status-pill ' + (isActive ? "active" : "inactive") + '">' + (isActive ? "Active" : "Removed") + '</span></td>'
+                    + '<td><button type="button" class="row-action ' + (isActive ? "remove" : "restore") + '"'
+                    + ' data-service="' + escapeHtml(serviceType) + '"'
+                    + ' data-category="' + escapeHtml(category) + '"'
+                    + ' data-item="' + escapeHtml(itemName) + '"'
+                    + ' data-active="' + (isActive ? "false" : "true") + '">'
+                    + (isActive ? "Remove" : "Restore") + '</button></td>'
+                    + '</tr>';
+            });
+
+            wrap.innerHTML = html + '</tbody></table>';
+
+            Array.prototype.forEach.call(wrap.querySelectorAll(".row-action"), function (button) {
+                button.addEventListener("click", function () {
+                    setItemMasterStatus(
+                        button.getAttribute("data-service"),
+                        button.getAttribute("data-category"),
+                        button.getAttribute("data-item"),
+                        button.getAttribute("data-active") === "true");
+                });
+            });
+        }
+
+        function fillSelect(selectId, rows, placeholder) {
+            var select = document.getElementById(selectId);
+            if (!select) {
+                return;
+            }
+
+            var previous = select.value;
+            var options = '<option value="">' + placeholder + '</option>';
+
+            rows.filter(function (row) {
+                return !!prop(row, "IsActive", "isActive");
+            }).forEach(function (row) {
+                var name = prop(row, "Name", "name");
+                options += '<option value="' + escapeHtml(name) + '">' + escapeHtml(name) + '</option>';
+            });
+
+            select.innerHTML = options;
+
+            if (previous) {
+                select.value = previous;
+            }
+        }
+
+        function renderAll() {
+            renderMasterTable("serviceTableWrap", masterData.serviceTypes, "No service types added for this store yet.", "Service");
+            renderMasterTable("categoryTableWrap", masterData.categories, "No categories added for this store yet.", "Category");
+            renderItemsTable();
+            fillSelect("itemServiceSelect", masterData.serviceTypes, "Select service type");
+            fillSelect("itemCategorySelect", masterData.categories, "Select category");
+        }
+
+        function loadMasters() {
+            var url = '@Url.Action("GetStoreMasters", "Customer")'
+                + '?includeInactive=' + (showInactive() ? "true" : "false")
+                + '&_ts=' + Date.now();
+
+            return fetch(url, {
+                method: "GET",
+                cache: "no-store",
+                credentials: "same-origin",
+                headers: { "X-Requested-With": "XMLHttpRequest" }
+            })
+            .then(function (response) {
+                if (!response.ok) {
+                    throw new Error("Unable to load store master data.");
+                }
+                return response.json();
+            })
+            .then(function (data) {
+                if (!data || !data.success) {
+                    masterData = { serviceTypes: [], categories: [], items: [] };
+                    renderAll();
+                    if (data && data.message) {
+                        showToast(data.message, false);
+                    }
+                    return;
+                }
+
+                masterData = {
+                    serviceTypes: data.serviceTypes || data.ServiceTypes || [],
+                    categories: data.categories || data.Categories || [],
+                    items: data.items || data.Items || []
+                };
+                renderAll();
+            })
+            .catch(function (error) {
+                showToast(error.message || "Unable to load store master data.", false);
+            });
+        }
+
+        function saveServiceMaster(masterType, nameInputId, descInputId) {
+            var nameInput = document.getElementById(nameInputId);
+            var descInput = document.getElementById(descInputId);
+            var name = nameInput ? nameInput.value.trim() : "";
+
+            if (!name) {
+                showToast("Please enter a name.", false);
+                return;
+            }
+
+            postForm('@Url.Action("SaveStoreServiceMaster", "Customer")', {
+                masterType: masterType,
+                name: name,
+                description: descInput ? descInput.value.trim() : ""
+            })
+            .then(function (data) {
+                showToast(data.message, !!data.success);
+                if (data.success) {
+                    nameInput.value = "";
+                    if (descInput) {
+                        descInput.value = "";
+                    }
+                    loadMasters();
+                }
+            })
+            .catch(function (error) {
+                showToast(error.message || "Unable to save master entry.", false);
+            });
+        }
+
+        function setServiceMasterStatus(masterType, name, isActive) {
+            postForm('@Url.Action("SetStoreServiceMasterStatus", "Customer")', {
+                masterType: masterType,
+                name: name,
+                isActive: isActive ? "true" : "false"
+            })
+            .then(function (data) {
+                showToast(data.message, !!data.success);
+                if (data.success) {
+                    loadMasters();
+                }
+            })
+            .catch(function (error) {
+                showToast(error.message || "Unable to update master entry.", false);
+            });
+        }
+
+        function setItemMasterStatus(serviceType, category, itemName, isActive) {
+            postForm('@Url.Action("SetStoreItemMasterStatus", "Customer")', {
+                serviceType: serviceType,
+                category: category,
+                itemName: itemName,
+                isActive: isActive ? "true" : "false"
+            })
+            .then(function (data) {
+                showToast(data.message, !!data.success);
+                if (data.success) {
+                    loadMasters();
+                }
+            })
+            .catch(function (error) {
+                showToast(error.message || "Unable to update item master entry.", false);
+            });
+        }
+
+        function addItem() {
+            var serviceSelect = document.getElementById("itemServiceSelect");
+            var categorySelect = document.getElementById("itemCategorySelect");
+            var itemInput = document.getElementById("itemNameInput");
+            var descInput = document.getElementById("itemDescInput");
+
+            var serviceType = serviceSelect ? serviceSelect.value : "";
+            var category = categorySelect ? categorySelect.value : "";
+            var itemName = itemInput ? itemInput.value.trim() : "";
+
+            if (!serviceType || !category || !itemName) {
+                showToast("Please select a service type and category, and enter an item name.", false);
+                return;
+            }
+
+            postForm('@Url.Action("SaveStoreItemMaster", "Customer")', {
+                serviceType: serviceType,
+                category: category,
+                itemName: itemName,
+                description: descInput ? descInput.value.trim() : ""
+            })
+            .then(function (data) {
+                showToast(data.message, !!data.success);
+                if (data.success) {
+                    itemInput.value = "";
+                    if (descInput) {
+                        descInput.value = "";
+                    }
+                    loadMasters();
+                }
+            })
+            .catch(function (error) {
+                showToast(error.message || "Unable to save item master entry.", false);
+            });
+        }
+
+        function importMastersCsv() {
+            var fileInput = document.getElementById("masterCsvFile");
+            var selectedFile = fileInput && fileInput.files && fileInput.files.length ? fileInput.files[0] : null;
+
+            if (!selectedFile) {
+                showToast("Please choose a CSV file to upload.", false);
+                return;
+            }
+
+            var importBtn = document.getElementById("importMastersBtn");
+            if (importBtn) {
+                importBtn.disabled = true;
+            }
+
+            var payload = new FormData();
+            payload.append("csvFile", selectedFile);
+
+            fetch('@Url.Action("ImportStoreServiceMastersCsv", "Customer")', {
+                method: "POST",
+                credentials: "same-origin",
+                headers: { "X-Requested-With": "XMLHttpRequest" },
+                body: payload
+            })
+            .then(function (response) {
+                if (!response.ok) {
+                    throw new Error("Unable to import the selected file.");
+                }
+                return response.json();
+            })
+            .then(function (data) {
+                showToast(data.message, !!data.success);
+                fileInput.value = "";
+                return loadMasters();
+            })
+            .catch(function (error) {
+                showToast(error.message || "Unable to import the selected file.", false);
+            })
+            .finally(function () {
+                if (importBtn) {
+                    importBtn.disabled = false;
+                }
+            });
+        }
+
+        document.addEventListener("DOMContentLoaded", function () {
+            document.getElementById("addServiceBtn").addEventListener("click", function () {
+                saveServiceMaster("Service", "serviceNameInput", "serviceDescInput");
+            });
+
+            document.getElementById("addCategoryBtn").addEventListener("click", function () {
+                saveServiceMaster("Category", "categoryNameInput", "categoryDescInput");
+            });
+
+            document.getElementById("addItemBtn").addEventListener("click", addItem);
+            document.getElementById("importMastersBtn").addEventListener("click", importMastersCsv);
+            document.getElementById("refreshMastersBtn").addEventListener("click", function () { loadMasters(); });
+            document.getElementById("showInactiveChk").addEventListener("change", function () { loadMasters(); });
+
+            loadMasters();
+        });
+    })();
+</script>

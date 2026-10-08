@@ -1,0 +1,217 @@
+/* =========================================================
+   LMS New Machine DB Setup
+   Creates:
+   - LMS_Identity
+   - LMS_Master
+   ========================================================= */
+
+USE [master];
+GO
+
+IF DB_ID(N'LMS_Identity') IS NULL CREATE DATABASE [LMS_Identity];
+IF DB_ID(N'LMS_Master')   IS NULL CREATE DATABASE [LMS_Master];
+GO
+
+/* =========================================================
+   IDENTITY DB
+   ========================================================= */
+USE [LMS_Identity];
+GO
+
+IF OBJECT_ID(N'[dbo].[Tenants]', N'U') IS NULL
+BEGIN
+    CREATE TABLE [dbo].[Tenants]
+    (
+        [Id]            INT IDENTITY(1,1) NOT NULL,
+        [NoOfStores]    INT NOT NULL,
+        [TenantId]      NVARCHAR(64) NOT NULL,
+        [TenantName]    NVARCHAR(256) NOT NULL,
+        [Email]         NVARCHAR(256) NOT NULL,
+        [PhoneNumber]   NVARCHAR(20) NOT NULL, -- updated type
+        [MiddleName]    NVARCHAR(MAX) NULL,
+        [FamilyName]    NVARCHAR(MAX) NULL,
+        [Address]       NVARCHAR(512) NULL,
+        [City]          NVARCHAR(128) NULL,
+        [Region]        NVARCHAR(128) NULL,
+        [Zip]           NVARCHAR(32) NULL,
+        [Country]       NVARCHAR(128) NULL,
+        [CreatedDate]   DATETIME2(7) NOT NULL,
+        [ModifiedDate]  DATETIME2(7) NOT NULL,
+        CONSTRAINT [PK_Tenants] PRIMARY KEY CLUSTERED ([Id] ASC)
+    );
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_Tenants_Email' AND object_id = OBJECT_ID(N'[dbo].[Tenants]'))
+    CREATE UNIQUE NONCLUSTERED INDEX [IX_Tenants_Email] ON [dbo].[Tenants]([Email]);
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_Tenants_TenantId' AND object_id = OBJECT_ID(N'[dbo].[Tenants]'))
+    CREATE UNIQUE NONCLUSTERED INDEX [IX_Tenants_TenantId] ON [dbo].[Tenants]([TenantId]);
+GO
+
+IF OBJECT_ID(N'[dbo].[TenantStoreInfos]', N'U') IS NULL
+BEGIN
+    CREATE TABLE [dbo].[TenantStoreInfos]
+    (
+        [Id]                INT IDENTITY(1,1) NOT NULL,
+        [TenantId]          NVARCHAR(64) NOT NULL,
+        [Name]              NVARCHAR(256) NOT NULL,
+        [Password]          NVARCHAR(256) NOT NULL,
+        [Status]            NVARCHAR(64) NOT NULL,
+        [IsPasswordChanged] BIT NOT NULL,
+        [Storecodes]        NVARCHAR(MAX) NULL, -- comma-separated list
+        CONSTRAINT [PK_TenantStoreInfos] PRIMARY KEY CLUSTERED ([Id] ASC)
+    );
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_TenantStoreInfos_TenantId' AND object_id = OBJECT_ID(N'[dbo].[TenantStoreInfos]'))
+    CREATE UNIQUE NONCLUSTERED INDEX [IX_TenantStoreInfos_TenantId] ON [dbo].[TenantStoreInfos]([TenantId]);
+GO
+
+
+/* =========================================================
+   MASTER DB
+   ========================================================= */
+USE [LMS_Master];
+GO
+
+IF OBJECT_ID(N'[dbo].[Customers]', N'U') IS NULL
+BEGIN
+    CREATE TABLE [dbo].[Customers]
+    (
+        [Id]            INT IDENTITY(1,1) NOT NULL,
+        [CustomerName]  NVARCHAR(256) NOT NULL,
+        [Address]       NVARCHAR(512) NOT NULL,
+        [MembershipId]  NVARCHAR(64) NULL,
+        [BarCode]       NVARCHAR(64) NULL,
+        [PhoneNumber]   NVARCHAR(32) NULL,
+        [Email]         NVARCHAR(256) NULL,
+        [StoreCode]     NVARCHAR(64) NULL,
+        [TenantName]    NVARCHAR(256) NULL,
+        [CustCode]      NVARCHAR(64) NULL,
+        [CreatedDate]   DATETIME2(7) NOT NULL,
+        [ModifiedDate]  DATETIME2(7) NOT NULL,
+        CONSTRAINT [PK_Customers] PRIMARY KEY CLUSTERED ([Id] ASC)
+    );
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_Customers_CustomerName' AND object_id = OBJECT_ID(N'[dbo].[Customers]'))
+    CREATE UNIQUE NONCLUSTERED INDEX [IX_Customers_CustomerName] ON [dbo].[Customers]([CustomerName]);
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_Customers_CustCode' AND object_id = OBJECT_ID(N'[dbo].[Customers]'))
+    CREATE UNIQUE NONCLUSTERED INDEX [IX_Customers_CustCode] ON [dbo].[Customers]([CustCode]);
+GO
+
+IF OBJECT_ID(N'[dbo].[CustomerPreferences]', N'U') IS NULL
+BEGIN
+    CREATE TABLE [dbo].[CustomerPreferences]
+    (
+        [Id]                         INT IDENTITY(1,1) NOT NULL,
+        [TenantName]                 NVARCHAR(256) NOT NULL,
+        [StoreCode]                  NVARCHAR(64) NOT NULL,
+        [EnableSmsNotifications]     BIT NOT NULL,
+        [EnableEmailNotifications]   BIT NOT NULL,
+        [AutoGenerateCustomerCode]   BIT NOT NULL,
+        [RequirePhoneNumber]         BIT NOT NULL,
+        [RequireEmail]               BIT NOT NULL,
+        [AllowDuplicatePhoneNumber]  BIT NOT NULL,
+        [DefaultServiceType]         NVARCHAR(64) NULL,
+        [DefaultPaymentMode]         NVARCHAR(64) NULL,
+        [DefaultStarchLevel]         NVARCHAR(32) NULL,
+        [PickupReminderHours]        INT NOT NULL,
+        [LoyaltyPointsPerOrder]      INT NOT NULL,
+        [CreatedDate]                DATETIME2(7) NOT NULL,
+        [ModifiedDate]               DATETIME2(7) NOT NULL,
+        CONSTRAINT [PK_CustomerPreferences] PRIMARY KEY CLUSTERED ([Id] ASC)
+    );
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_CustomerPreferences_TenantName_StoreCode' AND object_id = OBJECT_ID(N'[dbo].[CustomerPreferences]'))
+    CREATE UNIQUE NONCLUSTERED INDEX [IX_CustomerPreferences_TenantName_StoreCode]
+    ON [dbo].[CustomerPreferences]([TenantName], [StoreCode]);
+GO
+
+IF OBJECT_ID(N'[dbo].[CustomerAdvances]', N'U') IS NULL
+BEGIN
+    CREATE TABLE [dbo].[CustomerAdvances]
+    (
+        [Id]              INT IDENTITY(1,1) NOT NULL,
+        [TenantName]      NVARCHAR(256) NOT NULL,
+        [StoreCode]       NVARCHAR(64) NOT NULL,
+        [CustCode]        NVARCHAR(64) NOT NULL,
+        [AdvanceAmount]   DECIMAL(18,2) NOT NULL,
+        [TransactionType] NVARCHAR(32) NOT NULL,
+        [Notes]           NVARCHAR(500) NULL,
+        [CreatedDate]     DATETIME2(7) NOT NULL,
+        CONSTRAINT [PK_CustomerAdvances] PRIMARY KEY CLUSTERED ([Id] ASC)
+    );
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_CustomerAdvances_TenantName_StoreCode_CustCode' AND object_id = OBJECT_ID(N'[dbo].[CustomerAdvances]'))
+    CREATE NONCLUSTERED INDEX [IX_CustomerAdvances_TenantName_StoreCode_CustCode]
+    ON [dbo].[CustomerAdvances]([TenantName], [StoreCode], [CustCode]);
+GO
+
+IF OBJECT_ID(N'[dbo].[LaundryOrders]', N'U') IS NULL
+BEGIN
+    CREATE TABLE [dbo].[LaundryOrders]
+    (
+        [Id]            INT IDENTITY(1,1) NOT NULL,
+        [TenantName]    NVARCHAR(256) NOT NULL,
+        [StoreCode]     NVARCHAR(64) NOT NULL,
+        [CustCode]      NVARCHAR(64) NOT NULL,
+        [CustomerName]  NVARCHAR(256) NOT NULL,
+        [OrderNo]       NVARCHAR(64) NOT NULL,
+        [ServiceType]   NVARCHAR(64) NOT NULL,
+        [OrderMode]     NVARCHAR(16) NOT NULL,
+        [WeightInKg]    DECIMAL(18,3) NOT NULL CONSTRAINT [DF_LaundryOrders_WeightInKg] DEFAULT((0)),
+        [RatePerKg]     DECIMAL(18,2) NOT NULL CONSTRAINT [DF_LaundryOrders_RatePerKg] DEFAULT((0)),
+        [OrderAmount]   DECIMAL(18,2) NOT NULL,
+        [AdvanceUsed]   DECIMAL(18,2) NOT NULL,
+        [NetPayable]    DECIMAL(18,2) NOT NULL,
+        [PaymentMode]   NVARCHAR(64) NOT NULL,
+        [Notes]         NVARCHAR(500) NULL,
+        [CreatedDate]   DATETIME2(7) NOT NULL,
+        CONSTRAINT [PK_LaundryOrders] PRIMARY KEY CLUSTERED ([Id] ASC)
+    );
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_LaundryOrders_OrderNo' AND object_id = OBJECT_ID(N'[dbo].[LaundryOrders]'))
+    CREATE UNIQUE NONCLUSTERED INDEX [IX_LaundryOrders_OrderNo] ON [dbo].[LaundryOrders]([OrderNo]);
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_LaundryOrders_TenantName_StoreCode_CustCode' AND object_id = OBJECT_ID(N'[dbo].[LaundryOrders]'))
+    CREATE NONCLUSTERED INDEX [IX_LaundryOrders_TenantName_StoreCode_CustCode]
+    ON [dbo].[LaundryOrders]([TenantName], [StoreCode], [CustCode]);
+GO
+
+IF OBJECT_ID(N'[dbo].[LaundryItemPrices]', N'U') IS NULL
+BEGIN
+    CREATE TABLE [dbo].[LaundryItemPrices]
+    (
+        [Id]           INT IDENTITY(1,1) NOT NULL,
+        [TenantName]   NVARCHAR(256) NOT NULL,
+        [StoreCode]    NVARCHAR(64) NOT NULL,
+        [ServiceType]  NVARCHAR(64) NOT NULL,
+        [Category]     NVARCHAR(64) NOT NULL,
+        [ItemName]     NVARCHAR(128) NOT NULL,
+        [UnitPrice]    DECIMAL(18,2) NOT NULL,
+        [IsActive]     BIT NOT NULL,
+        [CreatedDate]  DATETIME2(7) NOT NULL,
+        [ModifiedDate] DATETIME2(7) NOT NULL,
+        CONSTRAINT [PK_LaundryItemPrices] PRIMARY KEY CLUSTERED ([Id] ASC)
+    );
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_LaundryItemPrices_Tenant_Store_Service_Category_Item' AND object_id = OBJECT_ID(N'[dbo].[LaundryItemPrices]'))
+    CREATE UNIQUE NONCLUSTERED INDEX [IX_LaundryItemPrices_Tenant_Store_Service_Category_Item]
+    ON [dbo].[LaundryItemPrices]([TenantName], [StoreCode], [ServiceType], [Category], [ItemName]);
+GO

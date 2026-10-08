@@ -1,15 +1,11 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
-using LMSClientFactory.Helper;
+using LMSWebUI.Data;
 using LMSWebUI.Helpers;
+using LMSWebUI.Models;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
-using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.HttpsPolicy;
-using Microsoft.AspNetCore.Internal;
-using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -17,46 +13,69 @@ namespace LMSWebUI
 {
     public class Startup
     {
+<<<<<<< Updated upstream
         public string ApiUrl { get; set; }
         public Startup(IConfiguration configuration, IHostingEnvironment environment)
+=======
+        public Startup(IConfiguration configuration)
+>>>>>>> Stashed changes
         {
             Configuration = configuration;
-            Environment = environment;
-            IConfigurationBuilder builder = new ConfigurationBuilder()
-               .SetBasePath(environment.ContentRootPath)
-               .AddJsonFile("appsettings.json", optional: true, reloadOnChange: true)
-               .AddJsonFile($"appsettings.{environment.EnvironmentName}.json", optional: true)
-               .AddEnvironmentVariables();
-            Configuration = builder.Build();
-            ApiUrl = Configuration.GetValue<string>("LoginApiUrl");
-
         }
 
         public IConfiguration Configuration { get; }
+<<<<<<< Updated upstream
         public IHostingEnvironment Environment { get; }
+=======
+
+>>>>>>> Stashed changes
         // This method gets called by the runtime. Use this method to add services to the container.
         public void ConfigureServices(IServiceCollection services)
         {
-             services.RegisterServices(Configuration);
+            services.RegisterServices(Configuration);
+            // Add EF Core + Identity
+            services.AddDbContext<ApplicationDbContext>(options =>
+                options.UseSqlServer(Configuration.GetConnectionString("DefaultConnection")));
+
+            services.AddIdentity<ApplicationUser, IdentityRole>(options =>
+                {
+                    options.Password.RequireDigit = true;
+                    options.Password.RequireLowercase = true;
+                    options.Password.RequireUppercase = true;
+                    options.Password.RequiredLength = 8;
+                    options.Password.RequireNonAlphanumeric = true;
+                })
+                .AddEntityFrameworkStores<ApplicationDbContext>()
+                .AddDefaultTokenProviders();
+            services.AddCors(options =>
+            {
+                options.AddPolicy("AllowAll", policy =>
+                    policy.AllowAnyOrigin()
+                          .AllowAnyHeader()
+                          .AllowAnyMethod());
+            });
+
             services.Configure<IISOptions>(options =>
             {
                 options.AutomaticAuthentication = false;
             });
-            //services.Configure<CookiePolicyOptions>(options =>
-            //{
-            //    // This lambda determines whether user consent for non-essential cookies is needed for a given request.
-            //    options.CheckConsentNeeded = context => true;
-            //    options.MinimumSameSitePolicy = SameSiteMode.None;
-            //});
 
-           // services.AddTransient<IHttpClientApi>(s => new HttpClientApi(Configuration["LoginApiUrl"]));
-         //   services.AddTransient<IHttpClientApi>(s => new HttpClientApi(Configuration["CustomerApiUrl"]));
+            services.AddSession(options =>
+            {
+                options.IdleTimeout = TimeSpan.FromMinutes(60);
+            });
 
+<<<<<<< Updated upstream
             services.AddSession(options => 
             {  
                options.IdleTimeout = TimeSpan.FromMinutes(60);//You can set Time   
            });  
             services.AddMvc().SetCompatibilityVersion(CompatibilityVersion.Version_2_2);
+=======
+            services.AddControllersWithViews();
+            // Register IHttpClientFactory for calling other microservices
+            services.AddHttpClient();
+>>>>>>> Stashed changes
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
@@ -73,11 +92,17 @@ namespace LMSWebUI
                 app.UseHsts();
             }
 
-             app.UseHttpsRedirection();
+            app.UseHttpsRedirection();
 
-           
             app.UseStaticFiles();
             app.UseCookiePolicy();
+<<<<<<< Updated upstream
+=======
+            app.UseRouting();
+            app.UseCors("AllowAll");
+            app.UseAuthentication();
+            app.UseAuthorization();
+>>>>>>> Stashed changes
             app.UseSession();
             app.UseMvc(routes =>
             {
@@ -85,6 +110,31 @@ namespace LMSWebUI
                     name: "default",
                     template: "{controller=Login}/{action=Login}/{id?}");
             });
+
+            // Seed database with SuperAdmin user/role
+            try
+            {
+                using (var scope = app.ApplicationServices.CreateScope())
+                {
+                    var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+                    var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
+                    var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+                    // Try applying migrations; if migrations are not present, fall back to EnsureCreated
+                    try
+                    {
+                        db.Database.Migrate();
+                    }
+                    catch
+                    {
+                        db.Database.EnsureCreated();
+                    }
+                    DbInitializer.SeedAsync(userManager, roleManager).GetAwaiter().GetResult();
+                }
+            }
+            catch
+            {
+                // swallow exceptions during seeding to avoid breaking startup; inspect logs in real scenarios
+            }
         }
     }
 }

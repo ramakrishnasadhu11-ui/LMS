@@ -57,17 +57,29 @@ namespace LMSWebUI.Models
          /// <summary>
         ///  PhoneNumber
         /// </summary>
-        public int PhoneNumber {get;set;}
+        public string PhoneNumber {get;set;}
 
         /// <summary>
         ///  Address
         /// </summary>
          public string Address {get;set;}
 
+
+         public string BarCode { get; set; }
+
+        public string Email { get; set; }
+
         /// <summary>
         ///  Country
         /// </summary>
          public string Country {get;set;}
+
+        public string UserRole { get; set; }
+
+        /// <summary>
+        /// Indicates that the caller must force the user to change their password (first-login)
+        /// </summary>
+        public bool? MustChangePassword { get; set; }
 
    
     }
@@ -84,6 +96,9 @@ namespace LMSWebUI.Models
         /// </summary>
         [StringLength(maximumLength: int.MaxValue)]
          public string CustCode { get; set; }
+
+        [StringLength(maximumLength: int.MaxValue)]
+        public string CustomerName { get; set; }
        
         /// <summary>
         ///  TenantName
@@ -113,12 +128,16 @@ namespace LMSWebUI.Models
         /// <summary>
         ///  PhoneNumber
         /// </summary>
-        public int PhoneNumber {get;set;}
+        public string PhoneNumber {get;set;}
 
         /// <summary>
         ///  Address
         /// </summary>
          public string Address {get;set;}
+
+        // MembershipId removed system-wide
+
+        public string BarCode { get; set; }
 
         /// <summary>
         ///  Country

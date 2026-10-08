@@ -1,0 +1,74 @@
+@model LMSWebUI.Models.Admin.AdminFeatureViewModel
+@{
+    ViewData["Title"] = Model?.FeatureTitle ?? "Admin Feature";
+    Layout = "~/Views/Shared/_HeaderMenuItemsLayout.cshtml";
+}
+
+<style>
+.admin-feature-page,
+.admin-feature-page input,
+.admin-feature-page button,
+.admin-feature-page label,
+.admin-feature-page textarea,
+.admin-feature-page select {
+    font-family: Arial, Helvetica, sans-serif;
+}
+
+.admin-feature-page { padding: 20px; }
+.admin-feature-box {
+    max-width: 980px;
+    margin: 0 auto;
+    background: var(--els-surface);
+    border-radius: 10px;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+    overflow: hidden;
+}
+.admin-feature-title {
+    background: linear-gradient(90deg, var(--els-primary) 0%, var(--els-primary-dark) 100%);
+    color: #fff;
+    padding: 14px 20px;
+    font-size: 20px;
+    font-weight: 600;
+}
+.admin-feature-body { padding: 20px; }
+.admin-feature-note {
+    border: 1px solid var(--els-border);
+    border-radius: 8px;
+    background: var(--els-accent);
+    padding: 12px;
+    margin-bottom: 16px;
+    color: var(--els-text);
+}
+.admin-feature-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+.admin-feature-btn {
+    min-width: 180px;
+    min-height: 42px;
+    border: 1px solid transparent;
+    border-radius: 8px;
+    background: linear-gradient(180deg, var(--els-primary-light) 0%, var(--els-primary) 100%);
+    color: #fff;
+    font-weight: 600;
+    cursor: pointer;
+}
+.admin-feature-btn.secondary {
+    background: linear-gradient(180deg, #8f99a4 0%, #6f7a86 100%);
+}
+</style>
+
+<section class="admin-feature-page">
+    <div class="admin-feature-box">
+        <div class="admin-feature-title">@Model.FeatureTitle</div>
+        <div class="admin-feature-body">
+            <div class="admin-feature-note">
+                <div><b>Tenant:</b> @Model.TenantName</div>
+                <div><b>Store:</b> @Model.StoreCode</div>
+                <div style="margin-top:6px;">@Model.Description</div>
+            </div>
+
+            <div class="admin-feature-actions">
+                <button type="button" class="admin-feature-btn" onclick="window.location.href='@Url.Action("MyDashboard", "Dashboard")'">Back to My Dashboard</button>
+                <button type="button" class="admin-feature-btn secondary" onclick="window.location.href='@Url.Action("SetupCreateOrder", "Customer", new { setupOnly = true })'">Go to Store Price Configuration</button>
+            </div>
+        </div>
+    </div>
+</section>

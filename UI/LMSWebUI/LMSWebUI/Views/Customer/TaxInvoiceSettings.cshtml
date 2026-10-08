@@ -1,0 +1,326 @@
+@model LMSWebUI.Models.Admin.TaxInvoiceSettingsViewModel
+@using Newtonsoft.Json
+@{
+    ViewData["Title"] = "Tax & Invoice Settings";
+    Layout = "~/Views/Shared/_HeaderMenuItemsLayout.cshtml";
+}
+
+<style>
+.tax-settings-page,
+.tax-settings-page input,
+.tax-settings-page button,
+.tax-settings-page label,
+.tax-settings-page textarea,
+.tax-settings-page select {
+    font-family: Arial, Helvetica, sans-serif;
+}
+
+.tax-settings-page { padding: 20px; }
+.tax-settings-box {
+    max-width: 980px;
+    margin: 0 auto;
+    background: var(--els-surface);
+    border-radius: 10px;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+    overflow: hidden;
+}
+.tax-settings-title {
+    background: linear-gradient(90deg, var(--els-primary) 0%, var(--els-primary-dark) 100%);
+    color: #fff;
+    padding: 14px 20px;
+    font-size: 20px;
+    font-weight: 600;
+}
+.tax-settings-body { padding: 20px; }
+.tax-settings-note {
+    border: 1px solid var(--els-border);
+    border-radius: 8px;
+    background: var(--els-accent);
+    padding: 12px;
+    margin-bottom: 16px;
+    color: var(--els-text);
+}
+.tax-section-title {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--els-text);
+    margin: 18px 0 8px;
+}
+.tax-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 14px;
+}
+.tax-field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+.tax-field label { font-weight: 600; color: var(--els-text); }
+.tax-input,
+.tax-textarea {
+    border: 1px solid var(--els-border);
+    border-radius: 8px;
+    min-height: 40px;
+    padding: 8px 10px;
+    background: var(--els-background);
+    color: var(--els-text);
+}
+.tax-textarea { min-height: 88px; resize: vertical; }
+.tax-check { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
+.tax-preview {
+    margin-top: 12px;
+    border: 1px solid var(--els-border);
+    border-radius: 8px;
+    background: #f8fafc;
+    padding: 10px 12px;
+    font-size: 13px;
+    color: var(--els-text);
+}
+.validation-summary-errors,
+.field-validation-error { color: #b91c1c; font-size: 13px; }
+.tax-actions {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-top: 18px;
+}
+.tax-btn {
+    min-width: 180px;
+    min-height: 42px;
+    border: 1px solid transparent;
+    border-radius: 8px;
+    background: linear-gradient(180deg, var(--els-primary-light) 0%, var(--els-primary) 100%);
+    color: #fff;
+    font-weight: 600;
+    cursor: pointer;
+}
+.tax-btn.secondary { background: linear-gradient(180deg, #8f99a4 0%, #6f7a86 100%); }
+
+.toast-message {
+    position: fixed;
+    right: 24px;
+    top: 80px;
+    z-index: 9999;
+    min-width: 260px;
+    max-width: 380px;
+    padding: 12px 16px;
+    border-radius: 8px;
+    color: #fff;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
+    font-weight: 600;
+    display: none;
+}
+
+.toast-message.success {
+    background: #2f8f46;
+}
+
+.toast-message.error {
+    background: #b63838;
+}
+</style>
+
+@if (TempData["UserMessage"] != null)
+{
+    var taxSettingsMessage = JsonConvert.DeserializeObject<LMSWebUI.Models.MessageDto>(Convert.ToString(TempData["UserMessage"]));
+    var isSuccessMessage = (taxSettingsMessage.CssClassName ?? string.Empty).Contains("success");
+
+    @* This page shows the message as a floating toast, so drop it from TempData to stop
+       the shared _LayoutStatus partial from rendering a duplicate alert bar. *@
+    TempData.Remove("UserMessage");
+
+    <script type="text/javascript">
+        window.taxSettingsToastMessage = '@Html.Raw(System.Text.Encodings.Web.JavaScriptEncoder.Default.Encode(taxSettingsMessage.DisplayMessage ?? string.Empty))';
+        window.taxSettingsToastIsSuccess = @(isSuccessMessage ? "true" : "false");
+    </script>
+}
+
+<div id="taxSettingsToast" class="toast-message"></div>
+
+<section class="tax-settings-page">
+    <div class="tax-settings-box">
+        <div class="tax-settings-title">Tax &amp; Invoice Settings</div>
+        <div class="tax-settings-body">
+            <div class="tax-settings-note">
+                <div><b>Company:</b> @Model.CompanyName</div>
+                <div><b>Tenant:</b> @Model.TenantName</div>
+                <div><b>Store:</b> @Model.StoreCode</div>
+                <div style="margin-top:6px;">Set the GST rate and invoice numbering format used for this store. GST is split equally into CGST and SGST on the printed invoice. Every invoice number includes the year it was generated in.</div>
+            </div>
+
+            <form asp-action="TaxInvoiceSettings" asp-controller="Customer" method="post">
+                @Html.AntiForgeryToken()
+                <div asp-validation-summary="ModelOnly" class="validation-summary-errors"></div>
+
+                <div class="tax-section-title">Tax</div>
+
+                <div class="tax-check">
+                    <input asp-for="EnableTax" id="enableTax" />
+                    <label asp-for="EnableTax"></label>
+                </div>
+
+                <div class="tax-grid" style="margin-top:10px;">
+                    <div class="tax-field">
+                        <label asp-for="GstPercent"></label>
+                        <input asp-for="GstPercent" id="gstPercent" class="tax-input" type="number" step="0.01" min="0" max="100" />
+                        <span asp-validation-for="GstPercent"></span>
+                    </div>
+                </div>
+
+                <div class="tax-check">
+                    <input asp-for="PricesIncludeTax" />
+                    <label asp-for="PricesIncludeTax"></label>
+                </div>
+
+                <div class="tax-preview" id="gstSplitPreview"></div>
+
+                <div class="tax-section-title">Invoice Numbering</div>
+
+                <div class="tax-grid">
+                    <div class="tax-field">
+                        <label asp-for="InvoicePrefix"></label>
+                        <input asp-for="InvoicePrefix" id="invoicePrefix" class="tax-input" maxlength="16" />
+                        <small style="color:#64748b;">Derived from your registered company name (@Model.CompanyName) and store code (@Model.StoreCode). The current year is added automatically. You can change the prefix if needed.</small>
+                        <span asp-validation-for="InvoicePrefix"></span>
+                    </div>
+
+                    <div class="tax-field">
+                        <label asp-for="NextInvoiceNumber"></label>
+                        <input asp-for="NextInvoiceNumber" id="nextInvoiceNumber" class="tax-input" type="number" min="1" />
+                        <span asp-validation-for="NextInvoiceNumber"></span>
+                    </div>
+
+                    <div class="tax-field">
+                        <label asp-for="InvoiceNumberPadding"></label>
+                        <input asp-for="InvoiceNumberPadding" id="invoiceNumberPadding" class="tax-input" type="number" min="1" max="12" />
+                        <span asp-validation-for="InvoiceNumberPadding"></span>
+                    </div>
+                </div>
+
+                <div class="tax-check">
+                    <input asp-for="ResetInvoiceNumberYearly" />
+                    <label asp-for="ResetInvoiceNumberYearly"></label>
+                </div>
+
+                <div class="tax-preview" id="invoicePreview"></div>
+
+                <div class="tax-field" style="margin-top:12px;">
+                    <label asp-for="Notes"></label>
+                    <textarea asp-for="Notes" class="tax-textarea" maxlength="300"></textarea>
+                    <span asp-validation-for="Notes"></span>
+                </div>
+
+                <div class="tax-actions">
+                    <button type="submit" class="tax-btn">Save Tax &amp; Invoice Settings</button>
+                    <button type="button" class="tax-btn secondary" onclick="window.location.href='@Url.Action("MyDashboard", "Dashboard")'">Back to My Dashboard</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</section>
+
+<script type="text/javascript">
+    document.addEventListener("DOMContentLoaded", function () {
+        var enableTax = document.getElementById("enableTax");
+        var gstPercent = document.getElementById("gstPercent");
+        var gstSplitPreview = document.getElementById("gstSplitPreview");
+        var invoicePrefix = document.getElementById("invoicePrefix");
+        var nextInvoiceNumber = document.getElementById("nextInvoiceNumber");
+        var invoiceNumberPadding = document.getElementById("invoiceNumberPadding");
+        var invoicePreview = document.getElementById("invoicePreview");
+
+        function refreshGstPreview() {
+            if (!gstPercent || !gstSplitPreview) {
+                return;
+            }
+
+            var taxOn = !enableTax || enableTax.checked;
+            gstPercent.disabled = !taxOn;
+
+            if (!taxOn) {
+                gstSplitPreview.textContent = "Tax is turned off. Invoices will be raised without GST.";
+                return;
+            }
+
+            var percent = parseFloat(gstPercent.value);
+            if (isNaN(percent) || percent <= 0) {
+                gstSplitPreview.textContent = "Enter a GST percentage to see the CGST / SGST split.";
+                return;
+            }
+
+            var half = (percent / 2).toFixed(2);
+            gstSplitPreview.textContent = "Invoice split: CGST " + half + "% + SGST " + half + "% (total " + percent.toFixed(2) + "%).";
+        }
+
+        function refreshInvoicePreview() {
+            if (!invoicePreview) {
+                return;
+            }
+
+            var prefix = (invoicePrefix && invoicePrefix.value ? invoicePrefix.value : "").trim().toUpperCase();
+            var nextNumber = parseInt(nextInvoiceNumber && nextInvoiceNumber.value, 10);
+            var padding = parseInt(invoiceNumberPadding && invoiceNumberPadding.value, 10);
+
+            if (isNaN(nextNumber) || nextNumber < 1) {
+                nextNumber = 1;
+            }
+
+            if (isNaN(padding) || padding < 1 || padding > 12) {
+                padding = 4;
+            }
+
+            if (prefix.length && prefix.charAt(prefix.length - 1) !== "-") {
+                prefix += "-";
+            }
+
+            var numberText = String(nextNumber);
+            while (numberText.length < padding) {
+                numberText = "0" + numberText;
+            }
+
+            invoicePreview.textContent = "Next invoice number will look like: "
+                + prefix + new Date().getFullYear() + "-" + numberText;
+        }
+
+        if (enableTax) {
+            enableTax.addEventListener("change", refreshGstPreview);
+        }
+
+        if (gstPercent) {
+            gstPercent.addEventListener("input", refreshGstPreview);
+        }
+
+        [invoicePrefix, nextInvoiceNumber, invoiceNumberPadding].forEach(function (field) {
+            if (field) {
+                field.addEventListener("input", refreshInvoicePreview);
+            }
+        });
+
+        refreshGstPreview();
+        refreshInvoicePreview();
+
+        if (!window.taxSettingsToastMessage) {
+            return;
+        }
+
+        var toast = document.getElementById("taxSettingsToast");
+        if (!toast) {
+            return;
+        }
+
+        var isSuccess = window.taxSettingsToastIsSuccess === true;
+        toast.classList.remove(isSuccess ? "error" : "success");
+        toast.classList.add(isSuccess ? "success" : "error");
+        toast.textContent = window.taxSettingsToastMessage;
+        toast.style.display = "block";
+
+        setTimeout(function () {
+            toast.style.display = "none";
+        }, 3200);
+    });
+</script>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

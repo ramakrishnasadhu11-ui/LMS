@@ -1,0 +1,9 @@
+@* jquery.validate requires jQuery, and the header layout does not load it, so it is
+   emitted here only when the page has not already defined it. *@
+<script>
+    if (typeof jQuery === 'undefined') {
+        document.write('<script src="/lib/jquery/dist/jquery.min.js"><\/script>');
+    }
+</script>
+<script src="~/lib/jquery-validation/dist/jquery.validate.min.js"></script>
+<script src="~/lib/jquery-validation-unobtrusive/jquery.validate.unobtrusive.min.js"></script>

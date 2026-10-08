@@ -8,6 +8,12 @@ namespace LMS.Master.Utilities
     {
         public const string CUSTOMER_INSERT_SUCCESS_MESSAGE = "Customer Added successfully";
         public const string CUSTOMER_INSERT_ERROR_MESSAGE = "Error while Customer inserting";
+        public const string CUSTOMER_UPDATE_SUCCESS_MESSAGE = "Customer Updated successfully";
+        public const string CUSTOMER_DELETE_SUCCESS_MESSAGE = "Customer Deleted successfully";
+        public const string CUSTOMER_NAME_REQUIRED_MESSAGE = "Customer Name is required";
+        public const string CUSTOMER_ADDRESS_REQUIRED_MESSAGE = "Customer Address is required";
+        public const string CUSTOMER_PHONE_INVALID_MESSAGE = "Please enter a valid phone number (7-15 digits)";
+        public const string CUSTOMER_EMAIL_INVALID_MESSAGE = "Please enter a valid email address";
         public const string MASTER_LOGINTENANT_ERROR_MESSAGE = "Error while tenant login";
         public const string CUSTOMER_DATANOTFOUND_ERROR_MESSAGE = "Customer Info not found while inserting";
         public const string CUSTOMER_DATAFOUND_ERROR_MESSAGE = "Customer Already Inserted";

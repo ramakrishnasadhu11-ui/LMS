@@ -37,5 +37,12 @@ namespace LMS.Identity.DTO
         ///  StoreCodea
         /// </summary>
         public List<string> Storecodes { get; set; }
+
+        public string UserRole { get; set; }
+
+        /// <summary>
+        /// Indicates that the caller must force the user to change their password (first-login)
+        /// </summary>
+        public bool? MustChangePassword { get; set; }
     }
 }

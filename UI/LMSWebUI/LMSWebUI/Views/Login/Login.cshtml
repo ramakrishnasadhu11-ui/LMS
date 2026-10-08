@@ -7,9 +7,275 @@
     <title>ELS Login</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/4.1.1/css/bootstrap.min.css">
     <link rel="stylesheet" type="text/css" href="~/css/custom.css">
+    <link rel="stylesheet" type="text/css" href="~/css/app-theme.css">
     <link href="https://fonts.googleapis.com/css?family=Poppins:100,300,400,500,600,700&display=swap" rel="stylesheet">
+    <style>
+        html, body {
+            height: 100%;
+            overflow: hidden;
+        }
+
+        .form-body {
+            height: 100vh;
+            min-height: 0;
+        }
+
+        .form-body > .row {
+            height: 100vh;
+            min-height: 0;
+        }
+
+        .form-holder,
+        .form-holder .form-content {
+            height: 100vh;
+            min-height: 0;
+        }
+
+        .form-content {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 16px;
+            overflow: auto;
+        }
+
+        .form-content .form-items {
+            max-height: calc(100vh - 32px);
+            overflow-y: auto;
+        }
+
+        .login-card {
+            width: 380px;
+            max-width: 100%;
+            padding: 24px 26px;
+            border-radius: 14px;
+            background: var(--els-surface);
+            border: 1px solid var(--els-border);
+            box-shadow: 0 18px 45px rgba(15, 23, 42, 0.12);
+        }
+
+        .login-card-head {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 12px;
+            margin-bottom: 14px;
+        }
+
+        .login-title {
+            font-size: 20px;
+            font-weight: 600;
+            color: var(--els-text);
+            margin: 0;
+        }
+
+        .login-subtitle {
+            font-size: 13px;
+            color: var(--els-text-muted, #64748b);
+            margin: 4px 0 0;
+        }
+
+        .login-card .page-links {
+            display: flex;
+            gap: 20px;
+            border-bottom: 1px solid var(--els-border);
+            margin-bottom: 16px;
+        }
+
+        .login-card .page-links a {
+            position: relative;
+            padding-bottom: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--els-text-muted, #64748b);
+            text-decoration: none;
+        }
+
+        .login-card .page-links a.active {
+            color: var(--els-primary-dark);
+        }
+
+        .login-card .page-links a.active::after {
+            content: "";
+            position: absolute;
+            left: 0;
+            right: 0;
+            bottom: -1px;
+            height: 2px;
+            background: var(--els-primary);
+            border-radius: 2px;
+        }
+        /* Plain, no-color active tab: keep it simple (no background, no shadow) */
+        .login-card .page-links a.professional-active {
+            color: inherit !important;
+            background: transparent !important;
+            /* add a small top border as a subtle, neutral indicator */
+            padding: 6px 0 0 !important;
+            border-top: 3px solid #9CA3AF; /* neutral gray, avoid green/blue */
+            border-radius: 0 !important;
+            display: inline-block;
+            box-shadow: none !important;
+            transform: none !important;
+            font-weight: 700;
+            box-sizing: border-box;
+        }
+        .login-card .page-links a.professional-active::after {
+            display: none;
+        }
+
+        .login-field {
+            margin-bottom: 12px;
+        }
+
+        .login-label {
+            display: block;
+            font-size: 12px;
+            font-weight: 600;
+            letter-spacing: 0.2px;
+            text-transform: uppercase;
+            color: var(--els-text-muted, #64748b);
+            margin-bottom: 5px;
+        }
+
+        .login-card .form-control,
+        .login-card select {
+            width: 100%;
+            height: 42px;
+            padding: 0 12px;
+            border: 1px solid var(--els-border);
+            border-radius: 8px;
+            background: var(--els-background);
+            color: var(--els-text);
+            font-size: 14px;
+            box-shadow: none;
+        }
+
+        .login-card .form-control:focus,
+        .login-card select:focus {
+            outline: none;
+            border-color: var(--els-primary);
+            box-shadow: 0 0 0 3px color-mix(in srgb, var(--els-primary) 20%, transparent);
+        }
+
+        .login-password-wrap {
+            position: relative;
+        }
+
+        .login-password-wrap .form-control {
+            padding-right: 60px;
+        }
+
+        .login-password-toggle {
+            position: absolute;
+            top: 50%;
+            right: 10px;
+            transform: translateY(-50%);
+            border: none;
+            background: transparent;
+            color: var(--els-primary-dark);
+            font-size: 12px;
+            font-weight: 700;
+            cursor: pointer;
+            padding: 4px 6px;
+        }
+
+        .login-hint {
+            font-size: 12px;
+            color: var(--els-text-muted, #64748b);
+            margin-top: 6px;
+        }
+
+        .login-card .form-button {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            align-items: stretch;
+            margin-top: 16px;
+        }
+
+        .login-card .form-button .ibtn {
+            width: 100%;
+            height: 44px;
+            border: none;
+            border-radius: 8px;
+            background: linear-gradient(180deg, var(--els-primary-light) 0%, var(--els-primary) 100%);
+            color: #fff;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+        .login-card .form-button .ibtn:hover {
+            filter: brightness(0.96);
+        }
+
+        .login-card .form-button a {
+            text-align: center;
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--els-primary-dark);
+            text-decoration: none;
+        }
+
+        .login-card .form-button a:hover {
+            text-decoration: underline;
+        }
+
+        .login-card .other-links {
+            margin-top: 16px;
+            padding-top: 12px;
+            border-top: 1px solid var(--els-border);
+            text-align: center;
+            font-size: 12px;
+            color: var(--els-text-muted, #64748b);
+        }
+
+        .login-card button:focus-visible,
+        .login-card a:focus-visible,
+        .login-card .form-control:focus-visible,
+        .login-card select:focus-visible {
+            outline: 2px solid var(--els-primary);
+            outline-offset: 2px;
+        }
+
+        @@media (max-height: 760px) {
+            .login-card {
+                padding: 18px 22px;
+            }
+
+            .login-card-head {
+                margin-bottom: 10px;
+            }
+
+            .login-subtitle {
+                display: none;
+            }
+
+            .login-card .other-links {
+                display: none;
+            }
+
+            .login-field {
+                margin-bottom: 10px;
+            }
+        }
+    </style>
 </head>
 <body>
+    <script>
+        (function () {
+            try {
+                var selectedTheme = localStorage.getItem('els-theme');
+                if (selectedTheme === 'dark') {
+                    document.documentElement.setAttribute('data-theme', 'dark');
+                } else {
+                    document.documentElement.removeAttribute('data-theme');
+                }
+            } catch (e) {
+                document.documentElement.removeAttribute('data-theme');
+            }
+        })();
+    </script>
     <div class="form-body">
         <div class="website-logo">
             <a href="index.html">
@@ -27,21 +293,48 @@
             </div>
             <div class="form-holder">
                 <div class="form-content">
-                    <div class="form-items" style="width: 340px;">
-                        <img class="logo-size" src="~/Images/els-blue-web.png" alt="" style="
-    width: 180px;margin-bottom: 20px;">
+                    <div class="form-items login-card">
+                        <div class="login-card-head">
+                            <div>
+                                <img class="logo-size" src="~/Images/els-blue-web.png" alt="ELS" style="width: 150px;">
+                                <h1 class="login-title" style="margin-top:14px;">Sign in to your account</h1>
+                                <p class="login-subtitle">Manage your dry cleaning and laundry operations.</p>
+                            </div>
+                            <button id="themeToggleLogin" type="button" class="theme-toggle-btn" onclick="toggleTheme()">Dark Theme</button>
+                        </div>
                         <div id="information" class="alert alert-success" role="alert"><strong>Well done!</strong><span class="glyphi glyphicon glyphicon-exclamation-sign"></span>@Model.Message</div>
                         <div class="page-links">
-                            <a class="active" href="@Url.Action("Login", "Login")">Login</a> <a href="@Url.Action("Register", "Login")">Register</a>
+                            <a id="loginTab" class="active" href="@Url.Action("Login", "Login")">Login</a>
+                            <a id="registerTab" href="@Url.Action("Register", "Login")">Register</a>
                         </div>
                         @*@using (Html.BeginForm("CheckIsPasswordChangedByclient", "Login", FormMethod.Post, new { @class = "form" }))
                         {*@
                             <form>
-                                @Html.TextBoxFor(m => m.Email, new { @placeholder = "E-Mail", @class = "form-control", required = "required", id = "tenantEmail", @onblur = "return BindTenantStores()" })
-                                @Html.TextBoxFor(m => m.Password, new { @placeholder = "password", @class = "form-control", required = "required", id = "tenantPassword", @type = "password" })
-                                @Html.DropDownListFor(x => x.StoreCode, new List<SelectListItem> { }, "Select a Store...", new { id = "Store", @style = "width:135px" })
+                                <div class="login-field">
+                                    <label class="login-label" for="tenantEmail">Email address</label>
+                                    @Html.TextBoxFor(m => m.Email, new { @placeholder = "name@company.com", @class = "form-control", required = "required", id = "tenantEmail", autocomplete = "username" })
+                                </div>
+                                <div class="login-field">
+                                    <label class="login-label" for="tenantPassword">Password</label>
+                                    <div class="login-password-wrap">
+                                        @Html.TextBoxFor(m => m.Password, new { @placeholder = "Enter your password", @class = "form-control", required = "required", id = "tenantPassword", @type = "password", autocomplete = "current-password" })
+                                        <button type="button" class="login-password-toggle" id="togglePassword" data-password-target="tenantPassword" aria-controls="tenantPassword" aria-label="Show password">SHOW</button>
+                                    </div>
+                                </div>
+                                <div class="login-field" id="storeDropdownContainer">
+                                    <label class="login-label" for="Store">Store</label>
+                                    @Html.DropDownListFor(x => x.StoreCode, new List<SelectListItem> { }, "Select a Store...", new { id = "Store" })
+                                </div>
+                                <div id="storeUserHint" class="login-hint">
+                                    Tenant/Admin login: select a store. Store-user login: store is auto-detected.
+                                </div>
+                                <div id="storeUserModeBadge" style="display:none; margin-top:8px;">
+                                    <span id="storeUserModeBadgeText" style="display:inline-block; padding:4px 10px; border-radius:999px; font-size:11px; font-weight:700; letter-spacing:.2px; background:color-mix(in srgb, var(--els-accent) 45%, #ffffff); color:var(--els-primary-dark); border:1px solid var(--els-primary-light);">
+                                        Store User Mode
+                                    </span>
+                                </div>
                                 <div class="form-button">
-                                    <button id="LoginCheck" onclick="LoginValidate();" type="button" class="ibtn">Login</button> <a href="#" data-toggle="modal" data-target="#ForgotPassword">Change password?</a>
+                                    <button id="LoginCheck" onclick="LoginValidate();" type="button" class="ibtn">Sign In</button> <a href="#" data-toggle="modal" data-target="#ForgotPassword">Change password?</a>
                                 </div>
                             </form>
                         @*}*@
@@ -72,6 +365,9 @@
                 <!-- Modal footer -->
                 <div class="modal-footer">
                     <button id="forgotpassword" type="submit" class="ibtn">Reset my Password</button>
+                    <span id="forgotPasswordProgress" style="display:none; margin-left:10px; font-size:12px; color:var(--els-text-muted, #64748b);">
+                        Processing your request...
+                    </span>
                 </div>
             </div>
         </div>
@@ -93,8 +389,14 @@
                     <lable id="lblOTPInformation"></lable>
                     <div class="form-group">
                         @Html.TextBoxFor(m => m.Email, new { @placeholder = "E-Mail", @class = "form-control", required = "required", id = "tenantEmail" })
-                        @Html.TextBoxFor(m => m.NewPassword, new { @placeholder = "New password", @class = "form-control", required = "required", id = "newPassword", @type = "password" })
-                        @Html.TextBoxFor(m => m.OldPassword, new { @placeholder = "Old password", @class = "form-control", required = "required", id = "oldPassword", @type = "password" })
+                        <div class="login-password-wrap">
+                            @Html.TextBoxFor(m => m.NewPassword, new { @placeholder = "New password", @class = "form-control", required = "required", id = "newPassword", @type = "password" })
+                            <button type="button" class="login-password-toggle" data-password-target="newPassword" aria-controls="newPassword" aria-label="Show new password">SHOW</button>
+                        </div>
+                        <div class="login-password-wrap">
+                            @Html.TextBoxFor(m => m.OldPassword, new { @placeholder = "Old password", @class = "form-control", required = "required", id = "oldPassword", @type = "password" })
+                            <button type="button" class="login-password-toggle" data-password-target="oldPassword" aria-controls="oldPassword" aria-label="Show current password">SHOW</button>
+                        </div>
                     </div>
                 </div>
                 <!-- Modal footer -->
@@ -109,27 +411,153 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.16.0/umd/popper.min.js"></script>
     <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.4.1/js/bootstrap.min.js"></script>
     <script type='text/javascript'>
+        function toggleTheme() {
+            var current = document.documentElement.getAttribute('data-theme');
+            var next = current === 'dark' ? 'light' : 'dark';
+
+            if (next === 'dark') {
+                document.documentElement.setAttribute('data-theme', 'dark');
+            } else {
+                document.documentElement.removeAttribute('data-theme');
+            }
+
+            localStorage.setItem('els-theme', next);
+            syncThemeButtonText();
+        }
+
+        function syncThemeButtonText() {
+            var isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+            var toggle = document.getElementById('themeToggleLogin');
+            if (toggle) {
+                toggle.textContent = isDark ? 'Light Theme' : 'Dark Theme';
+            }
+        }
+
+        function setLoginModeHint(isStoreUser, autoStore, isSuperAdmin) {
+            var hint = $('#storeUserHint');
+            var modeBadge = $('#storeUserModeBadge');
+            var modeBadgeText = $('#storeUserModeBadgeText');
+            var storeDropdownContainer = $('#storeDropdownContainer');
+            if (!hint.length) return;
+
+            if (isSuperAdmin) {
+                hint.css('color', '#7c4dff');
+                hint.text('Super Admin login detected. No store selection is required.');
+                if (storeDropdownContainer.length) {
+                    storeDropdownContainer.hide();
+                }
+                if (modeBadgeText.length) {
+                    modeBadgeText.text('Super Admin Mode');
+                }
+                if (modeBadge.length) {
+                    modeBadge.show();
+                }
+                return;
+            }
+
+            if (isStoreUser) {
+                hint.css('color', '#0b7285');
+                hint.html('Store-user login detected. Store is auto-selected' + (autoStore ? (': <b>' + autoStore + '</b>') : '.') );
+                if (storeDropdownContainer.length) {
+                    storeDropdownContainer.hide();
+                }
+                if (modeBadgeText.length) {
+                    modeBadgeText.text('Store User Mode');
+                }
+                if (modeBadge.length) {
+                    modeBadge.show();
+                }
+                return;
+            }
+
+            hint.css('color', '#64748b');
+            hint.text('Tenant/Admin login: select a store. Store-user login: store is auto-detected.');
+            if (storeDropdownContainer.length) {
+                storeDropdownContainer.show();
+            }
+            if (modeBadge.length) {
+                modeBadge.hide();
+            }
+        }
+
+        function setForgotPasswordProcessing(isProcessing) {
+            var button = $('#forgotpassword');
+            var progress = $('#forgotPasswordProgress');
+
+            if (isProcessing) {
+                button.prop('disabled', true).text('Processing...');
+                progress.show();
+                return;
+            }
+
+            button.prop('disabled', false).text('Reset my Password');
+            progress.hide();
+        }
+
         $(document).ready(function ()
         {
             $('#information').hide();
+
+            let storeLookupTimer;
+            $('#tenantEmail').on('input', function () {
+                clearTimeout(storeLookupTimer);
+                storeLookupTimer = setTimeout(function () {
+                    BindTenantStores();
+                }, 120);
+            });
+
+            $('#tenantEmail').on('change blur', function () {
+                clearTimeout(storeLookupTimer);
+                BindTenantStores();
+            });
+
+            $('.login-password-toggle').click(function () {
+                var field = $('#' + $(this).attr('data-password-target'));
+                var isPassword = field.attr('type') === 'password';
+                field.attr('type', isPassword ? 'text' : 'password');
+                $(this).text(isPassword ? 'HIDE' : 'SHOW');
+                var fieldName = field.attr('id') === 'newPassword' ? 'new password'
+                    : field.attr('id') === 'oldPassword' ? 'current password' : 'password';
+                $(this).attr('aria-label', (isPassword ? 'Hide ' : 'Show ') + fieldName);
+            });
+
+            $('#tenantEmail, #tenantPassword, #Store').on('keydown', function (e) {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    $('#LoginCheck').click();
+                }
+            });
+
+            syncThemeButtonText();
         });
-        $("#forgotpassword").click(function () {
+
+        var tenantStoresRequest = null;
+        var loginStoresRequest = null;
+        $("#forgotpassword").click(function (e) {
+            e.preventDefault();
             var model =
             {
                 'Email': $("#tenantforgotpasswordEmail").get(0).value,
             }
+            setForgotPasswordProcessing(true);
                                  $.ajax
                                 ({
                                     type: "GET",
                                     url: '@Url.Action("forgotpassword", "Login")',
                                     data: model,
                                          success: function (data) {
+                                        setForgotPasswordProcessing(false);
                                         $("#forgotpassword").hide();
                                              $('#information').show();
                                              $('#ForgotPassword').hide();
                                              $('#information').html("<p>" + data + "</p>");
                                              $('body').removeClass('modal-open');
                                              $('.modal-backdrop').remove();
+                                    },
+                                    error: function () {
+                                        setForgotPasswordProcessing(false);
+                                        $('#information').show();
+                                        $('#information').html("<p>Unable to process reset password request. Please try again.</p>");
                                     }
                                 })
 
@@ -154,115 +582,208 @@
                                              $('#information').html("<p>" + data + "</p>");
                                              $('body').removeClass('modal-open');
                                              $('.modal-backdrop').remove();
+
+                                            // After successful password change, redirect to login page and refresh controls
+                                            // Clear password fields and show professional login tab highlight
+                                            $('#tenantPassword').val('');
+                                            $('#newPassword').val('');
+                                            $('#oldPassword').val('');
+                                            // Close modal already done; now visually highlight Login tab
+                                            $('#loginTab').addClass('professional-active');
+                                            $('#registerTab').removeClass('professional-active');
+                                            // Optionally focus the password field for new login
+                                            setTimeout(function () { $('#tenantPassword').focus(); }, 200);
                                     }
                                 })
 
         });
         $('#LoginCheck').click(function ()
         {
-             var model = {
-                'Email': $("#tenantEmail").get(0).value
-                
-             }
-            $.ajax
-                ({
-                type: "GET",
-                url: '@Url.Action("CheckIsPasswordChangedByTenant", "Login")',
-                data: model,
-                success: function (data)
-                {
-                    if (data != null)
-                    {
-                        if (data == true)
-                        {
-                            var model = {
-                                'Email': $("#tenantEmail").get(0).value,
-                                'Password': $("#tenantPassword").get(0).value,
-                                'Store': $("#Store option:selected").val()
-                            }
-                             var newUrl= '@Url.Action("Index","Dashboard")';
-                            $.ajax
-                                ({
-                                    type: "POST",
-                                    url: '@Url.Action("Login", "Login")',
-                                    data: model,
-                                    success: function (data) {
-                                        if (data == true)
-                                            window.location.href = newUrl;
-                                        else {
-                                         $('#information').show();
-                                         $('#information').html("<p> Login Supplied was not Found... </p>");
-                                        }
-                                    }
-                                })
+            var emailElement = $("#tenantEmail").get(0);
+            var passwordElement = $("#tenantPassword").get(0);
+            var email = emailElement ? emailElement.value : "";
+            var password = passwordElement ? passwordElement.value : "";
+            var selectedStore = $("#Store option:selected").val();
 
-                        }
-                        else
-                        {
-                            $('#lblOTPInformation').html("<p>An One Time Password(OTP) has been sent to: <br>" + $("#tenantEmail").get(0).value + "</p>");
-                            $("#ChangePassword").modal("show");
-                        }
-                        
+            if (!email || email.trim().length === 0 || !password || password.trim().length === 0)
+            {
+                $('#information').show();
+                $('#information').html("<p>Please enter email and password.</p>");
+                return;
+            }
+
+            if (loginStoresRequest && loginStoresRequest.readyState !== 4) {
+                loginStoresRequest.abort();
+            }
+
+            loginStoresRequest = $.ajax({
+                type: "GET",
+                url: '@Url.Action("ResolveLoginStores", "Login")',
+                data: { email: email, password: password },
+                success: function (resolveData) {
+                    if (!resolveData || !resolveData.success) {
+                        $('#information').show();
+                        $('#information').html("<p>" + ((resolveData && resolveData.message) || "Login failed. Please check your email/password.") + "</p>");
+                        return;
                     }
+
+                    var stores = resolveData.stores || [];
+                    var role = (resolveData.role || "").toLowerCase();
+                    var isSuperAdmin = role === "superadmin";
+                    var isStoreUser = !!resolveData.isStoreUser || (role && role !== "admin" && !isSuperAdmin);
+                    var storeForLogin = selectedStore;
+
+                    if (isStoreUser) {
+                        if (stores.length > 0) {
+                            storeForLogin = stores[0];
+                            var storeDropDown = $('#Store');
+                            storeDropDown.empty();
+                            storeDropDown.append($('<option></option>').val(storeForLogin).html(storeForLogin));
+                            storeDropDown.val(storeForLogin);
+                            setLoginModeHint(true, storeForLogin, false);
+                        }
+                    } else if (isSuperAdmin) {
+                        // Super admins are global accounts with no store of their own.
+                        setLoginModeHint(false, "", true);
+                        storeForLogin = "";
+                    } else {
+                        setLoginModeHint(false, "", false);
+                        if (!storeForLogin || storeForLogin.trim().length === 0) {
+                            $('#information').show();
+                            $('#information').html("<p>Please select a store before login.</p>");
+                            return;
+                        }
+                    }
+
+                    var model = {
+                        'Email': email,
+                        'Password': password,
+                        'Store': storeForLogin
+                    };
+
+                    var newUrl = '@Url.Action("Index","Dashboard")';
+                    $.ajax({
+                        type: "POST",
+                        url: '@Url.Action("Login", "Login")',
+                        data: model,
+                        success: function (data) {
+                            if (data === "success")
+                            {
+                                window.location.href = newUrl;
+                            }
+                            else if (data === "requirePasswordChange")
+                            {
+                                $('#lblOTPInformation').html("<p>An One Time Password(OTP) has been sent to: <br>" + email + "</p>");
+                                $("#ChangePassword").modal("show");
+                            }
+                            else if (data === "storeRequired")
+                            {
+                                $('#information').show();
+                                $('#information').html("<p>Store mapping not found for this user.</p>");
+                            }
+                            else if (data === "serviceUnavailable")
+                            {
+                                $('#information').show();
+                                $('#information').html("<p>The login service is unavailable. Please try again shortly.</p>");
+                            }
+                            else if (typeof data === "string" && data.indexOf("notApproved|") === 0)
+                            {
+                                var blockedMessage = data.substring("notApproved|".length);
+                                $('#information').show();
+                                $('#information').text(blockedMessage);
+                            }
+                            else
+                            {
+                                $('#information').show();
+                                $('#information').html("<p>Login failed. Please check your email/password.</p>");
+                            }
+                        },
+                        error: function () {
+                            $('#information').show();
+                            $('#information').html("<p>Login failed. Please check your email/password.</p>");
+                        }
+                    });
+                },
+                error: function () {
+                    $('#information').show();
+                    $('#information').html("<p>Login failed. Please check your email/password.</p>");
                 }
-            })
+            });
         });
          function BindTenantStores()
          {
                 var tenantEmail = $("#tenantEmail").get(0).value;
-                var url = "/Login/GetAllStoresByTenant?tenantUrl" + tenantEmail;
+                var emailPattern = /^[^\s\x40]+\x40[^\s\x40]+\.[^\s\x40]+$/;
+                if (!tenantEmail || tenantEmail.trim().length === 0)
+                {
+                    $('#Store').empty();
+                    $('#Store').append($('<option></option>').val('').html('Select a Store...'));
+                    $('#LoginCheck').prop('disabled', true);
+                    return;
+                }
+
+                if (!emailPattern.test(tenantEmail.trim()))
+                {
+                    $('#Store').empty();
+                    $('#Store').append($('<option></option>').val('').html('Select a Store...'));
+                    $('#LoginCheck').prop('disabled', true);
+                    return;
+                }
+
                 var model = {
                     'tenantEmail': $("#tenantEmail").get(0).value,
              }
-                $.ajax({
+                if (tenantStoresRequest && tenantStoresRequest.readyState !== 4) {
+                    tenantStoresRequest.abort();
+                }
+
+                $('#Store').empty();
+                $('#Store').append($('<option></option>').val('').html('Loading stores...'));
+
+                tenantStoresRequest = $.ajax({
                     type: "GET",
-                    url: '@Url.Action("CheckTenantEmail", "Login")',
+                    url: '@Url.Action("GetAllStoresByTenant", "Login")',
                     data: model,
                     success: function (data) {
-                        if (data > 0)
+                        var mySelect = $('#Store');
+                        mySelect.empty();
+                        mySelect.append($('<option></option>').val('').html('Select a Store...'));
+
+                        if (data === 'superadmin')
                         {
                             $('#tenantPassword').focus();
-                            $('#Store').empty();
                             $('#information').empty();
                             $('#information').hide();
-                            $('#login').prop('disabled', false);
-                            $.ajax({
-                                type: "GET",
-                                url: '@Url.Action("GetAllStoresByTenant", "Login")',
-                                data: model,
-                                success: function (data)
-                                {
-                                    if (data.length > 0)
-                                    {
-                                    var stores = data.split(',');
-                                    var mySelect = $('#Store');
-                                    $.each(stores, function (val,text) {
-                                    mySelect.append(
-                                    $('<option></option>').val(text).html(text)
-                                 );
-                             });
-                         }
-                     },
-                     error: function () {
-                         BootstrapDialog.show({
-                             title: 'Warning Alert',
-                             message: 'Error occurred while processing your request.',
-                             buttons: [{
-                                 label: 'OK',
-                                 cssClass: 'btn btn-success btn-middle',
-                                 action: function (dialog) {
-                                     dialog.close();
-                                 }
-                             }]
-                         });
-                     }
-                 });
+                            setLoginModeHint(false, "", true);
+                            $('#LoginCheck').prop('disabled', false);
+                            return;
                         }
-                        else if (data == 0)
+
+                        if (data && data.length > 0)
                         {
-                            $('#information').show();
-                            $('#information').html("<p>The Email supplied was not found.Please Register with us.</p>");
-                            $('#login').prop('disabled', true);
+                            $('#tenantPassword').focus();
+                            $('#information').empty();
+                            $('#information').hide();
+                            setLoginModeHint(false, "", false);
+                            $('#LoginCheck').prop('disabled', false);
+
+                            var stores = data.split(',');
+                            var uniqueStores = [];
+
+                            $.each(stores, function (_, text) {
+                                var store = text ? text.trim() : '';
+                                if (store.length > 0 && $.inArray(store, uniqueStores) === -1) {
+                                    uniqueStores.push(store);
+                                    mySelect.append($('<option></option>').val(store).html(store));
+                                }
+                            });
+                        }
+                        else
+                        {
+                            $('#information').hide();
+                            $('#information').empty();
+                            setLoginModeHint(true, "", false);
+                            $('#LoginCheck').prop('disabled', false);
                         }
                     },
                     error: function () {

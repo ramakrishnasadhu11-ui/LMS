@@ -22,6 +22,9 @@ namespace LMS.Master.DTO
         /// </summary>
         [StringLength(maximumLength: int.MaxValue)]
         public string CustCode { get; set; }
+
+        [StringLength(maximumLength: int.MaxValue)]
+        public string CustomerName { get; set; }
        
         /// <summary>
         ///  TenantName
@@ -51,12 +54,16 @@ namespace LMS.Master.DTO
         /// <summary>
         ///  PhoneNumber
         /// </summary>
-        public int PhoneNumber {get;set;}
+        public string PhoneNumber { get; set; }
 
         /// <summary>
         ///  Address
         /// </summary>
          public string Address {get;set;}
+
+        // MembershipId removed system-wide
+
+        public string BarCode { get; set; }
 
         /// <summary>
         ///  Country

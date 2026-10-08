@@ -1,0 +1,293 @@
+@model LMSWebUI.Models.Admin.BarcodeTagSettingsViewModel
+@using Newtonsoft.Json
+@{
+    ViewData["Title"] = "Barcode / Tag Settings";
+    Layout = "~/Views/Shared/_HeaderMenuItemsLayout.cshtml";
+}
+
+<style>
+.tag-settings-page,
+.tag-settings-page input,
+.tag-settings-page button,
+.tag-settings-page label,
+.tag-settings-page textarea,
+.tag-settings-page select {
+    font-family: Arial, Helvetica, sans-serif;
+}
+
+.tag-settings-page { padding: 20px; }
+.tag-settings-box {
+    max-width: 980px;
+    margin: 0 auto;
+    background: var(--els-surface);
+    border-radius: 10px;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+    overflow: hidden;
+}
+.tag-settings-title {
+    background: linear-gradient(90deg, var(--els-primary) 0%, var(--els-primary-dark) 100%);
+    color: #fff;
+    padding: 14px 20px;
+    font-size: 20px;
+    font-weight: 600;
+}
+.tag-settings-body { padding: 20px; }
+.tag-settings-note {
+    border: 1px solid var(--els-border);
+    border-radius: 8px;
+    background: var(--els-accent);
+    padding: 12px;
+    margin-bottom: 16px;
+    color: var(--els-text);
+}
+.tag-section-title {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--els-text);
+    margin: 18px 0 8px;
+}
+.tag-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 14px;
+}
+.tag-field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+.tag-field label { font-weight: 600; color: var(--els-text); }
+.tag-input,
+.tag-textarea {
+    border: 1px solid var(--els-border);
+    border-radius: 8px;
+    min-height: 40px;
+    padding: 8px 10px;
+    background: var(--els-background);
+    color: var(--els-text);
+}
+.tag-textarea { min-height: 88px; resize: vertical; }
+.tag-check { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
+.tag-preview {
+    margin-top: 12px;
+    border: 1px solid var(--els-border);
+    border-radius: 8px;
+    background: #f8fafc;
+    padding: 10px 12px;
+    font-size: 13px;
+    color: var(--els-text);
+}
+.tag-label-preview {
+    margin-top: 10px;
+    width: 230px;
+    border: 1px dashed var(--els-border);
+    border-radius: 8px;
+    background: #fff;
+    padding: 10px 12px;
+    text-align: center;
+}
+.tag-label-store { font-size: 12px; font-weight: 700; color: var(--els-text); }
+.tag-label-code {
+    font-size: 18px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    margin: 6px 0;
+    color: var(--els-text);
+}
+.tag-label-bars {
+    height: 38px;
+    margin: 6px 0;
+    background-image: repeating-linear-gradient(90deg, #111 0 2px, #fff 2px 4px, #111 4px 5px, #fff 5px 9px);
+}
+.tag-label-foot { font-size: 11px; color: #64748b; }
+.validation-summary-errors,
+.field-validation-error { color: #b91c1c; font-size: 13px; }
+.tag-actions {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-top: 18px;
+}
+.tag-btn {
+    min-width: 180px;
+    min-height: 42px;
+    border: 1px solid transparent;
+    border-radius: 8px;
+    background: linear-gradient(180deg, var(--els-primary-light) 0%, var(--els-primary) 100%);
+    color: #fff;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.toast-message {
+    position: fixed;
+    right: 24px;
+    top: 80px;
+    z-index: 9999;
+    min-width: 260px;
+    max-width: 380px;
+    padding: 12px 16px;
+    border-radius: 8px;
+    color: #fff;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
+    font-weight: 600;
+    display: none;
+}
+
+.toast-message.success { background: #2f8f46; }
+.toast-message.error { background: #b63838; }
+</style>
+
+@if (TempData["UserMessage"] != null)
+{
+    var tagSettingsMessage = JsonConvert.DeserializeObject<LMSWebUI.Models.MessageDto>(Convert.ToString(TempData["UserMessage"]));
+    var isSuccessMessage = (tagSettingsMessage.CssClassName ?? string.Empty).Contains("success");
+
+    @* The page shows a floating toast, so remove the message to avoid a duplicate alert bar. *@
+    TempData.Remove("UserMessage");
+
+    <script type="text/javascript">
+        window.tagSettingsToastMessage = '@Html.Raw(System.Text.Encodings.Web.JavaScriptEncoder.Default.Encode(tagSettingsMessage.DisplayMessage ?? string.Empty))';
+        window.tagSettingsToastIsSuccess = @(isSuccessMessage ? "true" : "false");
+    </script>
+}
+
+<div id="tagSettingsToast" class="toast-message"></div>
+
+<section class="tag-settings-page">
+    <div class="tag-settings-box">
+        <div class="tag-settings-title">Barcode / Tag Settings</div>
+        <div class="tag-settings-body">
+            <div class="tag-settings-note">
+                <div><b>Company:</b> @Model.CompanyName</div>
+                <div><b>Tenant:</b> @Model.TenantName</div>
+                <div><b>Store:</b> @Model.StoreCode</div>
+                <div style="margin-top:6px;">Set the tag numbering format used when printing barcode tags for this store. Tag numbers are generated from the prefix, an optional year segment and a running number.</div>
+            </div>
+
+            <form asp-action="BarcodeTagSettings" asp-controller="Customer" method="post">
+                @Html.AntiForgeryToken()
+                <input type="hidden" asp-for="TenantName" />
+                <input type="hidden" asp-for="StoreCode" />
+                <div asp-validation-summary="ModelOnly" class="validation-summary-errors"></div>
+
+                <div class="tag-section-title">Tagging</div>
+
+                <div class="tag-check">
+                    <input asp-for="EnableTagging" id="enableTagging" />
+                    <label asp-for="EnableTagging"></label>
+                </div>
+
+                <div class="tag-section-title">Tag Numbering</div>
+
+                <div class="tag-grid">
+                    <div class="tag-field">
+                        <label asp-for="TagPrefix"></label>
+                        <input asp-for="TagPrefix" id="tagPrefix" class="tag-input" maxlength="16" />
+                        <small style="color:#64748b;">Derived from your registered company name (@Model.CompanyName) and store code (@Model.StoreCode). You can change the prefix if needed.</small>
+                        <span asp-validation-for="TagPrefix"></span>
+                    </div>
+
+                    <div class="tag-field">
+                        <label asp-for="NextTagNumber"></label>
+                        <input asp-for="NextTagNumber" id="nextTagNumber" class="tag-input" type="number" min="1" />
+                        <span asp-validation-for="NextTagNumber"></span>
+                    </div>
+
+                    <div class="tag-field">
+                        <label asp-for="TagNumberPadding"></label>
+                        <input asp-for="TagNumberPadding" id="tagNumberPadding" class="tag-input" type="number" min="1" max="12" />
+                        <span asp-validation-for="TagNumberPadding"></span>
+                    </div>
+                </div>
+
+                <div class="tag-check">
+                    <input asp-for="ResetTagNumberYearly" id="resetTagNumberYearly" />
+                    <label asp-for="ResetTagNumberYearly"></label>
+                </div>
+
+                <div class="tag-preview" id="tagNumberPreview"></div>
+
+                <div class="tag-label-preview">
+                    <div class="tag-label-store">@Model.CompanyName</div>
+                    <div class="tag-label-bars"></div>
+                    <div class="tag-label-code" id="tagLabelCode"></div>
+                    <div class="tag-label-foot">Store @Model.StoreCode</div>
+                </div>
+
+                <div class="tag-section-title">Notes</div>
+
+                <div class="tag-field">
+                    <label asp-for="Notes"></label>
+                    <textarea asp-for="Notes" class="tag-textarea" maxlength="300"></textarea>
+                    <span asp-validation-for="Notes"></span>
+                </div>
+
+                <div class="tag-actions">
+                    <button type="submit" class="tag-btn">Save Barcode / Tag Settings</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</section>
+
+<script type="text/javascript">
+    (function () {
+        var toast = document.getElementById('tagSettingsToast');
+        if (toast && window.tagSettingsToastMessage) {
+            toast.textContent = window.tagSettingsToastMessage;
+            toast.classList.add(window.tagSettingsToastIsSuccess ? 'success' : 'error');
+            toast.style.display = 'block';
+            setTimeout(function () { toast.style.display = 'none'; }, 4000);
+        }
+
+        var prefix = document.getElementById('tagPrefix');
+        var nextNumber = document.getElementById('nextTagNumber');
+        var padding = document.getElementById('tagNumberPadding');
+        var resetYearly = document.getElementById('resetTagNumberYearly');
+        var enableTagging = document.getElementById('enableTagging');
+        var preview = document.getElementById('tagNumberPreview');
+        var labelCode = document.getElementById('tagLabelCode');
+
+        function buildSampleTag() {
+            var prefixValue = (prefix.value || '').trim().toUpperCase();
+            var numberValue = parseInt(nextNumber.value, 10);
+            var paddingValue = parseInt(padding.value, 10);
+
+            if (isNaN(numberValue) || numberValue < 1) { numberValue = 1; }
+            if (isNaN(paddingValue) || paddingValue < 1 || paddingValue > 12) { paddingValue = 4; }
+
+            var running = String(numberValue);
+            while (running.length < paddingValue) { running = '0' + running; }
+
+            var parts = [];
+            if (prefixValue) { parts.push(prefixValue.replace(/-+$/, '')); }
+            if (resetYearly.checked) { parts.push(new Date().getFullYear()); }
+            parts.push(running);
+
+            return parts.join('-');
+        }
+
+        function refreshPreview() {
+            var sample = buildSampleTag();
+            labelCode.textContent = sample;
+
+            if (!enableTagging.checked) {
+                preview.innerHTML = 'Tag printing is turned off. Orders will not get barcode tags.';
+                return;
+            }
+
+            preview.innerHTML = 'Next tag will be printed as <b>' + sample + '</b>.'
+                + (resetYearly.checked ? ' The running number restarts each year.' : ' The running number continues across years.');
+        }
+
+        [prefix, nextNumber, padding].forEach(function (el) {
+            el.addEventListener('input', refreshPreview);
+        });
+        [resetYearly, enableTagging].forEach(function (el) {
+            el.addEventListener('change', refreshPreview);
+        });
+
+        refreshPreview();
+    })();
+</script>

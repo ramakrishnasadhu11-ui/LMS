@@ -1,15 +1,24 @@
 ﻿using AutoMapper;
 using Lamar;
+using LMS.Identity.BusinessSerive.Data;
 using LMS.Identity.BusinessSerive.Mapper;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
+<<<<<<< Updated upstream
 using Swashbuckle.AspNetCore.Swagger;
+=======
+using Microsoft.EntityFrameworkCore;
+using LMS.Core.Repository.UnitOfWork;
+using Microsoft.OpenApi.Models;
+>>>>>>> Stashed changes
 using System;
 using System.IO;
 using System.Reflection;
+using LMS.Identity.BusinessSerive.Services;
 using static LMS.Identity.BusinessSerive.Services.LoginService;
 using IConfiguration = Microsoft.Extensions.Configuration.IConfiguration;
 namespace LMS.Identity.WebApi
@@ -28,19 +37,20 @@ namespace LMS.Identity.WebApi
              services.AddMvc()
                      .SetCompatibilityVersion(CompatibilityVersion.Version_2_2);
 
-             LamarConfig.RegisterContainer(services);
+             services.AddDbContext<IdentityDbContext>(options =>
+                 options.UseSqlServer(Configuration.GetConnectionString("IdentityDb")));
+            // Register unit of work for IdentityDbContext so services can depend on IUnitOfWork<IdentityDbContext>
+            services.AddUnitOfWork<IdentityDbContext>();
 
-            //var tenantRegistryOptions = Configuration.GetSection(TenantRegistryOptions.TenantRegistryConnection).Get<TenantRegistryOptions>();
-            //services.AddSingleton(tenantRegistryOptions);
-             services.Configure<TenantRegistryConnection>(
-                          Configuration.GetSection(nameof(TenantRegistryConnection)));
-             services.AddSingleton<ITenantRegistryConnection>(sp =>
-                sp.GetRequiredService<IOptions<TenantRegistryConnection>>().Value);
+             LamarConfig.RegisterContainer(services);
 
              services.Configure<MailConfiguration>(
                           Configuration.GetSection(nameof(MailConfiguration)));
              services.AddSingleton<IMailConfiguration>(sp =>
                 sp.GetRequiredService<IOptions<MailConfiguration>>().Value);
+
+            // Register logging for LoginService via DI so ILogger<LoginService> can be injected
+            services.AddLogging();
 
            
             var xmlFile = $"{Assembly.GetExecutingAssembly().GetName().Name}.xml";
@@ -54,8 +64,15 @@ namespace LMS.Identity.WebApi
                         Title = "LMS Identity API",
                         Description = "LMS Identity API"
                     });
-                c.IncludeXmlComments(xmlPath);
-                c.IncludeXmlComments(xmlPathModel);
+                if (File.Exists(xmlPath))
+                {
+                    c.IncludeXmlComments(xmlPath);
+                }
+
+                if (File.Exists(xmlPathModel))
+                {
+                    c.IncludeXmlComments(xmlPathModel);
+                }
             });
             var mappingConfig = new MapperConfiguration(mc =>
             {
@@ -66,7 +83,20 @@ namespace LMS.Identity.WebApi
 
              services.AddCors(c =>
             {
-                c.AddPolicy("AllowOrigin", options => options.AllowAnyOrigin().AllowAnyHeader().AllowAnyMethod());
+                var allowed = Configuration["Cors:AllowedOrigins"];
+                c.AddPolicy("AllowUI", options =>
+                {
+                    if (string.IsNullOrWhiteSpace(allowed) || allowed == "*")
+                    {
+                        options.AllowAnyOrigin().AllowAnyHeader().AllowAnyMethod();
+                    }
+                    else
+                    {
+                        options.WithOrigins(allowed.Split(';', System.StringSplitOptions.RemoveEmptyEntries))
+                               .AllowAnyHeader()
+                               .AllowAnyMethod();
+                    }
+                });
             });
        
         }
@@ -88,9 +118,26 @@ namespace LMS.Identity.WebApi
                 c.SwaggerEndpoint("../swagger/v1/swagger.json", "My First Swagger");
             });
 
+            using (var scope = app.ApplicationServices.CreateScope())
+            {
+                var dbContext = scope.ServiceProvider.GetRequiredService<IdentityDbContext>();
+                // Do not fall back to EnsureCreated: it does not apply migrations to
+                // an existing database. Let migration failures stop startup visibly.
+                dbContext.Database.Migrate();
+
+                SuperAdminSeeder.Seed(dbContext, Configuration);
+            }
+
             app.UseHttpsRedirection();
+<<<<<<< Updated upstream
             app.UseMvc();
              app.UseSwagger();
+=======
+            app.UseRouting();
+            app.UseCors("AllowUI");
+            app.UseEndpoints(endpoints => endpoints.MapControllers());
+            app.UseSwagger();
+>>>>>>> Stashed changes
             app.UseSwaggerUI(c =>
             {
                 if (env.IsDevelopment())

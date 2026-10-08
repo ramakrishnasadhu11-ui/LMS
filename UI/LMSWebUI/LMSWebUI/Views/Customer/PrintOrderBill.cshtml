@@ -1,0 +1,356 @@
+@model LMSWebUI.Models.Customer.OrderCompletionContextDto
+@{
+    Layout = null;
+    var autoPrint = Convert.ToBoolean(ViewData["AutoPrint"] ?? false);
+    var downloadMode = Convert.ToBoolean(ViewData["DownloadMode"] ?? false);
+    var invoiceNo = string.IsNullOrWhiteSpace(Model?.InvoiceNo) ? Model?.OrderNo : Model.InvoiceNo;
+    var issueDate = (Model?.CreatedDate ?? DateTime.UtcNow);
+    var dueDate = issueDate;
+    var subTotal = (Model?.OrderAmount ?? 0);
+    var tax = (Model?.TaxAmount ?? 0);
+    var advanceUsed = (Model?.AdvanceUsed ?? 0);
+    var paidNow = (Model?.PaidNow ?? 0);
+    var pendingAmount = (Model?.PendingAmount ?? Model?.NetPayable ?? 0);
+    var totalDue = (Model?.NetPayable ?? 0);
+    var tenantNameRaw = (Model?.TenantName ?? string.Empty).Trim();
+    var companyName = string.IsNullOrWhiteSpace(tenantNameRaw)
+        ? "YOUR COMPANY NAME"
+        : (tenantNameRaw.Contains("@") ? tenantNameRaw.Split('@')[0].Replace('.', ' ').Replace('_', ' ') : tenantNameRaw);
+}
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <title>Invoice @invoiceNo</title>
+    <style>
+        :root {
+            --inv-primary: #1f4e79;
+            --inv-primary-soft: #eaf2fb;
+            --inv-text: #1f2937;
+            --inv-muted: #6b7280;
+            --inv-border: #dbe3ec;
+            --inv-bg: #f4f7fb;
+        }
+
+        body {
+            font-family: "Segoe UI", Arial, Helvetica, sans-serif;
+            margin: 0;
+            color: var(--inv-text);
+            background: var(--inv-bg);
+        }
+
+        .invoice-wrap {
+            width: 900px;
+            max-width: calc(100% - 24px);
+            margin: 18px auto;
+            background: #fff;
+            border: 1px solid var(--inv-border);
+            border-radius: 10px;
+            box-shadow: 0 8px 30px rgba(15, 23, 42, 0.08);
+            padding: 22px 26px 24px;
+        }
+
+        .noprint { margin-bottom: 10px; }
+        .noprint button {
+            background: var(--inv-primary);
+            border: none;
+            color: #fff;
+            padding: 8px 14px;
+            border-radius: 6px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+        .topbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            border-bottom: 2px solid var(--inv-primary);
+            padding-bottom: 12px;
+            margin-bottom: 16px;
+        }
+
+        .invoice-title {
+            margin: 0;
+            font-size: 34px;
+            font-weight: 800;
+            color: #0f172a;
+            letter-spacing: 0.8px;
+        }
+
+        .company-block {
+            text-align: right;
+            font-size: 12px;
+            color: var(--inv-muted);
+            line-height: 1.55;
+        }
+
+        .company-block .name {
+            display: block;
+            color: var(--inv-primary);
+            font-size: 16px;
+            font-weight: 800;
+            margin-bottom: 2px;
+        }
+
+        .meta-grid {
+            display: grid;
+            grid-template-columns: 1.2fr 1.2fr 0.9fr;
+            gap: 12px;
+        }
+
+        .meta-card {
+            border: 1px solid var(--inv-border);
+            border-radius: 8px;
+            background: #fff;
+            padding: 12px;
+            min-height: 108px;
+        }
+
+        .meta-label {
+            margin: 0 0 7px 0;
+            font-size: 11px;
+            letter-spacing: 0.5px;
+            color: var(--inv-muted);
+            font-weight: 700;
+        }
+
+        .meta-main {
+            font-size: 15px;
+            font-weight: 700;
+            color: #0f172a;
+            margin-bottom: 6px;
+            text-transform: uppercase;
+        }
+
+        .meta-text { font-size: 13px; line-height: 1.5; }
+
+        .date-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 0;
+            border-bottom: 1px dashed var(--inv-border);
+            font-size: 13px;
+        }
+
+        .date-row:last-child { border-bottom: none; }
+        .date-row .k { color: var(--inv-muted); font-weight: 700; }
+        .date-row .v { font-weight: 700; color: #0f172a; }
+
+        .items-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 16px;
+            border: 1px solid var(--inv-border);
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        .items-table th {
+            background: var(--inv-primary-soft);
+            color: #0f172a;
+            font-weight: 700;
+            font-size: 13px;
+            text-align: left;
+            padding: 10px 9px;
+            border-bottom: 1px solid var(--inv-border);
+        }
+
+        .items-table td {
+            border-bottom: 1px solid #edf1f6;
+            padding: 9px;
+            font-size: 13px;
+            vertical-align: top;
+        }
+
+        .items-table tbody tr:nth-child(even) { background: #fbfdff; }
+        .items-table .num { text-align: right; }
+
+        .summary-wrap {
+            margin-top: 16px;
+            display: flex;
+            justify-content: flex-end;
+        }
+
+        .summary-box {
+            width: 320px;
+            border: 1px solid var(--inv-border);
+            border-radius: 8px;
+            overflow: hidden;
+            background: #fff;
+        }
+
+        .summary-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 10px 12px;
+            border-bottom: 1px solid var(--inv-border);
+            font-size: 14px;
+        }
+
+        .summary-row.total {
+            border-bottom: none;
+            background: var(--inv-primary-soft);
+            font-size: 17px;
+            font-weight: 800;
+            color: #0f172a;
+        }
+
+        .payment-info {
+            margin-top: 20px;
+            border: 1px solid var(--inv-border);
+            border-radius: 8px;
+            padding: 10px 12px;
+            font-size: 13px;
+            background: #fff;
+        }
+
+        .payment-info .label { color: var(--inv-muted); font-weight: 700; }
+
+        .footer-note {
+            margin-top: 18px;
+            text-align: center;
+            color: var(--inv-primary);
+            font-size: 15px;
+            font-weight: 700;
+        }
+
+        @@media print {
+            .noprint { display: none; }
+            body { background: #fff; }
+            .invoice-wrap {
+                margin: 0;
+                width: auto;
+                max-width: none;
+                box-shadow: none;
+                border-radius: 0;
+                border: none;
+                padding: 10px 12px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="invoice-wrap">
+        <div class="noprint"><button onclick="window.print()">Print / Save PDF</button></div>
+        @if (downloadMode)
+        {
+            <div class="noprint" style="font-size:12px; color:#475467; margin-bottom:8px;">Use destination <b>Save as PDF</b> in the print dialog to download this invoice with the same layout.</div>
+        }
+
+        <div class="topbar">
+            <h1 class="invoice-title">INVOICE</h1>
+            <div class="company-block">
+                <span class="name">@companyName</span>
+                Store: @Model?.StoreCode<br />
+                Invoice No: @invoiceNo<br />
+                Order No: @Model?.OrderNo
+            </div>
+        </div>
+
+        <div class="meta-grid">
+            <div class="meta-card">
+                <p class="meta-label">BILL FROM</p>
+                <div class="meta-main">@companyName</div>
+                <div class="meta-text">
+                    Store: @Model?.StoreCode<br />
+                    Service: @Model?.ServiceType
+                </div>
+            </div>
+            <div class="meta-card">
+                <p class="meta-label">BILL TO</p>
+                <div class="meta-main">@Model?.CustomerName</div>
+                <div class="meta-text">
+                    Customer Code: @Model?.CustCode<br />
+                    Order Mode: @Model?.OrderMode
+                </div>
+            </div>
+            <div class="meta-card">
+                <div class="date-row">
+                    <span class="k">ISSUE DATE</span>
+                    <span class="v">@issueDate.ToString("dd/MM/yyyy")</span>
+                </div>
+                <div class="date-row">
+                    <span class="k">DUE DATE</span>
+                    <span class="v">@dueDate.ToString("dd/MM/yyyy")</span>
+                </div>
+            </div>
+        </div>
+
+        <table class="items-table">
+            <thead>
+                <tr>
+                    <th>Description</th>
+                    <th class="num">Price</th>
+                    <th class="num">QTY</th>
+                    <th class="num">Total</th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (Model?.Items != null && Model.Items.Count > 0)
+                {
+                    foreach (var item in Model.Items)
+                    {
+                        var lineTotal = item.UnitPrice * item.Quantity;
+                        <tr>
+                            <td>@item.ItemName @(string.IsNullOrWhiteSpace(item.TagNo) ? string.Empty : $"(Tag: {item.TagNo})")</td>
+                            <td class="num">@item.UnitPrice.ToString("0.00")</td>
+                            <td class="num">@item.Quantity</td>
+                            <td class="num">@lineTotal.ToString("0.00")</td>
+                        </tr>
+                    }
+                }
+                else
+                {
+                    <tr><td colspan="4">No line items available.</td></tr>
+                }
+            </tbody>
+        </table>
+
+        <div class="summary-wrap">
+            <div class="summary-box">
+                <div class="summary-row">
+                    <span>Subtotal</span>
+                    <span>@subTotal.ToString("0.00")</span>
+                </div>
+                <div class="summary-row">
+                    <span>Tax</span>
+                    <span>@tax.ToString("0.00")</span>
+                </div>
+                <div class="summary-row">
+                    <span>Advance Utilized (-)</span>
+                    <span>@advanceUsed.ToString("0.00")</span>
+                </div>
+                <div class="summary-row">
+                    <span>Paid Now (-)</span>
+                    <span>@paidNow.ToString("0.00")</span>
+                </div>
+                <div class="summary-row">
+                    <span>Pending Amount</span>
+                    <span>@pendingAmount.ToString("0.00")</span>
+                </div>
+                <div class="summary-row total">
+                    <span>Total Due</span>
+                    <span>@totalDue.ToString("0.00")</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="payment-info">
+            <span class="label">Payment Information:</span> @Model?.OrderMode / @Model?.ServiceType / Mode: @Model?.PaymentMode / Advance Used: @advanceUsed.ToString("0.00") / Paid Now: @paidNow.ToString("0.00") / Pending: @pendingAmount.ToString("0.00")
+        </div>
+
+        <div class="footer-note">
+            Thank you for your business!
+        </div>
+    </div>
+
+    @if (autoPrint)
+    {
+        <script>
+            window.onload = function () { setTimeout(function(){ window.print(); }, 150); };
+        </script>
+    }
+</body>
+</html>

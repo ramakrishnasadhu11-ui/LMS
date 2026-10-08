@@ -1,0 +1,268 @@
+@model LMSWebUI.Models.Admin.WorkflowStatusSettingsViewModel
+@using Newtonsoft.Json
+@{
+    ViewData["Title"] = "Workflow Status Settings";
+    Layout = "~/Views/Shared/_HeaderMenuItemsLayout.cshtml";
+}
+
+<style>
+.wf-settings-page,
+.wf-settings-page input,
+.wf-settings-page button,
+.wf-settings-page label,
+.wf-settings-page select {
+    font-family: Arial, Helvetica, sans-serif;
+}
+
+.wf-settings-page { padding: 20px; }
+.wf-settings-box {
+    max-width: 1060px;
+    margin: 0 auto;
+    background: var(--els-surface);
+    border-radius: 10px;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+    overflow: hidden;
+}
+.wf-settings-title {
+    background: linear-gradient(90deg, var(--els-primary) 0%, var(--els-primary-dark) 100%);
+    color: #fff;
+    padding: 14px 20px;
+    font-size: 20px;
+    font-weight: 600;
+}
+.wf-settings-body { padding: 20px; }
+.wf-settings-note {
+    border: 1px solid var(--els-border);
+    border-radius: 8px;
+    background: var(--els-accent);
+    padding: 12px;
+    margin-bottom: 16px;
+    color: var(--els-text);
+}
+.wf-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 10px;
+}
+.wf-table th,
+.wf-table td {
+    border: 1px solid var(--els-border);
+    padding: 8px;
+    text-align: left;
+    color: var(--els-text);
+    vertical-align: middle;
+}
+.wf-table th {
+    background: var(--els-accent);
+    font-size: 13px;
+    font-weight: 700;
+}
+.wf-input {
+    width: 100%;
+    border: 1px solid var(--els-border);
+    border-radius: 8px;
+    min-height: 38px;
+    padding: 6px 8px;
+    background: var(--els-background);
+    color: var(--els-text);
+}
+.wf-input.order { max-width: 90px; }
+.wf-color { width: 56px; min-height: 38px; padding: 2px; border: 1px solid var(--els-border); border-radius: 8px; background: var(--els-background); }
+.wf-center { text-align: center; }
+.validation-summary-errors,
+.field-validation-error { color: #b91c1c; font-size: 13px; }
+.wf-actions {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-top: 18px;
+}
+.wf-btn {
+    min-width: 170px;
+    min-height: 42px;
+    border: 1px solid transparent;
+    border-radius: 8px;
+    background: linear-gradient(180deg, var(--els-primary-light) 0%, var(--els-primary) 100%);
+    color: #fff;
+    font-weight: 600;
+    cursor: pointer;
+}
+.wf-btn.secondary { background: linear-gradient(180deg, #8f99a4 0%, #6f7a86 100%); }
+.wf-btn.remove {
+    min-width: 90px;
+    min-height: 34px;
+    background: linear-gradient(180deg, #d06a6a 0%, #b63838 100%);
+}
+
+.toast-message {
+    position: fixed;
+    right: 24px;
+    top: 80px;
+    z-index: 9999;
+    min-width: 260px;
+    max-width: 380px;
+    padding: 12px 16px;
+    border-radius: 8px;
+    color: #fff;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
+    font-weight: 600;
+    display: none;
+}
+
+.toast-message.success { background: #2f8f46; }
+.toast-message.error { background: #b63838; }
+</style>
+
+@if (TempData["UserMessage"] != null)
+{
+    var workflowMessage = JsonConvert.DeserializeObject<LMSWebUI.Models.MessageDto>(Convert.ToString(TempData["UserMessage"]));
+    var isSuccessMessage = (workflowMessage.CssClassName ?? string.Empty).Contains("success");
+
+    @* The page shows a floating toast, so remove the message to avoid a duplicate alert bar. *@
+    TempData.Remove("UserMessage");
+
+    <script type="text/javascript">
+        window.workflowToastMessage = '@Html.Raw(System.Text.Encodings.Web.JavaScriptEncoder.Default.Encode(workflowMessage.DisplayMessage ?? string.Empty))';
+        window.workflowToastIsSuccess = @(isSuccessMessage ? "true" : "false");
+    </script>
+}
+
+<div id="workflowToast" class="toast-message"></div>
+
+<section class="wf-settings-page">
+    <div class="wf-settings-box">
+        <div class="wf-settings-title">Workflow Status Settings</div>
+        <div class="wf-settings-body">
+            <div class="wf-settings-note">
+                <div><b>Company:</b> @Model.CompanyName</div>
+                <div><b>Tenant:</b> @Model.TenantName</div>
+                <div><b>Store:</b> @Model.StoreCode</div>
+                <div style="margin-top:6px;">Define the order lifecycle for this store. New orders start in the status marked as default. Final statuses close the order lifecycle.</div>
+            </div>
+
+            <form asp-action="WorkflowStatusSettings" asp-controller="Customer" method="post" id="workflowForm">
+                @Html.AntiForgeryToken()
+                <input type="hidden" asp-for="TenantName" />
+                <input type="hidden" asp-for="StoreCode" />
+                <div asp-validation-summary="ModelOnly" class="validation-summary-errors"></div>
+
+                <table class="wf-table">
+                    <thead>
+                        <tr>
+                            <th style="width:90px;">Order</th>
+                            <th>Status Name</th>
+                            <th style="width:90px;">Colour</th>
+                            <th style="width:110px;" class="wf-center">Default</th>
+                            <th style="width:100px;" class="wf-center">Final</th>
+                            <th style="width:90px;" class="wf-center">Active</th>
+                            <th style="width:110px;" class="wf-center">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody id="workflowRows">
+                        @for (var i = 0; i < Model.Statuses.Count; i++)
+                        {
+                            <tr>
+                                <td>
+                                    <input asp-for="Statuses[i].SortOrder" class="wf-input order" type="number" min="1" max="999" />
+                                </td>
+                                <td>
+                                    <input asp-for="Statuses[i].StatusName" class="wf-input" maxlength="64" />
+                                    <span asp-validation-for="Statuses[i].StatusName"></span>
+                                </td>
+                                <td>
+                                    <input asp-for="Statuses[i].ColorCode" class="wf-color" type="color" />
+                                </td>
+                                <td class="wf-center">
+                                    <input asp-for="Statuses[i].IsDefault" class="wf-default" />
+                                </td>
+                                <td class="wf-center">
+                                    <input asp-for="Statuses[i].IsFinal" />
+                                </td>
+                                <td class="wf-center">
+                                    <input asp-for="Statuses[i].IsActive" />
+                                </td>
+                                <td class="wf-center">
+                                    <button type="button" class="wf-btn remove" onclick="removeWorkflowRow(this);">Remove</button>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+
+                <div class="wf-actions">
+                    <button type="button" class="wf-btn secondary" onclick="addWorkflowRow();">Add Status</button>
+                    <button type="submit" class="wf-btn">Save Workflow Settings</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</section>
+
+<script type="text/javascript">
+    (function () {
+        var toast = document.getElementById('workflowToast');
+        if (toast && window.workflowToastMessage) {
+            toast.textContent = window.workflowToastMessage;
+            toast.classList.add(window.workflowToastIsSuccess ? 'success' : 'error');
+            toast.style.display = 'block';
+            setTimeout(function () { toast.style.display = 'none'; }, 4000);
+        }
+    })();
+
+    // Only one status may be the default, so selecting one clears the others.
+    document.getElementById('workflowRows').addEventListener('change', function (e) {
+        if (e.target && e.target.classList.contains('wf-default') && e.target.checked) {
+            var defaults = document.querySelectorAll('#workflowRows .wf-default');
+            for (var i = 0; i < defaults.length; i++) {
+                if (defaults[i] !== e.target) {
+                    defaults[i].checked = false;
+                }
+            }
+        }
+    });
+
+    function reindexWorkflowRows() {
+        var rows = document.querySelectorAll('#workflowRows tr');
+        for (var i = 0; i < rows.length; i++) {
+            var fields = rows[i].querySelectorAll('input');
+            for (var j = 0; j < fields.length; j++) {
+                var field = fields[j];
+                if (field.name) {
+                    field.name = field.name.replace(/Statuses\[\d+\]/, 'Statuses[' + i + ']');
+                }
+                if (field.id) {
+                    field.id = field.id.replace(/Statuses_\d+__/, 'Statuses_' + i + '__');
+                }
+            }
+        }
+    }
+
+    function addWorkflowRow() {
+        var tbody = document.getElementById('workflowRows');
+        var index = tbody.querySelectorAll('tr').length;
+        var row = document.createElement('tr');
+        row.innerHTML =
+            '<td><input class="wf-input order" type="number" min="1" max="999" name="Statuses[' + index + '].SortOrder" value="' + (index + 1) + '" /></td>' +
+            '<td><input class="wf-input" maxlength="64" name="Statuses[' + index + '].StatusName" value="" /></td>' +
+            '<td><input class="wf-color" type="color" name="Statuses[' + index + '].ColorCode" value="#6f7a86" /></td>' +
+            '<td class="wf-center"><input type="checkbox" class="wf-default" name="Statuses[' + index + '].IsDefault" value="true" />' +
+            '<input type="hidden" name="Statuses[' + index + '].IsDefault" value="false" /></td>' +
+            '<td class="wf-center"><input type="checkbox" name="Statuses[' + index + '].IsFinal" value="true" />' +
+            '<input type="hidden" name="Statuses[' + index + '].IsFinal" value="false" /></td>' +
+            '<td class="wf-center"><input type="checkbox" name="Statuses[' + index + '].IsActive" value="true" checked />' +
+            '<input type="hidden" name="Statuses[' + index + '].IsActive" value="false" /></td>' +
+            '<td class="wf-center"><button type="button" class="wf-btn remove" onclick="removeWorkflowRow(this);">Remove</button></td>';
+        tbody.appendChild(row);
+    }
+
+    function removeWorkflowRow(button) {
+        var tbody = document.getElementById('workflowRows');
+        if (tbody.querySelectorAll('tr').length <= 1) {
+            alert('At least one workflow status is required.');
+            return;
+        }
+
+        button.closest('tr').remove();
+        reindexWorkflowRows();
+    }
+</script>

@@ -1,0 +1,654 @@
+@{
+    ViewData["Title"] = "Import/Export Prices (CSV)";
+    Layout = "~/Views/Shared/_HeaderMenuItemsLayout.cshtml";
+    var tenantName = Convert.ToString(ViewData["TenantName"] ?? "-");
+    var storeCode = Convert.ToString(ViewData["StoreCode"] ?? "-");
+}
+
+<section class="customer-page">
+    <div class="customer-box">
+        <div class="customer-title">Import/Export Prices (CSV)</div>
+        <div class="customer-body">
+            <div class="meta-line">Tenant: <b>@tenantName</b> | Store: <b>@storeCode</b></div>
+
+            <div id="catalogStatusBox" class="catalog-status-box loading">
+                <div class="catalog-status-title">Current Price Catalog For This Store</div>
+                <div id="catalogStatusText" class="catalog-status-text">Checking whether this store already has prices...</div>
+                <div id="catalogStatusCounts" class="import-summary-grid" style="display:none;">
+                    <div class="import-summary-chip"><span>Priced Items</span><b id="statActive">0</b></div>
+                    <div class="import-summary-chip"><span>Removed Items</span><b id="statInactive">0</b></div>
+                    <div class="import-summary-chip"><span>Service Types</span><b id="statServices">0</b></div>
+                </div>
+                <div id="catalogStatusBreakdown" class="catalog-status-breakdown"></div>
+            </div>
+
+            <div class="bulk-import-row">
+                <input type="file" id="customItemsCsvFile" accept=".csv,text/csv" />
+                <button type="button" class="action-btn tertiary" id="importUploadedItemsBtn">Import CSV File</button>
+                <button type="button" class="action-btn" id="downloadItemsTemplateBtn">Export CSV File</button>
+                <button type="button" class="action-btn secondary" id="openCsvRulesBtn">CSV Format Rules</button>
+            </div>
+
+            <div class="field-hint">
+                Export template, edit in your system, then import back. Required columns: <b>ServiceType,Category,ItemName,UnitPrice</b>.
+            </div>
+
+            <div id="csvImportSummary" class="import-summary-box">
+                <div class="import-summary-title">Last Import Summary</div>
+                <div class="import-summary-grid">
+                    <div class="import-summary-chip"><span>Imported</span><b id="sumImported">0</b></div>
+                    <div class="import-summary-chip"><span>Skipped</span><b id="sumSkipped">0</b></div>
+                    <div class="import-summary-chip"><span>Failed</span><b id="sumFailed">0</b></div>
+                </div>
+                <div class="import-summary-lines" id="sumSkippedLines"></div>
+                <div class="import-summary-lines" id="sumFailedLines"></div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<div id="csvRulesBackdrop" class="csv-rules-modal-backdrop" aria-hidden="true"></div>
+<div id="csvRulesModal" class="csv-rules-modal" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="csvRulesTitle">
+    <div class="csv-rules-modal-header">
+        <div id="csvRulesTitle" class="csv-rules-modal-title">CSV Format Rules</div>
+        <button type="button" id="closeCsvRulesBtn" class="csv-rules-close-btn" aria-label="Close">&times;</button>
+    </div>
+    <div class="csv-rules-modal-body">
+        <ul>
+            <li>Header row is mandatory: <span class="csv-rules-code">ServiceType,Category,ItemName,UnitPrice</span></li>
+            <li>ServiceType, Category and ItemName are required text values.</li>
+            <li>UnitPrice must be a valid number (0 or higher).</li>
+            <li>Use UTF-8 CSV file format and keep file size under 2 MB.</li>
+        </ul>
+    </div>
+    <div class="csv-rules-modal-footer">
+        <button type="button" class="action-btn secondary" id="closeCsvRulesFooterBtn">Close</button>
+    </div>
+</div>
+
+<div id="csvToast" class="toast-message"></div>
+
+<style>
+.customer-page,
+.customer-page input,
+.customer-page button,
+.customer-page div,
+.customer-page span {
+    font-family: Arial, Helvetica, sans-serif;
+}
+
+.customer-page {
+    padding: 20px;
+}
+
+.customer-box {
+    max-width: 1100px;
+    margin: 0 auto;
+    background: var(--els-surface);
+    border-radius: 10px;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+    overflow: hidden;
+}
+
+.customer-title {
+    background: linear-gradient(90deg, var(--els-primary) 0%, var(--els-primary-dark) 100%);
+    color: #fff;
+    padding: 14px 20px;
+    font-size: 20px;
+    font-weight: 600;
+}
+
+.customer-body {
+    padding: 20px;
+}
+
+.meta-line {
+    font-size: 13px;
+    color: var(--els-text);
+    margin-bottom: 12px;
+}
+
+.bulk-import-row {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    align-items: center;
+}
+
+.bulk-import-row input[type="file"] {
+    max-width: 360px;
+    font-size: 12px;
+}
+
+.action-btn {
+    min-width: 180px;
+    min-height: 40px;
+    border: 1px solid transparent;
+    border-radius: 6px;
+    background: linear-gradient(180deg, var(--els-primary-light) 0%, var(--els-primary) 100%);
+    color: #fff;
+    font-weight: 600;
+    cursor: pointer;
+    padding: 8px 14px;
+}
+
+.action-btn.secondary {
+    background: linear-gradient(180deg, #8f99a4 0%, #6f7a86 100%);
+}
+
+.action-btn.tertiary {
+    background: linear-gradient(180deg, #3f8f7b 0%, #2b6f5e 100%);
+}
+
+.action-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.field-hint {
+    margin-top: 10px;
+    font-size: 12px;
+    color: #475467;
+}
+
+.import-summary-box {
+    margin-top: 12px;
+    border: 1px solid var(--els-border);
+    border-radius: 8px;
+    background: #f8fafc;
+    padding: 10px;
+    display: none;
+}
+
+.import-summary-title {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--els-text);
+    margin-bottom: 6px;
+}
+
+.import-summary-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(100px, 1fr));
+    gap: 8px;
+}
+
+.import-summary-chip {
+    border: 1px solid var(--els-border);
+    border-radius: 6px;
+    background: #fff;
+    padding: 6px 8px;
+    font-size: 12px;
+    display: flex;
+    justify-content: space-between;
+}
+
+.import-summary-lines {
+    margin-top: 8px;
+    font-size: 12px;
+    color: #475467;
+}
+
+.csv-rules-modal-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.45);
+    z-index: 9998;
+    display: none;
+}
+
+.csv-rules-modal {
+    position: fixed;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    width: min(760px, 92vw);
+    background: var(--els-surface);
+    border: 1px solid var(--els-border);
+    border-radius: 10px;
+    box-shadow: 0 14px 36px rgba(0,0,0,0.25);
+    z-index: 9999;
+    display: none;
+}
+
+.csv-rules-modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--els-border);
+    background: linear-gradient(90deg, var(--els-primary) 0%, var(--els-primary-dark) 100%);
+    color: #fff;
+}
+
+.csv-rules-modal-title {
+    font-size: 14px;
+    font-weight: 700;
+}
+
+.csv-rules-close-btn {
+    border: none;
+    background: transparent;
+    color: #fff;
+    font-size: 22px;
+    line-height: 1;
+    cursor: pointer;
+}
+
+.csv-rules-modal-body {
+    padding: 14px;
+    font-size: 12px;
+    color: var(--els-text);
+}
+
+.csv-rules-code {
+    font-family: Consolas, 'Courier New', monospace;
+    background: #f6f8fa;
+    border: 1px solid var(--els-border);
+    border-radius: 6px;
+    padding: 2px 6px;
+}
+
+.csv-rules-modal-footer {
+    padding: 0 14px 14px;
+    display: flex;
+    justify-content: flex-end;
+}
+
+.toast-message {
+    position: fixed;
+    right: 24px;
+    top: 80px;
+    z-index: 10000;
+    min-width: 260px;
+    max-width: 380px;
+    padding: 12px 16px;
+    border-radius: 8px;
+    color: #fff;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
+    font-weight: 600;
+    display: none;
+}
+
+.toast-message.success { background: #2f8f46; }
+.toast-message.error { background: #b63838; }
+
+.catalog-status-box {
+    border: 1px solid var(--els-border);
+    border-left-width: 4px;
+    border-radius: 8px;
+    padding: 12px 14px;
+    margin-bottom: 14px;
+    background: var(--els-accent);
+    color: var(--els-text);
+}
+
+.catalog-status-box.loading { border-left-color: var(--els-border); }
+.catalog-status-box.has-data { border-left-color: #2f8f46; }
+.catalog-status-box.empty { border-left-color: #c58638; }
+.catalog-status-box.error { border-left-color: #b63838; }
+
+.catalog-status-title {
+    font-size: 13px;
+    font-weight: 700;
+    margin-bottom: 6px;
+}
+
+.catalog-status-text {
+    font-size: 12px;
+    margin-bottom: 8px;
+}
+
+.catalog-status-breakdown {
+    font-size: 12px;
+    color: var(--els-muted);
+    margin-top: 8px;
+}
+</style>
+
+<script>
+(function () {
+    function showToast(message, isSuccess) {
+        var toast = document.getElementById("csvToast");
+        if (!toast) {
+            window.alert(message || "Operation completed.");
+            return;
+        }
+
+        toast.classList.remove("success", "error");
+        toast.classList.add(isSuccess ? "success" : "error");
+        toast.textContent = message || "Operation completed.";
+        toast.style.display = "block";
+
+        if (window.__csvToastTimer) {
+            clearTimeout(window.__csvToastTimer);
+        }
+
+        window.__csvToastTimer = setTimeout(function () {
+            toast.style.display = "none";
+        }, 3200);
+    }
+
+    function parseAmount(value) {
+        var number = Number(value);
+        return Number.isFinite(number) ? number : 0;
+    }
+
+    function csvEscape(value) {
+        var text = (value === null || value === undefined) ? "" : String(value);
+        if (text.indexOf('"') >= 0) {
+            text = text.replace(/"/g, '""');
+        }
+        if (/[",\n\r]/.test(text)) {
+            return '"' + text + '"';
+        }
+        return text;
+    }
+
+    // Tracks what the store already has so the user is told up front, before
+    // they export a template or import a file that would overwrite existing prices.
+    var existingCatalog = { loaded: false, activeCount: 0, inactiveCount: 0 };
+
+    function setCatalogStatus(state, text, breakdown, counts) {
+        var box = document.getElementById("catalogStatusBox");
+        var textEl = document.getElementById("catalogStatusText");
+        var countsEl = document.getElementById("catalogStatusCounts");
+        var breakdownEl = document.getElementById("catalogStatusBreakdown");
+
+        if (box) {
+            box.classList.remove("loading", "has-data", "empty", "error");
+            box.classList.add(state);
+        }
+
+        if (textEl) {
+            textEl.textContent = text;
+        }
+
+        if (breakdownEl) {
+            breakdownEl.textContent = breakdown || "";
+        }
+
+        if (countsEl) {
+            if (counts) {
+                document.getElementById("statActive").textContent = counts.active;
+                document.getElementById("statInactive").textContent = counts.inactive;
+                document.getElementById("statServices").textContent = counts.services;
+                countsEl.style.display = "grid";
+            } else {
+                countsEl.style.display = "none";
+            }
+        }
+    }
+
+    function loadCatalogStatus() {
+        return fetch('@Url.Action("GetLaundryItemPrices", "Customer")?includeInactive=true&_ts=' + Date.now(), {
+            method: 'GET',
+            cache: 'no-store',
+            credentials: 'same-origin',
+            headers: { 'X-Requested-With': 'XMLHttpRequest' }
+        })
+            .then(function (response) {
+                if (!response.ok) {
+                    throw new Error("Unable to read the current price catalog.");
+                }
+                return response.json();
+            })
+            .then(function (data) {
+                if (!data || !data.success) {
+                    existingCatalog = { loaded: false, activeCount: 0, inactiveCount: 0 };
+                    setCatalogStatus("error", (data && data.message) || "Unable to read the current price catalog.", "", null);
+                    return;
+                }
+
+                var items = Array.isArray(data.items) ? data.items : [];
+                var activeItems = items.filter(function (item) {
+                    return !!(item.IsActive ?? item.isActive ?? true);
+                });
+                var inactiveCount = items.length - activeItems.length;
+
+                var countByService = {};
+                activeItems.forEach(function (item) {
+                    var service = (item.ServiceType || item.serviceType || "").trim() || "(no service type)";
+                    countByService[service] = (countByService[service] || 0) + 1;
+                });
+                var serviceNames = Object.keys(countByService).sort();
+
+                existingCatalog = {
+                    loaded: true,
+                    activeCount: activeItems.length,
+                    inactiveCount: inactiveCount
+                };
+
+                if (!items.length) {
+                    setCatalogStatus(
+                        "empty",
+                        "This store has no prices yet. Exporting now gives you a sample template to fill in, and importing will create the catalog from scratch.",
+                        "",
+                        null);
+                    return;
+                }
+
+                setCatalogStatus(
+                    "has-data",
+                    "This store already has prices configured. Exporting downloads these existing rows, and importing will overwrite the price of any item that matches ServiceType + Category + ItemName.",
+                    serviceNames.length
+                        ? ("By service type: " + serviceNames.map(function (name) {
+                            return name + " (" + countByService[name] + ")";
+                        }).join(", "))
+                        : "",
+                    {
+                        active: activeItems.length,
+                        inactive: inactiveCount,
+                        services: serviceNames.length
+                    });
+            })
+            .catch(function (error) {
+                existingCatalog = { loaded: false, activeCount: 0, inactiveCount: 0 };
+                setCatalogStatus("error", error.message || "Unable to read the current price catalog.", "", null);
+            });
+    }
+
+    function confirmOverwriteIfNeeded() {
+        if (!existingCatalog.loaded || existingCatalog.activeCount <= 0) {
+            return true;
+        }
+
+        return window.confirm(
+            "This store already has " + existingCatalog.activeCount + " priced item(s).\n\n"
+            + "Importing will overwrite the price of every matching item and add any new ones.\n\n"
+            + "Tip: use Export CSV File first to keep a backup of the current prices.\n\n"
+            + "Do you want to continue?");
+    }
+
+    function updateImportActionState() {
+        var fileInput = document.getElementById("customItemsCsvFile");
+        var uploadBtn = document.getElementById("importUploadedItemsBtn");
+        var hasFile = !!(fileInput && fileInput.files && fileInput.files.length);
+        if (uploadBtn) {
+            uploadBtn.disabled = !hasFile;
+        }
+    }
+
+    function renderImportSummary(data) {
+        var wrap = document.getElementById("csvImportSummary");
+        var importedEl = document.getElementById("sumImported");
+        var skippedEl = document.getElementById("sumSkipped");
+        var failedEl = document.getElementById("sumFailed");
+        var skippedLinesEl = document.getElementById("sumSkippedLines");
+        var failedLinesEl = document.getElementById("sumFailedLines");
+
+        if (!wrap || !importedEl || !skippedEl || !failedEl || !skippedLinesEl || !failedLinesEl) {
+            return;
+        }
+
+        if (!data) {
+            wrap.style.display = "none";
+            skippedLinesEl.textContent = "";
+            failedLinesEl.textContent = "";
+            return;
+        }
+
+        importedEl.textContent = parseAmount(data.importedCount || 0).toString();
+        skippedEl.textContent = parseAmount(data.skippedCount || 0).toString();
+        failedEl.textContent = parseAmount(data.failedCount || 0).toString();
+
+        var skippedLines = Array.isArray(data.skippedLineNumbers) ? data.skippedLineNumbers : [];
+        var failedLines = Array.isArray(data.failedLineNumbers) ? data.failedLineNumbers : [];
+
+        skippedLinesEl.textContent = skippedLines.length
+            ? ("Skipped line numbers: " + skippedLines.join(", "))
+            : "Skipped line numbers: none";
+
+        failedLinesEl.textContent = failedLines.length
+            ? ("Failed line numbers: " + failedLines.join(", "))
+            : "Failed line numbers: none";
+
+        wrap.style.display = "block";
+    }
+
+    function downloadItemsTemplateCsv() {
+        fetch('@Url.Action("GetLaundryItemPrices", "Customer")?includeInactive=false', {
+            method: 'GET',
+            headers: { 'X-Requested-With': 'XMLHttpRequest' }
+        })
+            .then(function (response) { return response.json(); })
+            .then(function (data) {
+                if (!data || !data.success) {
+                    showToast((data && data.message) || "Unable to export CSV file.", false);
+                    return;
+                }
+
+                var items = Array.isArray(data.items) ? data.items : [];
+                var rows = ["ServiceType,Category,ItemName,UnitPrice"];
+                var isSampleTemplate = !items.length;
+
+                if (isSampleTemplate) {
+                    rows.push("Dry Clean,Men,Shirt,25");
+                    rows.push("Steam Iron,Women,Top,20");
+                    rows.push("Wash & Fold,Household,Bedsheet,30");
+                } else {
+                    items.forEach(function (item) {
+                        rows.push([
+                            csvEscape(item.ServiceType || item.serviceType || ""),
+                            csvEscape(item.Category || item.category || ""),
+                            csvEscape(item.ItemName || item.itemName || ""),
+                            csvEscape(parseAmount(item.UnitPrice || item.unitPrice || 0).toFixed(2))
+                        ].join(","));
+                    });
+                }
+
+                var blob = new Blob([rows.join("\r\n")], { type: "text/csv;charset=utf-8;" });
+                var link = document.createElement("a");
+                link.href = URL.createObjectURL(blob);
+                link.download = isSampleTemplate ? "LaundryItemTemplate.csv" : "LaundryItemPrices.csv";
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                URL.revokeObjectURL(link.href);
+
+                showToast(isSampleTemplate
+                    ? "No prices exist yet. A sample template was downloaded for you to fill in."
+                    : ("Exported " + items.length + " existing priced item(s)."), true);
+            })
+            .catch(function () {
+                showToast("Unable to export CSV file.", false);
+            });
+    }
+
+    function importUploadedItemsCsv() {
+        var fileInput = document.getElementById("customItemsCsvFile");
+        var selectedFile = fileInput && fileInput.files && fileInput.files.length ? fileInput.files[0] : null;
+        if (!selectedFile) {
+            showToast("Please choose a CSV file to import.", false);
+            return;
+        }
+
+        var fileName = (selectedFile.name || "").trim();
+        var maxSizeBytes = 2 * 1024 * 1024;
+        if (!/\.csv$/i.test(fileName)) {
+            showToast("Invalid file type. Please upload a .csv file.", false);
+            return;
+        }
+
+        if (!selectedFile.size || selectedFile.size <= 0) {
+            showToast("Selected CSV file is empty.", false);
+            return;
+        }
+
+        if (selectedFile.size > maxSizeBytes) {
+            showToast("CSV file is too large. Max allowed size is 2 MB.", false);
+            return;
+        }
+
+        selectedFile.text()
+            .then(function (content) {
+                var firstLine = ((content || "").split(/\r?\n/)[0] || "").replace(/^\uFEFF/, "").trim();
+                var normalizedHeader = firstLine.toLowerCase().replace(/\s+/g, "");
+                var requiredHeader = "servicetype,category,itemname,unitprice";
+                if (normalizedHeader !== requiredHeader) {
+                    showToast("Invalid CSV header. Required: ServiceType,Category,ItemName,UnitPrice", false);
+                    return;
+                }
+
+                if (!confirmOverwriteIfNeeded()) {
+                    return;
+                }
+
+                var formData = new FormData();
+                formData.append("csvFile", selectedFile);
+                formData.append("overwriteExisting", "true");
+
+                fetch('@Url.Action("ImportLaundryItemPricesCsv", "Customer")', {
+                    method: 'POST',
+                    headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                    body: formData
+                })
+                    .then(function (response) { return response.json(); })
+                    .then(function (data) {
+                        if (!data || !data.success) {
+                            renderImportSummary(data || null);
+                            showToast((data && data.message) || "Unable to import uploaded CSV items.", false);
+                            return;
+                        }
+
+                        renderImportSummary(data);
+                        showToast(data.message || "Uploaded CSV items imported successfully.", true);
+                        if (fileInput) {
+                            fileInput.value = "";
+                        }
+                        updateImportActionState();
+                        loadCatalogStatus();
+                    })
+                    .catch(function () {
+                        showToast("Unable to import uploaded CSV items.", false);
+                    });
+            })
+            .catch(function () {
+                renderImportSummary(null);
+                showToast("Unable to read CSV file. Please choose a valid UTF-8 CSV.", false);
+            });
+    }
+
+    function setCsvRulesModalVisibility(isVisible) {
+        var backdrop = document.getElementById("csvRulesBackdrop");
+        var modal = document.getElementById("csvRulesModal");
+        if (!backdrop || !modal) {
+            return;
+        }
+
+        backdrop.style.display = isVisible ? "block" : "none";
+        modal.style.display = isVisible ? "block" : "none";
+    }
+
+    document.getElementById("customItemsCsvFile")?.addEventListener("change", updateImportActionState);
+    document.getElementById("openCsvRulesBtn")?.addEventListener("click", function (e) { e.preventDefault(); setCsvRulesModalVisibility(true); });
+    document.getElementById("closeCsvRulesBtn")?.addEventListener("click", function (e) { e.preventDefault(); setCsvRulesModalVisibility(false); });
+    document.getElementById("closeCsvRulesFooterBtn")?.addEventListener("click", function (e) { e.preventDefault(); setCsvRulesModalVisibility(false); });
+    document.getElementById("csvRulesBackdrop")?.addEventListener("click", function () { setCsvRulesModalVisibility(false); });
+    document.getElementById("importUploadedItemsBtn")?.addEventListener("click", function (e) { e.preventDefault(); importUploadedItemsCsv(); });
+    document.getElementById("downloadItemsTemplateBtn")?.addEventListener("click", function (e) { e.preventDefault(); downloadItemsTemplateCsv(); });
+
+    updateImportActionState();
+    loadCatalogStatus();
+})();
+</script>

@@ -10,6 +10,23 @@
     <Content Remove="Models\Common\**" />
     <EmbeddedResource Remove="Models\Common\**" />
     <None Remove="Models\Common\**" />
+<<<<<<< Updated upstream
+=======
+    <PackageReference Include="jQuery.UI.Combined" Version="1.14.1" />
+    <PackageReference Include="Microsoft.VisualStudio.Web.CodeGeneration.Design" Version="8.0.23" />
+    <PackageReference Include="QuestPDF" Version="2026.9.1" />
+    <PackageReference Include="VMD.RESTApiResponseWrapper.Core" Version="2.0.0" />
+    <PackageReference Include="jQuery" Version="3.7.1" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="8.0.10" />
+    <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="8.0.10" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Tools" Version="8.0.10">
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+    <PackageReference Include="MailKit" Version="4.16.0" />
+    <PackageReference Include="Azure.Identity" Version="1.11.4" />
+    <PackageReference Include="NuGet.Protocol" Version="6.11.2" />
+    <PackageReference Include="Microsoft.NETCore.Platforms" Version="1.1.0" />
+>>>>>>> Stashed changes
   </ItemGroup>
 
   <ItemGroup>

@@ -15,7 +15,7 @@ namespace LMS.Master.BusinessSerive.Services
             this._unitOfWork = unitOfWork;
             this._mapper = mapper;
         }
-       // #region Retive All Assigned LaundryServices
+        // #region Retive All Assigned LaundryServices
         //public async Task<List<AvailableLaundryServicesForClientDto>> GetAllAssignedLaundryServices(AvailableLaundryServicesForClientDto AvailableLaundryServicesForClientDto)
         //{
         //    try

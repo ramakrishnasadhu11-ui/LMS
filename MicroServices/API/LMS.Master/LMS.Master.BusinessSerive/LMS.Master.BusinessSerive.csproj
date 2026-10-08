@@ -11,16 +11,35 @@
   </ItemGroup>
 
   <ItemGroup>
+<<<<<<< Updated upstream
     <PackageReference Include="AutoMapper" Version="8.0.0" />
     <PackageReference Include="Microsoft.AspNetCore.Http.Abstractions" Version="2.2.0" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="2.2.6" />
     <PackageReference Include="MongoDB.Driver" Version="2.11.0" />
+=======
+    <PackageReference Include="AutoMapper" Version="16.2.0" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.12">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+    <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="10.0.12" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+>>>>>>> Stashed changes
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\LMS.Core.Repository\LMS.Core.Repository.csproj" />
     <ProjectReference Include="..\LMS.Master.DTO\LMS.Master.DTO.csproj" />
     <ProjectReference Include="..\LMS.Master.Utilities\LMS.Master.Utilities.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="SeedData\LaundryItemDefaults.csv">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
   </ItemGroup>
 
 </Project>

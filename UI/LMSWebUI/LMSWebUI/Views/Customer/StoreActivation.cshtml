@@ -1,0 +1,211 @@
+@{
+    ViewData["Title"] = "Store Activation";
+    Layout = "~/Views/Shared/_HeaderMenuItemsLayout.cshtml";
+    var tenantName = Convert.ToString(ViewData["TenantName"] ?? "-");
+}
+
+<style>
+.admin-setup-page,
+.admin-setup-page input,
+.admin-setup-page button,
+.admin-setup-page label,
+.admin-setup-page textarea,
+.admin-setup-page select {
+    font-family: Arial, Helvetica, sans-serif;
+}
+
+.admin-setup-page { padding: 20px; }
+.admin-setup-box {
+    max-width: 980px;
+    margin: 0 auto;
+    background: var(--els-surface);
+    border-radius: 10px;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+    overflow: hidden;
+}
+.admin-setup-title {
+    background: linear-gradient(90deg, var(--els-primary) 0%, var(--els-primary-dark) 100%);
+    color: #fff;
+    padding: 14px 20px;
+    font-size: 20px;
+    font-weight: 600;
+}
+.admin-setup-body { padding: 20px; }
+.admin-setup-note {
+    border: 1px solid var(--els-border);
+    border-radius: 8px;
+    background: var(--els-accent);
+    padding: 12px;
+    margin-bottom: 16px;
+    color: var(--els-text);
+}
+.admin-btn {
+    min-width: 140px;
+    min-height: 36px;
+    border: 1px solid transparent;
+    border-radius: 8px;
+    background: linear-gradient(180deg, var(--els-primary-light) 0%, var(--els-primary) 100%);
+    color: #fff;
+    font-weight: 600;
+    cursor: pointer;
+}
+.admin-btn.secondary {
+    background: linear-gradient(180deg, #8f99a4 0%, #6f7a86 100%);
+}
+.store-status-table { width: 100%; border-collapse: collapse; }
+.store-status-table th,
+.store-status-table td {
+    padding: 8px;
+    border-bottom: 1px solid var(--els-border);
+    text-align: left;
+}
+.store-status-pill {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 700;
+}
+.store-status-pill.active {
+    background: rgba(22, 163, 74, 0.12);
+    color: #15803d;
+    border: 1px solid #15803d;
+}
+.store-status-pill.inactive {
+    background: rgba(201, 48, 44, 0.10);
+    color: var(--els-danger);
+    border: 1px solid var(--els-danger);
+}
+</style>
+
+<section class="admin-setup-page">
+    <div class="admin-setup-box">
+        <div class="admin-setup-title">Store Activation</div>
+        <div class="admin-setup-body">
+            <div class="admin-setup-note">
+                <div><b>Signed in as:</b> @tenantName</div>
+                <div style="margin-top:6px;">Newly created stores stay inactive until a super admin activates them here. All tenants' stores are listed below, with pending stores shown first.</div>
+            </div>
+
+            <div class="admin-setup-note">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+                    <b>Stores</b>
+                    <button type="button" class="admin-btn secondary" id="refreshStoreStatusesBtn" data-tenant="@tenantName">Refresh</button>
+                </div>
+                <div id="storeStatusList">Loading stores...</div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<script>
+(function () {
+    var host = document.getElementById("storeStatusList");
+
+    function render(stores) {
+        if (!stores || stores.length === 0) {
+            host.textContent = "No stores found.";
+            return;
+        }
+
+        var html = "<table class='store-status-table'>"
+            + "<thead><tr><th>Tenant</th><th>Store Code</th><th>Status</th><th>Activated By</th><th>Activated On</th><th>Action</th></tr></thead><tbody>";
+
+        stores.forEach(function (s) {
+            var activeLabel = s.isActive
+                ? "<span class='store-status-pill active'>Active</span>"
+                : "<span class='store-status-pill inactive'>Pending Activation</span>";
+
+            html += "<tr>"
+                + "<td>" + (s.tenantName || s.tenantEmail || "-") + "</td>"
+                + "<td>" + s.storeCode + "</td>"
+                + "<td>" + activeLabel + "</td>"
+                + "<td>" + (s.activatedBy || "-") + "</td>"
+                + "<td>" + (s.activatedDate ? new Date(s.activatedDate).toLocaleString() : "-") + "</td>"
+                + "<td><button type='button' class='admin-btn" + (s.isActive ? " secondary" : "") + " toggle-store-status-btn'"
+                + " data-store='" + s.storeCode + "' data-active='" + (s.isActive ? "false" : "true") + "'>"
+                + (s.isActive ? "Deactivate" : "Activate") + "</button></td>"
+                + "</tr>";
+        });
+
+        html += "</tbody></table>";
+        host.innerHTML = html;
+
+        Array.prototype.forEach.call(host.querySelectorAll(".toggle-store-status-btn"), function (btn) {
+            btn.addEventListener("click", function () {
+                var body = new URLSearchParams();
+                body.append("storeCode", btn.getAttribute("data-store"));
+                body.append("isActive", btn.getAttribute("data-active"));
+
+                btn.disabled = true;
+                fetch('@Url.Action("SetStoreActiveStatus", "Customer")', {
+                    method: "POST",
+                    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+                    body: body.toString()
+                })
+                .then(function (r) { return r.json(); })
+                .then(function (data) {
+                    window.alert((data && data.message) || "Store status updated.");
+
+                    // Immediate UI update for activation metadata so the user sees the change
+                    try {
+                        var signedIn = document.getElementById("refreshStoreStatusesBtn")?.getAttribute("data-tenant") || "-";
+                        var tr = btn.closest('tr');
+                        var newActive = btn.getAttribute('data-active') === 'true'; // desired state we just requested
+                        if (tr) {
+                            // Columns: 0=Tenant,1=Store Code,2=Status,3=Activated By,4=Activated On,5=Action
+                            tr.cells[3].textContent = newActive ? (signedIn || "-") : "-";
+                            tr.cells[4].textContent = newActive ? new Date().toLocaleString() : "-";
+
+                            var statusCell = tr.cells[2];
+                            if (newActive) {
+                                statusCell.innerHTML = "<span class='store-status-pill active'>Active</span>";
+                                btn.classList.add('secondary');
+                                btn.setAttribute('data-active', 'false');
+                                btn.textContent = 'Deactivate';
+                            } else {
+                                statusCell.innerHTML = "<span class='store-status-pill inactive'>Pending Activation</span>";
+                                btn.classList.remove('secondary');
+                                btn.setAttribute('data-active', 'true');
+                                btn.textContent = 'Activate';
+                            }
+                        }
+                    } catch (e) {
+                        // ignore UI update errors and fall back to reloading
+                    }
+
+                    // Refresh authoritative state from server
+                    loadStores();
+                })
+                .catch(function () {
+                    btn.disabled = false;
+                    window.alert("Unable to update store status.");
+                });
+            });
+        });
+    }
+
+    function loadStores() {
+        host.textContent = "Loading stores...";
+        fetch('@Url.Action("GetTenantStoreStatuses", "Customer")')
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                if (!data || !data.success) {
+                    host.textContent = (data && data.message) || "Unable to load stores.";
+                    return;
+                }
+                render(data.stores);
+            })
+            .catch(function () {
+                host.textContent = "Unable to load stores.";
+            });
+    }
+
+    var refreshBtn = document.getElementById("refreshStoreStatusesBtn");
+    if (refreshBtn) {
+        refreshBtn.addEventListener("click", function () { loadStores(); });
+    }
+
+    loadStores();
+})();
+</script>

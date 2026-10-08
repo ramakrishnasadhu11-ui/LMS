@@ -1,4 +1,5 @@
 ﻿using LMSClientFactory.Helper;
+using LMSWebUI.Services;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using System.Collections.Generic;
@@ -20,9 +21,10 @@ namespace LMSWebUI
         public static IServiceCollection RegisterServices(
             this IServiceCollection services, IConfiguration configuration)
         {
-           
-            services.AddTransient<IHttpClientApi>(s => new HttpClientApi(configuration.GetValue<string>("LoginApiUrl")));
-         //   services.AddTransient<IHttpClientApi>(s1 => new HttpClientApi(configuration.GetValue<string>("CustomerApiUrl")));
+            services.Configure<ServiceEndpointsOptions>(configuration.GetSection("Services"));
+            services.AddTransient<ILoginApiClient, LoginApiClient>();
+            services.AddTransient<ICustomerApiClient, CustomerApiClient>();
+            services.AddTransient<IStoreConfigurationService, StoreConfigurationService>();
             return services;
         }
 

@@ -1,0 +1,11 @@
+MasterType,Name,Description
+Service,Dry Clean,Solvent based cleaning for delicate garments
+Service,Steam Iron,Pressing and steam finishing only
+Service,Wash & Fold,Machine wash with fold and pack
+Service,Wash & Iron,Machine wash followed by ironing
+Service,Premium Laundry,Premium wash with special care handling
+Category,Men,Menswear garments
+Category,Women,Womenswear garments
+Category,Kids,Children garments
+Category,Household,Bedsheets curtains and home linen
+Category,Others,Items that do not fit other categories

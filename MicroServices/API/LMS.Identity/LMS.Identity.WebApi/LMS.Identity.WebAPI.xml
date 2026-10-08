@@ -4,6 +4,12 @@
         <name>LMS.Identity.WebApi</name>
     </assembly>
     <members>
+        <member name="M:LMS.Identity.WebApi.Controllers.DiagnosticsController.SmtpTest">
+            <summary>
+            Tests SMTP connectivity and authentication using configured MailConfiguration.
+            Useful to validate username/password, host and port.
+            </summary>
+        </member>
         <member name="M:LMS.Identity.WebApi.Controllers.LoginController.TestService">
             <summary>
             Test Service
@@ -16,9 +22,9 @@
             </summary>
             <returns></returns>
         </member>
-        <member name="M:LMS.Identity.WebApi.Controllers.LoginController.TenantLogin(System.String,System.String)">
+        <member name="M:LMS.Identity.WebApi.Controllers.LoginController.TenantLogin(LMS.Identity.DTO.TenantLoginRequest)">
             <summary>
-            Check Tenant Email Exist or not
+            Authenticate a tenant or store user
             </summary>
         </member>
         <member name="M:LMS.Identity.WebApi.Controllers.LoginController.TenantprofileDetails(System.String)">
@@ -26,12 +32,12 @@
             Check Tenant Email Exist or not
             </summary>
         </member>
-        <member name="M:LMS.Identity.WebApi.Controllers.LoginController.changePassword(System.String,System.String,System.String)">
+        <member name="M:LMS.Identity.WebApi.Controllers.LoginController.ChangePassword(System.String,System.String,System.String)">
             <summary>
             ChangePassword 
             </summary>
         </member>
-        <member name="M:LMS.Identity.WebApi.Controllers.LoginController.forgotPassword(System.String)">
+        <member name="M:LMS.Identity.WebApi.Controllers.LoginController.ForgotPassword(System.String)">
             <summary>
             forgotPassword 
             </summary>
@@ -46,19 +52,79 @@
             GetTenantStoreDetails 
             </summary>
         </member>
-        <member name="M:LMS.Identity.WebApi.Controllers.LoginController.CheckIsPasswordChangedBytenant(System.String)">
+        <member name="M:LMS.Identity.WebApi.Controllers.LoginController.CheckIsPasswordChangedByTenant(System.String)">
             <summary>
             CheckIsPasswordChangedBytenant 
             </summary>
         </member>
-        <member name="M:LMS.Identity.WebApi.Controllers.LoginController.changepassword(LMS.Identity.DTO.ChangePasswordDto)">
+        <member name="M:LMS.Identity.WebApi.Controllers.LoginController.ChangePasswordForTenant(LMS.Identity.DTO.ChangePasswordDto)">
             <summary>
             change password 
             </summary>
         </member>
-        <member name="M:LMS.Identity.WebApi.Controllers.LoginController.forgotpassword(LMS.Identity.DTO.ChangePasswordDto)">
+        <member name="M:LMS.Identity.WebApi.Controllers.LoginController.ForgotPasswordForTenant(LMS.Identity.DTO.ChangePasswordDto)">
             <summary>
             change password 
+            </summary>
+        </member>
+        <member name="M:LMS.Identity.WebApi.Controllers.LoginController.CreateStoreUser(LMS.Identity.DTO.StoreUserDto)">
+            <summary>
+            create store user
+            </summary>
+        </member>
+        <member name="M:LMS.Identity.WebApi.Controllers.LoginController.CreateTenantStore(LMS.Identity.DTO.CreateTenantStoreDto)">
+            <summary>
+            create tenant store
+            </summary>
+        </member>
+        <member name="M:LMS.Identity.WebApi.Controllers.LoginController.GetStoreUsers(System.String,System.String)">
+            <summary>
+            get store users
+            </summary>
+        </member>
+        <member name="M:LMS.Identity.WebApi.Controllers.LoginController.SetStoreUserActiveStatus(System.String,System.String,System.String,System.Boolean)">
+            <summary>
+            activate or deactivate store user
+            </summary>
+        </member>
+        <member name="M:LMS.Identity.WebApi.Controllers.LoginController.GetTenantStoreStatuses(System.String)">
+            <summary>
+            get tenant store activation statuses
+            </summary>
+        </member>
+        <member name="M:LMS.Identity.WebApi.Controllers.LoginController.SetTenantStoreActiveStatus(System.String,System.String,System.Boolean,System.String)">
+            <summary>
+            activate or deactivate a tenant store
+            </summary>
+        </member>
+        <member name="M:LMS.Identity.WebApi.Controllers.LoginController.GetAllStoreStatuses">
+            <summary>
+            get store activation statuses across all tenants (super admin)
+            </summary>
+        </member>
+        <member name="M:LMS.Identity.WebApi.Controllers.LoginController.SetStoreActiveStatusByStoreCode(System.String,System.Boolean,System.String)">
+            <summary>
+            activate or deactivate a store by store code (super admin)
+            </summary>
+        </member>
+        <member name="M:LMS.Identity.WebApi.Controllers.LoginController.GetAllTenantApprovals">
+            <summary>
+            get approval state of all tenants (super admin)
+            </summary>
+        </member>
+        <member name="M:LMS.Identity.WebApi.Controllers.LoginController.SetTenantApprovalStatus(System.String,System.String,System.String,System.String)">
+            <summary>
+            approve or reject a tenant (super admin)
+            </summary>
+        </member>
+        <member name="M:LMS.Identity.WebApi.Controllers.LoginController.GetStoreConfiguration(System.String,System.String)">
+            <summary>
+            get store configuration
+            </summary>
+        </member>
+        <member name="M:LMS.Identity.WebApi.Controllers.LoginController.NewStoreConfiguration(LMS.Identity.DTO.NewStoreConfigurationDto)">
+            <summary>
+            create or update store configuration
             </summary>
         </member>
     </members>

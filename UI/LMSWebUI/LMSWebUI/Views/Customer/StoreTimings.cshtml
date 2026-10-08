@@ -1,0 +1,267 @@
+@model LMSWebUI.Models.Admin.StoreConfigurationViewModel
+@using Newtonsoft.Json
+@{
+    ViewData["Title"] = "Store Configuration";
+    Layout = "~/Views/Shared/_HeaderMenuItemsLayout.cshtml";
+}
+
+<style>
+.store-config-page,
+.store-config-page input,
+.store-config-page button,
+.store-config-page label,
+.store-config-page textarea,
+.store-config-page select {
+    font-family: Arial, Helvetica, sans-serif;
+}
+
+.store-config-page { padding: 20px; }
+.store-config-box {
+    max-width: 980px;
+    margin: 0 auto;
+    background: var(--els-surface);
+    border-radius: 10px;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+    overflow: hidden;
+}
+.store-config-title {
+    background: linear-gradient(90deg, var(--els-primary) 0%, var(--els-primary-dark) 100%);
+    color: #fff;
+    padding: 14px 20px;
+    font-size: 20px;
+    font-weight: 600;
+}
+.store-config-body { padding: 20px; }
+.store-config-note {
+    border: 1px solid var(--els-border);
+    border-radius: 8px;
+    background: var(--els-accent);
+    padding: 12px;
+    margin-bottom: 16px;
+    color: var(--els-text);
+}
+.store-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 14px;
+}
+.store-field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+.store-field label { font-weight: 600; color: var(--els-text); }
+.store-input,
+.store-textarea,
+.store-select {
+    border: 1px solid var(--els-border);
+    border-radius: 8px;
+    min-height: 40px;
+    padding: 8px 10px;
+    background: var(--els-background);
+    color: var(--els-text);
+}
+.store-textarea {
+    min-height: 88px;
+    resize: vertical;
+}
+.validation-summary-errors,
+.field-validation-error { color: #b91c1c; font-size: 13px; }
+.store-actions {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-top: 18px;
+}
+.store-btn {
+    min-width: 180px;
+    min-height: 42px;
+    border: 1px solid transparent;
+    border-radius: 8px;
+    background: linear-gradient(180deg, var(--els-primary-light) 0%, var(--els-primary) 100%);
+    color: #fff;
+    font-weight: 600;
+    cursor: pointer;
+}
+.store-btn.secondary { background: linear-gradient(180deg, #8f99a4 0%, #6f7a86 100%); }
+
+.toast-message {
+    position: fixed;
+    right: 24px;
+    top: 80px;
+    z-index: 9999;
+    min-width: 260px;
+    max-width: 380px;
+    padding: 12px 16px;
+    border-radius: 8px;
+    color: #fff;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
+    font-weight: 600;
+    display: none;
+}
+
+.toast-message.success {
+    background: #2f8f46;
+}
+
+.toast-message.error {
+    background: #b63838;
+}
+</style>
+
+@if (TempData["UserMessage"] != null)
+{
+    var storeConfigMessage = JsonConvert.DeserializeObject<LMSWebUI.Models.MessageDto>(Convert.ToString(TempData["UserMessage"]));
+    var isSuccessMessage = (storeConfigMessage.CssClassName ?? string.Empty).Contains("success");
+
+    @* This page shows the message as a floating toast, so drop it from TempData to stop
+       the shared _LayoutStatus partial from rendering a duplicate alert bar. *@
+    TempData.Remove("UserMessage");
+
+    <script type="text/javascript">
+        window.storeConfigToastMessage = '@Html.Raw(System.Text.Encodings.Web.JavaScriptEncoder.Default.Encode(storeConfigMessage.DisplayMessage ?? string.Empty))';
+        window.storeConfigToastIsSuccess = @(isSuccessMessage ? "true" : "false");
+    </script>
+}
+
+<div id="storeConfigToast" class="toast-message"></div>
+
+<section class="store-config-page">
+    <div class="store-config-box">
+        <div class="store-config-title">Store Configuration</div>
+        <div class="store-config-body">
+            <div class="store-config-note">
+                <div><b>Tenant:</b> @Model.TenantName</div>
+                <div><b>Store:</b> @Model.StoreCode</div>
+                <div style="margin-top:6px;">Configure store timings and remaining store details for this store.</div>
+            </div>
+
+            <form asp-action="StoreTimings" asp-controller="Customer" method="post">
+                @Html.AntiForgeryToken()
+                <input asp-for="IsExistingRecord" type="hidden" />
+                <div asp-validation-summary="All" class="validation-summary-errors"></div>
+
+                <div class="store-grid">
+                    <div class="store-field">
+                        <label for="StoreName">Store Name</label>
+                        <input asp-for="StoreName" class="store-input" maxlength="120" required />
+                        <span asp-validation-for="StoreName"></span>
+                    </div>
+
+                    <div class="store-field">
+                        <label for="ContactPerson">Contact Person</label>
+                        <input asp-for="ContactPerson" class="store-input" maxlength="100" required />
+                        <span asp-validation-for="ContactPerson"></span>
+                    </div>
+
+                    <div class="store-field">
+                        <label for="PhoneNumber">Phone Number</label>
+                        <input asp-for="PhoneNumber" class="store-input" maxlength="20" required pattern="[0-9+()\-\s]{7,20}" />
+                        <span asp-validation-for="PhoneNumber"></span>
+                    </div>
+
+                    <div class="store-field">
+                        <label for="Email">Email</label>
+                        <input asp-for="Email" class="store-input" type="email" maxlength="150" />
+                        <span asp-validation-for="Email"></span>
+                    </div>
+
+                    <div class="store-field">
+                        <label for="AddressLine1">Address Line 1</label>
+                        <input asp-for="AddressLine1" class="store-input" maxlength="200" required />
+                        <span asp-validation-for="AddressLine1"></span>
+                    </div>
+
+                    <div class="store-field">
+                        <label for="AddressLine2">Address Line 2</label>
+                        <input asp-for="AddressLine2" class="store-input" maxlength="200" />
+                        <span asp-validation-for="AddressLine2"></span>
+                    </div>
+
+                    <div class="store-field">
+                        <label for="City">City</label>
+                        <input asp-for="City" class="store-input" maxlength="80" required />
+                        <span asp-validation-for="City"></span>
+                    </div>
+
+                    <div class="store-field">
+                        <label for="State">State</label>
+                        <input asp-for="State" class="store-input" maxlength="80" required />
+                        <span asp-validation-for="State"></span>
+                    </div>
+
+                    <div class="store-field">
+                        <label for="PostalCode">Postal Code</label>
+                        <input asp-for="PostalCode" class="store-input" maxlength="20" required pattern="[A-Za-z0-9\-\s]{4,12}" />
+                        <span asp-validation-for="PostalCode"></span>
+                    </div>
+
+                    <div class="store-field">
+                        <label for="OpeningTime">Opening Time</label>
+                        <input asp-for="OpeningTime" class="store-input" type="time" required />
+                        <span asp-validation-for="OpeningTime"></span>
+                    </div>
+
+                    <div class="store-field">
+                        <label for="ClosingTime">Closing Time</label>
+                        <input asp-for="ClosingTime" class="store-input" type="time" required />
+                        <span asp-validation-for="ClosingTime"></span>
+                    </div>
+
+                    <div class="store-field">
+                        <label for="WeeklyOffDay">Weekly Off Day</label>
+                        <select asp-for="WeeklyOffDay" class="store-select">
+                            <option value="">None</option>
+                            <option value="Sunday">Sunday</option>
+                            <option value="Monday">Monday</option>
+                            <option value="Tuesday">Tuesday</option>
+                            <option value="Wednesday">Wednesday</option>
+                            <option value="Thursday">Thursday</option>
+                            <option value="Friday">Friday</option>
+                            <option value="Saturday">Saturday</option>
+                        </select>
+                        <span asp-validation-for="WeeklyOffDay"></span>
+                    </div>
+                </div>
+
+                <div class="store-field" style="margin-top:12px;">
+                    <label for="Notes">Notes</label>
+                    <textarea asp-for="Notes" class="store-textarea" maxlength="300"></textarea>
+                    <span asp-validation-for="Notes"></span>
+                </div>
+
+                <div class="store-actions">
+                    <button type="submit" class="store-btn">@(Model.IsExistingRecord ? "Update Store Configuration" : "Save Store Configuration")</button>
+                    <button type="button" class="store-btn secondary" onclick="window.location.href='@Url.Action("MyDashboard", "Dashboard")'">Back to My Dashboard</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</section>
+
+<script type="text/javascript">
+    document.addEventListener("DOMContentLoaded", function () {
+        if (!window.storeConfigToastMessage) {
+            return;
+        }
+
+        var toast = document.getElementById("storeConfigToast");
+        if (!toast) {
+            return;
+        }
+
+        var isSuccess = window.storeConfigToastIsSuccess === true;
+        toast.classList.remove(isSuccess ? "error" : "success");
+        toast.classList.add(isSuccess ? "success" : "error");
+        toast.textContent = window.storeConfigToastMessage;
+        toast.style.display = "block";
+
+        setTimeout(function () {
+            toast.style.display = "none";
+        }, 3200);
+    });
+</script>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

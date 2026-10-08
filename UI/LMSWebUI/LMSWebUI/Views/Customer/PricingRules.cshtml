@@ -1,0 +1,221 @@
+@model LMSWebUI.Models.Admin.PricingRulesViewModel
+@using Newtonsoft.Json
+@{
+    ViewData["Title"] = "Pricing Rules";
+    Layout = "~/Views/Shared/_HeaderMenuItemsLayout.cshtml";
+}
+
+<style>
+.pricing-rules-page,
+.pricing-rules-page input,
+.pricing-rules-page button,
+.pricing-rules-page label,
+.pricing-rules-page textarea,
+.pricing-rules-page select {
+    font-family: Arial, Helvetica, sans-serif;
+}
+
+.pricing-rules-page { padding: 20px; }
+.pricing-rules-box {
+    max-width: 980px;
+    margin: 0 auto;
+    background: var(--els-surface);
+    border-radius: 10px;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+    overflow: hidden;
+}
+.pricing-rules-title {
+    background: linear-gradient(90deg, var(--els-primary) 0%, var(--els-primary-dark) 100%);
+    color: #fff;
+    padding: 14px 20px;
+    font-size: 20px;
+    font-weight: 600;
+}
+.pricing-rules-body { padding: 20px; }
+.pricing-rules-note {
+    border: 1px solid var(--els-border);
+    border-radius: 8px;
+    background: var(--els-accent);
+    padding: 12px;
+    margin-bottom: 16px;
+    color: var(--els-text);
+}
+.pricing-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 14px;
+}
+.pricing-field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+.pricing-field label { font-weight: 600; color: var(--els-text); }
+.pricing-input,
+.pricing-textarea {
+    border: 1px solid var(--els-border);
+    border-radius: 8px;
+    min-height: 40px;
+    padding: 8px 10px;
+    background: var(--els-background);
+    color: var(--els-text);
+}
+.pricing-textarea { min-height: 88px; resize: vertical; }
+.pricing-check { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
+.validation-summary-errors,
+.field-validation-error { color: #b91c1c; font-size: 13px; }
+.pricing-actions {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-top: 18px;
+}
+.pricing-btn {
+    min-width: 180px;
+    min-height: 42px;
+    border: 1px solid transparent;
+    border-radius: 8px;
+    background: linear-gradient(180deg, var(--els-primary-light) 0%, var(--els-primary) 100%);
+    color: #fff;
+    font-weight: 600;
+    cursor: pointer;
+}
+.pricing-btn.secondary { background: linear-gradient(180deg, #8f99a4 0%, #6f7a86 100%); }
+
+.toast-message {
+    position: fixed;
+    right: 24px;
+    top: 80px;
+    z-index: 9999;
+    min-width: 260px;
+    max-width: 380px;
+    padding: 12px 16px;
+    border-radius: 8px;
+    color: #fff;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
+    font-weight: 600;
+    display: none;
+}
+
+.toast-message.success {
+    background: #2f8f46;
+}
+
+.toast-message.error {
+    background: #b63838;
+}
+</style>
+
+@if (TempData["UserMessage"] != null)
+{
+    var pricingRulesMessage = JsonConvert.DeserializeObject<LMSWebUI.Models.MessageDto>(Convert.ToString(TempData["UserMessage"]));
+    var isSuccessMessage = (pricingRulesMessage.CssClassName ?? string.Empty).Contains("success");
+
+    @* This page shows the message as a floating toast, so drop it from TempData to stop
+       the shared _LayoutStatus partial from rendering a duplicate alert bar. *@
+    TempData.Remove("UserMessage");
+
+    <script type="text/javascript">
+        window.pricingRulesToastMessage = '@Html.Raw(System.Text.Encodings.Web.JavaScriptEncoder.Default.Encode(pricingRulesMessage.DisplayMessage ?? string.Empty))';
+        window.pricingRulesToastIsSuccess = @(isSuccessMessage ? "true" : "false");
+    </script>
+}
+
+<div id="pricingRulesToast" class="toast-message"></div>
+
+<section class="pricing-rules-page">
+    <div class="pricing-rules-box">
+        <div class="pricing-rules-title">Pricing Rules</div>
+        <div class="pricing-rules-body">
+            <div class="pricing-rules-note">
+                <div><b>Tenant:</b> @Model.TenantName</div>
+                <div><b>Store:</b> @Model.StoreCode</div>
+                <div style="margin-top:6px;">Set surcharge, minimum order, turnaround and rounding behavior for this store.</div>
+            </div>
+
+            <form asp-action="PricingRules" asp-controller="Customer" method="post">
+                @Html.AntiForgeryToken()
+                <div asp-validation-summary="ModelOnly" class="validation-summary-errors"></div>
+
+                <div class="pricing-grid">
+                    <div class="pricing-field">
+                        <label asp-for="ExpressSurchargePercent"></label>
+                        <input asp-for="ExpressSurchargePercent" class="pricing-input" type="number" step="0.01" min="0" max="100" />
+                        <span asp-validation-for="ExpressSurchargePercent"></span>
+                    </div>
+
+                    <div class="pricing-field">
+                        <label asp-for="MinimumOrderAmount"></label>
+                        <input asp-for="MinimumOrderAmount" class="pricing-input" type="number" step="0.01" min="0" />
+                        <span asp-validation-for="MinimumOrderAmount"></span>
+                    </div>
+
+                    <div class="pricing-field">
+                        <label asp-for="StandardTurnaroundHours"></label>
+                        <input asp-for="StandardTurnaroundHours" class="pricing-input" type="number" min="1" max="240" />
+                        <span asp-validation-for="StandardTurnaroundHours"></span>
+                    </div>
+
+                    <div class="pricing-field">
+                        <label asp-for="ExpressTurnaroundHours"></label>
+                        <input asp-for="ExpressTurnaroundHours" class="pricing-input" type="number" min="1" max="240" />
+                        <span asp-validation-for="ExpressTurnaroundHours"></span>
+                    </div>
+                </div>
+
+                <div class="pricing-check">
+                    <input asp-for="EnableExpressSurcharge" />
+                    <label asp-for="EnableExpressSurcharge"></label>
+                </div>
+
+                <div class="pricing-check">
+                    <input asp-for="EnableMinimumOrder" />
+                    <label asp-for="EnableMinimumOrder"></label>
+                </div>
+
+                <div class="pricing-check">
+                    <input asp-for="RoundOffInvoiceTotal" />
+                    <label asp-for="RoundOffInvoiceTotal"></label>
+                </div>
+
+                <div class="pricing-field" style="margin-top:12px;">
+                    <label asp-for="Notes"></label>
+                    <textarea asp-for="Notes" class="pricing-textarea" maxlength="300"></textarea>
+                    <span asp-validation-for="Notes"></span>
+                </div>
+
+                <div class="pricing-actions">
+                    <button type="submit" class="pricing-btn">Save Pricing Rules</button>
+                    <button type="button" class="pricing-btn secondary" onclick="window.location.href='@Url.Action("MyDashboard", "Dashboard")'">Back to My Dashboard</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</section>
+
+<script type="text/javascript">
+    document.addEventListener("DOMContentLoaded", function () {
+        if (!window.pricingRulesToastMessage) {
+            return;
+        }
+
+        var toast = document.getElementById("pricingRulesToast");
+        if (!toast) {
+            return;
+        }
+
+        var isSuccess = window.pricingRulesToastIsSuccess === true;
+        toast.classList.remove(isSuccess ? "error" : "success");
+        toast.classList.add(isSuccess ? "success" : "error");
+        toast.textContent = window.pricingRulesToastMessage;
+        toast.style.display = "block";
+
+        setTimeout(function () {
+            toast.style.display = "none";
+        }, 3200);
+    });
+</script>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

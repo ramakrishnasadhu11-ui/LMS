@@ -1,0 +1,54 @@
+ServiceType,Category,ItemName,UnitPrice
+Dry Clean,Men,Shirt,25
+Dry Clean,Men,Pant,30
+Dry Clean,Men,T-Shirt,22
+Dry Clean,Men,Jeans,35
+Dry Clean,Men,Blazer,90
+Dry Clean,Men,Suit,140
+Dry Clean,Men,Kurta,28
+Dry Clean,Women,Top,24
+Dry Clean,Women,Saree,70
+Dry Clean,Women,Salwar,45
+Dry Clean,Women,Lehenga,120
+Dry Clean,Women,Gown,95
+Dry Clean,Women,Dupatta,20
+Dry Clean,Kids,Kid Shirt,15
+Dry Clean,Kids,Kid Pant,18
+Dry Clean,Kids,School Uniform,30
+Dry Clean,Kids,Frock,26
+Dry Clean,Household,Blanket,80
+Dry Clean,Household,Bedsheet,45
+Dry Clean,Household,Curtain,55
+Dry Clean,Household,Pillow Cover,12
+Dry Clean,Household,Sofa Cover,60
+Dry Clean,Others,Bag,40
+Dry Clean,Others,Cap,15
+Dry Clean,Others,Tie,10
+Steam Iron,Men,Shirt,12
+Steam Iron,Men,Pant,14
+Steam Iron,Men,T-Shirt,10
+Steam Iron,Men,Kurta,14
+Steam Iron,Women,Dress,16
+Steam Iron,Women,Top,12
+Steam Iron,Women,Saree,30
+Steam Iron,Women,Salwar,18
+Steam Iron,Women,Dupatta,10
+Steam Iron,Kids,Kid Shirt,8
+Steam Iron,Kids,Kid Pant,9
+Steam Iron,Kids,School Uniform,16
+Steam Iron,Household,Bedsheet,20
+Steam Iron,Household,Curtain,24
+Steam Iron,Household,Pillow Cover,6
+Steam Iron,Others,Scarf,8
+Steam Iron,Others,Tie,7
+Wash & Fold,Men,Daily Wear,18
+Wash & Fold,Men,Office Wear Set,30
+Wash & Fold,Women,Daily Wear Set,22
+Wash & Fold,Women,Delicates Set,32
+Wash & Fold,Kids,Kids Daily Wear,14
+Wash & Fold,Kids,Kids School Set,18
+Wash & Fold,Household,Mixed Load,50
+Wash & Fold,Household,Bedsheet Set,60
+Wash & Fold,Household,Towels Set,40
+Wash & Fold,Others,Gym Wear Set,20
+Wash & Fold,Others,Misc Load,35

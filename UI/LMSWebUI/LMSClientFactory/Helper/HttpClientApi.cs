@@ -1,4 +1,6 @@
 ﻿using RestSharp;
+using System.Net.Security;
+using System.Security.Cryptography.X509Certificates;
 using System;
 using System.Collections.Generic;
 using System.Net;
@@ -9,6 +11,34 @@ namespace LMSClientFactory.Helper
     public class HttpClientApi : IHttpClientApi
     {
         private readonly IRestClient _client;
+<<<<<<< Updated upstream
+=======
+
+        private static RestClient CreateClient(string url)
+        {
+            var options = new RestClientOptions(url)
+            {
+                // For local development allow self-signed localhost certificates by accepting
+                // certificates when the target host is localhost/127.0.0.1/::1. This is
+                // intentionally limited to local hosts only.
+                RemoteCertificateValidationCallback = (sender, certificate, chain, sslPolicyErrors) =>
+                {
+                    if (string.IsNullOrWhiteSpace(url)) return sslPolicyErrors == SslPolicyErrors.None;
+                    var lower = url.ToLowerInvariant();
+                    if (lower.Contains("localhost") || lower.Contains("127.0.0.1") || lower.Contains("::1"))
+                    {
+                        return true;
+                    }
+
+                    return sslPolicyErrors == SslPolicyErrors.None;
+                }
+            };
+
+            var client = new RestClient(options, configureSerialization: s => s.UseSerializer(() => new RestSharpJsonNetSerializer()));
+            return client;
+        } 
+
+>>>>>>> Stashed changes
         public HttpClientApi(string url)
         {
             _client = new RestClient(url);
@@ -27,6 +57,7 @@ namespace LMSClientFactory.Helper
         /// <returns></returns>
         private async Task<T> SendRequest<T>(IRestRequest request) where T : new()
         {
+<<<<<<< Updated upstream
             try
             {
                 request.RequestFormat = DataFormat.Json;
@@ -52,6 +83,44 @@ namespace LMSClientFactory.Helper
             catch (Exception ex)
             {
                 throw ex;
+=======
+            RestResponse<T> response = await _client.ExecuteAsync<T>(request);
+
+            // RestSharp reports ResponseStatus.Error for any non-success status code, so a
+            // status code of 0 is used to detect a genuine transport failure. Otherwise a
+            // meaningful response such as 403 (not approved) would be hidden behind a
+            // misleading "service unavailable" message.
+            var hasHttpResponse = response.StatusCode != 0;
+
+            if (!hasHttpResponse
+                && (response.ResponseStatus == ResponseStatus.Error || response.ResponseStatus == ResponseStatus.TimedOut))
+            {
+                throw new ApiUnavailableException(
+                    response.ErrorMessage ?? "The API could not be reached.",
+                    response.ErrorException);
+            }
+
+            if (response.StatusCode == HttpStatusCode.InternalServerError || response.StatusCode == HttpStatusCode.GatewayTimeout)
+            {
+                throw new ApiUnavailableException(
+                    $"The API returned {(int)response.StatusCode}.",
+                    response.ErrorException,
+                    (int)response.StatusCode,
+                    response.Content);
+            }
+
+            if (response.StatusCode == HttpStatusCode.NotFound)
+            {
+                // RestSharp's ErrorException only says "Request failed with status code NotFound",
+                // which hides the API payload. Callers inspect that payload to tell a genuine
+                // failure apart from a valid "no record yet" response, so the body wins when present.
+                if (!string.IsNullOrWhiteSpace(response.Content))
+                {
+                    throw new Exception(response.Content, response.ErrorException);
+                }
+
+                throw response.ErrorException ?? new Exception("The API returned 404.");
+>>>>>>> Stashed changes
             }
         }
         /// <summary>
@@ -95,9 +164,9 @@ namespace LMSClientFactory.Helper
                 };
                 return await SendRequest<T>(restRequest);
             }
-            catch (Exception ex)
+            catch
             {
-                throw ex;
+                throw;
             }
         }
         public async Task<T> SendRequestAsync<T>(string requestUrl, object model, Method method) where T : new()
@@ -112,9 +181,9 @@ namespace LMSClientFactory.Helper
                 restRequest.AddJsonBody(model);
                 return await SendRequest<T>(restRequest);
             }
-            catch (Exception ex)
+            catch
             {
-                throw ex;
+                throw;
             }
         }
         public async Task<T> SendRequestAsync<T>(string requestUrl, List<Parameter> parameters, Method method) where T : new()

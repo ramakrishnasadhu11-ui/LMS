@@ -1,4 +1,10 @@
 ﻿@model LMSWebUI.Models.DashBoard.TenantInfoDto 
+@{
+    var hideSidebar = Convert.ToBoolean(ViewData["HideSidebar"] ?? false);
+    var bodyCss = hideSidebar
+        ? "hold-transition skin-blue sidebar-mini sidebar-collapse"
+        : "hold-transition skin-blue sidebar-mini";
+}
 <!DOCTYPE html>
 <html>
 <head>
@@ -15,6 +21,152 @@
   <!-- Theme style -->
   <link rel="stylesheet" href="~/dist/css/AdminLTE.min.css">
   <link rel="stylesheet" href="~/dist/css/skins/skin-blue.min.css">
+  <link rel="stylesheet" href="~/css/app-theme.css">
+  <style>
+    .main-header,
+    .main-header .navbar,
+    .main-header .navbar-custom-menu {
+      overflow: visible !important;
+    }
+
+    .navbar-nav > .user-menu {
+      position: relative;
+    }
+
+    .navbar-nav > .user-menu > .dropdown-toggle {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin: 8px 8px 0 8px;
+      padding: 6px 10px;
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.16);
+      color: #ffffff !important;
+      border: 1px solid rgba(255, 255, 255, 0.35);
+    }
+
+    .navbar-nav > .user-menu.open > .dropdown-toggle,
+    .navbar-nav > .user-menu > .dropdown-toggle:hover {
+      filter: brightness(0.97);
+    }
+
+    .navbar-nav > .user-menu > .dropdown-toggle .hidden-xs {
+      color: #ffffff;
+      font-weight: 700;
+    }
+
+    .user-menu .dropdown-menu {
+      width: 280px;
+      min-width: 280px;
+      border: 1px solid var(--els-border);
+      border-radius: 12px;
+      box-shadow: 0 12px 30px rgba(0, 0, 0, 0.16);
+      background: var(--els-surface);
+      overflow: hidden;
+      left: auto;
+      right: 0;
+      margin-top: 8px;
+      top: 100%;
+      z-index: 3000;
+      padding: 0;
+    }
+
+    .user-menu .user-header {
+      padding: 18px 12px 14px;
+      background: linear-gradient(135deg, var(--els-primary) 0%, var(--els-primary-dark) 100%);
+      color: #fff;
+    }
+
+    .user-menu .user-header p {
+      margin-top: 10px;
+      line-height: 1.4;
+      font-weight: 600;
+      color: #fff;
+    }
+
+    .user-menu .user-header p small {
+      color: rgba(255, 255, 255, 0.88);
+    }
+
+    .user-menu .dropdown-menu .user-footer {
+      display: block;
+      padding: 12px;
+      background: color-mix(in srgb, var(--els-accent) 32%, var(--els-surface));
+      border-top: 1px solid var(--els-border);
+    }
+
+    .user-menu .user-body {
+      display: block !important;
+      padding: 10px 12px;
+      background: var(--els-surface);
+    }
+
+    .tenant-menu-action {
+      display: block;
+      width: 100%;
+      text-align: center;
+      border: 1px solid var(--els-border);
+      border-radius: 8px;
+      min-height: 36px;
+      line-height: 34px;
+      font-size: 13px;
+      font-weight: 600;
+      text-decoration: none;
+      background: #ffffff;
+      color: var(--els-text);
+    }
+
+    .tenant-menu-action:hover {
+      text-decoration: none;
+      background: var(--els-accent);
+    }
+
+    .tenant-menu-action.profile {
+      margin-bottom: 8px;
+      border-color: var(--els-primary-light);
+      background: color-mix(in srgb, var(--els-accent) 24%, #ffffff);
+      color: var(--els-primary-dark);
+    }
+
+    .tenant-menu-action.profile:hover {
+      color: var(--els-primary-dark);
+      background: color-mix(in srgb, var(--els-accent) 40%, #ffffff);
+    }
+
+    .tenant-menu-action.signout {
+      border-color: #c9302c;
+      background: linear-gradient(180deg, #e35d5b 0%, #c9302c 100%);
+      color: #fff;
+    }
+
+    .tenant-menu-action.signout:hover {
+      color: #fff;
+      filter: brightness(0.96);
+    }
+
+    @@media (max-width: 768px) {
+      .user-menu .dropdown-menu {
+        width: 92vw;
+        min-width: 260px;
+        right: 4px;
+      }
+    }
+
+  </style>
+  <script>
+      (function () {
+          try {
+              var selectedTheme = localStorage.getItem('els-theme');
+              if (selectedTheme === 'dark') {
+                  document.documentElement.setAttribute('data-theme', 'dark');
+              } else {
+                  document.documentElement.removeAttribute('data-theme');
+              }
+          } catch (e) {
+              document.documentElement.removeAttribute('data-theme');
+          }
+      })();
+  </script>
   <!-- jQuery 3 -->
   <script src="~/bower_components/jquery/dist/jquery.min.js"></script>
   <!--Load the AJAX API-->
@@ -26,7 +178,7 @@
   <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.4.1/jquery.min.js"></script>
   <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.11.1/jquery.min.js"></script>
 </head>
-<body class="hold-transition skin-blue sidebar-mini">
+<body class="@bodyCss">
 <div class="wrapper">
   <!-- Main Header -->
   <header class="main-header">
@@ -46,6 +198,9 @@
       <!-- Navbar Right Menu -->
       <div class="navbar-custom-menu">
         <ul class="nav navbar-nav">
+          <li>
+            <button id="themeToggleMain" type="button" class="theme-toggle-btn" onclick="toggleTheme()">Dark Theme</button>
+          </li>
           <!-- User Account Menu -->
           <li class="dropdown user user-menu">
             <!-- Menu Toggle Button -->
@@ -66,21 +221,15 @@
               </li>
               <!-- Menu Body -->
               <li class="user-body">
-                @*<div class="row">
-                  <div class="col-xs-4 text-center">
-                    <a href="#">Account</a>
-                  </div>
-                </div>*@
-                <!-- /.row -->
+                <a class="tenant-menu-action profile" href="@Url.Action("TenantProfileDetailsAsync", "Login", new { tenantEmail = Model.TenantName })">My Profile</a>
+                <a class="tenant-menu-action signout" href="@Url.Action("Logout", "Login")">Sign out</a>
               </li>
               <!-- Menu Footer-->
               <li class="user-footer">
                 @*<div class="pull-left">
                   <a href="javascript:void(0);" class="Detail" onclick="showProfile(this)" id=@Model.TenantName  data-id="@Model.TenantName">Profile</a> 
                 </div>*@
-                <div class="pull-right">
-                  <a href="@Url.Action("Logout", "Login")" class="Detail">Sign out</a>
-                </div>
+                <div style="font-size:12px;color:#64748b;">Use Sign out to securely end session</div>
               </li>
             </ul>
           </li>
@@ -89,6 +238,8 @@
     </nav>
   </header>
   <!-- Left side column. contains the logo and sidebar -->
+  @if (!hideSidebar)
+  {
   <aside class="main-sidebar">
     <!-- sidebar: style can be found in sidebar.less -->
     <section class="sidebar">
@@ -110,6 +261,7 @@
     </section>
     <!-- /.sidebar -->
   </aside>
+  }
   <!-- Content Wrapper. Contains page content -->
   <div class="content-wrapper">
     <!-- Content Header (Page header) -->
@@ -170,6 +322,30 @@
                  });
              
          }*@
+
+    function toggleTheme() {
+      var current = document.documentElement.getAttribute('data-theme');
+      var next = current === 'dark' ? 'light' : 'dark';
+
+      if (next === 'dark') {
+        document.documentElement.setAttribute('data-theme', 'dark');
+      } else {
+        document.documentElement.removeAttribute('data-theme');
+      }
+
+      localStorage.setItem('els-theme', next);
+      syncThemeButtonText();
+    }
+
+    function syncThemeButtonText() {
+      var isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+      var toggle = document.getElementById('themeToggleMain');
+      if (toggle) {
+        toggle.textContent = isDark ? 'Light Theme' : 'Dark Theme';
+      }
+    }
+
+    syncThemeButtonText();
     </script>
 </body>
 </html>

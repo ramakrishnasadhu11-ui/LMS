@@ -7,9 +7,18 @@
   <ItemGroup>
     <PackageReference Include="AutoMapper" Version="8.0.0" />
     <PackageReference Include="AWSSDK.SimpleEmail" Version="3.3.101.77" />
+<<<<<<< Updated upstream
     <PackageReference Include="Microsoft.AspNetCore.Http.Abstractions" Version="2.2.0" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="2.2.6" />
     <PackageReference Include="MongoDB.Driver" Version="2.10.4" />
+=======
+    <PackageReference Include="MailKit" Version="4.18.1" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="8.0.31">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+    <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="8.0.31" />
+>>>>>>> Stashed changes
     <PackageReference Include="NETCore.MailKit" Version="2.0.2" />
     <PackageReference Include="SendGrid" Version="9.19.0" />
     <PackageReference Include="System.Configuration.ConfigurationManager" Version="4.7.0" />

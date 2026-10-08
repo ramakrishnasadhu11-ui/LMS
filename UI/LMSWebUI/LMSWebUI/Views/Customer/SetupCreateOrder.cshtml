@@ -1,0 +1,2397 @@
+@model LMSWebUI.Models.Customer.LaundryOrderDto
+@{
+    ViewData["Title"] = "Admin Setup - Create Laundry Order";
+    Layout = "~/Views/Shared/_HeaderMenuItemsLayout.cshtml";
+    var orderMode = string.IsNullOrWhiteSpace(Convert.ToString(ViewData["OrderMode"]))
+        ? (string.IsNullOrWhiteSpace(Model?.OrderMode) ? "pieces" : Model.OrderMode)
+        : Convert.ToString(ViewData["OrderMode"]);
+    var setupOnly = Convert.ToBoolean(ViewData["SetupOnly"] ?? false);
+    var taxEnabled = Convert.ToBoolean(ViewData["TaxEnabled"] ?? false);
+    var gstPercent = Convert.ToDecimal(ViewData["GstPercent"] ?? 0);
+    var pricesIncludeTax = Convert.ToBoolean(ViewData["PricesIncludeTax"] ?? false);
+    var isAdminUser = Convert.ToBoolean(ViewData["IsAdminUser"] ?? false);
+    var orderHistorySearch = Convert.ToString(ViewData["OrderHistorySearch"] ?? string.Empty);
+}
+
+<style>
+/* styles unchanged except import controls */
+.setup-page,
+.setup-page input,
+.setup-page select,
+.setup-page button,
+.setup-page label,
+.setup-page textarea,
+.setup-page table,
+.setup-page div,
+.setup-page span {
+    font-family: Arial, Helvetica, sans-serif;
+    box-sizing: border-box;
+}
+
+.setup-page { padding: 20px; }
+.setup-box { max-width: 1260px; margin: 0 auto; background: var(--els-surface); border-radius: 10px; box-shadow: 0 2px 12px rgba(0,0,0,0.08); overflow: hidden; }
+.setup-title { background: linear-gradient(90deg, var(--els-primary) 0%, var(--els-primary-dark) 100%); color: #fff; padding: 14px 20px; font-size: 20px; font-weight: 600; }
+.setup-body { padding: 16px; }
+.setup-toolbar { display: grid; grid-template-columns: 1.5fr 1fr 1fr 1fr auto; gap: 10px; margin-bottom: 12px; }
+.setup-field label { display: block; font-size: 12px; font-weight: 600; margin-bottom: 4px; color: var(--els-text); }
+.setup-field input, .setup-field select, .setup-field textarea { width: 100%; border: 1px solid var(--els-border); border-radius: 6px; padding: 8px 10px; background: var(--els-surface); color: var(--els-text); }
+.order-mode-toggle { display: flex; gap: 8px; margin-bottom: 12px; }
+.mode-btn { border: 1px solid var(--els-border); border-radius: 6px; padding: 8px 12px; font-size: 12px; font-weight: 700; background: #f5f8fb; cursor: pointer; }
+.mode-btn.active { color: #fff; border-color: var(--els-primary); background: linear-gradient(180deg, var(--els-primary-light) 0%, var(--els-primary) 100%); }
+.setup-content { display: grid; grid-template-columns: 2.2fr 1fr; gap: 14px; }
+.left-pane, .right-pane { border: 1px solid var(--els-border); border-radius: 8px; background: var(--els-surface); }
+.left-pane { padding: 10px; }
+.tab-row { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+.tab-btn { border: 1px solid var(--els-border); border-radius: 4px; padding: 7px 10px; font-size: 12px; font-weight: 600; background: #f5f8fb; cursor: pointer; }
+.tab-btn.active { color: #fff; border-color: var(--els-primary); background: linear-gradient(180deg, var(--els-primary-light) 0%, var(--els-primary) 100%); }
+.catalog-grid { min-height: 420px; max-height: 480px; overflow-y: auto; border: 1px solid var(--els-border); border-radius: 6px; padding: 10px; display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 10px; }
+.item-card { border: 1px solid var(--els-border); border-radius: 8px; background: #fff; padding: 8px; text-align: center; cursor: pointer; transition: transform 0.15s ease, box-shadow 0.2s ease; }
+.item-card:hover { transform: translateY(-1px); box-shadow: 0 4px 10px rgba(0,0,0,0.15); }
+.item-card.active { border-color: var(--els-primary); box-shadow: 0 0 0 2px rgba(31,95,143,0.2); }
+.item-icon { font-size: 30px; margin-bottom: 4px; }
+.item-name { font-size: 12px; font-weight: 600; color: var(--els-text); }
+.item-price { margin-top: 2px; font-size: 12px; color: var(--els-primary); font-weight: 700; }
+.right-pane { padding: 10px; }
+.side-block { border: 1px solid var(--els-border); border-radius: 6px; padding: 10px; margin-bottom: 10px; }
+.side-title { font-size: 12px; font-weight: 700; margin-bottom: 8px; color: var(--els-text); }
+.store-scope-note {
+    border: 1px solid var(--els-border);
+    border-radius: 8px;
+    background: var(--els-accent);
+    padding: 10px 12px;
+    margin-bottom: 12px;
+    font-size: 12px;
+    color: var(--els-text);
+}
+.qty-row { display: grid; grid-template-columns: 34px 1fr 34px; gap: 6px; margin-bottom: 8px; }
+.qty-btn { border: 1px solid var(--els-border); border-radius: 4px; cursor: pointer; font-weight: 700; background: #f5f8fb; }
+.weight-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.stat-chip { display: flex; justify-content: space-between; align-items: center; font-size: 12px; border: 1px solid var(--els-border); border-radius: 4px; padding: 6px 8px; margin-bottom: 6px; }
+.stat-chip b { font-size: 13px; }
+.order-lines { max-height: 170px; overflow-y: auto; border: 1px solid var(--els-border); border-radius: 6px; }
+.order-line { display: grid; grid-template-columns: 1.4fr 0.5fr 0.7fr 24px; gap: 6px; align-items: center; padding: 6px 8px; border-bottom: 1px solid var(--els-border); font-size: 12px; }
+.remove-line { border: none; background: transparent; color: #b63838; cursor: pointer; font-weight: 700; }
+.setup-btn { width: 100%; min-height: 40px; border: 1px solid transparent; border-radius: 6px; background: linear-gradient(180deg, var(--els-primary-light) 0%, var(--els-primary) 100%); color: #fff; font-weight: 600; cursor: pointer; margin-bottom: 8px; }
+.setup-btn.secondary { background: linear-gradient(180deg, #8f99a4 0%, #6f7a86 100%); }
+.setup-btn.tertiary { background: linear-gradient(180deg, #3f8f7b 0%, #2b6f5e 100%); }
+.setup-btn.warning { background: linear-gradient(180deg, #c58638 0%, #9a651e 100%); }
+.setup-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+.setup-orders { margin-top: 12px; border: 1px solid var(--els-border); border-radius: 8px; overflow: hidden; }
+.setup-orders table { width: 100%; border-collapse: collapse; }
+.setup-orders th, .setup-orders td { border-bottom: 1px solid var(--els-border); padding: 8px; font-size: 12px; text-align: left; }
+.setup-orders th { background: rgba(48, 96, 189, 0.12); font-weight: 700; }
+.order-search-row { padding: 8px; border-bottom: 1px solid var(--els-border); background: #f8fbff; }
+.order-search-row input { width: 100%; max-width: 360px; border: 1px solid var(--els-border); border-radius: 6px; padding: 7px 10px; }
+.order-history-actions { display:flex; gap:6px; flex-wrap:wrap; align-items:center; }
+.order-history-action-btn { min-height:30px; margin-bottom:0; padding:4px 8px; border-radius:6px; border:1px solid var(--els-border); background:#f5f8fb; color:var(--els-text); font-size:11px; font-weight:600; cursor:pointer; }
+.order-history-action-btn:hover { filter:brightness(0.98); }
+.order-history-primary-btn { border-color:#238554; background:linear-gradient(180deg, #2ea66a 0%, #238554 100%); color:#fff; }
+.order-history-settled { color:#2f8f46; font-weight:700; font-size:12px; margin-right:2px; }
+.toast-message { position: fixed; right: 24px; top: 80px; z-index: 9999; min-width: 260px; max-width: 380px; padding: 12px 16px; border-radius: 8px; color: #fff; box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25); font-weight: 600; display: none; }
+.toast-message.success { background: #2f8f46; }
+.toast-message.error { background: #b63838; }
+.price-config-grid { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 8px; margin-top: 8px; }
+.price-config-actions { display:flex; flex-direction:column; gap:6px; margin-top:8px; }
+.price-config-btn-row { display:grid; grid-template-columns: repeat(3, minmax(140px, 1fr)); gap:8px; }
+.price-config-actions .setup-btn { width: 100%; min-width: 0; margin-bottom: 0; }
+.setup-btn.danger { background: linear-gradient(180deg, #c94b4b 0%, #9f2f2f 100%); }
+.setup-btn.success { background: linear-gradient(180deg, #2ea66a 0%, #238554 100%); }
+.bulk-import-row { display:flex; gap:8px; margin-top:8px; flex-wrap:wrap; align-items:center; }
+.bulk-import-row label { font-size:12px; }
+.bulk-import-row input[type="file"] { max-width: 360px; font-size: 12px; }
+.bulk-import-row input[type="file"]:disabled { opacity: 0.6; cursor: not-allowed; }
+.field-hint { margin-top:4px; font-size:11px; color:#667085; }
+.csv-rules-modal-backdrop { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.45); z-index: 9998; display: none; }
+.csv-rules-modal { position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(760px, 92vw); background: var(--els-surface); border: 1px solid var(--els-border); border-radius: 10px; box-shadow: 0 14px 36px rgba(0,0,0,0.25); z-index: 9999; display: none; }
+.csv-rules-modal-header { display:flex; justify-content:space-between; align-items:center; padding:12px 14px; border-bottom: 1px solid var(--els-border); background: linear-gradient(90deg, var(--els-primary) 0%, var(--els-primary-dark) 100%); color:#fff; border-top-left-radius:10px; border-top-right-radius:10px; }
+.csv-rules-modal-title { font-size:14px; font-weight:700; }
+.csv-rules-close-btn { border:none; background:transparent; color:#fff; font-size:22px; line-height:1; cursor:pointer; }
+.csv-rules-modal-body { padding:14px; font-size:12px; color: var(--els-text); max-height: 65vh; overflow-y: auto; }
+.csv-rules-modal-body ul { margin: 8px 0 10px 18px; padding: 0; }
+.csv-rules-code { font-family: Consolas, 'Courier New', monospace; background: #f6f8fa; border: 1px solid var(--els-border); border-radius: 6px; padding: 8px; display:block; }
+.csv-rules-table { width:100%; border-collapse:collapse; margin-top:8px; }
+.csv-rules-table th, .csv-rules-table td { border:1px solid var(--els-border); padding:6px 8px; text-align:left; font-size:12px; }
+.csv-rules-table th { background: rgba(48, 96, 189, 0.12); font-weight:700; }
+.csv-rules-modal-footer { padding: 0 14px 14px 14px; display:flex; justify-content:flex-end; }
+.import-summary-box { margin-top: 10px; border: 1px solid var(--els-border); border-radius: 8px; background: #f8fafc; padding: 10px; display: none; }
+.import-summary-title { font-size: 12px; font-weight: 700; color: var(--els-text); margin-bottom: 6px; }
+.import-summary-grid { display:grid; grid-template-columns: repeat(3, minmax(100px, 1fr)); gap:8px; }
+.import-summary-chip { border:1px solid var(--els-border); border-radius:6px; background:#fff; padding:6px 8px; font-size:12px; display:flex; justify-content:space-between; }
+.import-summary-lines { margin-top:8px; font-size:12px; color:#475467; word-break: break-word; }
+@@media (max-width: 1000px) { .setup-toolbar { grid-template-columns: repeat(2, minmax(220px, 1fr)); } .setup-content { grid-template-columns: 1fr; } .price-config-grid { grid-template-columns: 1fr 1fr; } .price-config-btn-row { grid-template-columns: 1fr; } }
+</style>
+
+<div id="setupOrderToast" class="toast-message"></div>
+@if (TempData["SetupCreateOrderToast"] != null)
+{
+    <script type="text/javascript">
+        window.setupOrderToastMessage = '@Html.Raw(System.Text.Encodings.Web.JavaScriptEncoder.Default.Encode(Convert.ToString(TempData["SetupCreateOrderToast"])))';
+    </script>
+}
+@if (ViewData["OrderCompletionContext"] != null)
+{
+    <script type="text/javascript">
+        window.orderCompletionContext = @Html.Raw(Convert.ToString(ViewData["OrderCompletionContext"]));
+    </script>
+}
+
+@* This page shows messages as a floating toast, so drop any pending TempData message
+   to stop the shared _LayoutStatus partial from rendering a duplicate alert bar. *@
+@{ TempData.Remove("UserMessage"); }
+
+<section class="setup-page">
+    <div class="setup-box">
+        <div class="setup-title">@(setupOnly ? "Store Price Configuration" : "Customer Create Order")</div>
+        <div class="setup-body">
+            @using (Html.BeginForm("SetupCreateOrder", "Customer", FormMethod.Post, new { id = "setupOrderForm", novalidate = "novalidate" }))
+            {
+                @Html.HiddenFor(m => m.CustCode, new { id = "custCode" })
+                @Html.HiddenFor(m => m.ServiceType, new { id = "serviceType" })
+                @Html.HiddenFor(m => m.OrderAmount, new { id = "orderAmount" })
+                @Html.HiddenFor(m => m.NetPayable, new { id = "netPayableInput" })
+                @Html.HiddenFor(m => m.PendingAmount, new { id = "pendingAmountInput" })
+                @Html.HiddenFor(m => m.OrderMode, new { id = "orderMode" })
+                @Html.HiddenFor(m => m.OrderItemsJson, new { id = "orderItemsJson" })
+
+                @if (!setupOnly)
+                {
+                    <div class="setup-toolbar">
+                        <div class="setup-field">
+                            <label for="customerName">Customer Name</label>
+                            @Html.TextBoxFor(m => m.CustomerName, new { id = "customerName", placeholder = "Enter customer name" })
+                        </div>
+                        <div class="setup-field">
+                            <label for="orderLookupText">Order/Invoice No</label>
+                            <input type="text" id="orderLookupText" placeholder="Enter Order No or Invoice No" list="orderLookupSuggestions" />
+                            <datalist id="orderLookupSuggestions"></datalist>
+                        </div>
+                        <div class="setup-field">
+                            <label for="customerCodeDisplay">Customer Code</label>
+                            <input type="text" id="customerCodeDisplay" value="@(Model?.CustCode ?? string.Empty)" readonly="readonly" />
+                        </div>
+                        <div class="setup-field">
+                            <label for="paymentMode">Payment Mode</label>
+                            @Html.DropDownListFor(m => m.PaymentMode, new SelectList(ViewData["EnabledPaymentModes"] as List<string> ?? new List<string> { "Cash", "UPI", "Card", "Wallet" }, Model.PaymentMode), new { id = "paymentMode" })
+                        </div>
+                        <div class="setup-field">
+                            <label for="advanceUsed">Advance Used</label>
+                            @Html.TextBoxFor(m => m.AdvanceUsed, new { id = "advanceUsed", type = "number", min = "0", step = "0.01" })
+                        </div>
+                        <div class="setup-field">
+                            <label for="paidNow">Paid Now</label>
+                            @Html.TextBoxFor(m => m.PaidNow, new { id = "paidNow", type = "number", min = "0", step = "0.01" })
+                        </div>
+                        <div class="setup-field" style="align-self:end;">
+                            <button type="button" class="setup-btn" id="findOrderRefBtn" style="margin-bottom:0;">Find by Order/Invoice</button>
+                        </div>
+                        <div class="setup-field" style="align-self:end;">
+                            <button type="button" class="setup-btn tertiary" id="loadOrderDataBtn" style="margin-bottom:0;">Load Customer Details</button>
+                        </div>
+                    </div>
+
+                    <div id="postOrderActions" class="side-block" style="display:none; margin-bottom:10px;">
+                        <div class="side-title">Post Order Actions</div>
+                        <div id="postOrderInfo" style="font-size:12px; margin-bottom:8px; color:#475467;"></div>
+                        <div id="paymentSettlementBlock" style="display:none; border:1px solid var(--els-border); border-radius:6px; padding:8px; margin-bottom:8px; background:#f8fbff;">
+                            <div style="font-size:12px; font-weight:700; margin-bottom:6px; color:var(--els-text);">Settle Pending Payment</div>
+                            <div class="setup-toolbar" style="grid-template-columns: 1fr 1fr auto; margin-bottom:6px;">
+                                <div class="setup-field">
+                                    <label for="settlePaidAmount">Amount</label>
+                                    <input type="number" id="settlePaidAmount" min="0.01" step="0.01" />
+                                </div>
+                                <div class="setup-field">
+                                    <label for="settlePaymentMode">Payment Mode</label>
+                                    <select id="settlePaymentMode">
+                                        <option value="Cash">Cash</option>
+                                        <option value="UPI">UPI</option>
+                                        <option value="Card">Card</option>
+                                        <option value="Wallet">Wallet</option>
+                                    </select>
+                                </div>
+                                <div class="setup-field" style="align-self:end;">
+                                    <button type="button" class="setup-btn success" id="settlePaymentBtn" style="margin-bottom:0;">Settle</button>
+                                </div>
+                            </div>
+                            <div class="field-hint" id="settlePaymentStatus"></div>
+                        </div>
+                        <div class="price-config-btn-row" style="grid-template-columns: repeat(4, minmax(150px, 1fr));">
+                            <button type="button" class="setup-btn" id="printTagsBtn">Print Tags</button>
+                            <button type="button" class="setup-btn tertiary" id="printBillBtn">Print Bill</button>
+                            <button type="button" class="setup-btn warning" id="downloadBillPdfBtn">Download PDF</button>
+                            <button type="button" class="setup-btn success" id="sendBillEmailBtn">Send Bill Email</button>
+                        </div>
+                        <div id="billEmailStatus" class="field-hint" style="margin-top:6px;"></div>
+                    </div>
+                }
+
+                @if (isAdminUser)
+                {
+                    <div class="side-block" id="storePriceConfigBlock">
+                        <div class="side-title">Store Price Configuration (Admin Setup)</div>
+                        <div class="store-scope-note">
+                            <div><b>Tenant:</b> @Model.TenantName</div>
+                            <div><b>Store:</b> @Model.StoreCode</div>
+                            <div style="margin-top:6px;">Item prices below apply only to this store. Other stores keep their own catalog and prices.</div>
+                        </div>
+                        <div class="price-config-grid">
+                            <div class="setup-field">
+                                <label for="cfgServiceType">Service Type</label>
+                                <select id="cfgServiceType">
+                                    <option value="">Loading service types...</option>
+                                </select>
+                                <div class="field-hint">Maintained in <a href="@Url.Action("ServiceItemMaster", "Customer")">Service &amp; Item Master</a>.</div>
+                            </div>
+                            <div class="setup-field">
+                                <label for="cfgCategory">Category</label>
+                                <select id="cfgCategory">
+                                    <option value="">Loading categories...</option>
+                                </select>
+                                <div class="field-hint">Maintained in <a href="@Url.Action("ServiceItemMaster", "Customer")">Service &amp; Item Master</a>.</div>
+                            </div>
+                            <div class="setup-field">
+                                <label for="cfgItemName">Item Name</label>
+                                <input type="text" id="cfgItemName" list="cfgItemNameSuggestions" placeholder="Select or type item" />
+                                <label style="margin-top:6px; display:flex; align-items:center; gap:6px; font-size:12px; font-weight:500;">
+                                    <input type="checkbox" id="showInactiveItemsChk" /> Show inactive items (for restore)
+                                </label>
+                                <select id="cfgItemPicker" style="margin-top:6px;">
+                                    <option value="">Select item from list</option>
+                                </select>
+                                <datalist id="cfgItemNameSuggestions"></datalist>
+                                <div class="field-hint" id="cfgItemNameHint">Select a service type and category to see its items.</div>
+                            </div>
+                            <div class="setup-field">
+                                <label for="cfgUnitPrice">Unit Price</label>
+                                <input type="number" id="cfgUnitPrice" min="0" step="0.01" />
+                                <div class="field-hint">Example: 25 for Shirt, 30 for Pant, 70 for Saree.</div>
+                            </div>
+                            <div class="price-config-actions">
+                                <div class="price-config-btn-row">
+                                    <button type="button" class="setup-btn" id="savePriceConfigBtn">Save Price</button>
+                                    <button type="button" class="setup-btn danger" id="removePriceConfigBtn">Remove Item</button>
+                                    <button type="button" class="setup-btn success" id="restorePriceConfigBtn">Restore Item</button>
+                                </div>
+                                <div class="field-hint">Save updates price, Remove hides item from catalog, Restore makes removed item active again.</div>
+                            </div>
+                        </div>
+
+                    </div>
+                }
+
+                @if (!setupOnly)
+                {
+                    <div class="order-mode-toggle">
+                        <button type="button" class="mode-btn" id="modePiecesBtn" onclick="setOrderMode('pieces')">Order Per Pieces</button>
+                        <button type="button" class="mode-btn" id="modeWeightBtn" onclick="setOrderMode('weight')">Order Per Weight</button>
+                    </div>
+
+                    <div class="setup-content">
+                        <div class="left-pane" id="piecesPane">
+                            <div id="catalogStats" style="font-size:12px; margin-bottom:8px; color:#475467;"></div>
+                            <div class="tab-row" id="serviceTabs"></div>
+                            <div class="tab-row" id="categoryTabs"></div>
+                            <div class="catalog-grid" id="catalogGrid"></div>
+                        </div>
+
+                        <div class="left-pane" id="weightPane" style="display:none;">
+                            <div class="side-title">Weight-Based Order Input</div>
+                            <div class="setup-field" style="margin-bottom:8px;">
+                                <label for="weightServiceType">Service Type</label>
+                                <select id="weightServiceType">
+                                    <option value="Wash & Fold">Wash & Fold</option>
+                                    <option value="Dry Clean">Dry Clean</option>
+                                    <option value="Steam Iron">Steam Iron</option>
+                                </select>
+                            </div>
+                            <div class="weight-grid">
+                                <div class="setup-field">
+                                    <label for="weightInKg">Weight (Kg)</label>
+                                    @Html.TextBoxFor(m => m.WeightInKg, new { id = "weightInKg", type = "number", min = "0.001", step = "0.001" })
+                                </div>
+                                <div class="setup-field">
+                                    <label for="ratePerKg">Rate per Kg</label>
+                                    <input type="number" id="ratePerKg" name="RatePerKg" min="0.01" step="0.01" value="@(Model?.RatePerKg ?? 0)" @((isAdminUser) ? "" : "disabled=\"disabled\"") />
+                                </div>
+                            </div>
+                            <div class="stat-chip" style="margin-top:8px;"><span>Weight Amount</span><b id="weightAmountDisplay">0.00</b></div>
+                        </div>
+
+                        <div class="right-pane">
+                            <div class="side-block" id="selectedItemBlock">
+                                <div class="side-title">Selected Item</div>
+                                <div class="stat-chip"><span>Name</span><b id="selectedItemName">-</b></div>
+                                <input type="text" id="manualItemName" placeholder="Enter item name" style="display:none; margin:6px 0; padding:6px; width:100%;" />
+                                <div class="stat-chip"><span>Unit Price</span><b id="selectedItemPrice">0.00</b></div>
+                                <input type="number" id="manualUnitPrice" min="0" step="0.01" value="0.00" style="display:none; margin:6px 0; padding:6px; width:100%;" />
+                                <div class="qty-row">
+                                    <button class="qty-btn" type="button" id="qtyMinus">-</button>
+                                    <input type="number" id="selectedQty" min="1" step="1" value="1" />
+                                    <button class="qty-btn" type="button" id="qtyPlus">+</button>
+                                </div>
+                                <button type="button" class="setup-btn" id="addItemBtn">Add To Order</button>
+                            </div>
+
+                            <div class="side-block" id="orderLinesBlock">
+                                <div class="side-title">Order Lines</div>
+                                <div class="order-lines" id="orderLinesContainer">
+                                    <div class="order-line"><span>No items added.</span></div>
+                                </div>
+                            </div>
+
+                            <div class="side-block">
+                                <div class="stat-chip"><span>Advance Balance</span><b id="advBalance">0.00</b></div>
+                                <div class="stat-chip"><span>Advance Utilized</span><b id="advUsedDisplay">0.00</b></div>
+                                <div class="stat-chip"><span>Advance Remaining</span><b id="advRemainingDisplay">0.00</b></div>
+                                <div class="stat-chip"><span>Order Amount</span><b id="orderAmountDisplay">0.00</b></div>
+                                @if (taxEnabled)
+                                {
+                                    <div class="stat-chip"><span>Sub Total</span><b id="subTotalDisplay">0.00</b></div>
+                                    <div class="stat-chip"><span>CGST @((gstPercent / 2).ToString("0.##"))%</span><b id="cgstDisplay">0.00</b></div>
+                                    <div class="stat-chip"><span>SGST @((gstPercent / 2).ToString("0.##"))%</span><b id="sgstDisplay">0.00</b></div>
+                                    <div class="stat-chip"><span>Total (incl. GST)</span><b id="totalAmountDisplay">0.00</b></div>
+                                }
+                                <div class="stat-chip"><span>Net Before Payment</span><b id="netPayableDisplay">0.00</b></div>
+                                <div class="stat-chip"><span>Paid Now</span><b id="paidNowDisplay">0.00</b></div>
+                                <div class="stat-chip"><span>Pending Amount</span><b id="pendingAmountDisplay">0.00</b></div>
+                            </div>
+
+                            <button type="button" class="setup-btn secondary" onclick="window.location.href='@Url.Action("Index", "Customer")'">Back to Customer</button>
+                            <button type="submit" class="setup-btn" id="createOrderBtn">Create Order</button>
+                        </div>
+                    </div>
+
+                    <div class="setup-field" style="margin-top:10px;">
+                        <label for="notes">Notes</label>
+                        @Html.TextAreaFor(m => m.Notes, new { id = "notes", maxlength = "500", placeholder = "Order notes" })
+                    </div>
+                }
+            }
+
+            @if (!setupOnly)
+            {
+                <div class="setup-orders">
+                    <div class="order-search-row">
+                        <input type="text" id="orderHistorySearch" placeholder="Search by Order No or Invoice No" value="@orderHistorySearch" />
+                    </div>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Order No</th>
+                                <th>Invoice No</th>
+                                <th>Date (UTC)</th>
+                                <th>Mode</th>
+                                <th>Service</th>
+                                <th>Total Pieces</th>
+                                <th>Amount</th>
+                                <th>Tax</th>
+                                <th>Advance Used</th>
+                                <th>Net Payable</th>
+                                <th>Payment</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="orderHistoryBody">
+                            <tr><td colspan="12">No orders found.</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </div>
+    </div>
+</section>
+
+<script type="text/javascript">
+(function () {
+    var setupOnly = @Html.Raw(setupOnly ? "true" : "false");
+    var taxEnabled = @Html.Raw(taxEnabled ? "true" : "false");
+    var gstPercent = @Html.Raw(gstPercent.ToString(System.Globalization.CultureInfo.InvariantCulture));
+    var pricesIncludeTax = @Html.Raw(pricesIncludeTax ? "true" : "false");
+    var allowPartialPayment = @Html.Raw(Convert.ToBoolean(ViewData["AllowPartialPayment"] ?? true).ToString().ToLowerInvariant());
+    // Expose admin flag to client side so non-admins don't see price-edit controls
+    var isAdminUser = @Html.Raw(Convert.ToBoolean(ViewData["IsAdminUser"] ?? false).ToString().ToLowerInvariant());
+    var currentAdvanceBalance = 0;
+    var selectedService = "Dry Clean";
+    var selectedCategory = "Men";
+    var selectedItem = null;
+    var orderLines = [];
+    var configuredItems = [];
+    var masterItems = [];
+    var orderHistoryCache = [];
+    var cfgPickerEntriesByKey = {};
+    var loadItemsRequestId = 0;
+    var initialMode = '@Html.Raw(System.Text.Encodings.Web.JavaScriptEncoder.Default.Encode(orderMode ?? "pieces"))';
+    var currentOrderMode = (initialMode || "pieces").toLowerCase() === "weight" ? "weight" : "pieces";
+
+    function focusAnchorTargetFromHash() {
+        var hash = window.location.hash || "";
+        if (!hash || hash === "#") {
+            return;
+        }
+
+        var rawId = hash.substring(1);
+        if (!rawId) {
+            return;
+        }
+
+        var decodedId = rawId;
+        try {
+            decodedId = decodeURIComponent(rawId);
+        } catch (e) {
+            decodedId = rawId;
+        }
+
+        var target = document.getElementById(decodedId);
+        if (!target) {
+            try {
+                target = document.querySelector(hash);
+            } catch (e) {
+                target = null;
+            }
+        }
+
+        if (!target) {
+            return;
+        }
+
+        target.scrollIntoView({ behavior: "smooth", block: "start" });
+        if (typeof target.focus === "function") {
+            if (!target.hasAttribute("tabindex")) {
+                target.setAttribute("tabindex", "-1");
+            }
+            target.focus({ preventScroll: true });
+        }
+    }
+
+    function showToast(message, isSuccess) {
+        var toast = document.getElementById("setupOrderToast");
+        if (!toast) { window.alert(message || "Operation completed."); return; }
+        toast.classList.remove("success", "error");
+        toast.classList.add(isSuccess ? "success" : "error");
+        toast.textContent = message || "Operation completed.";
+        toast.style.display = "block";
+        if (window.__setupOrderToastTimer) clearTimeout(window.__setupOrderToastTimer);
+        window.__setupOrderToastTimer = setTimeout(function () { toast.style.display = "none"; }, 3200);
+    }
+
+    function parseAmount(value) {
+        var n = Number(value);
+        return Number.isFinite(n) ? n : 0;
+    }
+
+    function resolveOrderTaxAmount(order) {
+        if (!order) {
+            return 0;
+        }
+
+        var taxAmount = parseAmount(order.TaxAmount ?? order.taxAmount ?? 0);
+        if (taxAmount > 0) {
+            return taxAmount;
+        }
+
+        var cgstAmount = parseAmount(order.CgstAmount ?? order.cgstAmount ?? 0);
+        var sgstAmount = parseAmount(order.SgstAmount ?? order.sgstAmount ?? 0);
+        if (cgstAmount > 0 || sgstAmount > 0) {
+            return cgstAmount + sgstAmount;
+        }
+
+        var subTotal = parseAmount(order.SubTotal ?? order.subTotal ?? 0);
+        var totalAmount = parseAmount(order.TotalAmount ?? order.totalAmount ?? 0);
+        if (totalAmount > subTotal && subTotal > 0) {
+            return totalAmount - subTotal;
+        }
+
+        // Final fallback: derive tax from store tax settings and order amount,
+        // so history remains consistent even when API tax split fields are not populated.
+        var orderAmount = parseAmount(order.OrderAmount ?? order.orderAmount ?? 0);
+        if (orderAmount > 0 && taxEnabled && gstPercent > 0) {
+            var breakup = computeTaxBreakup(orderAmount);
+            return parseAmount(breakup.tax);
+        }
+
+        return 0;
+    }
+
+    function groupConfiguredItems(items) {
+        var grouped = {};
+        (items || []).forEach(function (item) {
+            var service = item.ServiceType || item.serviceType || "Dry Clean";
+            var category = item.Category || item.category || "Others";
+            var itemName = item.ItemName || item.itemName || "Item";
+            var price = parseAmount(item.UnitPrice || item.unitPrice || 0);
+
+            if (!grouped[service]) grouped[service] = {};
+            if (!grouped[service][category]) grouped[service][category] = [];
+
+            grouped[service][category].push({ name: itemName, price: price, icon: "🧺" });
+        });
+
+        return grouped;
+    }
+
+    function computeOrderAmount() {
+        if (currentOrderMode === "weight") {
+            var weightEl = document.getElementById("weightInKg");
+            var rateEl = document.getElementById("ratePerKg");
+            var weight = parseAmount(weightEl ? weightEl.value : 0);
+            var rate = parseAmount(rateEl ? rateEl.value : 0);
+            return weight > 0 && rate > 0 ? (weight * rate) : 0;
+        }
+
+        return orderLines.reduce(function (acc, line) { return acc + (line.qty * line.price); }, 0);
+    }
+
+    function computeTaxBreakup(orderAmount) {
+        var gross = Math.max(0, orderAmount);
+
+        if (!taxEnabled || gstPercent <= 0) {
+            return { subTotal: gross, tax: 0, cgst: 0, sgst: 0, total: gross };
+        }
+
+        var rate = gstPercent / 100;
+        var subTotal;
+        var total;
+
+        if (pricesIncludeTax) {
+            total = gross;
+            subTotal = Math.round((gross / (1 + rate)) * 100) / 100;
+        } else {
+            subTotal = gross;
+            total = Math.round((gross * (1 + rate)) * 100) / 100;
+        }
+
+        var tax = Math.round((total - subTotal) * 100) / 100;
+        var cgst = Math.round((tax / 2) * 100) / 100;
+        var sgst = Math.round((tax - cgst) * 100) / 100;
+
+        return { subTotal: subTotal, tax: tax, cgst: cgst, sgst: sgst, total: total };
+    }
+
+    function syncTotals() {
+        if (setupOnly) {
+            return;
+        }
+
+        var orderAmount = computeOrderAmount();
+        var breakup = computeTaxBreakup(orderAmount);
+        var advanceInput = document.getElementById("advanceUsed");
+        var advanceUsed = parseAmount(advanceInput ? advanceInput.value : 0);
+
+        if (advanceUsed > currentAdvanceBalance) {
+            advanceUsed = currentAdvanceBalance;
+            if (advanceInput) {
+                advanceInput.value = currentAdvanceBalance.toFixed(2);
+            }
+        }
+
+        if (advanceUsed > breakup.total) {
+            advanceUsed = breakup.total;
+            if (advanceInput) {
+                advanceInput.value = breakup.total.toFixed(2);
+            }
+        }
+
+        var netBeforePayment = breakup.total - advanceUsed;
+        if (netBeforePayment < 0) netBeforePayment = 0;
+
+        var paidNowInput = document.getElementById("paidNow");
+        var paidNow = parseAmount(paidNowInput ? paidNowInput.value : 0);
+        if (!allowPartialPayment) {
+            paidNow = netBeforePayment;
+            if (paidNowInput) {
+                paidNowInput.value = netBeforePayment.toFixed(2);
+            }
+        } else {
+            if (paidNow > netBeforePayment) {
+                paidNow = netBeforePayment;
+                if (paidNowInput) {
+                    paidNowInput.value = netBeforePayment.toFixed(2);
+                }
+            }
+        }
+
+        var pendingAmount = netBeforePayment - paidNow;
+        if (pendingAmount < 0) {
+            pendingAmount = 0;
+        }
+
+        var remainingAdvance = currentAdvanceBalance - advanceUsed;
+        if (remainingAdvance < 0) {
+            remainingAdvance = 0;
+        }
+
+        document.getElementById("orderAmountDisplay").textContent = orderAmount.toFixed(2);
+        document.getElementById("netPayableDisplay").textContent = netBeforePayment.toFixed(2);
+        document.getElementById("paidNowDisplay").textContent = paidNow.toFixed(2);
+        document.getElementById("pendingAmountDisplay").textContent = pendingAmount.toFixed(2);
+        document.getElementById("advUsedDisplay").textContent = advanceUsed.toFixed(2);
+        document.getElementById("advRemainingDisplay").textContent = remainingAdvance.toFixed(2);
+        document.getElementById("orderAmount").value = orderAmount.toFixed(2);
+        document.getElementById("netPayableInput").value = pendingAmount.toFixed(2);
+        document.getElementById("pendingAmountInput").value = pendingAmount.toFixed(2);
+        document.getElementById("orderMode").value = currentOrderMode;
+
+        var subTotalEl = document.getElementById("subTotalDisplay");
+        if (subTotalEl) {
+            subTotalEl.textContent = breakup.subTotal.toFixed(2);
+            document.getElementById("cgstDisplay").textContent = breakup.cgst.toFixed(2);
+            document.getElementById("sgstDisplay").textContent = breakup.sgst.toFixed(2);
+            document.getElementById("totalAmountDisplay").textContent = breakup.total.toFixed(2);
+        }
+
+        if (currentOrderMode === "weight") {
+            document.getElementById("serviceType").value = document.getElementById("weightServiceType").value || "Wash & Fold";
+            document.getElementById("weightAmountDisplay").textContent = orderAmount.toFixed(2);
+        } else {
+            document.getElementById("serviceType").value = selectedService;
+            var weightAmountEl = document.getElementById("weightAmountDisplay");
+            if (weightAmountEl) {
+                weightAmountEl.textContent = "0.00";
+            }
+        }
+    }
+
+    window.setOrderMode = function(mode) {
+        if (setupOnly) {
+            return;
+        }
+
+        currentOrderMode = mode === "weight" ? "weight" : "pieces";
+        document.getElementById("piecesPane").style.display = currentOrderMode === "weight" ? "none" : "block";
+        document.getElementById("weightPane").style.display = currentOrderMode === "weight" ? "block" : "none";
+        document.getElementById("selectedItemBlock").style.display = currentOrderMode === "weight" ? "none" : "block";
+        document.getElementById("orderLinesBlock").style.display = currentOrderMode === "weight" ? "none" : "block";
+        document.getElementById("modePiecesBtn").classList.toggle("active", currentOrderMode === "pieces");
+        document.getElementById("modeWeightBtn").classList.toggle("active", currentOrderMode === "weight");
+
+        var weightInput = document.getElementById("weightInKg");
+        var rateInput = document.getElementById("ratePerKg");
+        var weightServiceType = document.getElementById("weightServiceType");
+        var isWeightMode = currentOrderMode === "weight";
+
+        if (weightInput) {
+            weightInput.disabled = !isWeightMode;
+        }
+
+        if (rateInput) {
+            rateInput.disabled = !isWeightMode;
+        }
+
+        if (weightServiceType) {
+            weightServiceType.disabled = !isWeightMode;
+        }
+
+        syncTotals();
+    }
+
+    function renderServiceTabs() {
+        if (setupOnly) {
+            return;
+        }
+
+        var wrap = document.getElementById("serviceTabs");
+        wrap.innerHTML = "";
+
+        var services = Object.keys(groupConfiguredItems(configuredItems));
+        if (!services.length) {
+            wrap.innerHTML = "<span style='font-size:12px;color:#b63838;'>No configured items. Use Save Price or Import Default Items.</span>";
+            return;
+        }
+
+        if (services.indexOf(selectedService) === -1) selectedService = services[0];
+
+        services.forEach(function (service) {
+            var btn = document.createElement("button");
+            btn.type = "button";
+            btn.className = "tab-btn" + (service === selectedService ? " active" : "");
+            btn.textContent = service;
+            btn.onclick = function () {
+                selectedService = service;
+                var groups = groupConfiguredItems(configuredItems);
+                selectedCategory = Object.keys(groups[selectedService] || {})[0] || "Others";
+                selectedItem = null;
+                renderAllTabsAndCatalog();
+            };
+            wrap.appendChild(btn);
+        });
+    }
+
+    function onInactiveToggleChanged() {
+        var chk = document.getElementById("showInactiveItemsChk");
+        var includeInactive = !!(chk && chk.checked);
+        document.getElementById("cfgItemName").value = "";
+        document.getElementById("cfgUnitPrice").value = "";
+        var picker = document.getElementById("cfgItemPicker");
+        if (picker) {
+            picker.value = "";
+        }
+
+        var modeText = includeInactive ? "ON" : "OFF";
+        showToast("Inactive toggle " + modeText + ". Reloading items...", true);
+        loadConfiguredItems(true, includeInactive);
+    }
+
+    function renderCategoryTabs() {
+        if (setupOnly) {
+            return;
+        }
+
+        var wrap = document.getElementById("categoryTabs");
+        wrap.innerHTML = "";
+
+        var groups = groupConfiguredItems(configuredItems);
+        var categories = Object.keys((groups[selectedService] || {}));
+        if (!categories.length) { wrap.innerHTML = ""; return; }
+
+        if (categories.indexOf(selectedCategory) === -1 && selectedCategory !== "__ALL__") selectedCategory = categories[0];
+
+        var allBtn = document.createElement("button");
+        allBtn.type = "button";
+        allBtn.className = "tab-btn" + (selectedCategory === "__ALL__" ? " active" : "");
+        allBtn.textContent = "All";
+        allBtn.onclick = function () {
+            selectedCategory = "__ALL__";
+            selectedItem = null;
+            renderCatalogGrid();
+            renderSelectedItemPane();
+            updateCatalogStats();
+        };
+        wrap.appendChild(allBtn);
+
+        categories.forEach(function (cat) {
+            var btn = document.createElement("button");
+            btn.type = "button";
+            btn.className = "tab-btn" + (cat === selectedCategory ? " active" : "");
+            btn.textContent = cat;
+            btn.onclick = function () {
+                selectedCategory = cat;
+                selectedItem = null;
+                renderCatalogGrid();
+                renderSelectedItemPane();
+                updateCatalogStats();
+            };
+            wrap.appendChild(btn);
+        });
+    }
+
+    function updateCatalogStats() {
+        var stats = document.getElementById("catalogStats");
+        if (!stats || setupOnly) return;
+
+        var groups = groupConfiguredItems(configuredItems);
+        var totalItems = configuredItems.length;
+        var inactiveItems = configuredItems.filter(function (x) { return !(x.IsActive ?? x.isActive ?? true); }).length;
+        var includeInactive = !!(document.getElementById("showInactiveItemsChk") && document.getElementById("showInactiveItemsChk").checked);
+        var serviceItems = 0;
+        if (groups[selectedService]) {
+            Object.keys(groups[selectedService]).forEach(function (cat) {
+                serviceItems += (groups[selectedService][cat] || []).length;
+            });
+        }
+
+        var modeText = includeInactive ? " | View: Active + Inactive" : " | View: Active only";
+        var inactiveText = includeInactive ? (" | Inactive: " + inactiveItems) : "";
+
+        if (selectedCategory === "__ALL__") {
+            stats.textContent = "Loaded from DB: " + totalItems + " items" + inactiveText + modeText + " | " + selectedService + ": " + serviceItems + " items (All categories)";
+        } else {
+            var filtered = (groups[selectedService] && groups[selectedService][selectedCategory]) ? groups[selectedService][selectedCategory].length : 0;
+            stats.textContent = "Loaded from DB: " + totalItems + " items" + inactiveText + modeText + " | " + selectedService + " / " + selectedCategory + ": " + filtered + " items";
+        }
+    }
+
+    function renderCatalogGrid() {
+        if (setupOnly) {
+            return;
+        }
+
+        var grid = document.getElementById("catalogGrid");
+        grid.innerHTML = "";
+        var groups = groupConfiguredItems(configuredItems);
+        var items = [];
+        if (groups[selectedService]) {
+            if (selectedCategory === "__ALL__") {
+                Object.keys(groups[selectedService]).forEach(function (cat) {
+                    items = items.concat(groups[selectedService][cat] || []);
+                });
+            } else {
+                items = groups[selectedService][selectedCategory] || [];
+            }
+        }
+
+        // If no configured prices are present, fall back to showing master items (names only)
+        if (!items.length) {
+            var fallback = [];
+            try {
+                if (masterItems && masterItems.length) {
+                    masterItems.forEach(function (m) {
+                        var svc = (m.ServiceType || m.serviceType || "").trim();
+                        var cat = (m.Category || m.category || "").trim();
+                        var name = (m.ItemName || m.itemName || "").trim();
+                        if (!name) return;
+                        if (svc.toLowerCase() !== (selectedService || "").toLowerCase()) return;
+                        if (selectedCategory !== "__ALL__" && cat.toLowerCase() !== (selectedCategory || "").toLowerCase()) return;
+                        fallback.push({ name: name, price: 0, icon: "🧺" });
+                    });
+                }
+            } catch (e) {
+                // ignore
+            }
+
+            if (!fallback.length) {
+                grid.innerHTML = "<div style='font-size:12px;color:#b63838;'>No items configured for selected service/category.</div>";
+                return;
+            }
+
+            items = fallback;
+        }
+
+        items.forEach(function (item) {
+            var card = document.createElement("div");
+            card.className = "item-card" + (selectedItem && selectedItem.name === item.name ? " active" : "");
+            card.innerHTML = "<div class='item-icon'>" + item.icon + "</div>"
+                + "<div class='item-name'>" + item.name + "</div>"
+                + "<div class='item-price'>" + item.price.toFixed(2) + "</div>";
+            card.onclick = function () {
+                selectedItem = { service: selectedService, category: selectedCategory, name: item.name, price: item.price, icon: item.icon };
+                renderCatalogGrid();
+                renderSelectedItemPane();
+            };
+            grid.appendChild(card);
+        });
+    }
+
+    function renderSelectedItemPane() {
+        if (setupOnly) {
+            return;
+        }
+
+        var nameEl = document.getElementById("selectedItemName");
+        var priceEl = document.getElementById("selectedItemPrice");
+        var manualNameEl = document.getElementById("manualItemName");
+        var manualPriceEl = document.getElementById("manualUnitPrice");
+
+        if (selectedItem) {
+            if (manualNameEl) manualNameEl.style.display = 'none';
+            if (manualPriceEl) manualPriceEl.style.display = 'none';
+            nameEl.textContent = selectedItem.name;
+            priceEl.textContent = selectedItem.price.toFixed(2);
+        } else {
+            if (manualNameEl) manualNameEl.style.display = 'block';
+            if (manualPriceEl) manualPriceEl.style.display = 'block';
+            nameEl.textContent = (manualNameEl && manualNameEl.value) ? manualNameEl.value : "-";
+            var manualPrice = manualPriceEl ? parseAmount(manualPriceEl.value) : 0;
+            priceEl.textContent = (manualPrice > 0 ? manualPrice : 0).toFixed(2);
+        }
+    }
+
+    function renderOrderLines() {
+        if (setupOnly) {
+            return;
+        }
+
+        var container = document.getElementById("orderLinesContainer");
+        container.innerHTML = "";
+
+        if (!orderLines.length) {
+            container.innerHTML = "<div class='order-line'><span>No items added.</span></div>";
+            syncTotals();
+            return;
+        }
+
+        orderLines.forEach(function (line, index) {
+            var row = document.createElement("div");
+            row.className = "order-line";
+            row.innerHTML = "<span>" + line.name + "</span>"
+                + "<span>x" + line.qty + "</span>"
+                + "<span>" + (line.qty * line.price).toFixed(2) + "</span>"
+                + "<button type='button' class='remove-line' data-idx='" + index + "'>×</button>";
+            container.appendChild(row);
+        });
+
+        Array.prototype.slice.call(container.querySelectorAll(".remove-line")).forEach(function (btn) {
+            btn.addEventListener("click", function () {
+                var idx = Number(btn.getAttribute("data-idx"));
+                if (!Number.isNaN(idx)) {
+                    orderLines.splice(idx, 1);
+                    renderOrderLines();
+                }
+            });
+        });
+
+        syncTotals();
+    }
+
+    function buildItemSummaryText() {
+        if (setupOnly) {
+            return "";
+        }
+
+        if (currentOrderMode === "weight") {
+            var weight = parseAmount(document.getElementById("weightInKg").value);
+            var rate = parseAmount(document.getElementById("ratePerKg").value);
+            if (weight <= 0 || rate <= 0) return "";
+            var service = document.getElementById("weightServiceType").value || "Wash & Fold";
+            return "Weight Order: " + service + " | " + weight.toFixed(3) + " Kg x " + rate.toFixed(2);
+        }
+
+        if (!orderLines.length) return "";
+        return orderLines.map(function (line) { return line.name + " x" + line.qty + " at " + line.price.toFixed(2); }).join(" | ");
+    }
+
+    function getNormalizedSelectedQty() {
+        var qtyInput = document.getElementById("selectedQty");
+        if (!qtyInput) {
+            return 1;
+        }
+
+        var qty = parseInt(qtyInput.value || "1", 10);
+        if (Number.isNaN(qty) || qty < 1) {
+            qty = 1;
+        }
+
+        qtyInput.value = qty;
+        return qty;
+    }
+
+    window.addSelectedItemToOrder = function() {
+        if (setupOnly) {
+            return;
+        }
+
+        var qty = getNormalizedSelectedQty();
+
+        // If an item is selected from catalog, use it. Otherwise allow manual entry.
+        if (selectedItem) {
+            var existing = orderLines.find(function (line) {
+                return line.service === selectedItem.service && line.category === selectedItem.category && line.name === selectedItem.name;
+            });
+
+            if (existing) existing.qty += qty;
+            else orderLines.push({ service: selectedItem.service, category: selectedCategory, name: selectedItem.name, price: selectedItem.price, qty: qty });
+        } else {
+            var manualNameEl = document.getElementById('manualItemName');
+            var manualPriceEl = document.getElementById('manualUnitPrice');
+            var manualName = manualNameEl ? (manualNameEl.value || '').trim() : '';
+            var manualPrice = manualPriceEl ? parseAmount(manualPriceEl.value) : 0;
+            if (!manualName) { showToast('Please enter item name.', false); return; }
+
+            var existing = orderLines.find(function (line) { return line.name === manualName; });
+            if (existing) existing.qty += qty;
+            else orderLines.push({ service: selectedService, category: selectedCategory, name: manualName, price: manualPrice, qty: qty });
+        }
+
+        renderOrderLines();
+        var qtyInput = document.getElementById("selectedQty");
+        if (qtyInput) {
+            qtyInput.value = 1;
+        }
+    }
+
+    function renderOrdersHistoryRows(orders) {
+        if (setupOnly) {
+            return;
+        }
+
+        var tbody = document.getElementById("orderHistoryBody");
+        tbody.innerHTML = "";
+
+        if (!orders || !orders.length) {
+            tbody.innerHTML = "<tr><td colspan='12'>No orders found.</td></tr>";
+            return;
+        }
+
+        function resolveTotalPieces(order) {
+            var explicitPieces = Number(order.TotalPieces ?? order.totalPieces ?? 0);
+            if (!Number.isNaN(explicitPieces) && explicitPieces > 0) {
+                return Math.floor(explicitPieces);
+            }
+
+            var items = order.Items || order.items || [];
+            if (Array.isArray(items) && items.length) {
+                var qtyFromItems = items.reduce(function (sum, x) {
+                    var q = Number((x && (x.Quantity ?? x.quantity)) || 0);
+                    return sum + (!Number.isNaN(q) && q > 0 ? q : 0);
+                }, 0);
+
+                if (qtyFromItems > 0) {
+                    return qtyFromItems;
+                }
+            }
+
+            return 0;
+        }
+
+        orders.forEach(function (order) {
+            var createdDate = order.CreatedDate || order.createdDate || "";
+            var orderNo = order.OrderNo || order.orderNo || "";
+            var invoiceNo = order.InvoiceNo || order.invoiceNo || orderNo;
+            var pending = Number((order.PendingAmount ?? order.pendingAmount ?? order.NetPayable ?? order.netPayable ?? 0));
+            var mode = (order.PaymentMode || order.paymentMode || "Cash");
+            var customerEmail = (order.CustomerEmail || order.customerEmail || "").toString();
+            var taxValue = resolveOrderTaxAmount(order);
+            var orderMode = (order.OrderMode || order.orderMode || "pieces").toLowerCase();
+            var totalPieces = resolveTotalPieces(order);
+            var totalPiecesText = orderMode === "weight" ? "-" : String(totalPieces);
+            var settleActionHtml = pending > 0
+                ? ("<button type='button' class='order-history-action-btn order-history-primary-btn settle-row-btn' data-order-no='" + orderNo + "' data-pending='" + pending.toFixed(2) + "' data-mode='" + mode + "'>Settle</button>")
+                : "<span class='order-history-settled'>Settled</span>";
+            var actionHtml = "<div class='order-history-actions'>"
+                + settleActionHtml
+                + "<button type='button' class='order-history-action-btn history-print-bill-btn' data-order-no='" + orderNo + "'>Print Bill</button>"
+                + "<button type='button' class='order-history-action-btn history-pdf-btn' data-order-no='" + orderNo + "'>PDF</button>"
+                + "<button type='button' class='order-history-action-btn history-email-btn' data-order-no='" + orderNo + "' data-email='" + customerEmail + "'>Email</button>"
+                + "<button type='button' class='order-history-action-btn history-tags-btn' data-order-no='" + orderNo + "'>Tags</button>"
+                + "</div>";
+            var tr = document.createElement("tr");
+            tr.innerHTML = "<td>" + orderNo + "</td>"
+                + "<td>" + invoiceNo + "</td>"
+                + "<td>" + createdDate.toString().replace("T", " ").substring(0, 16) + "</td>"
+                + "<td>" + (orderMode === "weight" ? "Weight" : "Pieces") + "</td>"
+                + "<td>" + (order.ServiceType || order.serviceType || "") + "</td>"
+                + "<td>" + totalPiecesText + "</td>"
+                + "<td>" + Number(order.OrderAmount || order.orderAmount || 0).toFixed(2) + "</td>"
+                + "<td>" + taxValue.toFixed(2) + "</td>"
+                + "<td>" + Number(order.AdvanceUsed || order.advanceUsed || 0).toFixed(2) + "</td>"
+                + "<td>" + pending.toFixed(2) + "</td>"
+                + "<td>" + mode + "</td>"
+                + "<td>" + actionHtml + "</td>";
+            tbody.appendChild(tr);
+        });
+
+        tbody.querySelectorAll('.settle-row-btn').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+                var targetOrderNo = (btn.getAttribute('data-order-no') || '').trim();
+                var pendingValue = parseAmount(btn.getAttribute('data-pending') || 0);
+                var paymentModeValue = (btn.getAttribute('data-mode') || 'Cash').trim() || 'Cash';
+
+                if (!targetOrderNo || pendingValue <= 0) {
+                    showToast('No pending amount available for this order.', false);
+                    return;
+                }
+
+                var amountText = window.prompt('Enter settle amount for order ' + targetOrderNo + ' (max ' + pendingValue.toFixed(2) + '):', pendingValue.toFixed(2));
+                if (amountText === null) {
+                    return;
+                }
+
+                var paidAmount = parseAmount(amountText);
+                if (paidAmount <= 0 || paidAmount > pendingValue) {
+                    showToast('Settle amount must be greater than zero and not more than pending amount.', false);
+                    return;
+                }
+
+                var body = new URLSearchParams();
+                body.append('orderNo', targetOrderNo);
+                body.append('paidAmount', paidAmount.toFixed(2));
+                body.append('paymentMode', paymentModeValue);
+                body.append('notes', 'Settled from order history row');
+
+                btn.disabled = true;
+                btn.textContent = 'Settling...';
+
+                fetch('@Url.Action("SettleOrderPendingPayment", "Customer")', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    body: body.toString()
+                })
+                .then(function (response) { return response.json(); })
+                .then(function (data) {
+                    if (!data || !data.success || !data.order) {
+                        showToast((data && data.message) || 'Unable to settle pending payment.', false);
+                        return;
+                    }
+
+                    var updatedOrder = data.order;
+                    orderHistoryCache = (orderHistoryCache || []).map(function (item) {
+                        var itemOrderNo = (item.OrderNo || item.orderNo || '').toString();
+                        if (itemOrderNo.toLowerCase() !== targetOrderNo.toLowerCase()) {
+                            return item;
+                        }
+
+                        item.PendingAmount = Number(updatedOrder.PendingAmount || updatedOrder.pendingAmount || updatedOrder.NetPayable || updatedOrder.netPayable || 0);
+                        item.pendingAmount = item.PendingAmount;
+                        item.NetPayable = Number(updatedOrder.NetPayable || updatedOrder.netPayable || 0);
+                        item.netPayable = item.NetPayable;
+                        item.PaidNow = Number(updatedOrder.PaidNow || updatedOrder.paidNow || 0);
+                        item.paidNow = item.PaidNow;
+                        item.PaymentMode = updatedOrder.PaymentMode || updatedOrder.paymentMode || paymentModeValue;
+                        item.paymentMode = item.PaymentMode;
+                        return item;
+                    });
+
+                    applyOrderHistorySearch();
+                    showToast(data.message || 'Payment updated.', true);
+                })
+                .catch(function () {
+                    showToast('Unable to settle pending payment.', false);
+                })
+                .finally(function () {
+                    btn.disabled = false;
+                    btn.textContent = 'Settle';
+                });
+            });
+        });
+
+        tbody.querySelectorAll('.history-print-bill-btn').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+                var targetOrderNo = (btn.getAttribute('data-order-no') || '').trim();
+                if (!targetOrderNo) {
+                    return;
+                }
+
+                window.open('@Url.Action("PrintOrderBill", "Customer")?orderNo=' + encodeURIComponent(targetOrderNo) + '&autoPrint=true', '_blank');
+            });
+        });
+
+        tbody.querySelectorAll('.history-pdf-btn').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+                var targetOrderNo = (btn.getAttribute('data-order-no') || '').trim();
+                if (!targetOrderNo) {
+                    return;
+                }
+
+                window.open('@Url.Action("DownloadOrderBillPdf", "Customer")?orderNo=' + encodeURIComponent(targetOrderNo), '_blank');
+            });
+        });
+
+        tbody.querySelectorAll('.history-tags-btn').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+                var targetOrderNo = (btn.getAttribute('data-order-no') || '').trim();
+                if (!targetOrderNo) {
+                    return;
+                }
+
+                window.open('@Url.Action("PrintOrderTags", "Customer")?orderNo=' + encodeURIComponent(targetOrderNo), '_blank');
+            });
+        });
+
+        tbody.querySelectorAll('.history-email-btn').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+                var targetOrderNo = (btn.getAttribute('data-order-no') || '').trim();
+                if (!targetOrderNo) {
+                    return;
+                }
+
+                var email = (btn.getAttribute('data-email') || '').trim();
+                if (!email) {
+                    email = (window.prompt('Customer email is missing. Please enter email to continue:', '') || '').trim();
+                    if (!email) {
+                        showToast('Email sending skipped. Customer email not provided.', false);
+                        return;
+                    }
+                }
+
+                var body = new URLSearchParams();
+                body.append('orderNo', targetOrderNo);
+                body.append('email', email);
+
+                btn.disabled = true;
+                var oldText = btn.textContent;
+                btn.textContent = 'Sending...';
+
+                fetch('@Url.Action("SendOrderBillEmail", "Customer")', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    body: body.toString()
+                })
+                .then(function (response) { return response.json(); })
+                .then(function (data) {
+                    if (!data || !data.success) {
+                        showToast((data && data.message) || 'Unable to send bill email.', false);
+                        return;
+                    }
+
+                    btn.setAttribute('data-email', email);
+                    showToast(data.message || 'Bill emailed successfully.', true);
+                })
+                .catch(function () {
+                    showToast('Unable to send bill email.', false);
+                })
+                .finally(function () {
+                    btn.disabled = false;
+                    btn.textContent = oldText;
+                });
+            });
+        });
+    }
+
+    function applyOrderHistorySearch() {
+        if (setupOnly) {
+            return;
+        }
+
+        var searchEl = document.getElementById("orderHistorySearch");
+        var term = (searchEl && searchEl.value ? searchEl.value : "").trim().toLowerCase();
+        if (!term) {
+            renderOrdersHistoryRows(orderHistoryCache);
+            return;
+        }
+
+        var filtered = (orderHistoryCache || []).filter(function (order) {
+            var orderNo = (order.OrderNo || order.orderNo || "").toString().toLowerCase();
+            var invoiceNo = (order.InvoiceNo || order.invoiceNo || "").toString().toLowerCase();
+            return orderNo.indexOf(term) >= 0 || invoiceNo.indexOf(term) >= 0;
+        });
+
+        renderOrdersHistoryRows(filtered);
+    }
+
+    function renderOrdersHistory(orders) {
+        orderHistoryCache = Array.isArray(orders) ? orders : [];
+        applyOrderHistorySearch();
+    }
+
+    function setupPostOrderActions() {
+        if (setupOnly || !window.orderCompletionContext) {
+            return;
+        }
+
+        var ctx = window.orderCompletionContext;
+        var orderNo = (ctx.orderNo || ctx.OrderNo || "").toString();
+        var invoiceNo = (ctx.invoiceNo || ctx.InvoiceNo || orderNo || "").toString();
+        var customerEmail = (ctx.customerEmail || ctx.CustomerEmail || "").toString();
+        if (!orderNo) {
+            return;
+        }
+
+        ctx.orderNo = orderNo;
+        ctx.invoiceNo = invoiceNo;
+        ctx.customerEmail = customerEmail;
+
+        var actionBox = document.getElementById("postOrderActions");
+        var info = document.getElementById("postOrderInfo");
+        var emailStatus = document.getElementById("billEmailStatus");
+        var settleBlock = document.getElementById("paymentSettlementBlock");
+        var settleStatus = document.getElementById("settlePaymentStatus");
+        var settleAmountInput = document.getElementById("settlePaidAmount");
+        var settleModeInput = document.getElementById("settlePaymentMode");
+        var settleBtn = document.getElementById("settlePaymentBtn");
+        if (!actionBox) {
+            return;
+        }
+
+        var pendingAmount = Number(ctx.pendingAmount ?? ctx.PendingAmount ?? ctx.netPayable ?? ctx.NetPayable ?? 0);
+
+        actionBox.style.display = "block";
+        if (info) {
+            var infoText = "Order " + orderNo + " created. Invoice " + invoiceNo + ".";
+            if (pendingAmount > 0) {
+                infoText += " Pending: " + pendingAmount.toFixed(2);
+            }
+            info.textContent = infoText;
+        }
+
+        if (settleModeInput) {
+            settleModeInput.value = (ctx.paymentMode || ctx.PaymentMode || "Cash");
+        }
+
+        if (settleBlock && settleAmountInput && settleBtn) {
+            if (pendingAmount > 0) {
+                settleBlock.style.display = "block";
+                settleAmountInput.value = pendingAmount.toFixed(2);
+                settleAmountInput.max = pendingAmount.toFixed(2);
+            } else {
+                settleBlock.style.display = "none";
+            }
+
+            settleBtn.onclick = function () {
+                var defaultAmount = parseAmount(settleAmountInput.value || pendingAmount || 0);
+                if (defaultAmount <= 0) {
+                    defaultAmount = pendingAmount;
+                }
+
+                var amountText = window.prompt(
+                    "Enter settle amount for order " + (ctx.orderNo || "") + " (max " + pendingAmount.toFixed(2) + "): ",
+                    defaultAmount.toFixed(2)
+                );
+
+                if (amountText === null) {
+                    return;
+                }
+
+                var amount = parseAmount(amountText);
+                if (amount <= 0) {
+                    showToast("Enter a valid settle amount.", false);
+                    return;
+                }
+
+                if (amount > pendingAmount) {
+                    showToast("Settle amount cannot exceed pending amount.", false);
+                    return;
+                }
+
+                settleAmountInput.value = amount.toFixed(2);
+
+                var body = new URLSearchParams();
+                body.append('orderNo', ctx.orderNo || '');
+                body.append('paidAmount', amount.toFixed(2));
+                body.append('paymentMode', settleModeInput ? (settleModeInput.value || 'Cash') : 'Cash');
+                body.append('notes', 'Settled from setup order screen');
+
+                settleBtn.disabled = true;
+                settleBtn.textContent = 'Settling...';
+
+                fetch('@Url.Action("SettleOrderPendingPayment", "Customer")', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    body: body.toString()
+                })
+                .then(function (response) { return response.json(); })
+                .then(function (data) {
+                    if (!data || !data.success || !data.order) {
+                        var msg = (data && data.message) || 'Unable to settle pending payment.';
+                        if (settleStatus) {
+                            settleStatus.textContent = msg;
+                        }
+                        showToast(msg, false);
+                        return;
+                    }
+
+                    var order = data.order;
+                    ctx.pendingAmount = Number(order.PendingAmount || order.pendingAmount || order.NetPayable || order.netPayable || 0);
+                    ctx.PendingAmount = ctx.pendingAmount;
+                    ctx.netPayable = Number(order.NetPayable || order.netPayable || 0);
+                    ctx.NetPayable = ctx.netPayable;
+                    ctx.paidNow = Number(order.PaidNow || order.paidNow || 0);
+                    ctx.PaidNow = ctx.paidNow;
+                    ctx.paymentMode = order.PaymentMode || order.paymentMode || (settleModeInput ? settleModeInput.value : 'Cash');
+                    ctx.PaymentMode = ctx.paymentMode;
+
+                    pendingAmount = ctx.pendingAmount;
+
+                    orderHistoryCache = (orderHistoryCache || []).map(function (item) {
+                        var itemOrderNo = (item.OrderNo || item.orderNo || '').toString();
+                        if (itemOrderNo.toLowerCase() !== orderNo.toLowerCase()) {
+                            return item;
+                        }
+
+                        item.PendingAmount = pendingAmount;
+                        item.pendingAmount = pendingAmount;
+                        item.NetPayable = ctx.netPayable;
+                        item.netPayable = ctx.netPayable;
+                        item.PaidNow = ctx.paidNow;
+                        item.paidNow = ctx.paidNow;
+                        item.PaymentMode = ctx.paymentMode;
+                        item.paymentMode = ctx.paymentMode;
+                        return item;
+                    });
+                    applyOrderHistorySearch();
+
+                    if (settleStatus) {
+                        settleStatus.textContent = data.message || 'Payment settled successfully.';
+                    }
+                    showToast(data.message || 'Payment settled successfully.', true);
+
+                    if (pendingAmount > 0) {
+                        settleAmountInput.value = pendingAmount.toFixed(2);
+                        settleAmountInput.max = pendingAmount.toFixed(2);
+                    } else {
+                        settleBlock.style.display = 'none';
+                    }
+
+                    if (info) {
+                        info.textContent = "Order " + orderNo + " created. Invoice " + invoiceNo + "."
+                            + (pendingAmount > 0 ? (" Pending: " + pendingAmount.toFixed(2)) : " Payment settled.");
+                    }
+                })
+                .catch(function () {
+                    var msg = 'Unable to settle pending payment.';
+                    if (settleStatus) {
+                        settleStatus.textContent = msg;
+                    }
+                    showToast(msg, false);
+                })
+                .finally(function () {
+                    settleBtn.disabled = false;
+                    settleBtn.textContent = 'Settle';
+                });
+            };
+        }
+
+        var printTagsBtn = document.getElementById("printTagsBtn");
+        var printBillBtn = document.getElementById("printBillBtn");
+        var downloadPdfBtn = document.getElementById("downloadBillPdfBtn");
+        var sendEmailBtn = document.getElementById("sendBillEmailBtn");
+
+        if (printTagsBtn) {
+            printTagsBtn.onclick = function () {
+                window.open('@Url.Action("PrintOrderTags", "Customer")?orderNo=' + encodeURIComponent(ctx.orderNo), '_blank');
+            };
+        }
+
+        if (printBillBtn) {
+            printBillBtn.onclick = function () {
+                window.open('@Url.Action("PrintOrderBill", "Customer")?orderNo=' + encodeURIComponent(ctx.orderNo) + '&autoPrint=true', '_blank');
+            };
+        }
+
+        if (downloadPdfBtn) {
+            downloadPdfBtn.onclick = function () {
+                window.open('@Url.Action("DownloadOrderBillPdf", "Customer")?orderNo=' + encodeURIComponent(ctx.orderNo), '_blank');
+            };
+        }
+
+        if (sendEmailBtn) {
+            sendEmailBtn.onclick = function () {
+                if (!window.confirm('Send bill to customer email now?')) {
+                    return;
+                }
+
+                var email = (ctx.customerEmail || "").trim();
+                if (!email) {
+                    email = (window.prompt('Customer email is missing. Please enter email to continue:', '') || '').trim();
+                    if (!email) {
+                        if (emailStatus) {
+                            emailStatus.textContent = 'Email sending skipped. Customer email not provided.';
+                        }
+                        return;
+                    }
+                }
+
+                var body = new URLSearchParams();
+                body.append('orderNo', ctx.orderNo || '');
+                body.append('email', email);
+
+                sendEmailBtn.disabled = true;
+                sendEmailBtn.textContent = 'Sending...';
+
+                fetch('@Url.Action("SendOrderBillEmail", "Customer")', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    body: body.toString()
+                })
+                .then(function (response) { return response.json(); })
+                .then(function (data) {
+                    if (!data || !data.success) {
+                        if (emailStatus) {
+                            emailStatus.textContent = (data && data.message) || 'Unable to send bill email.';
+                        }
+                        return;
+                    }
+
+                    ctx.customerEmail = email;
+                    if (emailStatus) {
+                        emailStatus.textContent = data.message || 'Bill emailed successfully.';
+                    }
+                })
+                .catch(function () {
+                    if (emailStatus) {
+                        emailStatus.textContent = 'Unable to send bill email.';
+                    }
+                })
+                .finally(function () {
+                    sendEmailBtn.disabled = false;
+                    sendEmailBtn.textContent = 'Send Bill Email';
+                });
+            };
+        }
+    }
+
+    function loadConfiguredItems(showModeToast, includeInactiveOverride) {
+        var requestId = ++loadItemsRequestId;
+        var includeInactive = !!(document.getElementById("showInactiveItemsChk") && document.getElementById("showInactiveItemsChk").checked);
+        if (typeof includeInactiveOverride === "boolean") {
+            includeInactive = includeInactiveOverride;
+        }
+
+        var itemsUrl = '@Url.Action("GetLaundryItemPrices", "Customer")'
+            + '?includeInactive=' + (includeInactive ? 'true' : 'false')
+            + '&_ts=' + Date.now();
+
+        return fetch(itemsUrl, {
+            method: 'GET',
+            cache: 'no-store',
+            credentials: 'same-origin',
+            headers: { 'X-Requested-With': 'XMLHttpRequest' }
+        })
+        .then(function (response) {
+            if (!response.ok) {
+                throw new Error("Unable to load laundry item prices.");
+            }
+            return response.json();
+        })
+        .then(function (data) {
+            if (requestId !== loadItemsRequestId) {
+                return;
+            }
+
+            if (!data || !data.success) {
+                configuredItems = [];
+                renderAllTabsAndCatalog();
+                return;
+            }
+
+            configuredItems = data.items || [];
+
+            updateConfigItemSuggestions();
+            renderAllTabsAndCatalog();
+        })
+        .catch(function () {
+            if (requestId !== loadItemsRequestId) {
+                return;
+            }
+
+            configuredItems = [];
+            updateConfigItemSuggestions();
+            renderAllTabsAndCatalog();
+            if (showModeToast) {
+                showToast("Unable to load items for selected filter.", false);
+            }
+        });
+    }
+
+    function fillMasterSelect(selectId, rows, placeholder, emptyText) {
+        var select = document.getElementById(selectId);
+        if (!select) {
+            return;
+        }
+
+        var previous = select.value;
+        var activeRows = (rows || []).filter(function (row) {
+            return !!(row.IsActive ?? row.isActive ?? true);
+        });
+
+        select.innerHTML = "";
+
+        var firstOption = document.createElement("option");
+        firstOption.value = "";
+        firstOption.textContent = activeRows.length ? placeholder : emptyText;
+        select.appendChild(firstOption);
+
+        activeRows.forEach(function (row) {
+            var name = (row.Name || row.name || "").trim();
+            if (!name) {
+                return;
+            }
+
+            var option = document.createElement("option");
+            option.value = name;
+            option.textContent = name;
+            select.appendChild(option);
+        });
+
+        if (previous) {
+            select.value = previous;
+        }
+    }
+
+    function loadStoreMasters() {
+        var url = '@Url.Action("GetStoreMasters", "Customer")?includeInactive=false&_ts=' + Date.now();
+
+        return fetch(url, {
+            method: 'GET',
+            cache: 'no-store',
+            credentials: 'same-origin',
+            headers: { 'X-Requested-With': 'XMLHttpRequest' }
+        })
+        .then(function (response) {
+            if (!response.ok) {
+                throw new Error("Unable to load store master data.");
+            }
+            return response.json();
+        })
+        .then(function (data) {
+            var serviceTypes = (data && data.success) ? (data.serviceTypes || data.ServiceTypes || []) : [];
+            var categories = (data && data.success) ? (data.categories || data.Categories || []) : [];
+            masterItems = (data && data.success) ? (data.items || data.Items || []) : [];
+
+            fillMasterSelect("cfgServiceType", serviceTypes, "Select service type", "No service types configured");
+            fillMasterSelect("cfgCategory", categories, "Select category", "No categories configured");
+            updateConfigItemSuggestions();
+        })
+        .catch(function () {
+            masterItems = [];
+            fillMasterSelect("cfgServiceType", [], "Select service type", "No service types configured");
+            fillMasterSelect("cfgCategory", [], "Select category", "No categories configured");
+        });
+    }
+
+    function updateConfigItemSuggestions() {
+        var serviceTypeEl = document.getElementById("cfgServiceType");
+        var categoryEl = document.getElementById("cfgCategory");
+        var datalist = document.getElementById("cfgItemNameSuggestions");
+        var picker = document.getElementById("cfgItemPicker");
+
+        // Non-admin users do not render the price-config block, so these controls can be absent.
+        // In that case just skip config suggestion logic.
+        if (!serviceTypeEl || !categoryEl || !datalist) {
+            cfgPickerEntriesByKey = {};
+            return;
+        }
+
+        var serviceType = (serviceTypeEl.value || "").trim();
+        var category = (categoryEl.value || "").trim();
+        var serviceTypeLower = serviceType.toLowerCase();
+        var categoryLower = category.toLowerCase();
+        var includeInactive = !!(document.getElementById("showInactiveItemsChk") && document.getElementById("showInactiveItemsChk").checked);
+
+        var scopeSelected = !!serviceType && !!category;
+        var entriesByName = {};
+        cfgPickerEntriesByKey = {};
+
+        // Items defined in Service & Item Master for the selected service + category.
+        // These are the only names that may be priced, so they drive the picker.
+        if (scopeSelected) {
+            masterItems.forEach(function (item) {
+                var itemService = (item.ServiceType || item.serviceType || "").trim();
+                var itemCategory = (item.Category || item.category || "").trim();
+                var itemName = (item.ItemName || item.itemName || "").trim();
+                if (!itemName || !(item.IsActive ?? item.isActive ?? true)) {
+                    return;
+                }
+
+                if (itemService.toLowerCase() !== serviceTypeLower || itemCategory.toLowerCase() !== categoryLower) {
+                    return;
+                }
+
+                entriesByName[itemName.toLowerCase()] = {
+                    service: itemService,
+                    category: itemCategory,
+                    name: itemName,
+                    price: 0,
+                    isActive: true,
+                    hasPrice: false
+                };
+            });
+        }
+
+        // Merge the configured price rows for the same scope so existing prices show up
+        // and any legacy priced item that is missing from the master is still selectable.
+        // Skipped entirely until a scope is chosen, otherwise rows from different
+        // service/category combinations would collapse onto the same item name.
+        if (scopeSelected) {
+            configuredItems.forEach(function (item) {
+                var itemService = (item.ServiceType || item.serviceType || "").trim();
+                var itemCategory = (item.Category || item.category || "").trim();
+                var itemName = (item.ItemName || item.itemName || "").trim();
+                if (!itemName) {
+                    return;
+                }
+
+                if (itemService.toLowerCase() !== serviceTypeLower || itemCategory.toLowerCase() !== categoryLower) {
+                    return;
+                }
+
+                var isActive = !!(item.IsActive ?? item.isActive ?? true);
+                if (includeInactive !== !isActive) {
+                    return;
+                }
+
+                entriesByName[itemName.toLowerCase()] = {
+                    service: itemService,
+                    category: itemCategory,
+                    name: itemName,
+                    price: parseAmount(item.UnitPrice || item.unitPrice || 0),
+                    isActive: isActive,
+                    hasPrice: true
+                };
+            });
+        }
+
+        datalist.innerHTML = "";
+        if (picker) {
+            picker.innerHTML = scopeSelected
+                ? "<option value=''>Select item from list</option>"
+                : "<option value=''>Select service type and category first</option>";
+        }
+
+        Object.keys(entriesByName).sort().forEach(function (key) {
+            var entry = entriesByName[key];
+            entry.pickerKey = [entry.service, entry.category, entry.name, entry.isActive ? "1" : "0"].join("|");
+
+            var statusLabel = entry.hasPrice
+                ? (entry.isActive ? "Priced" : "Inactive")
+                : "No price set";
+
+            var opt = document.createElement("option");
+            opt.value = entry.name;
+            opt.label = entry.price > 0
+                ? (entry.name + " (" + entry.price.toFixed(2) + ", " + statusLabel + ")")
+                : (entry.name + " (" + statusLabel + ")");
+            datalist.appendChild(opt);
+
+            if (picker) {
+                var selectOpt = document.createElement("option");
+                selectOpt.value = entry.pickerKey;
+                selectOpt.textContent = entry.name
+                    + " - " + statusLabel
+                    + (entry.price > 0 ? (", " + entry.price.toFixed(2)) : "");
+                picker.appendChild(selectOpt);
+                cfgPickerEntriesByKey[entry.pickerKey] = entry;
+            }
+        });
+
+        var hintText;
+        if (!scopeSelected) {
+            hintText = "Select a service type and category to see its items.";
+        } else if (!Object.keys(entriesByName).length) {
+            hintText = includeInactive
+                ? ("No inactive items for " + serviceType + " / " + category + ".")
+                : ("No items found for " + serviceType + " / " + category + ". Add them in Service & Item Master first.");
+        } else {
+            hintText = includeInactive
+                ? ("Showing inactive items for " + serviceType + " / " + category + ".")
+                : ("Showing items for " + serviceType + " / " + category + ". \"No price set\" items still need a price.");
+        }
+
+        var hintEl = document.getElementById("cfgItemNameHint");
+        if (hintEl) {
+            hintEl.textContent = hintText;
+        }
+    }
+
+    function applySuggestedPrice() {
+        var serviceTypeEl = document.getElementById("cfgServiceType");
+        var categoryEl = document.getElementById("cfgCategory");
+        var itemNameEl = document.getElementById("cfgItemName");
+        if (!serviceTypeEl || !categoryEl || !itemNameEl) {
+            return;
+        }
+
+        var serviceType = (serviceTypeEl.value || "").trim();
+        var category = (categoryEl.value || "").trim();
+        var serviceTypeLower = serviceType.toLowerCase();
+        var categoryLower = category.toLowerCase();
+        var itemName = (itemNameEl.value || "").trim();
+        var priceInput = document.getElementById("cfgUnitPrice");
+        if (!itemName) {
+            return;
+        }
+
+        var searchName = itemName.toLowerCase();
+
+        // Only ever match within the selected service type + category so the same item name
+        // under a different scope can never pull in the wrong price.
+        var matched = configuredItems.find(function (item) {
+            return (item.ServiceType || item.serviceType || "").trim().toLowerCase() === serviceTypeLower
+                && (item.Category || item.category || "").trim().toLowerCase() === categoryLower
+                && (item.ItemName || item.itemName || "").trim().toLowerCase() === searchName;
+        });
+
+        if (matched) {
+            var price = parseAmount(matched.UnitPrice || matched.unitPrice || 0);
+            if (priceInput) {
+                priceInput.value = price > 0 ? price.toFixed(2) : "";
+            }
+        } else if (priceInput) {
+            // Item has no price yet for this scope; clear any leftover value from a previous item.
+            priceInput.value = "";
+        }
+    }
+
+    function saveConfiguredItemPrice() {
+        var serviceType = (document.getElementById("cfgServiceType").value || "").trim();
+        var category = (document.getElementById("cfgCategory").value || "").trim();
+        var itemName = (document.getElementById("cfgItemName").value || "").trim();
+        var unitPrice = parseAmount(document.getElementById("cfgUnitPrice").value);
+
+        if (!serviceType || !category || !itemName) { showToast("Service, category, and item name are required.", false); return; }
+        if (unitPrice < 0) { showToast("Item price cannot be negative.", false); return; }
+
+        var body = new URLSearchParams();
+        body.append("ServiceType", serviceType);
+        body.append("Category", category);
+        body.append("ItemName", itemName);
+        body.append("UnitPrice", unitPrice.toString());
+        body.append("IsActive", "true");
+
+        fetch('@Url.Action("SaveLaundryItemPrice", "Customer")', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8', 'X-Requested-With': 'XMLHttpRequest' },
+            body: body.toString()
+        })
+        .then(function (response) { return response.json(); })
+        .then(function (data) {
+            if (!data || !data.success) {
+                showToast((data && data.message) || "Unable to save laundry item price.", false);
+                return;
+            }
+
+            showToast(data.message || "Laundry item price saved successfully.", true);
+            document.getElementById("cfgItemName").value = "";
+            document.getElementById("cfgUnitPrice").value = "";
+            return loadConfiguredItems();
+        })
+        .catch(function (error) {
+            showToast((error && error.message) || "Unable to save laundry item price.", false);
+        });
+    }
+
+    function removeConfiguredItemPrice() {
+        var serviceType = (document.getElementById("cfgServiceType").value || "").trim();
+        var category = (document.getElementById("cfgCategory").value || "").trim();
+        var itemName = (document.getElementById("cfgItemName").value || "").trim();
+
+        if (!serviceType || !category || !itemName) {
+            showToast("Select service, category, and item name to remove.", false);
+            return;
+        }
+
+        if (!window.confirm("Remove this item from store pricing?")) {
+            return;
+        }
+
+        var body = new URLSearchParams();
+        body.append("serviceType", serviceType);
+        body.append("category", category);
+        body.append("itemName", itemName);
+
+        fetch('@Url.Action("DeactivateLaundryItemPrice", "Customer")', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8', 'X-Requested-With': 'XMLHttpRequest' },
+            body: body.toString()
+        })
+        .then(function (response) { return response.json(); })
+        .then(function (data) {
+            if (!data || !data.success) {
+                showToast((data && data.message) || "Unable to remove laundry item.", false);
+                return;
+            }
+
+            showToast(data.message || "Laundry item removed successfully.", true);
+            document.getElementById("cfgItemName").value = "";
+            document.getElementById("cfgUnitPrice").value = "";
+            return loadConfiguredItems();
+        })
+        .catch(function (error) {
+            showToast((error && error.message) || "Unable to remove laundry item.", false);
+        });
+    }
+
+    function restoreConfiguredItemPrice() {
+        var serviceType = (document.getElementById("cfgServiceType").value || "").trim();
+        var category = (document.getElementById("cfgCategory").value || "").trim();
+        var itemName = (document.getElementById("cfgItemName").value || "").trim();
+
+        if (!serviceType || !category || !itemName) {
+            showToast("Select service, category, and item name to restore.", false);
+            return;
+        }
+
+        var body = new URLSearchParams();
+        body.append("serviceType", serviceType);
+        body.append("category", category);
+        body.append("itemName", itemName);
+
+        fetch('@Url.Action("ReactivateLaundryItemPrice", "Customer")', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8', 'X-Requested-With': 'XMLHttpRequest' },
+            body: body.toString()
+        })
+        .then(function (response) { return response.json(); })
+        .then(function (data) {
+            if (!data || !data.success) {
+                showToast((data && data.message) || "Unable to restore laundry item.", false);
+                return;
+            }
+
+            showToast(data.message || "Laundry item restored successfully.", true);
+            document.getElementById("cfgItemName").value = "";
+            document.getElementById("cfgUnitPrice").value = "";
+            return loadConfiguredItems();
+        })
+        .catch(function (error) {
+            showToast((error && error.message) || "Unable to restore laundry item.", false);
+        });
+    }
+
+    function loadCustomerData() {
+        if (setupOnly) {
+            return;
+        }
+
+        function parseJsonOrHandleRedirect(response, fallbackMessage) {
+            if (!response) {
+                throw new Error(fallbackMessage);
+            }
+
+            var responseUrl = (response.url || "").toLowerCase();
+            var redirectedToLogin = responseUrl.indexOf("/login") >= 0 || responseUrl.indexOf("/account/login") >= 0;
+
+            if (response.status === 302 || (response.redirected && redirectedToLogin)) {
+                showToast("Session expired. Redirecting to login...", false);
+                if (response.url) {
+                    setTimeout(function () {
+                        window.location.href = response.url;
+                    }, 300);
+                }
+                throw new Error("Session expired. Please login again.");
+            }
+
+            if (!response.ok) {
+                throw new Error(fallbackMessage);
+            }
+
+            var contentType = (response.headers && response.headers.get("content-type")) || "";
+            if (contentType.toLowerCase().indexOf("application/json") === -1) {
+                if (redirectedToLogin) {
+                    showToast("Session expired. Redirecting to login...", false);
+                    if (response.url) {
+                        setTimeout(function () {
+                            window.location.href = response.url;
+                        }, 300);
+                    }
+                    throw new Error("Session expired. Please login again.");
+                }
+
+                throw new Error((fallbackMessage || "Request failed.") + " (Invalid response format)");
+            }
+
+            return response.json();
+        }
+
+        var customerName = (document.getElementById("customerName").value || "").trim();
+        var customerCode = (document.getElementById("custCode").value || "").trim();
+        if (!customerName && !customerCode) { showToast("Please enter customer name.", false); return; }
+
+        function loadOrdersForCustomer(nameValue, codeValue) {
+            var orderQuery = [];
+            if (nameValue) {
+                orderQuery.push('customerName=' + encodeURIComponent(nameValue));
+            }
+            if (codeValue) {
+                orderQuery.push('customerCode=' + encodeURIComponent(codeValue));
+            }
+
+            if (!orderQuery.length) {
+                renderOrdersHistory([]);
+                return;
+            }
+
+            fetch('@Url.Action("GetCustomerOrders", "Customer")' + '?' + orderQuery.join('&'), {
+                method: 'GET',
+                credentials: 'same-origin',
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'Accept': 'application/json'
+                }
+            })
+            .then(function (response) { return parseJsonOrHandleRedirect(response, 'Unable to fetch orders.'); })
+            .then(function (orderData) {
+                if (!orderData || !orderData.success) {
+                    showToast((orderData && orderData.message) || "Unable to fetch orders.", false);
+                    renderOrdersHistory([]);
+                    return;
+                }
+                renderOrdersHistory(orderData.orders || []);
+            })
+            .catch(function (error) {
+                showToast((error && error.message) || "Unable to fetch orders.", false);
+                renderOrdersHistory([]);
+            });
+        }
+
+        var advanceQuery = [];
+        if (customerName) {
+            advanceQuery.push('customerName=' + encodeURIComponent(customerName));
+        }
+        if (customerCode) {
+            advanceQuery.push('customerCode=' + encodeURIComponent(customerCode));
+        }
+
+        fetch('@Url.Action("GetCustomerAdvances", "Customer")' + '?' + advanceQuery.join('&'), {
+            method: 'GET',
+            credentials: 'same-origin',
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest',
+                'Accept': 'application/json'
+            }
+        })
+        .then(function (response) { return parseJsonOrHandleRedirect(response, 'Unable to fetch customer advances.'); })
+        .then(function (advanceData) {
+            if (!advanceData || !advanceData.success) {
+                showToast((advanceData && advanceData.message) || "Unable to fetch customer advances. Continuing with 0 advance balance.", false);
+                currentAdvanceBalance = 0;
+                document.getElementById("advBalance").textContent = "0.00";
+                if (customerCode) {
+                    document.getElementById("custCode").value = customerCode;
+                    document.getElementById("customerCodeDisplay").value = customerCode;
+                }
+                loadOrdersForCustomer(customerName, customerCode);
+                syncTotals();
+                return;
+            }
+
+            currentAdvanceBalance = Number(advanceData.balance || 0);
+            document.getElementById("advBalance").textContent = currentAdvanceBalance.toFixed(2);
+            document.getElementById("custCode").value = advanceData.customerCode || "";
+            document.getElementById("customerCodeDisplay").value = advanceData.customerCode || "";
+
+            var resolvedCustomerCode = (advanceData.customerCode || "").trim();
+            loadOrdersForCustomer(customerName, resolvedCustomerCode);
+
+            syncTotals();
+        })
+        .catch(function (error) {
+            showToast((error && error.message) || "Unable to fetch customer advances. Continuing with 0 advance balance.", false);
+            currentAdvanceBalance = 0;
+            document.getElementById("advBalance").textContent = "0.00";
+            loadOrdersForCustomer(customerName, customerCode);
+            syncTotals();
+        });
+    }
+
+    function loadOrderReferenceSuggestions() {
+        var lookupEl = document.getElementById("orderLookupText");
+        var listEl = document.getElementById("orderLookupSuggestions");
+        if (!lookupEl || !listEl) {
+            return;
+        }
+
+        var term = (lookupEl.value || "").trim();
+        if (!term || term.length < 2) {
+            listEl.innerHTML = "";
+            return;
+        }
+
+        fetch('@Url.Action("SearchOrderReferences", "Customer")?searchText=' + encodeURIComponent(term) + '&top=20', {
+            method: 'GET',
+            credentials: 'same-origin',
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest',
+                'Accept': 'application/json'
+            }
+        })
+        .then(function (response) {
+            if (!response.ok) {
+                throw new Error("Unable to load order suggestions.");
+            }
+            return response.json();
+        })
+        .then(function (items) {
+            listEl.innerHTML = "";
+            (Array.isArray(items) ? items : []).forEach(function (value) {
+                if (!value) {
+                    return;
+                }
+
+                var option = document.createElement("option");
+                option.value = value;
+                listEl.appendChild(option);
+            });
+        })
+        .catch(function () {
+            listEl.innerHTML = "";
+        });
+    }
+
+    function findOrderReferenceAndLoadCustomer() {
+        var lookupEl = document.getElementById("orderLookupText");
+        if (!lookupEl) {
+            return;
+        }
+
+        var term = (lookupEl.value || "").trim();
+        if (!term) {
+            showToast("Please enter Order No or Invoice No.", false);
+            return;
+        }
+
+        fetch('@Url.Action("SearchOrderReference", "Customer")?searchText=' + encodeURIComponent(term), {
+            method: 'GET',
+            credentials: 'same-origin',
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest',
+                'Accept': 'application/json'
+            }
+        })
+        .then(function (response) {
+            if (!response.ok) {
+                throw new Error("Unable to find order reference.");
+            }
+            return response.json();
+        })
+        .then(function (data) {
+            if (!data || !data.success) {
+                showToast((data && data.message) || "No order found for given reference.", false);
+                return;
+            }
+
+            var customerName = (data.customerName || "").trim();
+            var customerCode = (data.customerCode || "").trim();
+
+            if (!customerName) {
+                showToast("Order found but customer details are missing.", false);
+                return;
+            }
+
+            document.getElementById("customerName").value = customerName;
+            document.getElementById("custCode").value = customerCode;
+            document.getElementById("customerCodeDisplay").value = customerCode;
+
+            loadCustomerData();
+            showToast("Customer loaded from order reference.", true);
+        })
+        .catch(function (error) {
+            showToast((error && error.message) || "Unable to find order reference.", false);
+        });
+    }
+
+    function renderAllTabsAndCatalog() {
+        if (setupOnly) {
+            return;
+        }
+
+        if (currentOrderMode === "weight") {
+            selectedService = "Wash & Fold";
+            selectedCategory = "Household";
+            document.getElementById("weightServiceType").value = "Wash & Fold";
+            if (!document.getElementById("ratePerKg").value || parseAmount(document.getElementById("ratePerKg").value) <= 0) {
+                document.getElementById("ratePerKg").value = "50";
+            }
+        }
+
+        renderServiceTabs();
+        renderCategoryTabs();
+        renderCatalogGrid();
+        renderSelectedItemPane();
+        updateCatalogStats();
+        setOrderMode(currentOrderMode);
+    }
+
+    function initializeSetupOrderPage() {
+        var formEl = document.getElementById("setupOrderForm");
+        if (!formEl) {
+            return;
+        }
+        if (formEl.dataset.setupOrderInitialized === "true") {
+            return;
+        }
+        formEl.dataset.setupOrderInitialized = "true";
+
+        // If current user is not an admin, hide or disable price configuration controls
+        try {
+            if (typeof isAdminUser !== 'undefined' && !isAdminUser) {
+                // hide admin buttons
+                var hideBtn = function (id) { var el = document.getElementById(id); if (el) el.style.display = 'none'; };
+                hideBtn('savePriceConfigBtn');
+                hideBtn('removePriceConfigBtn');
+                hideBtn('restorePriceConfigBtn');
+
+                // disable inputs that allow editing configuration
+                var disableEl = function (id) { var e = document.getElementById(id); if (e) e.disabled = true; };
+                disableEl('cfgServiceType');
+                disableEl('cfgCategory');
+                disableEl('cfgItemName');
+                disableEl('cfgItemPicker');
+                disableEl('showInactiveItemsChk');
+            }
+        } catch (ex) {
+            // ignore
+        }
+
+        if (window.setupOrderToastMessage) {
+            showToast(window.setupOrderToastMessage, true);
+        }
+
+        setupPostOrderActions();
+
+        renderSelectedItemPane();
+        loadStoreMasters();
+        loadConfiguredItems();
+        renderOrderLines();
+
+        if (!setupOnly) {
+            document.getElementById("modePiecesBtn").onclick = function (e) { e.preventDefault(); setOrderMode("pieces"); };
+            document.getElementById("modeWeightBtn").onclick = function (e) { e.preventDefault(); setOrderMode("weight"); };
+            document.getElementById("loadOrderDataBtn").onclick = function (e) { e.preventDefault(); loadCustomerData(); };
+            document.getElementById("findOrderRefBtn").onclick = function (e) { e.preventDefault(); findOrderReferenceAndLoadCustomer(); };
+            document.getElementById("orderLookupText")?.addEventListener("input", loadOrderReferenceSuggestions);
+            document.getElementById("orderLookupText")?.addEventListener("keydown", function (e) {
+                if (e.key === "Enter") {
+                    e.preventDefault();
+                    findOrderReferenceAndLoadCustomer();
+                }
+            });
+
+            document.getElementById("qtyPlus").onclick = function (e) {
+                e.preventDefault();
+                e.stopPropagation();
+                var qtyInput = document.getElementById("selectedQty");
+                if (!qtyInput) {
+                    return;
+                }
+
+                var qty = getNormalizedSelectedQty();
+                qtyInput.value = qty + 1;
+            };
+
+            document.getElementById("qtyMinus").onclick = function (e) {
+                e.preventDefault();
+                e.stopPropagation();
+                var qtyInput = document.getElementById("selectedQty");
+                if (!qtyInput) {
+                    return;
+                }
+
+                var qty = getNormalizedSelectedQty() - 1;
+                if (qty < 1) {
+                    qty = 1;
+                }
+
+                qtyInput.value = qty;
+            };
+
+            document.getElementById("addItemBtn").onclick = function (e) {
+                e.preventDefault();
+                e.stopPropagation();
+                addSelectedItemToOrder();
+            };
+            document.getElementById("orderHistorySearch")?.addEventListener("input", applyOrderHistorySearch);
+            document.getElementById("advanceUsed").addEventListener("input", syncTotals);
+            document.getElementById("paidNow").addEventListener("input", syncTotals);
+            document.getElementById("weightInKg").addEventListener("input", syncTotals);
+            document.getElementById("ratePerKg").addEventListener("input", syncTotals);
+            document.getElementById("weightServiceType").addEventListener("change", syncTotals);
+
+            var form = document.getElementById("setupOrderForm");
+            form.addEventListener("submit", function (e) {
+                var itemsPayloadInput = document.getElementById("orderItemsJson");
+                if (itemsPayloadInput) {
+                    var payloadItems = orderLines.map(function (line) {
+                        return {
+                            serviceType: line.service || selectedService,
+                            category: line.category || selectedCategory,
+                            itemName: line.name,
+                            unitPrice: Number(line.price || 0),
+                            quantity: Number(line.qty || 0)
+                        };
+                    });
+                    itemsPayloadInput.value = JSON.stringify(payloadItems);
+                }
+
+                var createOrderBtn = document.getElementById("createOrderBtn");
+                var customerName = (document.getElementById("customerName").value || "").trim();
+                if (!customerName) {
+                    e.preventDefault();
+                    showToast("Please enter customer name and click Load Customer.", false);
+                    return;
+                }
+
+                // Allow submit even if customer code is not preloaded.
+                // Server-side action already resolves CustCode from customer name when possible.
+
+                if (currentOrderMode === "pieces" && !orderLines.length) {
+                    e.preventDefault();
+                    showToast("Please add at least one garment item to Order Lines before submitting.", false);
+                    return;
+                }
+
+                if (currentOrderMode === "weight") {
+                    var weight = parseAmount(document.getElementById("weightInKg").value);
+                    var rate = parseAmount(document.getElementById("ratePerKg").value);
+
+                    if (weight <= 0) { e.preventDefault(); showToast("Weight should be greater than zero.", false); return; }
+                    if (rate <= 0) { e.preventDefault(); showToast("Rate per kg should be greater than zero.", false); return; }
+
+                    document.getElementById("serviceType").value = document.getElementById("weightServiceType").value;
+                }
+
+                // Always refresh totals right before validation to avoid stale hidden-field values.
+                syncTotals();
+
+                var orderAmountValue = computeOrderAmount();
+                if (orderAmountValue <= 0) {
+                    e.preventDefault();
+                    showToast("Order amount is zero. Please add items or valid weight/rate before submit.", false);
+                    return;
+                }
+
+                // Enforce store payment policy: if partial payments are not allowed then Net Payable must be zero
+                // i.e., the customer's advance must cover the total before creating the order.
+                var net = parseAmount(document.getElementById("netPayableInput").value || 0);
+                if (!allowPartialPayment && net > 0) {
+                    e.preventDefault();
+                    showToast("Partial payments are disabled for this store. Please use customer's advance or collect full payment before creating the order.", false);
+                    if (createOrderBtn) {
+                        createOrderBtn.disabled = false;
+                        createOrderBtn.textContent = "Create Order";
+                    }
+                    return;
+                }
+
+                var notesBox = document.getElementById("notes");
+                var autoSummary = buildItemSummaryText();
+                if (autoSummary) {
+                    var existing = (notesBox.value || "").trim();
+                    notesBox.value = existing ? (existing + " | Items: " + autoSummary) : ("Items: " + autoSummary);
+                }
+
+                if (createOrderBtn) {
+                    createOrderBtn.disabled = true;
+                    createOrderBtn.textContent = "Submitting...";
+                }
+
+                showToast("Submitting order. Please wait...", true);
+            });
+
+            var hasCustomer = document.getElementById("customerName") && document.getElementById("customerName").value;
+            if (hasCustomer) {
+                loadCustomerData();
+            }
+        }
+
+        document.getElementById("savePriceConfigBtn")?.addEventListener("click", function (e) { e.preventDefault(); saveConfiguredItemPrice(); });
+        document.getElementById("removePriceConfigBtn")?.addEventListener("click", function (e) { e.preventDefault(); removeConfiguredItemPrice(); });
+        document.getElementById("restorePriceConfigBtn")?.addEventListener("click", function (e) { e.preventDefault(); restoreConfiguredItemPrice(); });
+        document.getElementById("cfgServiceType")?.addEventListener("change", function () {
+            updateConfigItemSuggestions();
+            applySuggestedPrice();
+        });
+        document.getElementById("cfgCategory")?.addEventListener("change", function () {
+            updateConfigItemSuggestions();
+            applySuggestedPrice();
+        });
+        var inactiveChk = document.getElementById("showInactiveItemsChk");
+        if (inactiveChk) {
+            inactiveChk.addEventListener("change", onInactiveToggleChanged);
+        }
+        document.getElementById("cfgItemName")?.addEventListener("input", applySuggestedPrice);
+        document.getElementById("cfgItemName")?.addEventListener("change", applySuggestedPrice);
+        document.getElementById("cfgItemPicker")?.addEventListener("change", function () {
+            var selectedKey = (this.value || "").trim();
+            if (!selectedKey || !cfgPickerEntriesByKey[selectedKey]) {
+                return;
+            }
+
+            var selected = cfgPickerEntriesByKey[selectedKey];
+            var serviceEl = document.getElementById("cfgServiceType");
+            var categoryEl = document.getElementById("cfgCategory");
+
+            if (serviceEl && selected.service) {
+                serviceEl.value = selected.service;
+            }
+            if (categoryEl && selected.category) {
+                categoryEl.value = selected.category;
+            }
+
+            document.getElementById("cfgItemName").value = selected.name || "";
+            applySuggestedPrice();
+        });
+
+        window.addEventListener("hashchange", function () {
+            setTimeout(focusAnchorTargetFromHash, 40);
+        });
+        setTimeout(focusAnchorTargetFromHash, 120);
+
+    }
+
+    if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", initializeSetupOrderPage);
+    } else {
+        initializeSetupOrderPage();
+    }
+})();
+</script>

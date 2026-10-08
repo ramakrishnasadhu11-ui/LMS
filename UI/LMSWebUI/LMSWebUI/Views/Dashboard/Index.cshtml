@@ -1,220 +1,1574 @@
 ﻿@model LMSWebUI.Models.DashBoard.TenantInfoDto
 @{
     Layout = "~/Views/Shared/_Layout.cshtml";
+    var isAdminUser = Convert.ToBoolean(ViewData["IsAdminUser"] ?? false);
+    var searchMode = Convert.ToString(ViewData["SearchMode"] ?? "customer");
+    var currentUserRole = Convert.ToString(ViewData["UserRole"] ?? "StoreUser");
+    var isSuperAdminUser = string.Equals(currentUserRole, "SuperAdmin", StringComparison.OrdinalIgnoreCase);
+    var tenantName = Model?.TenantName ?? "-";
+    var tenantStore = Model?.TenantStore ?? "-";
+    var dashboardTitle = Convert.ToString(ViewData["DashboardTitle"] ?? $"Welcome to {Model?.TenantStore} Store");
+    var currentController = Convert.ToString(ViewContext.RouteData.Values["controller"]);
+    var currentAction = Convert.ToString(ViewContext.RouteData.Values["action"]);
+
+    bool IsActiveAdminMenu(string actionName, string controllerName = "Customer")
+    {
+        return string.Equals(currentController, controllerName, StringComparison.OrdinalIgnoreCase)
+               && string.Equals(currentAction, actionName, StringComparison.OrdinalIgnoreCase);
+    }
 }
-
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
 <style>
-body {font-family: Arial, Helvetica, sans-serif;}
-    * {
-        box-sizing: border-box;
+    .dashboard-page {
+        padding: 24px;
     }
 
-    .input-container {
-        display: -ms-flexbox; /* IE10 */
-        display: flex;
-        width: 100%;
-        margin-bottom: 15px;
+    .dashboard-box {
+        max-width: 1200px;
+        margin: 0 auto;
+        border-radius: 10px;
+        box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+        overflow: visible;
     }
 
-    .icon {
-        padding: 10px;
-        background: dodgerblue;
-        color: white;
-        min-width: 50px;
-        text-align: center;
+    .dashboard-header {
+        background: linear-gradient(90deg, var(--els-primary) 0%, var(--els-primary-dark) 100%);
+        color: #fff;
+        padding: 20px;
     }
 
-    .input-field {
-        width: 100%;
-        padding: 10px;
-        outline: none;
-    }
-
-    .input1-field {
-        width: 50%;
-        padding: 10px;
-        outline: none;
-    }
-
-    .input2-field {
-        width: 25%;
-        padding: 10px;
-        outline: none;
-    }
-
-    .input-field:focus {
-        border: 2px solid dodgerblue;
-    }
-
-    .relative {
-        padding: 10px;
-        position: fixed;
-        margin: 10px;
-    }
-
-    .navitem {
-        display: inline-block;
-        width: 100px;
-        height: 100px;
-        text-align: center;
-        border: gray;
-        background-color: gainsboro;
-        color: black;
-        cursor: pointer;
-        font-weight: bold;
-    }
-    /* Set a style for the submit button */
-    .btn {
-        background-color: dodgerblue;
-        color: white;
-        padding: 15px 20px;
-        border: none;
-        cursor: pointer;
-        width: 100%;
-        opacity: 0.9;
-    }
-
-        .btn:hover {
-            opacity: 1;
-        }
-
-    input[type="text"], select {
-        width: 250px;
-    }
-
-    a:link, a:active, a:visited, a:hover {
-        text-decoration: none;
-        color: black;
-    }
-    /*--- DROPDOWN ---*/
-    #nav ul {
-        list-style: none;
-        position: absolute;
-        padding: 0;
+    .dashboard-header h2 {
         margin: 0;
-        list-style-type: none;
+        font-size: 26px;
+        font-weight: 600;
     }
 
-    * {
-        box-sizing: border-box;
+    .dashboard-body {
+        padding: 24px;
+        background: var(--els-surface);
     }
 
-    body {
-        font: 16px Arial;
+    .dashboard-header-subtitle {
+        margin: 6px 0 0;
+        opacity: 0.92;
+        font-size: 14px;
+        font-weight: 500;
+    }
+
+    .search-mode {
+        margin-bottom: 18px;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 16px;
+    }
+
+    .search-mode label {
+        margin: 0 0 0 6px;
+        font-weight: 500;
+    }
+
+    .search-input-wrap {
+        margin-bottom: 20px;
     }
 
     .autocomplete {
-        /*the container must be positioned relative:*/
         position: relative;
-        display: inline-block;
     }
 
-    input {
-        border: 1px solid transparent;
-        background-color: #f1f1f1;
-        padding: 10px;
-        font-size: 16px;
+    #searchCustomers,
+    #searchInvoiceText {
+        height: 42px;
     }
 
-        input[type=text] {
-            background-color: #f1f1f1;
-            width: 100%;
-        }
-
-        input[type=submit] {
-            background-color: DodgerBlue;
-            color: #fff;
-        }
+    .search-no-result {
+        display: none;
+        margin-top: 6px;
+        padding: 8px 12px;
+        border: 1px solid var(--els-danger);
+        border-radius: 6px;
+        background: rgba(201, 48, 44, 0.08);
+        color: var(--els-danger);
+        font-size: 13px;
+        font-weight: 600;
+    }
 
     .autocomplete-items {
         position: absolute;
-        border: 1px solid #d4d4d4;
-        border-bottom: none;
-        border-top: none;
-        z-index: 99;
-        /*position the autocomplete items to be the same width as the container:*/
         top: 100%;
         left: 0;
         right: 0;
+        z-index: 999;
+        border: 1px solid var(--els-border);
+        border-top: none;
+        background: var(--els-surface);
+        max-height: 220px;
+        overflow-y: auto;
     }
 
-        .autocomplete-items div {
-            padding: 10px;
-            cursor: pointer;
-            background-color: #fff;
-            border-bottom: 1px solid #d4d4d4;
+    .autocomplete-items div {
+        padding: 10px 12px;
+        cursor: pointer;
+        border-bottom: 1px solid var(--els-border);
+    }
+
+    .autocomplete-items div:hover,
+    .autocomplete-active {
+        background-color: var(--els-accent);
+    }
+
+    .dashboard-actions {
+        display: flex;
+        gap: 12px;
+        flex-wrap: wrap;
+    }
+
+    .admin-menu-wrap {
+        margin-top: 20px;
+    }
+
+    .admin-menu-section + .admin-menu-section {
+        margin-top: 24px;
+    }
+
+    .admin-menu-section-title {
+        font-size: 14px;
+        font-weight: 700;
+        letter-spacing: 0.3px;
+        text-transform: uppercase;
+        color: var(--els-primary-dark);
+        margin: 0;
+        padding-bottom: 8px;
+        border-bottom: 1px solid var(--els-border);
+    }
+
+    .admin-menu-section-desc {
+        font-size: 13px;
+        color: var(--els-text-muted, #6b7280);
+        margin: 8px 0 14px;
+    }
+
+    .admin-menu-btn:focus-visible,
+    .reports-link:focus-visible {
+        outline: 2px solid var(--els-primary);
+        outline-offset: 2px;
+    }
+
+    .admin-menu-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+        gap: 14px;
+    }
+
+    .admin-menu-card {
+        border: 1px solid var(--els-border);
+        border-radius: 10px;
+        background: var(--els-background);
+        padding: 16px;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        min-height: 170px;
+        transition: transform 0.18s ease, box-shadow 0.18s ease;
+    }
+
+    .admin-menu-card:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 8px 20px rgba(0, 0, 0, 0.08);
+    }
+
+    .admin-menu-card-title {
+        font-size: 15px;
+        font-weight: 600;
+        color: var(--els-text);
+        margin: 0;
+    }
+
+    .admin-menu-card-desc {
+        font-size: 13px;
+        color: var(--els-text-muted, #6b7280);
+        min-height: 38px;
+        margin: 0;
+    }
+
+    .admin-menu-btn {
+        border: 1px solid transparent;
+        border-radius: 8px;
+        min-height: 40px;
+        background: linear-gradient(180deg, var(--els-primary-light) 0%, var(--els-primary) 100%);
+        color: #fff;
+        font-weight: 600;
+        cursor: pointer;
+        padding: 0 12px;
+        text-align: center;
+        margin-top: auto;
+    }
+
+    .admin-menu-btn:hover {
+        filter: brightness(0.97);
+    }
+
+    .admin-menu-card.active {
+        border-color: var(--els-primary);
+        box-shadow: 0 0 0 1px color-mix(in srgb, var(--els-primary) 40%, transparent);
+    }
+
+    .reports-panel {
+        margin-top: 20px;
+        border: 1px solid var(--els-border);
+        border-radius: 10px;
+        background: var(--els-background);
+        padding: 16px;
+    }
+
+    .reports-panel-title {
+        font-size: 15px;
+        font-weight: 600;
+        color: var(--els-text);
+        margin: 0;
+    }
+
+    .reports-panel-desc {
+        font-size: 13px;
+        color: var(--els-text-muted, #6b7280);
+        margin: 4px 0 14px;
+    }
+
+    .reports-link-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        gap: 10px;
+    }
+
+    .reports-group {
+        border-top: 1px dashed var(--els-border);
+        padding-top: 12px;
+        margin-top: 12px;
+    }
+
+    .reports-group:first-of-type {
+        border-top: none;
+        padding-top: 0;
+        margin-top: 0;
+    }
+
+    .reports-group-title {
+        margin: 0 0 4px;
+        font-size: 13px;
+        font-weight: 700;
+        color: var(--els-primary-dark);
+    }
+
+    .reports-group-desc {
+        margin: 0 0 10px;
+        font-size: 12px;
+        color: #64748b;
+    }
+
+    .reports-link {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        padding: 10px 12px;
+        border: 1px solid var(--els-border);
+        border-radius: 8px;
+        background: var(--els-surface);
+        color: var(--els-text);
+        font-size: 13px;
+        font-weight: 600;
+        text-decoration: none;
+        transition: transform 0.18s ease, background 0.18s ease, border-color 0.18s ease;
+    }
+
+    .reports-link:hover {
+        background: var(--els-accent);
+        border-color: var(--els-primary-light);
+        color: var(--els-primary-dark);
+        text-decoration: none;
+        transform: translateY(-1px);
+    }
+
+    .reports-link-head {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .reports-link-name {
+        font-size: 13px;
+        font-weight: 700;
+        color: inherit;
+    }
+
+    .reports-link-note {
+        font-size: 11px;
+        color: #64748b;
+        font-weight: 500;
+    }
+
+    .reports-badge {
+        border: 1px solid var(--els-border);
+        border-radius: 999px;
+        padding: 2px 7px;
+        font-size: 10px;
+        font-weight: 700;
+        line-height: 1;
+        white-space: nowrap;
+    }
+
+    .reports-badge.live { background: #e8f4ff; color: #1f4e79; }
+    .reports-badge.daily { background: #eefbf3; color: #1b6e45; }
+    .reports-badge.monthly { background: #fff7e8; color: #925f00; }
+    .reports-badge.exception { background: #fdecec; color: #ab2f2f; }
+
+    .live-counter-panel {
+        margin-bottom: 18px;
+        border: 1px solid var(--els-border);
+        border-radius: 10px;
+        background: var(--els-background);
+        padding: 14px;
+    }
+
+    .live-counter-title {
+        margin: 0 0 10px;
+        font-size: 16px;
+        font-weight: 700;
+        color: var(--els-primary-dark);
+    }
+
+    .live-counter-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+        gap: 10px;
+    }
+
+    .live-counter-item {
+        border: 1px solid var(--els-border);
+        border-radius: 8px;
+        background: var(--els-surface);
+        padding: 10px;
+    }
+
+    .live-counter-label {
+        display: block;
+        font-size: 12px;
+        color: #64748b;
+        margin-bottom: 4px;
+    }
+
+    .live-counter-value {
+        display: block;
+        font-size: 18px;
+        font-weight: 700;
+        color: var(--els-text);
+    }
+
+    .live-counter-meta {
+        margin-top: 10px;
+        font-size: 12px;
+        color: #64748b;
+    }
+
+    .admin-insights-panel {
+        margin-bottom: 18px;
+        border: 1px solid var(--els-border);
+        border-radius: 10px;
+        background: var(--els-background);
+        padding: 14px;
+    }
+
+    .admin-insights-title {
+        margin: 0 0 10px;
+        font-size: 16px;
+        font-weight: 700;
+        color: var(--els-primary-dark);
+    }
+
+    .admin-insights-subtitle {
+        margin: 0 0 12px;
+        font-size: 12px;
+        color: #64748b;
+    }
+
+    .admin-insights-toolbar {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 10px;
+        flex-wrap: wrap;
+        border: 1px solid var(--els-border);
+        border-radius: 8px;
+        background: var(--els-surface);
+        padding: 8px 10px;
+        margin-bottom: 12px;
+    }
+
+    .admin-insights-toolbar-left,
+    .admin-insights-toolbar-right {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+    }
+
+    .admin-toolbar-label {
+        margin: 0;
+        font-size: 12px;
+        font-weight: 600;
+        color: #475467;
+    }
+
+    .admin-range-select {
+        min-width: 140px;
+        height: 34px;
+        font-size: 12px;
+    }
+
+    .admin-scope-badge {
+        border: 1px solid var(--els-border);
+        background: var(--els-accent);
+        border-radius: 999px;
+        font-size: 11px;
+        font-weight: 700;
+        color: var(--els-primary-dark);
+        padding: 5px 10px;
+    }
+
+    .admin-auto-refresh-wrap {
+        margin: 0;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 12px;
+        color: #475467;
+        font-weight: 600;
+    }
+
+    .admin-refresh-inline-info {
+        font-size: 11px;
+        color: #64748b;
+        font-weight: 600;
+        padding: 4px 8px;
+        border: 1px solid var(--els-border);
+        border-radius: 999px;
+        background: var(--els-background);
+    }
+
+    .admin-kpi-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+        gap: 10px;
+        margin-bottom: 12px;
+    }
+
+    .admin-kpi-card {
+        border: 1px solid var(--els-border);
+        border-radius: 8px;
+        background: var(--els-surface);
+        padding: 10px;
+    }
+
+    .admin-kpi-label {
+        display: block;
+        font-size: 12px;
+        color: #64748b;
+        margin-bottom: 4px;
+    }
+
+    .admin-kpi-value {
+        display: block;
+        font-size: 20px;
+        font-weight: 700;
+        color: var(--els-text);
+    }
+
+    .admin-chart-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+    }
+
+    .admin-chart-card {
+        border: 1px solid var(--els-border);
+        border-radius: 8px;
+        background: var(--els-surface);
+        padding: 10px;
+    }
+
+    .admin-chart-title {
+        margin: 0 0 8px;
+        font-size: 13px;
+        font-weight: 700;
+        color: var(--els-text);
+    }
+
+    .admin-chart-list {
+        display: flex;
+        flex-direction: column;
+        gap: 7px;
+    }
+
+    .admin-chart-row {
+        display: grid;
+        grid-template-columns: 92px 1fr auto;
+        gap: 8px;
+        align-items: center;
+        font-size: 12px;
+    }
+
+    .admin-chart-label {
+        color: #475467;
+        white-space: nowrap;
+    }
+
+    .admin-chart-track {
+        position: relative;
+        height: 8px;
+        border-radius: 999px;
+        background: var(--els-accent);
+        overflow: hidden;
+    }
+
+    .admin-chart-fill {
+        height: 100%;
+        border-radius: 999px;
+        background: linear-gradient(180deg, var(--els-primary-light) 0%, var(--els-primary) 100%);
+    }
+
+    .admin-chart-value {
+        font-weight: 700;
+        color: var(--els-text);
+    }
+
+    .admin-insights-meta {
+        margin-top: 10px;
+        font-size: 12px;
+        color: #64748b;
+    }
+
+    .admin-insights-sections-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px;
+        margin-bottom: 12px;
+    }
+
+    .admin-insight-card {
+        border: 1px solid var(--els-border);
+        border-radius: 8px;
+        background: var(--els-surface);
+        padding: 10px;
+        min-height: 170px;
+    }
+
+    .admin-insight-card-title {
+        margin: 0 0 8px;
+        font-size: 13px;
+        font-weight: 700;
+        color: var(--els-text);
+    }
+
+    .admin-insight-card-body {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+    }
+
+    .admin-list-row {
+        display: flex;
+        justify-content: space-between;
+        gap: 10px;
+        padding: 7px 8px;
+        border: 1px solid var(--els-border);
+        border-radius: 6px;
+        background: var(--els-background);
+        font-size: 12px;
+        color: var(--els-text);
+    }
+
+    .admin-list-label {
+        color: #475467;
+    }
+
+    .admin-list-value {
+        font-weight: 700;
+        color: var(--els-text);
+    }
+
+    .admin-list-value.alert {
+        color: #b63838;
+    }
+
+    .admin-list-value.success {
+        color: #2f8f46;
+    }
+
+    .admin-insights-empty {
+        font-size: 12px;
+        color: #64748b;
+        border: 1px dashed var(--els-border);
+        border-radius: 6px;
+        padding: 10px;
+        background: var(--els-surface);
+    }
+
+    @@media (max-width: 900px) {
+        .admin-insights-sections-grid,
+        .admin-chart-grid {
+            grid-template-columns: 1fr;
         }
 
-            .autocomplete-items div:hover {
-                /*when hovering an item:*/
-                background-color: #e9e9e9;
+    }
+
+</style>
+
+<section class="content dashboard-page">
+    <div class="box dashboard-box">
+        <div class="dashboard-header">
+            <h2>@dashboardTitle</h2>
+            @if (isAdminUser)
+            {
+                @if (isSuperAdminUser)
+                {
+                    <p class="dashboard-header-subtitle">Review and approve tenant stores awaiting activation.</p>
+                }
+                else
+                {
+                    <p class="dashboard-header-subtitle">Manage store configuration, pricing policies, operations, and users from one place.</p>
+                }
+            }
+        </div>
+        <div class="dashboard-body">
+            @if (!isAdminUser)
+            {
+                <div class="live-counter-panel" id="liveCounterPanel">
+                    <h3 class="live-counter-title">Live Counter Dashboard</h3>
+                    <div class="live-counter-grid">
+                        <div class="live-counter-item">
+                            <span class="live-counter-label">Today Orders</span>
+                            <span class="live-counter-value" id="lcTodayOrders">--</span>
+                        </div>
+                        <div class="live-counter-item">
+                            <span class="live-counter-label">Ready for Delivery</span>
+                            <span class="live-counter-value" id="lcReadyDelivery">--</span>
+                        </div>
+                        <div class="live-counter-item">
+                            <span class="live-counter-label">Pending Delivery</span>
+                            <span class="live-counter-value" id="lcPendingDelivery">--</span>
+                        </div>
+                        <div class="live-counter-item">
+                            <span class="live-counter-label">Pending Payment</span>
+                            <span class="live-counter-value" id="lcPendingPayment">--</span>
+                        </div>
+                        <div class="live-counter-item">
+                            <span class="live-counter-label">Walk-ins Today</span>
+                            <span class="live-counter-value" id="lcWalkins">--</span>
+                        </div>
+                        <div class="live-counter-item">
+                            <span class="live-counter-label">Advance Used Today</span>
+                            <span class="live-counter-value" id="lcAdvanceUsed">--</span>
+                        </div>
+                    </div>
+                    <div class="live-counter-meta">
+                        User Role: <b>@currentUserRole</b> | Tenant: <b>@tenantName</b> | Store: <b>@tenantStore</b> |
+                        Last refreshed: <span id="lcLastRefreshed">--</span> | Status: <b id="lcLiveStatus">Initializing...</b>
+                    </div>
+                </div>
+
+                <div class="search-mode">
+                    <div>
+                        <input type="radio" id="search" name="search" checked="@(string.Equals(searchMode, "invoice", StringComparison.OrdinalIgnoreCase) ? null : "checked")" />
+                        <label for="search">Search Customer (Name, Address, Mobile Number, Membership Id or Customer Code)</label>
+                    </div>
+                    <div>
+                        <input type="radio" id="invoice" name="search" checked="@(string.Equals(searchMode, "invoice", StringComparison.OrdinalIgnoreCase) ? "checked" : null)" />
+                        <label for="invoice">Search Invoice</label>
+                    </div>
+                </div>
+
+                <div id="searchradio" class="search-input-wrap autocomplete">
+                    <div class="input-group">
+                        <div class="input-group-btn">
+                            <button class="btn btn-default dropdown-toggle" type="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                                Search All <span class="caret"></span>
+                            </button>
+                            <ul class="dropdown-menu">
+                                <li><a href="#">Name</a></li>
+                                <li><a href="#">Address</a></li>
+                                <li><a href="#">Mobile</a></li>
+                                <li><a href="#">Membership Id</a></li>
+                                <li><a href="#">Customer Code</a></li>
+                            </ul>
+                        </div>
+                        <input type="text" id="searchCustomers" class="form-control" placeholder="Search customer..." />
+                    </div>
+                    <div id="customerSearchMessage" class="search-no-result"></div>
+                </div>
+
+                <div class="form-group search-input-wrap" id="searchInvoiceradio">
+                    <input type="text" id="searchInvoiceText" class="form-control" placeholder="Search Order No / Invoice No..." />
+                    <div id="invoiceSearchMessage" class="search-no-result"></div>
+                </div>
             }
 
-    .autocomplete-active {
-        /*when navigating through the items using the arrow keys:*/
-        background-color: DodgerBlue !important;
-        color: #ffffff;
-    }
-    #dashboard {
-        align: center;
-        width: auto;
-        padding-left: 60px;
-        padding-right: 60px;
-        padding-top: 60px;
-        padding-bottom: 60px;
-    }
-#b {
-    height: 500px;
-}
-</style>
-<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/css/bootstrap.min.css" integrity="sha384-Gn5384xqQ1aoWXA+058RXPxPg6fy4IWvTNh0E263XmFcJlSAwiGgFAW/dAiS6JXm" crossorigin="anonymous">
-<script src="https://code.jquery.com/jquery-3.2.1.slim.min.js" integrity="sha384-KJ3o2DKtIkvYIK3UENzmM7KCkRr/rE9/Qpg6aAZGJwFDMVNA/GpGFF93hXpG5KkN" crossorigin="anonymous"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.12.9/umd/popper.min.js" integrity="sha384-ApNbgh9B+Y1QKtv3Rn7W3mgPxhU9K/ScQsAP7hUibX39j7fakFPskvXusvfa0b4Q" crossorigin="anonymous"></script>
-<script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/js/bootstrap.min.js" integrity="sha384-JZR6Spejh4U02d8jOt6vLEHfe/JQGiRRSQQxSfFWpi1MquVdAyjUar5+76PVCmYl" crossorigin="anonymous"></script>
-<div align="center"   class="row">
-    <div class="col-lg-12">
-        <div id="b" class="white-box m-t-30 center-block">
-            <form id="dashboard" >
-                <h1 class="" >Welcome to @Model.TenantStore Store</h1>
-                <div>
-                    <div>
-                         <input type="radio"  id="search" name="search" checked="checked">
-                         <label for="customer">Search Customer (Name, Address, Mobile Number, Membership id or customer id)</label><br>
-                         <input type="radio" id="invoice" name="search">
-                         <label for="invoice">Search Invoice</label><br>
-                    </div>
-                    <div class="input-group mb-3 autocomplete" id="searchradio">
-                      <div class="input-group-prepend">
-                      <button class="btn btn-outline-secondary dropdown-toggle" type="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">Search All</button>
-                      <div class="dropdown-menu">
-                      <a class="dropdown-item" href="#">Name</a>
-                      <a class="dropdown-item" href="#">Address</a>
-                      <a class="dropdown-item" href="#">Mobile</a>
-                      <a class="dropdown-item" href="#">Membership Id</a>
-                      <a class="dropdown-item" href="#">Customer Code</a>
-                   </div>
-                   </div>
-                    <input type="text" id="searchCustomers" class="form-control" aria-label="Text input with dropdown button">
-                   </div>
-                    <div class="form-group" id="searchInvoiceradio">
-                      <input type="text" class="form-control"  placeholder="Search">
-                   </div>
-                    <div>
-                        <input type="button" value="Add New Customer" onclick="location.href='@Url.Action("Index","Customer")'"  placeholder="Add New Customer" id="add-customer" name="dashboard-new-customer"/> 
-                        <input type="button" value="Daily Dashboard" onclick="location.href='@Url.Action("Index","Customer")'"  placeholder="Add New Customer" id="add-customer" name="dashboard-new-customer"/> 
-                    </div>
-                    <br>
+            @if (!isAdminUser)
+            {
+                <div class="dashboard-actions">
+                    <button type="button" class="btn btn-primary" onclick="location.href='@Url.Action("Index", "Customer")'">
+                        Add New Customer
+                    </button>
                 </div>
-            </form>
+            }
+            else if (isSuperAdminUser)
+            {
+                <div class="admin-menu-wrap">
+                    <section class="admin-menu-section" aria-labelledby="superAdminGroupApprovals">
+                        <h3 class="admin-menu-section-title" id="superAdminGroupApprovals">Tenant &amp; Store Approvals</h3>
+                        <p class="admin-menu-section-desc">Approve tenant stores before they can be used. Store configuration and day-to-day operations are handled by each store's own admin.</p>
+                        <div class="admin-menu-grid">
+                            <div class="admin-menu-card @(IsActiveAdminMenu("TenantApproval") ? "active" : string.Empty)">
+                                <p class="admin-menu-card-title">Tenant Approval</p>
+                                <p class="admin-menu-card-desc">Approve or reject newly registered tenants. Pending and rejected tenants cannot log in.</p>
+                                <button type="button" class="admin-menu-btn" onclick="location.href='@Url.Action("TenantApproval", "Customer")'">Open</button>
+                            </div>
+
+                            <div class="admin-menu-card @(IsActiveAdminMenu("StoreActivation") ? "active" : string.Empty)">
+                                <p class="admin-menu-card-title">Store Activation</p>
+                                <p class="admin-menu-card-desc">Review stores across all tenants and activate or deactivate them. Newly created stores stay inactive until approved here.</p>
+                                <button type="button" class="admin-menu-btn" onclick="location.href='@Url.Action("StoreActivation", "Customer")'">Open</button>
+                            </div>
+                        </div>
+                    </section>
+                </div>
+            }
+            else
+            {
+                <div class="admin-insights-panel" id="adminInsightsPanel">
+                    <h3 class="admin-insights-title">Store Business Snapshot</h3>
+                    <p class="admin-insights-subtitle">Current store analytics: action queue, revenue, operations, customer trends, alerts and productivity.</p>
+                    <div class="admin-insights-toolbar">
+                        <div class="admin-insights-toolbar-left">
+                            <label for="adminRangeFilter" class="admin-toolbar-label">Range</label>
+                            <select id="adminRangeFilter" class="form-control admin-range-select">
+                                <option value="today">Today</option>
+                                <option value="7d">Last 7 Days</option>
+                                <option value="mtd" selected>Month to Date</option>
+                            </select>
+                            <span class="admin-scope-badge" id="adminScopeBadge">Scope: Current Store</span>
+                        </div>
+                        <div class="admin-insights-toolbar-right">
+                            <button type="button" class="btn btn-default" id="adminRefreshInsightsBtn">Refresh</button>
+                            <button type="button" class="btn btn-default" id="adminExportSnapshotBtn">Export Snapshot</button>
+                            <label class="admin-auto-refresh-wrap" for="adminAutoRefreshChk">
+                                <input type="checkbox" id="adminAutoRefreshChk" checked /> Auto refresh
+                            </label>
+                            <span id="adminToolbarRefreshInfo" class="admin-refresh-inline-info">Next refresh: --</span>
+                        </div>
+                    </div>
+                    <div class="admin-kpi-grid">
+                        <div class="admin-kpi-card"><span class="admin-kpi-label">Today Orders</span><span class="admin-kpi-value" id="adminKpiTodayOrders">--</span></div>
+                        <div class="admin-kpi-card"><span class="admin-kpi-label">Today Sales</span><span class="admin-kpi-value" id="adminKpiTodaySales">--</span></div>
+                        <div class="admin-kpi-card"><span class="admin-kpi-label">Month Orders</span><span class="admin-kpi-value" id="adminKpiMonthOrders">--</span></div>
+                        <div class="admin-kpi-card"><span class="admin-kpi-label">Month Sales</span><span class="admin-kpi-value" id="adminKpiMonthSales">--</span></div>
+                        <div class="admin-kpi-card"><span class="admin-kpi-label">Pending Payments</span><span class="admin-kpi-value" id="adminKpiPendingPayments">--</span></div>
+                        <div class="admin-kpi-card"><span class="admin-kpi-label">Pending Amount</span><span class="admin-kpi-value" id="adminKpiPendingAmount">--</span></div>
+                        <div class="admin-kpi-card"><span class="admin-kpi-label">Collected (Range)</span><span class="admin-kpi-value" id="adminKpiCollectedAmount">--</span></div>
+                        <div class="admin-kpi-card"><span class="admin-kpi-label">Avg Order Value</span><span class="admin-kpi-value" id="adminKpiAvgOrderValue">--</span></div>
+                    </div>
+
+                    <div class="admin-insights-sections-grid">
+                        <div class="admin-insight-card">
+                            <h4 class="admin-insight-card-title">Today Action Queue</h4>
+                            <div class="admin-insight-card-body" id="adminActionQueueRows"></div>
+                        </div>
+
+                        <div class="admin-insight-card">
+                            <h4 class="admin-insight-card-title">Revenue &amp; Payment Split</h4>
+                            <div class="admin-insight-card-body" id="adminRevenueRows"></div>
+                        </div>
+
+                        <div class="admin-insight-card">
+                            <h4 class="admin-insight-card-title">Operations Health</h4>
+                            <div class="admin-insight-card-body" id="adminOperationsRows"></div>
+                        </div>
+
+                        <div class="admin-insight-card">
+                            <h4 class="admin-insight-card-title">Customer Insights</h4>
+                            <div class="admin-insight-card-body" id="adminCustomerRows"></div>
+                        </div>
+
+                        <div class="admin-insight-card">
+                            <h4 class="admin-insight-card-title">Service Mix</h4>
+                            <div class="admin-insight-card-body" id="adminServiceRows"></div>
+                        </div>
+
+                        <div class="admin-insight-card">
+                            <h4 class="admin-insight-card-title">Alert Center</h4>
+                            <div class="admin-insight-card-body" id="adminAlertRows"></div>
+                        </div>
+
+                    </div>
+
+                    <div class="admin-chart-grid">
+                        <div class="admin-chart-card">
+                            <h4 class="admin-chart-title">Order Status Split</h4>
+                            <div class="admin-chart-list" id="adminStatusChartRows"></div>
+                        </div>
+                        <div class="admin-chart-card">
+                            <h4 class="admin-chart-title">Last 7 Days Orders</h4>
+                            <div class="admin-chart-list" id="adminTrendChartRows"></div>
+                        </div>
+                    </div>
+                    <div class="admin-insights-meta">
+                        Tenant: <b>@tenantName</b> | Store: <b>@tenantStore</b>
+                        | Refresh: <span id="adminInsightsRefreshMode">Auto (every 60s)</span>
+                        | Last refreshed: <span id="adminInsightsLastRefreshed">--</span>
+                        | Next refresh in: <span id="adminInsightsNextRefresh">--</span>
+                    </div>
+                    <div class="admin-insights-empty" id="adminInsightsMessage" style="display:none;"></div>
+                </div>
+
+                <div class="admin-menu-wrap">
+                    <section class="admin-menu-section" aria-labelledby="adminGroupStoreSetup">
+                        <h3 class="admin-menu-section-title" id="adminGroupStoreSetup">1. Store Setup &amp; Access</h3>
+                        <p class="admin-menu-section-desc">Start here when onboarding a store or granting staff access.</p>
+                        <div class="admin-menu-grid">
+                            <div class="admin-menu-card @(IsActiveAdminMenu("NewStoreCreation") ? "active" : string.Empty)">
+                                <p class="admin-menu-card-title">New Store Creation</p>
+                                <p class="admin-menu-card-desc">Create a new store code for admin login. Configure remaining store details in Store Configuration.</p>
+                                <button type="button" class="admin-menu-btn" onclick="location.href='@Url.Action("NewStoreCreation", "Customer")'">Open</button>
+                            </div>
+
+                            <div class="admin-menu-card @(IsActiveAdminMenu("StoreTimings") ? "active" : string.Empty)">
+                                <p class="admin-menu-card-title">Store Configuration</p>
+                                <p class="admin-menu-card-desc">Configure store timings and remaining store details.</p>
+                                <button type="button" class="admin-menu-btn" onclick="location.href='@Url.Action("StoreTimings", "Customer")'">Open</button>
+                            </div>
+
+                            <div class="admin-menu-card @(IsActiveAdminMenu("StoreUsersSetup") ? "active" : string.Empty)">
+                                <p class="admin-menu-card-title">Store Users Setup</p>
+                                <p class="admin-menu-card-desc">Create and manage store users with role-based access.</p>
+                                <button type="button" class="admin-menu-btn" onclick="location.href='@Url.Action("StoreUsersSetup", "Customer")'">Open</button>
+                            </div>
+                        </div>
+                    </section>
+
+                    <section class="admin-menu-section" aria-labelledby="adminGroupCatalogPricing">
+                        <h3 class="admin-menu-section-title" id="adminGroupCatalogPricing">2. Catalogue &amp; Pricing</h3>
+                        <p class="admin-menu-section-desc">Define what the store sells and what it charges.</p>
+                        <div class="admin-menu-grid">
+                            <div class="admin-menu-card @(IsActiveAdminMenu("ServiceItemMaster") ? "active" : string.Empty)">
+                                <p class="admin-menu-card-title">Service &amp; Item Master</p>
+                                <p class="admin-menu-card-desc">Maintain service categories and item master mappings.</p>
+                                <button type="button" class="admin-menu-btn" onclick="location.href='@Url.Action("ServiceItemMaster", "Customer")'">Open</button>
+                            </div>
+
+                            <div class="admin-menu-card @(IsActiveAdminMenu("SetupCreateOrder") ? "active" : string.Empty)">
+                                <p class="admin-menu-card-title">Store Price Configuration</p>
+                                <p class="admin-menu-card-desc">Configure services, items, and store-level pricing matrix.</p>
+                                <button type="button" class="admin-menu-btn" onclick="location.href='@Url.Action("SetupCreateOrder", "Customer", new { setupOnly = true })'">Open</button>
+                            </div>
+
+                            <div class="admin-menu-card @(IsActiveAdminMenu("PricingRules") ? "active" : string.Empty)">
+                                <p class="admin-menu-card-title">Pricing Rules</p>
+                                <p class="admin-menu-card-desc">Set surcharge, minimum order, turnaround, and invoice rounding rules.</p>
+                                <button type="button" class="admin-menu-btn" onclick="location.href='@Url.Action("PricingRules", "Customer")'">Open</button>
+                            </div>
+
+                            <div class="admin-menu-card @(IsActiveAdminMenu("ImportExportPricesCsv") ? "active" : string.Empty)">
+                                <p class="admin-menu-card-title">Import/Export Prices (CSV)</p>
+                                <p class="admin-menu-card-desc">Download pricing CSV template and import updated item prices for this store.</p>
+                                <button type="button" class="admin-menu-btn" onclick="location.href='@Url.Action("ImportExportPricesCsv", "Customer")'">Open</button>
+                            </div>
+                        </div>
+                    </section>
+
+                    <section class="admin-menu-section" aria-labelledby="adminGroupBilling">
+                        <h3 class="admin-menu-section-title" id="adminGroupBilling">3. Billing &amp; Payments</h3>
+                        <p class="admin-menu-section-desc">Control how invoices are taxed, raised, and settled.</p>
+                        <div class="admin-menu-grid">
+                            <div class="admin-menu-card @(IsActiveAdminMenu("TaxInvoiceSettings") ? "active" : string.Empty)">
+                                <p class="admin-menu-card-title">Tax &amp; Invoice Settings</p>
+                                <p class="admin-menu-card-desc">Manage tax percentages and invoice configuration settings.</p>
+                                <button type="button" class="admin-menu-btn" onclick="location.href='@Url.Action("TaxInvoiceSettings", "Customer")'">Open</button>
+                            </div>
+
+                            <div class="admin-menu-card @(IsActiveAdminMenu("PaymentSettings") ? "active" : string.Empty)">
+                                <p class="admin-menu-card-title">Payment Settings</p>
+                                <p class="admin-menu-card-desc">Set payment methods and default payment controls.</p>
+                                <button type="button" class="admin-menu-btn" onclick="location.href='@Url.Action("PaymentSettings", "Customer")'">Open</button>
+                            </div>
+                        </div>
+                    </section>
+
+                    <section class="admin-menu-section" aria-labelledby="adminGroupOperations">
+                        <h3 class="admin-menu-section-title" id="adminGroupOperations">4. Order Operations</h3>
+                        <p class="admin-menu-section-desc">Shape the day-to-day order lifecycle on the shop floor.</p>
+                        <div class="admin-menu-grid">
+                            <div class="admin-menu-card @(IsActiveAdminMenu("WorkflowStatusSettings") ? "active" : string.Empty)">
+                                <p class="admin-menu-card-title">Workflow Status Settings</p>
+                                <p class="admin-menu-card-desc">Define order lifecycle statuses and transition behavior.</p>
+                                <button type="button" class="admin-menu-btn" onclick="location.href='@Url.Action("WorkflowStatusSettings", "Customer")'">Open</button>
+                            </div>
+
+                            <div class="admin-menu-card @(IsActiveAdminMenu("PickupDeliverySettings") ? "active" : string.Empty)">
+                                <p class="admin-menu-card-title">Pickup &amp; Delivery Settings</p>
+                                <p class="admin-menu-card-desc">Configure pickup slots, delivery options, and route controls.</p>
+                                <button type="button" class="admin-menu-btn" onclick="location.href='@Url.Action("PickupDeliverySettings", "Customer")'">Open</button>
+                            </div>
+
+                            <div class="admin-menu-card @(IsActiveAdminMenu("BarcodeTagSettings") ? "active" : string.Empty)">
+                                <p class="admin-menu-card-title">Barcode / Tag Settings</p>
+                                <p class="admin-menu-card-desc">Manage barcode format and tag print preferences.</p>
+                                <button type="button" class="admin-menu-btn" onclick="location.href='@Url.Action("BarcodeTagSettings", "Customer")'">Open</button>
+                            </div>
+                        </div>
+                    </section>
+
+                    <section class="admin-menu-section" aria-labelledby="adminGroupIntegrations">
+                        <h3 class="admin-menu-section-title" id="adminGroupIntegrations">5. Communication &amp; Integrations</h3>
+                        <p class="admin-menu-section-desc">Connect the store to customers and external systems.</p>
+                        <div class="admin-menu-grid">
+                            <div class="admin-menu-card @(IsActiveAdminMenu("NotificationSettings") ? "active" : string.Empty)">
+                                <p class="admin-menu-card-title">Notifications Settings</p>
+                                <p class="admin-menu-card-desc">Manage store notification templates and trigger events.</p>
+                                <button type="button" class="admin-menu-btn" onclick="location.href='@Url.Action("NotificationSettings", "Customer")'">Open</button>
+                            </div>
+
+                            <div class="admin-menu-card @(IsActiveAdminMenu("Integrations") ? "active" : string.Empty)">
+                                <p class="admin-menu-card-title">Integrations</p>
+                                <p class="admin-menu-card-desc">Configure integrations with external services and systems.</p>
+                                <button type="button" class="admin-menu-btn" onclick="location.href='@Url.Action("Integrations", "Customer")'">Open</button>
+                            </div>
+                        </div>
+                    </section>
+
+                    <div class="reports-panel">
+                        <h3 class="reports-panel-title">Reports</h3>
+                        <p class="reports-panel-desc">Use grouped reports to avoid confusion. Start with Operations and Finance, then drill down.</p>
+
+                        <div class="reports-group">
+                            <h4 class="reports-group-title">Operations</h4>
+                            <p class="reports-group-desc">Track order movement and delivery bottlenecks.</p>
+                            <div class="reports-link-grid">
+                                <a class="reports-link" href="@Url.Action("Index", "Reports")">
+                                    <span class="reports-link-head"><span class="reports-link-name">Orders Summary</span><span class="reports-badge live">LIVE</span></span>
+                                    <span class="reports-link-note">Order status, aging, and pending delivery view.</span>
+                                </a>
+                                <a class="reports-link" href="@Url.Action("OrderWorkflow", "Customer")">
+                                    <span class="reports-link-head"><span class="reports-link-name">Pending Delivery Queue</span><span class="reports-badge daily">DAILY</span></span>
+                                    <span class="reports-link-note">Actionable list for ready and delayed deliveries.</span>
+                                </a>
+                                <a class="reports-link" href="@Url.Action("MyDashboard", "Dashboard")">
+                                    <span class="reports-link-head"><span class="reports-link-name">Garment Status</span><span class="reports-badge live">LIVE</span></span>
+                                    <span class="reports-link-note">Lifecycle stage analysis by garment status.</span>
+                                </a>
+                            </div>
+                        </div>
+
+                        <div class="reports-group">
+                            <h4 class="reports-group-title">Finance</h4>
+                            <p class="reports-group-desc">Review sales, collections, and outstanding amounts.</p>
+                            <div class="reports-link-grid">
+                                <a class="reports-link" href="@Url.Action("MyDashboard", "Dashboard")">
+                                    <span class="reports-link-head"><span class="reports-link-name">Sales and Delivery</span><span class="reports-badge daily">DAILY</span></span>
+                                    <span class="reports-link-note">Daily billing, fulfilled orders, and revenue.</span>
+                                </a>
+                                <a class="reports-link" href="@Url.Action("MyDashboard", "Dashboard")">
+                                    <span class="reports-link-head"><span class="reports-link-name">Pending Stock / Outstanding</span><span class="reports-badge exception">EXCEPTION</span></span>
+                                    <span class="reports-link-note">Unsettled orders and pending stock position.</span>
+                                </a>
+                                <a class="reports-link" href="@Url.Action("MyDashboard", "Dashboard")">
+                                    <span class="reports-link-head"><span class="reports-link-name">Order Source (Local)</span><span class="reports-badge monthly">MONTHLY</span></span>
+                                    <span class="reports-link-note">Order channel mix and local walk-in trend.</span>
+                                </a>
+                            </div>
+                        </div>
+
+                        <div class="reports-group">
+                            <h4 class="reports-group-title">Customer & Service Mix</h4>
+                            <p class="reports-group-desc">Understand demand patterns and customer behavior.</p>
+                            <div class="reports-link-grid">
+                                <a class="reports-link" href="@Url.Action("MyDashboard", "Dashboard")">
+                                    <span class="reports-link-head"><span class="reports-link-name">Service Wise Order</span><span class="reports-badge monthly">MONTHLY</span></span>
+                                    <span class="reports-link-note">Orders and volume by service line.</span>
+                                </a>
+                                <a class="reports-link" href="@Url.Action("MyDashboard", "Dashboard")">
+                                    <span class="reports-link-head"><span class="reports-link-name">Category Wise Order</span><span class="reports-badge monthly">MONTHLY</span></span>
+                                    <span class="reports-link-note">Performance across garment categories.</span>
+                                </a>
+                                <a class="reports-link" href="@Url.Action("MyDashboard", "Dashboard")">
+                                    <span class="reports-link-head"><span class="reports-link-name">Garment Wise</span><span class="reports-badge monthly">MONTHLY</span></span>
+                                    <span class="reports-link-note">Top garments by order volume and mix.</span>
+                                </a>
+                                <a class="reports-link" href="@Url.Action("MyDashboard", "Dashboard")">
+                                    <span class="reports-link-head"><span class="reports-link-name">Daily Customer Addition</span><span class="reports-badge daily">DAILY</span></span>
+                                    <span class="reports-link-note">New customer acquisition trend.</span>
+                                </a>
+                            </div>
+                        </div>
+
+                        <div class="reports-group">
+                            <h4 class="reports-group-title">Exceptions &amp; Controls</h4>
+                            <p class="reports-group-desc">Monitor high-risk and unusual transactions.</p>
+                            <div class="reports-link-grid">
+                                <a class="reports-link" href="@Url.Action("MyDashboard", "Dashboard")">
+                                    <span class="reports-link-head"><span class="reports-link-name">Cancelled Bookings</span><span class="reports-badge exception">EXCEPTION</span></span>
+                                    <span class="reports-link-note">Cancelled orders and potential revenue loss.</span>
+                                </a>
+                                <a class="reports-link" href="@Url.Action("MyDashboard", "Dashboard")">
+                                    <span class="reports-link-head"><span class="reports-link-name">Without Ticket Delivery</span><span class="reports-badge exception">EXCEPTION</span></span>
+                                    <span class="reports-link-note">Deliveries processed without ticket reference.</span>
+                                </a>
+                                <a class="reports-link" href="@Url.Action("MyDashboard", "Dashboard")">
+                                    <span class="reports-link-head"><span class="reports-link-name">Returned Garments</span><span class="reports-badge exception">EXCEPTION</span></span>
+                                    <span class="reports-link-note">Return patterns and quality follow-up cases.</span>
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            }
         </div>
     </div>
-</div>
-<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.4.1/jquery.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.16.0/umd/popper.min.js"></script>
-<script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.4.1/js/bootstrap.min.js"></script>
+</section>
+
 <script type='text/javascript'>
-    function autocomplete(inp, arr)
+    var customerSearchRequest = null;
+    var orderReferenceSearchRequest = null;
+    var serverCustomers = [];
+    var serverOrderReferences = [];
+    var isAutocompleteRefresh = false;
+    var isInvoiceAutocompleteRefresh = false;
+    var isAdminDashboardUser = @Html.Raw(isAdminUser.ToString().ToLowerInvariant());
+    var isSuperAdminDashboardUser = @Html.Raw(isSuperAdminUser.ToString().ToLowerInvariant());
+    var adminInsightsIntervalHandle = null;
+    var adminInsightsCountdownHandle = null;
+    var adminInsightsNextRefreshAt = null;
+    var adminInsightsIntervalMs = 60000;
+
+    function asNumber(value) {
+        var parsed = Number(value);
+        return Number.isFinite(parsed) ? parsed : 0;
+    }
+
+    function formatAmount(value) {
+        return asNumber(value).toFixed(2);
+    }
+
+    function formatCurrency(value) {
+        return "₹ " + formatAmount(value);
+    }
+
+    function formatDateTime(value) {
+        var date = value instanceof Date ? value : new Date(value);
+        if (isNaN(date.getTime())) {
+            return "--";
+        }
+
+        return date.toLocaleDateString() + " " + date.toLocaleTimeString();
+    }
+
+    function updateAdminRefreshModeLabel(enabled) {
+        var modeEl = document.getElementById("adminInsightsRefreshMode");
+        if (!modeEl) {
+            return;
+        }
+
+        modeEl.textContent = enabled ? "Auto (every 60s)" : "Manual";
+    }
+
+    function updateAdminNextRefreshLabel() {
+        var nextEl = document.getElementById("adminInsightsNextRefresh");
+        var inlineEl = document.getElementById("adminToolbarRefreshInfo");
+        if (!nextEl) {
+            return;
+        }
+
+        var autoRefreshCheckbox = document.getElementById("adminAutoRefreshChk");
+        var autoEnabled = !!(autoRefreshCheckbox && autoRefreshCheckbox.checked);
+        if (!autoEnabled) {
+            nextEl.textContent = "Auto refresh off";
+            if (inlineEl) {
+                inlineEl.textContent = "Auto refresh off";
+            }
+            return;
+        }
+
+        if (!(adminInsightsNextRefreshAt instanceof Date) || isNaN(adminInsightsNextRefreshAt.getTime())) {
+            nextEl.textContent = "--";
+            if (inlineEl) {
+                inlineEl.textContent = "Next refresh: --";
+            }
+            return;
+        }
+
+        var remainingMs = adminInsightsNextRefreshAt.getTime() - Date.now();
+        if (remainingMs < 0) {
+            remainingMs = 0;
+        }
+
+        var secondsText = Math.ceil(remainingMs / 1000) + "s";
+        nextEl.textContent = secondsText;
+        if (inlineEl) {
+            inlineEl.textContent = "Next refresh: " + secondsText;
+        }
+    }
+
+    function scheduleAdminNextRefreshCountdown() {
+        if (adminInsightsCountdownHandle) {
+            clearInterval(adminInsightsCountdownHandle);
+            adminInsightsCountdownHandle = null;
+        }
+
+        updateAdminNextRefreshLabel();
+        adminInsightsCountdownHandle = setInterval(updateAdminNextRefreshLabel, 1000);
+    }
+
+    function toDateOnlyKey(dateValue) {
+        var dt = new Date(dateValue);
+        if (isNaN(dt.getTime())) {
+            return "";
+        }
+
+        var month = String(dt.getMonth() + 1).padStart(2, '0');
+        var day = String(dt.getDate()).padStart(2, '0');
+        return dt.getFullYear() + '-' + month + '-' + day;
+    }
+
+    function renderAdminBarRows(containerId, rows, valueFormatter) {
+        var container = document.getElementById(containerId);
+        if (!container) {
+            return;
+        }
+
+        if (!rows || rows.length === 0) {
+            container.innerHTML = "<div class='admin-insights-empty'>No data available.</div>";
+            return;
+        }
+
+        var maxValue = rows.reduce(function (acc, row) {
+            return Math.max(acc, asNumber(row.value));
+        }, 0);
+        if (maxValue <= 0) {
+            maxValue = 1;
+        }
+
+        container.innerHTML = rows.map(function (row) {
+            var width = Math.max(4, Math.round((asNumber(row.value) / maxValue) * 100));
+            return "<div class='admin-chart-row'>"
+                + "<span class='admin-chart-label'>" + row.label + "</span>"
+                + "<div class='admin-chart-track'><div class='admin-chart-fill' style='width:" + width + "%;'></div></div>"
+                + "<span class='admin-chart-value'>" + valueFormatter(asNumber(row.value)) + "</span>"
+                + "</div>";
+        }).join("");
+    }
+
+    function renderAdminListRows(containerId, rows) {
+        var container = document.getElementById(containerId);
+        if (!container) {
+            return;
+        }
+
+        if (!rows || rows.length === 0) {
+            container.innerHTML = "<div class='admin-insights-empty'>No data available.</div>";
+            return;
+        }
+
+        container.innerHTML = rows.map(function (row) {
+            var valueClass = row.valueClass ? ("admin-list-value " + row.valueClass) : "admin-list-value";
+            return "<div class='admin-list-row'>"
+                + "<span class='admin-list-label'>" + row.label + "</span>"
+                + "<span class='" + valueClass + "'>" + row.value + "</span>"
+                + "</div>";
+        }).join("");
+    }
+
+    function getAdminSelectedRangeKey() {
+        var rangeEl = document.getElementById("adminRangeFilter");
+        return rangeEl ? (rangeEl.value || "mtd") : "mtd";
+    }
+
+    function getDateRangeByKey(rangeKey) {
+        var now = new Date();
+        var end = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+        var start;
+
+        if (rangeKey === "today") {
+            start = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+        } else if (rangeKey === "7d") {
+            start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 6, 0, 0, 0, 0);
+        } else {
+            start = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
+        }
+
+        return { start: start, end: end };
+    }
+
+    function isWithinRange(dateValue, range) {
+        var dt = new Date(dateValue);
+        if (isNaN(dt.getTime())) {
+            return false;
+        }
+
+        return dt >= range.start && dt <= range.end;
+    }
+
+    function topEntriesFromMap(mapObj, topCount) {
+        return Object.keys(mapObj || {})
+            .map(function (key) {
+                return { key: key, value: asNumber(mapObj[key]) };
+            })
+            .sort(function (a, b) {
+                return b.value - a.value;
+            })
+            .slice(0, topCount);
+    }
+
+    function buildTrendMap(rangeKey, range) {
+        var trendMap = {};
+        var now = new Date();
+
+        if (rangeKey === "today") {
+            var todayKey = toDateOnlyKey(now);
+            trendMap[todayKey] = 0;
+            return trendMap;
+        }
+
+        if (rangeKey === "7d") {
+            for (var i = 6; i >= 0; i--) {
+                var dt7 = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i);
+                trendMap[toDateOnlyKey(dt7)] = 0;
+            }
+
+            return trendMap;
+        }
+
+        var daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+        for (var d = 1; d <= daysInMonth; d++) {
+            var dt = new Date(now.getFullYear(), now.getMonth(), d);
+            var key = toDateOnlyKey(dt);
+            if (dt >= range.start && dt <= range.end) {
+                trendMap[key] = 0;
+            }
+        }
+
+        return trendMap;
+    }
+
+    function exportAdminInsightsSnapshot(rows) {
+        if (!rows || rows.length === 0) {
+            return;
+        }
+
+        var csvHeader = "Metric,Value\n";
+        var csvBody = rows.map(function (row) {
+            var metric = (row.label || "").replace(/,/g, " ");
+            var value = (row.value || "").toString().replace(/,/g, " ");
+            return metric + "," + value;
+        }).join("\n");
+
+        var blob = new Blob([csvHeader + csvBody], { type: "text/csv;charset=utf-8;" });
+        var url = URL.createObjectURL(blob);
+        var link = document.createElement("a");
+        link.href = url;
+        link.download = "admin-dashboard-snapshot.csv";
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+    }
+
+    function loadAdminInsightsDashboard(refreshSource) {
+        var messageBox = document.getElementById("adminInsightsMessage");
+        if (messageBox) {
+            messageBox.style.display = "none";
+            messageBox.textContent = "";
+        }
+
+        var rangeKey = getAdminSelectedRangeKey();
+        var selectedRange = getDateRangeByKey(rangeKey);
+
+        fetch('@Url.Action("GetStoreWorkflowOrders", "Customer")?status=&searchText=&_ts=' + Date.now(), {
+            method: 'GET',
+            credentials: 'same-origin',
+            headers: { 'X-Requested-With': 'XMLHttpRequest' }
+        })
+        .then(function (response) { return response.json(); })
+        .then(function (payload) {
+            if (!payload || payload.success !== true) {
+                throw new Error((payload && payload.message) || "Unable to load store dashboard insights.");
+            }
+
+            var orders = Array.isArray(payload.orders) ? payload.orders : [];
+            var now = new Date();
+            var todayKey = toDateOnlyKey(now);
+            var mtdRange = getDateRangeByKey("mtd");
+            var trendMap = buildTrendMap(rangeKey, selectedRange);
+
+            var todayOrders = 0;
+            var todaySales = 0;
+            var monthOrders = 0;
+            var monthSales = 0;
+            var selectedOrders = 0;
+            var selectedSales = 0;
+            var selectedPaid = 0;
+            var pendingPayments = 0;
+            var pendingAmount = 0;
+            var statusMap = { Received: 0, Processing: 0, Ready: 0, Delivered: 0 };
+            var paymentModeCounts = { Cash: 0, UPI: 0, Card: 0, Wallet: 0, Other: 0 };
+            var customerCountsInRange = {};
+            var serviceSales = {};
+            var customerLastOrderDate = {};
+            var cancelCount = 0;
+            var openAgeHoursTotal = 0;
+            var openAgeOrders = 0;
+            var stuckOrders = 0;
+            var highUnpaidOrders = 0;
+
+            orders.forEach(function (order) {
+                var created = new Date(order.CreatedDate || order.createdDate || "");
+                var amount = asNumber(order.OrderAmount || order.orderAmount || 0);
+                var pending = asNumber(order.PendingAmount ?? order.pendingAmount ?? order.NetPayable ?? order.netPayable ?? 0);
+                var status = (order.Status || order.status || "Received").toString();
+                var normalizedStatus = status.charAt(0).toUpperCase() + status.slice(1).toLowerCase();
+                var dateKey = toDateOnlyKey(created);
+                var paidNow = asNumber(order.PaidNow || order.paidNow || 0);
+                var customerName = (order.CustomerName || order.customerName || "Unknown").toString().trim() || "Unknown";
+                var serviceName = (order.ServiceType || order.serviceType || "General").toString().trim() || "General";
+                var paymentMode = (order.PaymentMode || order.paymentMode || "Other").toString().trim();
+                var ageHours = isNaN(created.getTime()) ? 0 : ((now.getTime() - created.getTime()) / 3600000);
+
+                if (statusMap.hasOwnProperty(normalizedStatus)) {
+                    statusMap[normalizedStatus] += 1;
+                }
+
+                if (dateKey === todayKey) {
+                    todayOrders += 1;
+                    todaySales += amount;
+                }
+
+                if (isWithinRange(created, mtdRange)) {
+                    monthOrders += 1;
+                    monthSales += amount;
+                }
+
+                if (isWithinRange(created, selectedRange)) {
+                    selectedOrders += 1;
+                    selectedSales += amount;
+                    selectedPaid += paidNow;
+                    customerCountsInRange[customerName] = (customerCountsInRange[customerName] || 0) + 1;
+                    serviceSales[serviceName] = (serviceSales[serviceName] || 0) + amount;
+
+                    if (paymentModeCounts.hasOwnProperty(paymentMode)) {
+                        paymentModeCounts[paymentMode] += 1;
+                    } else {
+                        paymentModeCounts.Other += 1;
+                    }
+
+                    if (trendMap.hasOwnProperty(dateKey)) {
+                        trendMap[dateKey] += 1;
+                    }
+                }
+
+                if (pending > 0) {
+                    pendingPayments += 1;
+                    pendingAmount += pending;
+
+                    if (pending >= 500) {
+                        highUnpaidOrders += 1;
+                    }
+                }
+
+                if (normalizedStatus === "Cancelled") {
+                    cancelCount += 1;
+                }
+
+                if (normalizedStatus !== "Delivered") {
+                    openAgeHoursTotal += ageHours;
+                    openAgeOrders += 1;
+                    if (ageHours >= 24) {
+                        stuckOrders += 1;
+                    }
+                }
+
+                var lastOrderDate = customerLastOrderDate[customerName];
+                if (!lastOrderDate || (!isNaN(created.getTime()) && created > lastOrderDate)) {
+                    customerLastOrderDate[customerName] = created;
+                }
+            });
+
+            var avgOrderValue = selectedOrders > 0 ? (selectedSales / selectedOrders) : 0;
+            var topCustomers = topEntriesFromMap(customerCountsInRange, 3);
+            var repeatCustomers = topCustomers.filter(function (x) { return x.value > 1; }).length;
+            var repeatPercent = topCustomers.length > 0 ? ((repeatCustomers / topCustomers.length) * 100) : 0;
+            var topServices = topEntriesFromMap(serviceSales, 3);
+            var lowEngagementCount = Object.keys(customerLastOrderDate).filter(function (name) {
+                var dt = customerLastOrderDate[name];
+                if (!dt || isNaN(dt.getTime())) {
+                    return false;
+                }
+                var days = (now.getTime() - dt.getTime()) / (24 * 3600000);
+                return days > 30;
+            }).length;
+            var openAvgHours = openAgeOrders > 0 ? (openAgeHoursTotal / openAgeOrders) : 0;
+            var pendingDeliveryCount = statusMap.Ready;
+            var readyForDeliveryCount = statusMap.Ready;
+
+            var todayOrdersEl = document.getElementById("adminKpiTodayOrders");
+            var todaySalesEl = document.getElementById("adminKpiTodaySales");
+            var monthOrdersEl = document.getElementById("adminKpiMonthOrders");
+            var monthSalesEl = document.getElementById("adminKpiMonthSales");
+            var pendingPaymentsEl = document.getElementById("adminKpiPendingPayments");
+            var pendingAmountEl = document.getElementById("adminKpiPendingAmount");
+            var collectedEl = document.getElementById("adminKpiCollectedAmount");
+            var avgOrderValueEl = document.getElementById("adminKpiAvgOrderValue");
+            var refreshedEl = document.getElementById("adminInsightsLastRefreshed");
+
+            if (todayOrdersEl) todayOrdersEl.textContent = String(todayOrders);
+            if (todaySalesEl) todaySalesEl.textContent = formatCurrency(todaySales);
+            if (monthOrdersEl) monthOrdersEl.textContent = String(monthOrders);
+            if (monthSalesEl) monthSalesEl.textContent = formatCurrency(monthSales);
+            if (pendingPaymentsEl) pendingPaymentsEl.textContent = String(pendingPayments);
+            if (pendingAmountEl) pendingAmountEl.textContent = formatCurrency(pendingAmount);
+            if (collectedEl) collectedEl.textContent = formatCurrency(selectedPaid);
+            if (avgOrderValueEl) avgOrderValueEl.textContent = formatCurrency(avgOrderValue);
+            if (refreshedEl) {
+                var nowRefreshed = new Date();
+                var source = (refreshSource || "auto").toString();
+                var sourceLabel = source === "manual" ? "Manual" : (source === "filter" ? "Filter" : "Auto");
+                refreshedEl.textContent = formatDateTime(nowRefreshed) + " (" + sourceLabel + ")";
+            }
+
+            var inlineEl = document.getElementById("adminToolbarRefreshInfo");
+            if (inlineEl) {
+                var sourceText = (refreshSource || "auto").toString();
+                var sourceLabelText = sourceText === "manual" ? "Manual refresh done" : (sourceText === "filter" ? "Filter refresh done" : "Auto refresh done");
+                inlineEl.textContent = sourceLabelText;
+            }
+
+            var autoRefreshCheckbox = document.getElementById("adminAutoRefreshChk");
+            if (autoRefreshCheckbox && autoRefreshCheckbox.checked) {
+                adminInsightsNextRefreshAt = new Date(Date.now() + adminInsightsIntervalMs);
+                updateAdminNextRefreshLabel();
+            }
+
+            renderAdminListRows("adminActionQueueRows", [
+                { label: "Ready for Delivery", value: String(readyForDeliveryCount) },
+                { label: "Pending Delivery", value: String(pendingDeliveryCount) },
+                { label: "High Pending Payments", value: String(highUnpaidOrders), valueClass: highUnpaidOrders > 0 ? "alert" : "success" },
+                { label: "Processing Backlog", value: String(statusMap.Processing) }
+            ]);
+
+            renderAdminListRows("adminRevenueRows", [
+                { label: "Sales (Selected Range)", value: formatCurrency(selectedSales) },
+                { label: "Collected (Selected Range)", value: formatCurrency(selectedPaid) },
+                { label: "Pending Amount", value: formatCurrency(pendingAmount), valueClass: pendingAmount > 0 ? "alert" : "success" },
+                { label: "Payment Split", value: "Cash " + paymentModeCounts.Cash + " | UPI " + paymentModeCounts.UPI + " | Card " + paymentModeCounts.Card + " | Wallet " + paymentModeCounts.Wallet }
+            ]);
+
+            renderAdminListRows("adminOperationsRows", [
+                { label: "Open Orders", value: String(openAgeOrders) },
+                { label: "Avg Open Order Age", value: openAvgHours.toFixed(1) + " hrs" },
+                { label: "Stuck Orders (>24h)", value: String(stuckOrders), valueClass: stuckOrders > 0 ? "alert" : "success" },
+                { label: "Cancellations", value: String(cancelCount) }
+            ]);
+
+            var topCustomerText = topCustomers.length
+                ? topCustomers.map(function (x) { return x.key + " (" + x.value + ")"; }).join(", ")
+                : "N/A";
+
+            renderAdminListRows("adminCustomerRows", [
+                { label: "Active Customers (Range)", value: String(Object.keys(customerCountsInRange).length) },
+                { label: "Repeat Customer %", value: repeatPercent.toFixed(0) + "%" },
+                { label: "Top Customers", value: topCustomerText },
+                { label: "Low Engagement (>30d)", value: String(lowEngagementCount), valueClass: lowEngagementCount > 0 ? "alert" : "success" }
+            ]);
+
+            var topServiceText = topServices.length
+                ? topServices.map(function (x) { return x.key + " (₹" + x.value.toFixed(0) + ")"; }).join(", ")
+                : "N/A";
+
+            renderAdminListRows("adminServiceRows", [
+                { label: "Top Service Mix", value: topServiceText },
+                { label: "Unique Services", value: String(Object.keys(serviceSales).length) },
+                { label: "Top Service Revenue", value: topServices.length ? formatCurrency(topServices[0].value) : "₹ 0.00" },
+                { label: "Service Coverage", value: selectedOrders > 0 ? (Object.keys(serviceSales).length + " types") : "N/A" }
+            ]);
+
+            renderAdminListRows("adminAlertRows", [
+                { label: "Stuck Orders", value: String(stuckOrders), valueClass: stuckOrders > 0 ? "alert" : "success" },
+                { label: "Large Unpaid Orders", value: String(highUnpaidOrders), valueClass: highUnpaidOrders > 0 ? "alert" : "success" },
+                { label: "Pending Payments", value: String(pendingPayments), valueClass: pendingPayments > 0 ? "alert" : "success" },
+                { label: "Email/Notification Failures", value: "N/A" }
+            ]);
+
+            renderAdminBarRows("adminStatusChartRows", [
+                { label: "Received", value: statusMap.Received },
+                { label: "Processing", value: statusMap.Processing },
+                { label: "Ready", value: statusMap.Ready },
+                { label: "Delivered", value: statusMap.Delivered }
+            ], function (value) { return String(Math.round(value)); });
+
+            var trendRows = Object.keys(trendMap).map(function (key) {
+                var parts = key.split('-');
+                var shortLabel = parts.length === 3 ? (parts[2] + '/' + parts[1]) : key;
+                return { label: shortLabel, value: trendMap[key] };
+            });
+
+            renderAdminBarRows("adminTrendChartRows", trendRows, function (value) { return String(Math.round(value)); });
+
+            var exportButton = document.getElementById("adminExportSnapshotBtn");
+            if (exportButton) {
+                exportButton.onclick = function () {
+                    exportAdminInsightsSnapshot([
+                        { label: "Today Orders", value: String(todayOrders) },
+                        { label: "Today Sales", value: formatCurrency(todaySales) },
+                        { label: "Month Orders", value: String(monthOrders) },
+                        { label: "Month Sales", value: formatCurrency(monthSales) },
+                        { label: "Pending Payments", value: String(pendingPayments) },
+                        { label: "Pending Amount", value: formatCurrency(pendingAmount) },
+                        { label: "Collected (Selected Range)", value: formatCurrency(selectedPaid) },
+                        { label: "Avg Order Value", value: formatCurrency(avgOrderValue) },
+                        { label: "Stuck Orders", value: String(stuckOrders) }
+                    ]);
+                };
+            }
+        })
+        .catch(function (error) {
+            if (messageBox) {
+                messageBox.style.display = "block";
+                messageBox.textContent = (error && error.message) || "Unable to load store dashboard insights.";
+            }
+        });
+    }
+
+    function setAdminInsightsAutoRefresh(enabled) {
+        if (adminInsightsIntervalHandle) {
+            clearInterval(adminInsightsIntervalHandle);
+            adminInsightsIntervalHandle = null;
+        }
+
+        if (adminInsightsCountdownHandle) {
+            clearInterval(adminInsightsCountdownHandle);
+            adminInsightsCountdownHandle = null;
+        }
+
+        updateAdminRefreshModeLabel(enabled);
+
+        if (enabled) {
+            adminInsightsNextRefreshAt = new Date(Date.now() + adminInsightsIntervalMs);
+            updateAdminNextRefreshLabel();
+            scheduleAdminNextRefreshCountdown();
+            adminInsightsIntervalHandle = setInterval(function () {
+                loadAdminInsightsDashboard("auto");
+            }, adminInsightsIntervalMs);
+        } else {
+            adminInsightsNextRefreshAt = null;
+            updateAdminNextRefreshLabel();
+        }
+    }
+
+    function autocomplete(inp, arr, onItemSelected)
          {
             var currentFocus;
             inp.addEventListener("input", function(e) {
@@ -227,17 +1581,23 @@ body {font-family: Arial, Helvetica, sans-serif;}
       a.setAttribute("class", "autocomplete-items");
       this.parentNode.appendChild(a);
       for (i = 0; i < arr.length; i++) {
-        if (arr[i].substr(0, val.length).toUpperCase() == val.toUpperCase()) {
-          b = document.createElement("DIV");
-          b.innerHTML = "<strong>" + arr[i].substr(0, val.length) + "</strong>";
-          b.innerHTML += arr[i].substr(val.length);
-          b.innerHTML += "<input type='hidden' value='" + arr[i] + "'>";
-              b.addEventListener("click", function(e) {
-              inp.value = this.getElementsByTagName("input")[0].value;
-              closeAllLists();
-          });
-          a.appendChild(b);
+        var customerText = (arr[i] || "").toString().trim();
+        if (!customerText) {
+            continue;
         }
+
+        b = document.createElement("DIV");
+        b.innerHTML = customerText;
+        b.innerHTML += "<input type='hidden' value='" + customerText + "'>";
+            b.addEventListener("click", function(e) {
+            var selectedItem = this.getElementsByTagName("input")[0].value;
+            inp.value = selectedItem;
+            closeAllLists();
+            if (typeof onItemSelected === "function") {
+                onItemSelected(selectedItem);
+            }
+        });
+        a.appendChild(b);
       }
   });
   inp.addEventListener("keydown", function(e) {
@@ -282,33 +1642,366 @@ document.addEventListener("click", function (e)
     closeAllLists(e.target);
 });
 }
-    $(document).ready(function ()
-    {
-        $("#searchradio").show();
-        $("#searchInvoiceradio").hide();
-        $.ajax
-                 ({
-                     type: "GET",
-                     url: '@Url.Action("GetCustomers", "Customer")',
-                     success: function (data) {
-                           autocomplete(document.getElementById("searchCustomers"), data);
-                     }
-                 });
 
+    $(function () {
+        var initialSearchMode = '@searchMode'.toLowerCase();
+        if (isAdminDashboardUser) {
+            if (!isSuperAdminDashboardUser) {
+                var adminRangeFilter = document.getElementById("adminRangeFilter");
+                if (adminRangeFilter) {
+                    adminRangeFilter.addEventListener("change", function () {
+                        loadAdminInsightsDashboard("filter");
+                    });
+                }
+
+                var adminRefreshInsightsBtn = document.getElementById("adminRefreshInsightsBtn");
+                if (adminRefreshInsightsBtn) {
+                    adminRefreshInsightsBtn.addEventListener("click", function () {
+                        loadAdminInsightsDashboard("manual");
+                    });
+                }
+
+                var adminAutoRefreshChk = document.getElementById("adminAutoRefreshChk");
+                if (adminAutoRefreshChk) {
+                    adminAutoRefreshChk.addEventListener("change", function (e) {
+                        var checked = !!(e && e.target && e.target.checked);
+                        setAdminInsightsAutoRefresh(checked);
+                    });
+                }
+
+                loadAdminInsightsDashboard("initial");
+                setAdminInsightsAutoRefresh(true);
+            }
+            return;
+        }
+
+        if (initialSearchMode === "invoice") {
+            $("#searchInvoiceradio").show();
+            $("#searchradio").hide();
+            $("#invoice").prop("checked", true);
+            $("#search").prop("checked", false);
+        } else {
+            $("#searchradio").show();
+            $("#searchInvoiceradio").hide();
+            $("#search").prop("checked", true);
+            $("#invoice").prop("checked", false);
+        }
+
+        var searchInput = document.getElementById("searchCustomers");
+        var invoiceInput = document.getElementById("searchInvoiceText");
+
+        function triggerInvoiceReferenceLookup(referenceText) {
+            var value = (referenceText || "").trim();
+            if (!value) {
+                setInvoiceSearchMessage("Please enter Order No or Invoice No.");
+                return;
+            }
+
+            setInvoiceSearchMessage("");
+
+            $.ajax({
+                type: "GET",
+                url: '@Url.Action("SearchOrderReference", "Customer")',
+                data: { searchText: value },
+                success: function (data) {
+                    if (!data || data.success !== true) {
+                        setInvoiceSearchMessage((data && data.message) ? data.message : "No order found.");
+                        return;
+                    }
+
+                    var workflowSearchValue = (data.orderNo || data.invoiceNo || value || "");
+                    var url = '@Url.Action("OrderWorkflow", "Customer")'
+                        + '?searchText=' + encodeURIComponent(workflowSearchValue);
+
+                    window.location.href = url;
+                },
+                error: function () {
+                    setInvoiceSearchMessage("Unable to search order reference. Please try again.");
+                }
+            });
+        }
+
+        autocomplete(searchInput, serverCustomers, function (selectedCustomer) {
+            setCustomerSearchMessage("");
+            window.location.href = '@Url.Action("Index", "Customer")' + '?customerName=' + encodeURIComponent(selectedCustomer);
+        });
+
+        autocomplete(invoiceInput, serverOrderReferences, function (selectedReference) {
+            triggerInvoiceReferenceLookup(selectedReference);
+        });
+
+        function setCustomerSearchMessage(message) {
+            var messageBox = document.getElementById("customerSearchMessage");
+            if (!messageBox) {
+                return;
+            }
+
+            if (!message) {
+                messageBox.textContent = "";
+                messageBox.style.display = "none";
+                return;
+            }
+
+            messageBox.textContent = message;
+            messageBox.style.display = "block";
+        }
+
+        function setInvoiceSearchMessage(message) {
+            var messageBox = document.getElementById("invoiceSearchMessage");
+            if (!messageBox) {
+                return;
+            }
+
+            if (!message) {
+                messageBox.textContent = "";
+                messageBox.style.display = "none";
+                return;
+            }
+
+            messageBox.textContent = message;
+            messageBox.style.display = "block";
+        }
+
+        searchInput.addEventListener("input", function () {
+            if (isAutocompleteRefresh) {
+                return;
+            }
+
+            var searchText = (this.value || "").trim();
+
+            if (!searchText) {
+                setCustomerSearchMessage("");
+                return;
+            }
+
+            if (customerSearchRequest && customerSearchRequest.readyState !== 4) {
+                customerSearchRequest.abort();
+            }
+
+            customerSearchRequest = $.ajax({
+                type: "GET",
+                url: '@Url.Action("SearchCustomers", "Customer")',
+                data: { searchText: searchText },
+                success: function (data) {
+                    serverCustomers.length = 0;
+                    $.each(data || [], function (_, item) {
+                        serverCustomers.push(item);
+                    });
+
+                    setCustomerSearchMessage(serverCustomers.length === 0
+                        ? 'No customer found for "' + searchText + '" in this store.'
+                        : "");
+
+                    isAutocompleteRefresh = true;
+                    searchInput.dispatchEvent(new Event("input"));
+                    isAutocompleteRefresh = false;
+                },
+                error: function (xhr, status) {
+                    if (status === "abort") {
+                        return;
+                    }
+
+                    serverCustomers.length = 0;
+                    setCustomerSearchMessage("Unable to search customers. Please try again.");
+                    isAutocompleteRefresh = true;
+                    searchInput.dispatchEvent(new Event("input"));
+                    isAutocompleteRefresh = false;
+                }
+            });
+        });
+
+        $("#searchCustomers").on("keydown", function (e) {
+            if (e.keyCode !== 13) {
+                return;
+            }
+
+            e.preventDefault();
+
+            var customerSearchText = ($(this).val() || "").trim();
+            if (!customerSearchText) {
+                return;
+            }
+
+            var hasMatch = serverCustomers.some(function (item) {
+                return (item || "").trim().toLowerCase() === customerSearchText.toLowerCase();
+            });
+
+            if (!hasMatch) {
+                setCustomerSearchMessage('Customer "' + customerSearchText + '" does not exist in this store.');
+                return;
+            }
+
+            setCustomerSearchMessage("");
+            window.location.href = '@Url.Action("Index", "Customer")' + '?customerName=' + encodeURIComponent(customerSearchText);
+        });
+
+        $("#search").on("click", function () {
+            $("#searchradio").show();
+            $("#searchInvoiceradio").hide();
+        });
+
+        $("#invoice").on("click", function () {
+            $("#searchInvoiceradio").show();
+            $("#searchradio").hide();
+        });
+
+        $("#searchInvoiceText").on("keydown", function (e) {
+            if (e.keyCode !== 13) {
+                return;
+            }
+
+            e.preventDefault();
+
+            var invoiceSearchText = ($(this).val() || "").trim();
+            if (!invoiceSearchText) {
+                setInvoiceSearchMessage("Please enter Order No or Invoice No.");
+                return;
+            }
+
+            var hasMatch = serverOrderReferences.some(function (item) {
+                return (item || "").trim().toLowerCase() === invoiceSearchText.toLowerCase();
+            });
+
+            if (!hasMatch && serverOrderReferences.length > 0) {
+                setInvoiceSearchMessage('Order/Invoice "' + invoiceSearchText + '" does not exist in this store.');
+                return;
+            }
+
+            triggerInvoiceReferenceLookup(invoiceSearchText);
+        });
+
+        if (invoiceInput) {
+            invoiceInput.addEventListener("input", function () {
+                if (isInvoiceAutocompleteRefresh) {
+                    return;
+                }
+
+                var searchText = (this.value || "").trim();
+                if (!searchText) {
+                    serverOrderReferences.length = 0;
+                    setInvoiceSearchMessage("");
+                    return;
+                }
+
+                if (searchText.length < 3) {
+                    setInvoiceSearchMessage("Type at least 3 characters to search Order/Invoice.");
+                    return;
+                }
+
+                if (orderReferenceSearchRequest && orderReferenceSearchRequest.readyState !== 4) {
+                    orderReferenceSearchRequest.abort();
+                }
+
+                orderReferenceSearchRequest = $.ajax({
+                    type: "GET",
+                    url: '@Url.Action("SearchOrderReferences", "Customer")',
+                    data: { searchText: searchText, top: 20 },
+                    success: function (data) {
+                        serverOrderReferences.length = 0;
+                        $.each(data || [], function (_, item) {
+                            serverOrderReferences.push(item);
+                        });
+
+                        setInvoiceSearchMessage(serverOrderReferences.length === 0
+                            ? 'No order/invoice found for "' + searchText + '" in this store.'
+                            : "");
+
+                        isInvoiceAutocompleteRefresh = true;
+                        invoiceInput.dispatchEvent(new Event("input"));
+                        isInvoiceAutocompleteRefresh = false;
+                    },
+                    error: function (xhr, status) {
+                        if (status === "abort") {
+                            return;
+                        }
+
+                        serverOrderReferences.length = 0;
+                        setInvoiceSearchMessage("Unable to search order/invoice. Please try again.");
+                        isInvoiceAutocompleteRefresh = true;
+                        invoiceInput.dispatchEvent(new Event("input"));
+                        isInvoiceAutocompleteRefresh = false;
+                    }
+                });
+            });
+        }
     });
-    $("#search").click(function ()
-    {
-        $("#searchradio").show();
-        $("#searchInvoiceradio").hide();
-    });
-    $("#invoice").click(function ()
-    {
-        $("#searchInvoiceradio").show();
-        $("#searchradio").hide();
-    });
+
     function DashboardTemplates()
     {
         localStorage.setItem("dashboard_name", $("#dashboard-name").val());
         window.location = "/Dashboard/TemplateList/";
+    }
+
+    function refreshLiveCounterDetails() {
+        var now = new Date();
+        var lastRefreshed = document.getElementById('lcLastRefreshed');
+        if (lastRefreshed) {
+            lastRefreshed.textContent = now.toLocaleTimeString();
+        }
+    }
+
+    function setLiveCounterValue(elementId, value, fallbackValue) {
+        var element = document.getElementById(elementId);
+        if (!element) {
+            return;
+        }
+
+        if (value === null || value === undefined || value === "") {
+            element.textContent = fallbackValue || "--";
+            return;
+        }
+
+        element.textContent = value;
+    }
+
+    function setLiveCounterStatus(statusText) {
+        var statusElement = document.getElementById("lcLiveStatus");
+        if (!statusElement) {
+            return;
+        }
+
+        statusElement.textContent = statusText;
+    }
+
+    function loadLiveCounterDashboardStats() {
+        $.ajax({
+            type: "GET",
+            url: '@Url.Action("GetLiveCounterDashboardStats", "Customer")',
+            success: function (response) {
+                if (!response || response.success !== true) {
+                    setLiveCounterStatus((response && response.message) ? response.message : "Unable to load counters");
+                    return;
+                }
+
+                setLiveCounterValue("lcTodayOrders", response.todayOrders, "0");
+                setLiveCounterValue("lcWalkins", response.walkinsToday, "0");
+                setLiveCounterValue("lcAdvanceUsed", response.advanceUsedToday, "0");
+                setLiveCounterValue("lcPendingPayment", response.pendingPaymentCount, "0");
+
+                var readyForDeliveryValue = response.readyForDeliveryCount;
+                var pendingDeliveryValue = response.pendingDeliveryCount;
+
+                setLiveCounterValue("lcReadyDelivery", readyForDeliveryValue, "N/A");
+                setLiveCounterValue("lcPendingDelivery", pendingDeliveryValue, "N/A");
+
+                var pendingAmount = response.pendingPaymentAmount || 0;
+                var statusText = "Live";
+                if (response.readyPendingReason) {
+                    statusText += " (Delivery status pending API)";
+                }
+                statusText += " | Pending ₹" + pendingAmount;
+
+                setLiveCounterStatus(statusText);
+                refreshLiveCounterDetails();
+            },
+            error: function () {
+                setLiveCounterStatus("Live counter API unavailable");
+            }
+        });
+    }
+
+    if (!isAdminDashboardUser) {
+        loadLiveCounterDashboardStats();
+        setInterval(loadLiveCounterDashboardStats, 30000);
     }
 </script>

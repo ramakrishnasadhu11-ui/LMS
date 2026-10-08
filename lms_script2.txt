@@ -1,0 +1,51 @@
+USE [LMS_Master];
+GO
+
+DECLARE @TenantName NVARCHAR(256) = N'tenant@example.com';
+DECLARE @StoreCode  NVARCHAR(64)  = N'S001';
+
+/* Default rows */
+WITH SeedData AS
+(
+    SELECT @TenantName AS TenantName, @StoreCode AS StoreCode, N'Dry Clean'  AS ServiceType, N'Men'       AS Category, N'Shirt'          AS ItemName, CAST(25.00 AS DECIMAL(18,2)) AS UnitPrice UNION ALL
+    SELECT @TenantName, @StoreCode, N'Dry Clean',  N'Men',       N'Pant',           CAST(30.00 AS DECIMAL(18,2)) UNION ALL
+    SELECT @TenantName, @StoreCode, N'Dry Clean',  N'Women',     N'Top',            CAST(24.00 AS DECIMAL(18,2)) UNION ALL
+    SELECT @TenantName, @StoreCode, N'Dry Clean',  N'Women',     N'Saree',          CAST(70.00 AS DECIMAL(18,2)) UNION ALL
+    SELECT @TenantName, @StoreCode, N'Dry Clean',  N'Kids',      N'Kid Shirt',      CAST(15.00 AS DECIMAL(18,2)) UNION ALL
+    SELECT @TenantName, @StoreCode, N'Dry Clean',  N'Household', N'Blanket',        CAST(80.00 AS DECIMAL(18,2)) UNION ALL
+    SELECT @TenantName, @StoreCode, N'Steam Iron', N'Men',       N'Shirt',          CAST(12.00 AS DECIMAL(18,2)) UNION ALL
+    SELECT @TenantName, @StoreCode, N'Steam Iron', N'Women',     N'Dress',          CAST(16.00 AS DECIMAL(18,2)) UNION ALL
+    SELECT @TenantName, @StoreCode, N'Wash & Fold',N'Men',       N'Daily Wear',     CAST(18.00 AS DECIMAL(18,2)) UNION ALL
+    SELECT @TenantName, @StoreCode, N'Wash & Fold',N'Household', N'Mixed Load',     CAST(50.00 AS DECIMAL(18,2))
+)
+MERGE [dbo].[LaundryItemPrices] AS T
+USING SeedData AS S
+ON  T.TenantName  = S.TenantName
+AND T.StoreCode   = S.StoreCode
+AND T.ServiceType = S.ServiceType
+AND T.Category    = S.Category
+AND T.ItemName    = S.ItemName
+
+WHEN MATCHED THEN
+    UPDATE SET
+        T.UnitPrice = S.UnitPrice,
+        T.IsActive = 1,
+        T.ModifiedDate = SYSUTCDATETIME()
+
+WHEN NOT MATCHED BY TARGET THEN
+    INSERT
+    (
+        TenantName, StoreCode, ServiceType, Category, ItemName,
+        UnitPrice, IsActive, CreatedDate, ModifiedDate
+    )
+    VALUES
+    (
+        S.TenantName, S.StoreCode, S.ServiceType, S.Category, S.ItemName,
+        S.UnitPrice, 1, SYSUTCDATETIME(), SYSUTCDATETIME()
+    );
+
+SELECT *
+FROM [dbo].[LaundryItemPrices]
+WHERE TenantName = @TenantName AND StoreCode = @StoreCode
+ORDER BY ServiceType, Category, ItemName;
+GO

@@ -1,0 +1,259 @@
+@{
+    ViewData["Title"] = "Tenant Approval";
+    Layout = "~/Views/Shared/_HeaderMenuItemsLayout.cshtml";
+    var tenantName = Convert.ToString(ViewData["TenantName"] ?? "-");
+}
+
+<style>
+.admin-setup-page,
+.admin-setup-page input,
+.admin-setup-page button,
+.admin-setup-page label,
+.admin-setup-page textarea,
+.admin-setup-page select {
+    font-family: Arial, Helvetica, sans-serif;
+}
+
+.admin-setup-page { padding: 20px; }
+.admin-setup-box {
+    max-width: 1100px;
+    margin: 0 auto;
+    background: var(--els-surface);
+    border-radius: 10px;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+    overflow: hidden;
+}
+.admin-setup-title {
+    background: linear-gradient(90deg, var(--els-primary) 0%, var(--els-primary-dark) 100%);
+    color: #fff;
+    padding: 14px 20px;
+    font-size: 20px;
+    font-weight: 600;
+}
+.admin-setup-body { padding: 20px; }
+.admin-setup-note {
+    border: 1px solid var(--els-border);
+    border-radius: 8px;
+    background: var(--els-accent);
+    padding: 12px;
+    margin-bottom: 16px;
+    color: var(--els-text);
+}
+.admin-btn {
+    min-width: 110px;
+    min-height: 36px;
+    border: 1px solid transparent;
+    border-radius: 8px;
+    background: linear-gradient(180deg, var(--els-primary-light) 0%, var(--els-primary) 100%);
+    color: #fff;
+    font-weight: 600;
+    cursor: pointer;
+}
+.admin-btn.secondary {
+    background: linear-gradient(180deg, #8f99a4 0%, #6f7a86 100%);
+}
+.admin-btn.danger {
+    background: linear-gradient(180deg, #e2655f 0%, var(--els-danger) 100%);
+}
+.admin-btn + .admin-btn { margin-left: 6px; }
+.tenant-action-cell { display: flex; gap: 8px; justify-content: flex-end; align-items: center; min-width: 180px; }
+.tenant-action-cell .admin-btn { margin-left: 0; }
+
+/* Responsive: stack buttons vertically on narrow screens */
+@@media (max-width: 640px) {
+    .tenant-action-cell { flex-direction: column; align-items: stretch; justify-content: center; min-width: auto; }
+    .tenant-action-cell .admin-btn { width: 100%; }
+}
+.tenant-status-table { width: 100%; border-collapse: collapse; }
+.tenant-status-table th,
+.tenant-status-table td {
+    padding: 8px;
+    border-bottom: 1px solid var(--els-border);
+    text-align: left;
+    vertical-align: top;
+}
+.tenant-status-pill {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 700;
+}
+.tenant-status-pill.approved {
+    background: rgba(22, 163, 74, 0.12);
+    color: #15803d;
+    border: 1px solid #15803d;
+}
+.tenant-status-pill.pending {
+    background: rgba(217, 119, 6, 0.12);
+    color: #b45309;
+    border: 1px solid #b45309;
+}
+.tenant-status-pill.rejected {
+    background: rgba(201, 48, 44, 0.10);
+    color: var(--els-danger);
+    border: 1px solid var(--els-danger);
+}
+.tenant-reason {
+    display: block;
+    margin-top: 4px;
+    font-size: 11px;
+    color: var(--els-text-muted, #6b7280);
+}
+</style>
+
+<section class="admin-setup-page">
+    <div class="admin-setup-box">
+        <div class="admin-setup-title">Tenant Approval</div>
+        <div class="admin-setup-body">
+            <div class="admin-setup-note">
+                <div><b>Signed in as:</b> @tenantName</div>
+                <div style="margin-top:6px;">
+                    Newly registered tenants stay pending and cannot log in until they are approved here.
+                    Rejecting a tenant blocks their login and records the reason. Pending tenants are listed first.
+                </div>
+            </div>
+
+            <div class="admin-setup-note">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+                    <b>Tenants</b>
+                    <button type="button" class="admin-btn secondary" id="refreshTenantApprovalsBtn">Refresh</button>
+                </div>
+                <div id="tenantApprovalList">Loading tenants...</div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<script>
+(function () {
+    var host = document.getElementById("tenantApprovalList");
+
+    function escapeHtml(value) {
+        return (value == null ? "" : String(value))
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;")
+            .replace(/'/g, "&#39;");
+    }
+
+    function statusPill(status) {
+        var normalized = (status || "Approved").toLowerCase();
+        var cls = normalized === "pending" ? "pending" : normalized === "rejected" ? "rejected" : "approved";
+        var label = normalized === "pending" ? "Pending Approval"
+            : normalized === "rejected" ? "Rejected" : "Approved";
+        return "<span class='tenant-status-pill " + cls + "'>" + label + "</span>";
+    }
+
+    function render(tenants) {
+        if (!tenants || tenants.length === 0) {
+            host.textContent = "No tenants found.";
+            return;
+        }
+
+        var html = "<table class='tenant-status-table'>"
+            + "<thead><tr><th>Tenant</th><th>Email</th><th>Location</th><th>Stores</th>"
+            + "<th>Status</th><th>Actioned By</th><th>Actioned On</th><th>Action</th></tr></thead><tbody>";
+
+        tenants.forEach(function (t) {
+            var status = (t.approvalStatus || "Approved").toLowerCase();
+            var location = [t.city, t.country].filter(function (x) { return x; }).join(", ") || "-";
+            var reason = (status === "rejected" && t.approvalReason)
+                ? "<span class='tenant-reason'>Reason: " + escapeHtml(t.approvalReason) + "</span>"
+                : "";
+
+            var actions = "<div class='tenant-action-cell'>";
+            var anyAction = false;
+            if (status !== "approved") {
+                actions += "<button type='button' class='admin-btn tenant-action-btn' data-tenant='"
+                    + escapeHtml(t.tenantId) + "' data-status='Approved'>Approve</button>";
+                anyAction = true;
+            }
+            if (status !== "rejected") {
+                actions += "<button type='button' class='admin-btn danger tenant-action-btn' data-tenant='"
+                    + escapeHtml(t.tenantId) + "' data-status='Rejected'>Reject</button>";
+                anyAction = true;
+            }
+            actions += "</div>";
+            if (!anyAction) { actions = "-"; }
+
+            html += "<tr>"
+                + "<td>" + escapeHtml(t.tenantName || "-") + "</td>"
+                + "<td>" + escapeHtml(t.email || "-") + "</td>"
+                + "<td>" + escapeHtml(location) + "</td>"
+                + "<td>" + (t.storeCount || 0) + "</td>"
+                + "<td>" + statusPill(t.approvalStatus) + reason + "</td>"
+                + "<td>" + escapeHtml(t.approvedBy || "-") + "</td>"
+                + "<td>" + (t.approvalDate ? new Date(t.approvalDate).toLocaleString() : "-") + "</td>"
+                + "<td>" + actions + "</td>"
+                + "</tr>";
+        });
+
+        html += "</tbody></table>";
+        host.innerHTML = html;
+
+        Array.prototype.forEach.call(host.querySelectorAll(".tenant-action-btn"), function (btn) {
+            btn.addEventListener("click", function () {
+                var status = btn.getAttribute("data-status");
+                var reason = "";
+
+                if (status === "Rejected") {
+                    reason = window.prompt("Enter the reason for rejecting this tenant:", "");
+                    if (reason === null) {
+                        return;
+                    }
+                    if (!reason.trim()) {
+                        window.alert("A reason is required when rejecting a tenant.");
+                        return;
+                    }
+                }
+
+                var body = new URLSearchParams();
+                body.append("tenantId", btn.getAttribute("data-tenant"));
+                body.append("approvalStatus", status);
+                body.append("reason", reason);
+
+                btn.disabled = true;
+                fetch('@Url.Action("SetTenantApprovalStatus", "Customer")', {
+                    method: "POST",
+                    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+                    body: body.toString()
+                })
+                .then(function (r) { return r.json(); })
+                .then(function (data) {
+                    window.alert((data && data.message) || "Tenant approval updated.");
+                    loadTenants();
+                })
+                .catch(function () {
+                    btn.disabled = false;
+                    window.alert("Unable to update tenant approval.");
+                });
+            });
+        });
+    }
+
+    function loadTenants() {
+        host.textContent = "Loading tenants...";
+        fetch('@Url.Action("GetTenantApprovals", "Customer")')
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                if (!data || !data.success) {
+                    host.textContent = (data && data.message) || "Unable to load tenants.";
+                    return;
+                }
+                render(data.tenants);
+            })
+            .catch(function () {
+                host.textContent = "Unable to load tenants.";
+            });
+    }
+
+    var refreshBtn = document.getElementById("refreshTenantApprovalsBtn");
+    if (refreshBtn) {
+        refreshBtn.addEventListener("click", function () { loadTenants(); });
+    }
+
+    loadTenants();
+})();
+</script>

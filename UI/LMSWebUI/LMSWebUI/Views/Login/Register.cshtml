@@ -7,9 +7,46 @@
     <title>ELS Register</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/4.1.1/css/bootstrap.min.css">
     <link rel="stylesheet" type="text/css" href="~/css/custom.css">
+    <link rel="stylesheet" type="text/css" href="~/css/app-theme.css">
     <link href="https://fonts.googleapis.com/css?family=Poppins:100,300,400,500,600,700&display=swap" rel="stylesheet">
 </head>
 <body>
+    <script>
+        (function () {
+            try {
+                var selectedTheme = localStorage.getItem('els-theme');
+                if (selectedTheme === 'dark') {
+                    document.documentElement.setAttribute('data-theme', 'dark');
+                } else {
+                    document.documentElement.removeAttribute('data-theme');
+                }
+            } catch (e) {
+                document.documentElement.removeAttribute('data-theme');
+            }
+        })();
+
+        function toggleTheme() {
+            var current = document.documentElement.getAttribute('data-theme');
+            var next = current === 'dark' ? 'light' : 'dark';
+
+            if (next === 'dark') {
+                document.documentElement.setAttribute('data-theme', 'dark');
+            } else {
+                document.documentElement.removeAttribute('data-theme');
+            }
+
+            localStorage.setItem('els-theme', next);
+            syncThemeButtonText();
+        }
+
+        function syncThemeButtonText() {
+            var isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+            var toggle = document.getElementById('themeToggleRegister');
+            if (toggle) {
+                toggle.textContent = isDark ? 'Light Theme' : 'Dark Theme';
+            }
+        }
+    </script>
     <div class="form-body">
         <div class="website-logo">
             <a href="index.html">
@@ -28,6 +65,9 @@
             <div class="form-holder">
                 <div class="form-content register">
                     <div class="form-items" style="width: 340px;">
+                        <div style="text-align:right; margin-bottom:10px;">
+                            <button id="themeToggleRegister" type="button" class="theme-toggle-btn" onclick="toggleTheme()">Dark Theme</button>
+                        </div>
                         <img class="logo-size" src="~/Images/els-blue-web.png" alt="" style="width: 180px;margin-bottom: 20px;">
                         @{
                              bool disablebtn = false;
@@ -42,7 +82,6 @@
                         </div>
                         @using (Html.BeginForm("Register", "Login", FormMethod.Post, new { @class = "form" }))
                         {
-                            <form asp-action="Post">
                                 @Html.TextBoxFor(m => m.FamilyName, new { @placeholder = "First Name", @class = "form-control", required = "required" })
                                 @Html.TextBoxFor(m => m.MiddleName, new { @placeholder = "Last Name", @class = "form-control", required = "required" })
                                 @Html.TextBoxFor(m => m.TenantName, new { @placeholder = "Company Name", @class = "form-control", required = "required" })
@@ -51,7 +90,6 @@
                                 @Html.TextBoxFor(m => m.NoOfStores, new { @placeholder = "Number of Stores", @class = "form-control", required = "required" })
                                 <button id="submit" type="submit" class="ibtn" disabled="@(disablebtn ? "disabled" : null)">Register</button>
                                 <p>Already have an account?  <a href="@Url.Action("Login", "Login")">Login</a></p>
-                            </form>
                         }
 
                     </div>
@@ -63,6 +101,8 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.16.0/umd/popper.min.js"></script>
     <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.4.1/js/bootstrap.min.js"></script>
     <script type='text/javascript'>
+        syncThemeButtonText();
+
         $(function ()
         {
          $("input[type=submit]").click({
