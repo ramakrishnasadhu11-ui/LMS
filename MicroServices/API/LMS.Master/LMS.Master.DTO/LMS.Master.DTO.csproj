@@ -1,16 +1,12 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>netcoreapp2.2</TargetFramework>
+    <TargetFramework>net8.0</TargetFramework>
   </PropertyGroup>
 
   <ItemGroup>
-<<<<<<< Updated upstream
-    <PackageReference Include="MongoDB.Bson" Version="2.11.0" />
-    <PackageReference Include="Newtonsoft.Json" Version="12.0.2" />
-=======
+    <PackageReference Include="MongoDB.Bson" Version="3.12.0" />
     <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
->>>>>>> Stashed changes
   </ItemGroup>
 
 </Project>

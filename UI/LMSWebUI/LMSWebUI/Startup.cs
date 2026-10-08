@@ -8,27 +8,18 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 
 namespace LMSWebUI
 {
     public class Startup
     {
-<<<<<<< Updated upstream
-        public string ApiUrl { get; set; }
-        public Startup(IConfiguration configuration, IHostingEnvironment environment)
-=======
         public Startup(IConfiguration configuration)
->>>>>>> Stashed changes
         {
             Configuration = configuration;
         }
 
         public IConfiguration Configuration { get; }
-<<<<<<< Updated upstream
-        public IHostingEnvironment Environment { get; }
-=======
-
->>>>>>> Stashed changes
         // This method gets called by the runtime. Use this method to add services to the container.
         public void ConfigureServices(IServiceCollection services)
         {
@@ -65,21 +56,13 @@ namespace LMSWebUI
                 options.IdleTimeout = TimeSpan.FromMinutes(60);
             });
 
-<<<<<<< Updated upstream
-            services.AddSession(options => 
-            {  
-               options.IdleTimeout = TimeSpan.FromMinutes(60);//You can set Time   
-           });  
-            services.AddMvc().SetCompatibilityVersion(CompatibilityVersion.Version_2_2);
-=======
-            services.AddControllersWithViews();
-            // Register IHttpClientFactory for calling other microservices
+            services.AddControllersWithViews()
+                .AddNewtonsoftJson();
             services.AddHttpClient();
->>>>>>> Stashed changes
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
-        public void Configure(IApplicationBuilder app, IHostingEnvironment env)
+        public void Configure(IApplicationBuilder app, IWebHostEnvironment env)
         {
             if (env.IsDevelopment())
             {
@@ -96,19 +79,16 @@ namespace LMSWebUI
 
             app.UseStaticFiles();
             app.UseCookiePolicy();
-<<<<<<< Updated upstream
-=======
             app.UseRouting();
             app.UseCors("AllowAll");
             app.UseAuthentication();
             app.UseAuthorization();
->>>>>>> Stashed changes
             app.UseSession();
-            app.UseMvc(routes =>
+            app.UseEndpoints(endpoints =>
             {
-                routes.MapRoute(
+                endpoints.MapControllerRoute(
                     name: "default",
-                    template: "{controller=Login}/{action=Login}/{id?}");
+                    pattern: "{controller=Login}/{action=Login}/{id?}");
             });
 
             // Seed database with SuperAdmin user/role

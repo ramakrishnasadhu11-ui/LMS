@@ -1,8 +1,8 @@
 <Project Sdk="Microsoft.NET.Sdk.Web">
 
   <PropertyGroup>
-    <TargetFramework>netcoreapp2.2</TargetFramework>
-    <AspNetCoreHostingModelV2>InProcess</AspNetCoreHostingModelV2>
+    <TargetFramework>net8.0</TargetFramework>
+    <AspNetCoreHostingModel>InProcess</AspNetCoreHostingModel>
   </PropertyGroup>
 
   <ItemGroup>
@@ -10,23 +10,20 @@
     <Content Remove="Models\Common\**" />
     <EmbeddedResource Remove="Models\Common\**" />
     <None Remove="Models\Common\**" />
-<<<<<<< Updated upstream
-=======
     <PackageReference Include="jQuery.UI.Combined" Version="1.14.1" />
     <PackageReference Include="Microsoft.VisualStudio.Web.CodeGeneration.Design" Version="8.0.23" />
     <PackageReference Include="QuestPDF" Version="2026.9.1" />
     <PackageReference Include="VMD.RESTApiResponseWrapper.Core" Version="2.0.0" />
     <PackageReference Include="jQuery" Version="3.7.1" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="8.0.10" />
-    <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="8.0.10" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore.Tools" Version="8.0.10">
+    <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="8.0.31" />
+    <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="8.0.31" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Tools" Version="8.0.31">
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.NewtonsoftJson" Version="8.0.31" />
     <PackageReference Include="MailKit" Version="4.16.0" />
-    <PackageReference Include="Azure.Identity" Version="1.11.4" />
+    <PackageReference Include="Azure.Identity" Version="1.12.1" />
     <PackageReference Include="NuGet.Protocol" Version="6.11.2" />
-    <PackageReference Include="Microsoft.NETCore.Platforms" Version="1.1.0" />
->>>>>>> Stashed changes
   </ItemGroup>
 
   <ItemGroup>
@@ -50,17 +47,6 @@
     <None Include="wwwroot\headerfiles\dmenu_popup.js" />
     <None Include="wwwroot\headerfiles\dmenu_search.js" />
   </ItemGroup>
-
-
-  <ItemGroup>
-    <PackageReference Include="jQuery.UI.Combined" Version="1.12.1" />
-    <PackageReference Include="Microsoft.AspNetCore.App" />
-    <PackageReference Include="Microsoft.AspNetCore.Razor.Design" Version="2.2.0" PrivateAssets="All" />
-    <PackageReference Include="Microsoft.AspNetCore.Session" Version="2.2.0" />
-    <PackageReference Include="Microsoft.VisualStudio.Web.CodeGeneration.Design" Version="2.2.4" />
-    <PackageReference Include="VMD.RESTApiResponseWrapper.Core" Version="1.0.4" />
-  </ItemGroup>
-
 
   <ItemGroup>
     <ProjectReference Include="..\LMSClientFactory\LMSClientFactory.csproj" />

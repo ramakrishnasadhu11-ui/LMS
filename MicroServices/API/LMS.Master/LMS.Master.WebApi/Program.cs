@@ -4,8 +4,8 @@ using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using Lamar.Microsoft.DependencyInjection;
-using Microsoft.AspNetCore;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 
@@ -15,17 +15,21 @@ namespace LMS.Master.WebApi
     {
         public static void Main(string[] args)
         {
-          CreateWebHostBuilder(args)
+            CreateHostBuilder(args)
+                .Build()
+                .Run();
+        }
+        public static IHostBuilder CreateHostBuilder(string[] args) =>
+            Host.CreateDefaultBuilder(args)
+                .UseLamar()
                 .ConfigureLogging(logging =>
                 {
                     logging.ClearProviders();
                 })
-                 //.UseNLog()
-                 .Build().Run();
-        }
-         public static IWebHostBuilder CreateWebHostBuilder(string[] args) =>
-            WebHost.CreateDefaultBuilder(args)
-                 .UseLamar()
-                .UseStartup<Startup>();
+                .ConfigureWebHostDefaults(webBuilder =>
+                {
+                    webBuilder
+                        .UseStartup<Startup>();
+                });
     }
 }
