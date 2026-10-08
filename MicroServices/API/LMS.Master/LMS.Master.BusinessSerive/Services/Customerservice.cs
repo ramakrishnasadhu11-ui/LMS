@@ -1,11 +1,10 @@
-﻿using AutoMapper;
+using AutoMapper;
 using LMS.Master.BusinessSerive.Data;
 using LMS.Master.BusinessSerive.Interfaces;
 using LMS.Master.DTO;
 using LMS.Master.DTO.Entity;
 using LMS.Master.Utilities;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Hosting;
 using System;
 using System.Collections.Generic;
 using System.Globalization;
@@ -25,11 +24,11 @@ namespace LMS.Master.BusinessSerive.Services
         private readonly MasterDbContext _masterDbContext;
         private readonly List<string> _seedFilePaths;
 
-        public Customerservice(IMapper mapper, MasterDbContext masterDbContext, IHostEnvironment hostEnvironment)
+        public Customerservice(IMapper mapper, MasterDbContext masterDbContext)
         {
             _mapper = mapper ?? throw new ArgumentNullException(nameof(mapper));
             _masterDbContext = masterDbContext ?? throw new ArgumentNullException(nameof(masterDbContext));
-            var contentRoot = hostEnvironment?.ContentRootPath ?? AppContext.BaseDirectory;
+            var contentRoot = AppContext.BaseDirectory;
             _seedFilePaths = new List<string>
             {
                 Path.Combine(contentRoot, "SeedData", "LaundryItemDefaults.csv"),
@@ -3535,7 +3534,6 @@ END;";
             }
             return isPassword;
         }
-<<<<<<< Updated upstream
        private static RNGCryptoServiceProvider CreateRNGCryptoServiceProvider()
         {
             RNGCryptoServiceProvider rngCryptoServiceProvider = new RNGCryptoServiceProvider();
@@ -3556,7 +3554,6 @@ END;";
         public string TenantCustomersCollectionName { get; set; }
         public int ConnectTimeoutInSeconds { get; set; }
         }
-=======
->>>>>>> Stashed changes
     }
 }
+

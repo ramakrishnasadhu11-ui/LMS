@@ -69,10 +69,13 @@ namespace LMS.Core.Repository.Repositories
         /// </remarks>
         public virtual void ChangeTable(string table)
         {
-            if (_dbContext.Model.FindEntityType(typeof(TEntity)).Relational() is RelationalEntityTypeAnnotations relational)
+            if (_dbContext.Model.FindEntityType(typeof(TEntity)) is IMutableEntityType mutableEntityType)
             {
-                relational.TableName = table;
+                mutableEntityType.SetTableName(table);
+                return;
             }
+
+            throw new NotSupportedException("ChangeTable requires mutable EF model metadata. In EF Core 8 runtime models are immutable; use a dedicated DbContext/model per table mapping.");
         }
 
 
@@ -468,7 +471,7 @@ namespace LMS.Core.Repository.Repositories
         /// <returns>An <see cref="IQueryable{TEntity}" /> that contains elements that satisfy the condition specified by raw SQL.</returns>
         public virtual IQueryable<TEntity> FromSql(string sql, params object[] parameters)
         {
-            return _dbSet.FromSql(sql, parameters);
+            return _dbSet.FromSqlRaw(sql, parameters);
         }
 
         /// <summary>
@@ -488,7 +491,7 @@ namespace LMS.Core.Repository.Repositories
         /// <returns>A <see cref="Task{TEntity}" /> that represents the asynchronous insert operation.</returns>
         public virtual Task<TEntity> FindAsync(params object[] keyValues)
         {
-            return _dbSet.FindAsync(keyValues);
+            return _dbSet.FindAsync(keyValues).AsTask();
         }
 
         /// <summary>
@@ -499,7 +502,7 @@ namespace LMS.Core.Repository.Repositories
         /// <returns>A <see cref="Task{TEntity}"/> that represents the asynchronous find operation. The task result contains the found entity or null.</returns>
         public virtual Task<TEntity> FindAsync(object[] keyValues, CancellationToken cancellationToken)
         {
-            return _dbSet.FindAsync(keyValues, cancellationToken);
+            return _dbSet.FindAsync(keyValues, cancellationToken).AsTask();
         }
 
         /// <summary>
@@ -554,7 +557,7 @@ namespace LMS.Core.Repository.Repositories
         /// <returns>A <see cref="Task"/> that represents the asynchronous insert operation.</returns>
         public virtual Task InsertAsync(TEntity entity, CancellationToken cancellationToken = default(CancellationToken))
         {
-            return _dbSet.AddAsync(entity, cancellationToken);
+            return _dbSet.AddAsync(entity, cancellationToken).AsTask();
 
             // Shadow properties?
             //var property = _dbContext.Entry(entity).Property("Created");

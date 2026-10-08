@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -43,11 +43,7 @@ namespace LMSWebUI.Controllers
 
             if (!string.IsNullOrEmpty(tenantEmail))
             {
-<<<<<<< Updated upstream
-                 responseMessage = await clientAPI.SendRequestAsync<LoginIoResponse>("/TenantprofileDetails", paramsGetAllStoresByClient, RestSharp.Method.GET);
-=======
-                responseMessage = await _clientApi.SendRequestAsync<LoginIoResponse>("/TenantprofileDetails", paramsGetAllStoresByClient, RestSharp.Method.Get);
->>>>>>> Stashed changes
+                responseMessage = await _clientApi.SendRequestAsync<LoginIoResponse>("/TenantprofileDetails", paramsGetAllStoresByClient, RestSharp.Method.GET);
             }
 
             return View();
@@ -59,24 +55,7 @@ namespace LMSWebUI.Controllers
         {
             if (!string.IsNullOrWhiteSpace(Email))
             {
-<<<<<<< Updated upstream
-            LoginIoResponse responseMessage=new LoginIoResponse();
-            Dictionary<string, string> parmsLogin = new Dictionary<string, string>
-            {
-                { "eMail", Email },
-                { "Password", Password }
-            };
-            responseMessage = await clientAPI.SendRequestAsync<LoginIoResponse>("/TenantLogin", parmsLogin, RestSharp.Method.GET);
-                 if (responseMessage!=null && responseMessage.StatusCode=="200")
-                    {
-                    HttpContext.Session.SetString("TenantName",Email);
-                    HttpContext.Session.SetString("TenantStore",Store);
-                    return true;
-                    }
-                 else
-=======
                 try
->>>>>>> Stashed changes
                 {
                     var parmsLogin = new TenantLoginRequest
                     {
@@ -85,7 +64,7 @@ namespace LMSWebUI.Controllers
                         StoreCode = Store ?? string.Empty
                     };
 
-                    var responseMessage = await _clientApi.SendRequestAsync<LoginIoResponse>("/TenantLogin", parmsLogin, RestSharp.Method.Post);
+                    var responseMessage = await _clientApi.SendRequestAsync<LoginIoResponse>("/TenantLogin", parmsLogin, RestSharp.Method.POST);
 
                     // A 403 means the credentials were valid but the tenant/store is not approved.
                     // Surface the API message instead of a misleading "bad password" error.
@@ -210,18 +189,10 @@ namespace LMSWebUI.Controllers
 
             try
             {
-<<<<<<< Updated upstream
-            myResponse APIResponse = new myResponse();
-            if(TenantDto!=null)
-            {
-                    responseMessage = await clientAPI.SendRequestAsync<LoginIoResponse>("/RegisterTenant", TenantDto, RestSharp.Method.POST);
-                    if (responseMessage!=null && !string.IsNullOrEmpty(responseMessage.TenantId))
-=======
                 if (tenantDto != null)
                 {
-                    responseMessage = await _clientApi.SendRequestAsync<LoginIoResponse>("/RegisterTenant", tenantDto, RestSharp.Method.Post);
+                    responseMessage = await _clientApi.SendRequestAsync<LoginIoResponse>("/RegisterTenant", tenantDto, RestSharp.Method.POST);
                     if (responseMessage != null && !string.IsNullOrEmpty(responseMessage.TenantId))
->>>>>>> Stashed changes
                     {
                         tenantDto.Message = responseMessage.Message;
                         return View(tenantDto);
@@ -249,15 +220,10 @@ namespace LMSWebUI.Controllers
 
             if (!string.IsNullOrEmpty(tenantEmail))
             {
-<<<<<<< Updated upstream
-                 responseMessage = await clientAPI.SendRequestAsync<LoginIoResponse>("/GetTenantStoreDetails", paramsGetAllStoresByClient, RestSharp.Method.GET);
-                 if (responseMessage!=null && responseMessage.StatusCode=="200")
-=======
                 try
                 {
-                    responseMessage = await _clientApi.SendRequestAsync<LoginIoResponse>("/GetTenantStoreDetails", paramsGetAllStoresByClient, RestSharp.Method.Get);
+                    responseMessage = await _clientApi.SendRequestAsync<LoginIoResponse>("/GetTenantStoreDetails", paramsGetAllStoresByClient, RestSharp.Method.GET);
                     if (responseMessage != null && responseMessage.StatusCode == "200")
->>>>>>> Stashed changes
                     {
                         // Super admins have no stores, so the caller needs the role to avoid
                         // mistaking the empty list for a store-user login.
@@ -277,7 +243,7 @@ namespace LMSWebUI.Controllers
                     // fallback path: older identity endpoint still used in some deployments
                     try
                     {
-                        responseMessage = await _clientApi.SendRequestAsync<LoginIoResponse>("/TenantprofileDetails", paramsGetAllStoresByClient, RestSharp.Method.Get);
+                        responseMessage = await _clientApi.SendRequestAsync<LoginIoResponse>("/TenantprofileDetails", paramsGetAllStoresByClient, RestSharp.Method.GET);
                         if (responseMessage != null && responseMessage.Storecodes != null)
                         {
                             return string.Join(",", responseMessage.Storecodes.ToArray());
@@ -318,7 +284,7 @@ namespace LMSWebUI.Controllers
                     StoreCode = string.Empty
                 };
 
-                var responseMessage = await _clientApi.SendRequestAsync<LoginIoResponse>("/TenantLogin", parmsLogin, RestSharp.Method.Post);
+                var responseMessage = await _clientApi.SendRequestAsync<LoginIoResponse>("/TenantLogin", parmsLogin, RestSharp.Method.POST);
                 var isSuperAdmin = responseMessage != null
                     && string.Equals(responseMessage.UserRole, "SuperAdmin", StringComparison.OrdinalIgnoreCase);
 
@@ -431,7 +397,7 @@ namespace LMSWebUI.Controllers
                     { "storeCode", storeCode },
                     { "userEmail", userEmail.Trim() },
                     { "isActive", isActive ? "true" : "false" }
-                }, RestSharp.Method.Post);
+                }, RestSharp.Method.POST);
 
                 return Json(new
                 {
@@ -460,23 +426,14 @@ namespace LMSWebUI.Controllers
             {
                 { "eMail", tenantEmail }
             };
-<<<<<<< Updated upstream
-             responseMessage = await clientAPI.SendRequestAsync<LoginIoResponse>("/CheckTenantEmail", paramsEmail, RestSharp.Method.GET);
-                    if (responseMessage!=null && responseMessage.StatusCode=="200")
-                    {
-                       return Convert.ToInt32(responseMessage.StatusCode);             
-                    }
-            return Convert.ToInt32(responseMessage.StatusCode);
-=======
 
-            var responseMessage = await _clientApi.SendRequestAsync<LoginIoResponse>("/CheckTenantEmail", paramsEmail, RestSharp.Method.Get);
+            var responseMessage = await _clientApi.SendRequestAsync<LoginIoResponse>("/CheckTenantEmail", paramsEmail, RestSharp.Method.GET);
             if (responseMessage != null && responseMessage.StatusCode == "200")
             {
                 return 1;
             }
 
             return 0;
->>>>>>> Stashed changes
         }
 
         [HttpGet]
@@ -487,14 +444,9 @@ namespace LMSWebUI.Controllers
             {
                 { "eMail", Email }
             };
-<<<<<<< Updated upstream
-           responseMessage = await clientAPI.SendRequestAsync<LoginIoResponse>("/CheckIsPasswordChangedBytenant", paramsEmail, RestSharp.Method.GET);
-            if (responseMessage!=null && responseMessage.StatusCode=="200" && responseMessage.Message.ToLower()=="false")
-=======
 
-            var responseMessage = await _clientApi.SendRequestAsync<LoginIoResponse>("/CheckIsPasswordChangedBytenant", paramsEmail, RestSharp.Method.Get);
+            var responseMessage = await _clientApi.SendRequestAsync<LoginIoResponse>("/CheckIsPasswordChangedBytenant", paramsEmail, RestSharp.Method.GET);
             if (responseMessage != null && responseMessage.StatusCode == "200" && responseMessage.Message.ToLower() == "false")
->>>>>>> Stashed changes
             {
                 return false;
             }
@@ -508,20 +460,12 @@ namespace LMSWebUI.Controllers
         [AllowAnonymous]
         public async Task<string> ForgotPassword(string Email)
         {
-<<<<<<< Updated upstream
-            LoginIoResponse responseMessage=new LoginIoResponse();
-            ChangePasswordDto forgotPasswordDto=new ChangePasswordDto(); 
-            forgotPasswordDto.Email=Email;
-             responseMessage = await clientAPI.SendRequestAsync<LoginIoResponse>("/forgotpassword", forgotPasswordDto, RestSharp.Method.POST);
-             if (responseMessage!=null && responseMessage.StatusCode=="200")
-=======
             var forgotPasswordDto = new ChangePasswordDto
->>>>>>> Stashed changes
             {
                 Email = Email
             };
 
-            var responseMessage = await _clientApi.SendRequestAsync<LoginIoResponse>("/forgotpassword", forgotPasswordDto, RestSharp.Method.Post);
+            var responseMessage = await _clientApi.SendRequestAsync<LoginIoResponse>("/forgotpassword", forgotPasswordDto, RestSharp.Method.POST);
             return responseMessage.Message;
         }
 
@@ -530,24 +474,14 @@ namespace LMSWebUI.Controllers
         [AllowAnonymous]
         public async Task<string> ChangePassword(string Email, string NewPassword, string OldPassword)
         {
-<<<<<<< Updated upstream
-            LoginIoResponse responseMessage=new LoginIoResponse();
-            ChangePasswordDto ChangePasswordDto=new ChangePasswordDto(); 
-            ChangePasswordDto.Email=Email;
-            ChangePasswordDto.NewPassword=NewPassword;
-            ChangePasswordDto.OldPassword=OldPassword;
-             responseMessage = await clientAPI.SendRequestAsync<LoginIoResponse>("/changepassword", ChangePasswordDto, RestSharp.Method.POST);
-             if (responseMessage!=null && responseMessage.StatusCode=="200")
-=======
             var changePasswordDto = new ChangePasswordDto
->>>>>>> Stashed changes
             {
                 Email = Email,
                 NewPassword = NewPassword,
                 OldPassword = OldPassword
             };
 
-            var responseMessage = await _clientApi.SendRequestAsync<LoginIoResponse>("/changepassword", changePasswordDto, RestSharp.Method.Post);
+            var responseMessage = await _clientApi.SendRequestAsync<LoginIoResponse>("/changepassword", changePasswordDto, RestSharp.Method.POST);
             return responseMessage.Message;
         }
     }

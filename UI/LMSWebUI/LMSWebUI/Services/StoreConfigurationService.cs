@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.Diagnostics;
 using System.Threading.Tasks;
 using LMSWebUI.Models;
 using LMSWebUI.Models.Admin;
@@ -28,7 +29,18 @@ namespace LMSWebUI.Services
             };
 
             var (rawResponse, loadError) = await TryGetRawAsync(parameters);
-            var rawModel = Extract(rawResponse);
+            StoreConfigurationViewModel rawModel = null;
+            string extractError = null;
+
+            try
+            {
+                rawModel = Extract(rawResponse);
+            }
+            catch (Exception ex)
+            {
+                extractError = BuildErrorMessage(ex, "Unable to load the saved store configuration.");
+            }
+
             if (rawModel != null)
             {
                 rawModel = EnsureDefaults(Normalize(rawModel), tenantName, storeCode);
@@ -39,7 +51,7 @@ namespace LMSWebUI.Services
             }
 
             var defaultModel = BuildDefault(tenantName, storeCode);
-            defaultModel.LoadErrorMessage = loadError;
+            defaultModel.LoadErrorMessage = loadError ?? extractError;
             return defaultModel;
         }
 
@@ -54,7 +66,7 @@ namespace LMSWebUI.Services
             };
 
             async Task<CustomerIOResponse> saveByLoginApiAsync()
-                => await _loginApi.SendRequestAsync<CustomerIOResponse>("/NewStoreConfiguration", request, Method.Post);
+                => await _loginApi.SendRequestAsync<CustomerIOResponse>("/NewStoreConfiguration", request, RestSharp.Method.POST);
 
             CustomerIOResponse response = null;
 
@@ -191,11 +203,22 @@ namespace LMSWebUI.Services
         {
             try
             {
-                var response = await _loginApi.SendRequestAsync<JObject>("/GetStoreConfiguration", parameters, Method.Get);
+                var response = await _loginApi.SendRequestAsync<JObject>("/GetStoreConfiguration", parameters, RestSharp.Method.GET);
+                Debug.WriteLine($"[StoreConfig][TryGetRawAsync] Response null: {response == null}");
+                if (response != null)
+                {
+                    Debug.WriteLine($"[StoreConfig][TryGetRawAsync] Response JSON: {response}");
+                }
                 return (response, null);
             }
             catch (Exception ex)
             {
+                Debug.WriteLine($"[StoreConfig][TryGetRawAsync][Exception] Type: {ex.GetType().FullName}");
+                Debug.WriteLine($"[StoreConfig][TryGetRawAsync][Exception] Message: {ex.Message}");
+                if (ex.InnerException != null)
+                {
+                    Debug.WriteLine($"[StoreConfig][TryGetRawAsync][Exception] Inner: {ex.InnerException.Message}");
+                }
                 // The API answers 404 when no configuration has been saved yet, which is a
                 // valid state and must not be reported as an error.
                 if (IsNotFound(ex))
@@ -247,6 +270,8 @@ namespace LMSWebUI.Services
 
         private static StoreConfigurationViewModel Extract(JObject rawResponse)
         {
+            Debug.WriteLine($"[StoreConfig][Extract] Raw response: {(rawResponse == null ? "<null>" : rawResponse.ToString())}");
+
             if (rawResponse == null)
             {
                 return null;
@@ -278,17 +303,34 @@ namespace LMSWebUI.Services
             var configurationJson = obj["ConfigurationJson"]?.ToString() ?? obj["configurationJson"]?.ToString();
             if (!string.IsNullOrWhiteSpace(configurationJson))
             {
+                Debug.WriteLine($"[StoreConfig][Extract] configurationJson before parse: {configurationJson}");
                 try
                 {
-                    var parsedConfiguration = JObject.Parse(configurationJson);
-                    var parsedModel = parsedConfiguration.ToObject<StoreConfigurationViewModel>();
+                    var normalizedConfigurationJson = configurationJson.Trim();
+                    if (normalizedConfigurationJson.Length > 1
+                        && normalizedConfigurationJson[0] == '"'
+                        && normalizedConfigurationJson[^1] == '"')
+                    {
+                        normalizedConfigurationJson = JsonConvert.DeserializeObject<string>(normalizedConfigurationJson);
+                    }
+
+                    if (string.IsNullOrWhiteSpace(normalizedConfigurationJson))
+                    {
+                        throw new JsonException("ConfigurationJson is empty after unwrapping.");
+                    }
+
+                    var parsedModel = JsonConvert.DeserializeObject<StoreConfigurationViewModel>(normalizedConfigurationJson);
+                    Debug.WriteLine($"[StoreConfig][Extract] Parsed model => StoreName: {parsedModel?.StoreName}, ContactPerson: {parsedModel?.ContactPerson}, PhoneNumber: {parsedModel?.PhoneNumber}, Email: {parsedModel?.Email}");
                     if (parsedModel != null)
                     {
                         return parsedModel;
                     }
+
+                    throw new JsonException("ConfigurationJson deserialized to null StoreConfigurationViewModel.");
                 }
-                catch
+                catch (Exception ex)
                 {
+                    throw new InvalidOperationException("Unable to deserialize ConfigurationJson from store configuration response.", ex);
                 }
             }
 

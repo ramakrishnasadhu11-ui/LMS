@@ -335,6 +335,54 @@
                 };
             })(btns[i]);
         }
+
+        btns = document.querySelectorAll(".wf-settle-btn");
+        for (i = 0; i < btns.length; i++) {
+            (function (btn) {
+                btn.onclick = function () {
+                    var orderNo = btn.getAttribute("data-order") || "";
+                    var pendingValue = wfNum(btn.getAttribute("data-pending") || 0);
+                    var mode = (btn.getAttribute("data-mode") || "Cash").trim() || "Cash";
+                    if (!orderNo || pendingValue <= 0) return;
+
+                    var amountText = window.prompt("Enter settle amount for order " + orderNo + " (max " + pendingValue.toFixed(2) + "):", pendingValue.toFixed(2));
+                    if (amountText === null) {
+                        return;
+                    }
+
+                    var paidAmount = wfNum(amountText);
+                    if (!isFinite(paidAmount) || paidAmount <= 0 || paidAmount > pendingValue) {
+                        window.alert("Settle amount must be greater than zero and not more than pending amount.");
+                        return;
+                    }
+
+                    btn.disabled = true;
+                    var oldText = btn.textContent;
+                    btn.textContent = "Settling...";
+
+                    wfReq('@Url.Action("SettleOrderPendingPayment", "Customer")', "POST", wfBody({
+                        orderNo: orderNo,
+                        paidAmount: paidAmount.toFixed(2),
+                        paymentMode: mode,
+                        notes: "Settled from Store Order Workflow"
+                    }), function (data) {
+                        if (!data || !data.success) {
+                            window.alert((data && data.message) || "Unable to settle pending payment.");
+                            btn.disabled = false;
+                            btn.textContent = oldText;
+                            return;
+                        }
+
+                        wfLoad();
+                    }, function (m) {
+                        window.alert("Unable to settle pending payment. " + (m || ""));
+                        btn.disabled = false;
+                        btn.textContent = oldText;
+                    });
+                };
+            })(btns[i]);
+        }
+
         btns = document.querySelectorAll(".wf-print-tags-btn");
         for (i = 0; i < btns.length; i++) {
             (function (btn) {
@@ -430,6 +478,11 @@
             } else {
                 actions += "<span class='wf-completed-label'>Completed</span>";
             }
+
+            if (pending > 0) {
+                actions += "<button type='button' class='btn btn-xs wf-settle-btn' style='background:#1f4e79; color:#fff; border:1px solid #1f4e79;' data-order='" + ordNo + "' data-pending='" + pending.toFixed(2) + "' data-mode='" + wfEsc(o.PaymentMode || o.paymentMode || "Cash") + "'>Settle</button>";
+            }
+
             actions += "<button type='button' class='btn btn-xs wf-quick-btn wf-print-tags-btn' data-order='" + ordNo + "'>Tags</button>"
                 + "<button type='button' class='btn btn-xs wf-quick-btn wf-print-bill-btn' data-order='" + ordNo + "'>Print Bill</button>"
                 + "<button type='button' class='btn btn-xs wf-quick-btn wf-download-pdf-btn' data-order='" + ordNo + "'>PDF</button>"

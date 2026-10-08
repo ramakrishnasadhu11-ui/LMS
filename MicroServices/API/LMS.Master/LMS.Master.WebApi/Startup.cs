@@ -4,19 +4,12 @@ using LMS.Master.BusinessSerive.Data;
 using LMS.Master.BusinessSerive.Mapper;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
-<<<<<<< Updated upstream
-using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
-using Swashbuckle.AspNetCore.Swagger;
-=======
-using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging.Abstractions;
-using Microsoft.Extensions.Hosting;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.OpenApi.Models;
->>>>>>> Stashed changes
 using System;
 using System.IO;
 using System.Reflection;
@@ -32,14 +25,10 @@ namespace LMS.Master.WebApi
         }
           public void ConfigureContainer(ServiceRegistry services)
         {
-<<<<<<< Updated upstream
-             services.AddMvc()
-                     .SetCompatibilityVersion(CompatibilityVersion.Version_2_2);
-=======
-             services.AddControllers();
+            services.AddControllers()
+                    .AddNewtonsoftJson();
             services.AddDbContext<MasterDbContext>(options =>
                 options.UseSqlServer(Configuration.GetConnectionString("MasterDb")));
->>>>>>> Stashed changes
             LamarConfig.RegisterContainer(services);
 
             //services.Configure<MailConfiguration>(
@@ -54,7 +43,7 @@ namespace LMS.Master.WebApi
             services.AddSwaggerGen(c =>
             {
                 c.SwaggerDoc("v1",
-                    new Info
+                    new OpenApiInfo
                     {
                         Title = "LMS Master API",
                         Description = "LMS Master API"
@@ -95,7 +84,7 @@ namespace LMS.Master.WebApi
                 });
             });
         }
-        public void Configure(IApplicationBuilder app, IHostingEnvironment env)
+        public void Configure(IApplicationBuilder app, IWebHostEnvironment env)
         {
             if (env.IsDevelopment())
             {
@@ -106,20 +95,8 @@ namespace LMS.Master.WebApi
                  app.UseHsts();
             }
             app.UseHttpsRedirection();
-<<<<<<< Updated upstream
-            app.UseSwaggerUI(c =>
-=======
             app.UseRouting();
-            app.UseSwagger();
             app.UseCors("AllowUI");
-
-            app.UseEndpoints(endpoints =>
->>>>>>> Stashed changes
-            {
-                c.SwaggerEndpoint("../swagger/v1/swagger.json", "My First Swagger");
-            });
-            app.UseHttpsRedirection();
-            app.UseMvc();
             app.UseSwagger();
             app.UseSwaggerUI(c =>
             {
@@ -132,7 +109,10 @@ namespace LMS.Master.WebApi
                     c.SwaggerEndpoint(Configuration["VirtualDirectory"] + "/swagger/v1/swagger.json", "LMS Master Api v1");
                 }
             });
-            app.UseCors(options => options.AllowAnyOrigin().AllowAnyHeader().AllowAnyMethod());
+            app.UseEndpoints(endpoints =>
+            {
+                endpoints.MapControllers();
+            });
         }
     }
 }

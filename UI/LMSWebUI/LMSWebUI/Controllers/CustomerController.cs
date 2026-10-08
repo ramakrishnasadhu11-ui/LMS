@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
@@ -68,16 +68,6 @@ namespace LMSWebUI.Controllers
                 { "tenantName", tenantName ?? string.Empty },
                 { "storeCode", storeCode ?? string.Empty }
             };
-<<<<<<< Updated upstream
-             responseMessage = await clientAPI.SendRequestAsync<CustomerIOResponse>("/GetCustomers", paramsGetAllStoresByClient, RestSharp.Method.GET);
-                    if (responseMessage!=null && responseMessage.StatusCode=="200")
-                    {
-                      return Json(responseMessage.CustomerNames);
-                     }
-               return Json(responseMessage.CustomerNames);
-         }
-=======
->>>>>>> Stashed changes
 
             foreach (var (key, value) in parameters)
             {
@@ -163,10 +153,6 @@ namespace LMSWebUI.Controllers
             }
             catch
             {
-<<<<<<< Updated upstream
-                    responseMessage = await clientAPI.SendRequestAsync<CustomerIOResponse>("/InsertCustomer", CustomerInfoDto, RestSharp.Method.POST);
-                    if (responseMessage!=null && responseMessage.StatusCode=="200")
-=======
                 return new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
             }
         }
@@ -223,11 +209,10 @@ namespace LMSWebUI.Controllers
                 try
                 {
                     var scopeResponse = await _loginApi.SendRequestAsync<JObject>("/GetStoreUsers", new Dictionary<string, string>
->>>>>>> Stashed changes
                     {
                         { "tenantEmail", scopeTenantEmail },
                         { "storeCode", scopeStoreCode }
-                    }, Method.Get);
+                    }, Method.GET);
 
                     return ExtractStoreUserEmails(scopeResponse).Select(NormalizeEmail);
                 }
@@ -273,7 +258,7 @@ namespace LMSWebUI.Controllers
 
                 try
                 {
-                    var response = await _loginApi.SendRequestAsync<LoginIoResponse>("/GetTenantStoreDetails", parms, Method.Get);
+                    var response = await _loginApi.SendRequestAsync<LoginIoResponse>("/GetTenantStoreDetails", parms, Method.GET);
                     if (response?.Storecodes != null)
                     {
                         storeCodes.AddRange(response.Storecodes);
@@ -283,7 +268,7 @@ namespace LMSWebUI.Controllers
                 {
                     try
                     {
-                        var fallbackResponse = await _loginApi.SendRequestAsync<LoginIoResponse>("/TenantprofileDetails", parms, Method.Get);
+                        var fallbackResponse = await _loginApi.SendRequestAsync<LoginIoResponse>("/TenantprofileDetails", parms, Method.GET);
                         if (fallbackResponse?.Storecodes != null)
                         {
                             storeCodes.AddRange(fallbackResponse.Storecodes);
@@ -413,7 +398,7 @@ namespace LMSWebUI.Controllers
 
                 try
                 {
-                    var responseMessage = await _clientApi.SendRequestAsync<CustomerIOResponse>("/GetCustomerByName", parameters, Method.Get);
+                    var responseMessage = await _clientApi.SendRequestAsync<CustomerIOResponse>("/GetCustomerByName", parameters, Method.GET);
                     if (responseMessage != null && responseMessage.StatusCode == "200")
                     {
                         customerInfoDto.CustomerName = responseMessage.CustomerName;
@@ -446,7 +431,7 @@ namespace LMSWebUI.Controllers
             try
             {
                 var prefParams = BuildScopedParameters(("tenantName", HttpContext.Session.GetString("TenantName")), ("storeCode", HttpContext.Session.GetString("TenantStore")));
-                var prefs = await _clientApi.SendRequestAsync<CustomerPreferencesDto>("/GetCustomerPreferences", prefParams, Method.Get);
+                var prefs = await _clientApi.SendRequestAsync<CustomerPreferencesDto>("/GetCustomerPreferences", prefParams, Method.GET);
                 ViewData["CustomerPreferences"] = JsonConvert.SerializeObject(prefs ?? BuildDefaultCustomerPreferences(HttpContext.Session.GetString("TenantName"), HttpContext.Session.GetString("TenantStore")));
             }
             catch
@@ -494,7 +479,7 @@ namespace LMSWebUI.Controllers
 
             try
             {
-                var response = _clientApi.SendRequestAsync<CustomerPreferencesDto>("/GetCustomerPreferences", parameters, Method.Get)
+                var response = _clientApi.SendRequestAsync<CustomerPreferencesDto>("/GetCustomerPreferences", parameters, Method.GET)
                     .GetAwaiter().GetResult();
 
                 if (response != null)
@@ -707,7 +692,7 @@ namespace LMSWebUI.Controllers
 
             try
             {
-                var response = await _clientApi.SendRequestAsync<PricingRulesViewModel>("/GetPricingRules", parameters, Method.Get);
+                var response = await _clientApi.SendRequestAsync<PricingRulesViewModel>("/GetPricingRules", parameters, Method.GET);
                 model = response ?? BuildDefaultPricingRules(tenantName, storeCode);
             }
             catch
@@ -771,7 +756,7 @@ namespace LMSWebUI.Controllers
 
             try
             {
-                var response = await _clientApi.SendRequestAsync<CustomerIOResponse>("/SavePricingRules", model, Method.Post);
+                var response = await _clientApi.SendRequestAsync<CustomerIOResponse>("/SavePricingRules", model, Method.POST);
                 TempData["UserMessage"] = JsonConvert.SerializeObject(new MessageDto
                 {
                     CssClassName = "alert alert-success",
@@ -920,7 +905,7 @@ namespace LMSWebUI.Controllers
 
             try
             {
-                var response = await _clientApi.SendRequestAsync<CustomerIOResponse>("/SaveTaxInvoiceSettings", model, Method.Post);
+                var response = await _clientApi.SendRequestAsync<CustomerIOResponse>("/SaveTaxInvoiceSettings", model, Method.POST);
                 TempData["UserMessage"] = JsonConvert.SerializeObject(new MessageDto
                 {
                     CssClassName = "alert alert-success",
@@ -956,7 +941,7 @@ namespace LMSWebUI.Controllers
 
             try
             {
-                var response = await _clientApi.SendRequestAsync<TaxInvoiceSettingsViewModel>("/GetTaxInvoiceSettings", parameters, Method.Get);
+                var response = await _clientApi.SendRequestAsync<TaxInvoiceSettingsViewModel>("/GetTaxInvoiceSettings", parameters, Method.GET);
                 model = response ?? BuildDefaultTaxInvoiceSettings(tenantName, storeCode);
             }
             catch
@@ -1001,7 +986,7 @@ namespace LMSWebUI.Controllers
                         { "eMail", tenantEmail }
                     };
 
-                    var profile = await _loginApi.SendRequestAsync<LoginIoResponse>("/TenantprofileDetails", parms, Method.Get);
+                    var profile = await _loginApi.SendRequestAsync<LoginIoResponse>("/TenantprofileDetails", parms, Method.GET);
                     if (!string.IsNullOrWhiteSpace(profile?.TenantName))
                     {
                         return profile.TenantName;
@@ -1160,7 +1145,6 @@ namespace LMSWebUI.Controllers
                 return RedirectToAction("Index", "Login");
             }
 
-            model ??= new BarcodeTagSettingsViewModel();
             model.TenantName = tenantName;
             model.StoreCode = storeCode;
             model.CompanyName = await GetCompanyNameAsync(tenantName, storeCode);
@@ -1186,7 +1170,7 @@ namespace LMSWebUI.Controllers
 
             try
             {
-                var response = await _clientApi.SendRequestAsync<CustomerIOResponse>("/SaveBarcodeTagSettings", model, Method.Post);
+                var response = await _clientApi.SendRequestAsync<CustomerIOResponse>("/SaveBarcodeTagSettings", model, Method.POST);
                 TempData["UserMessage"] = JsonConvert.SerializeObject(new MessageDto
                 {
                     CssClassName = "alert alert-success",
@@ -1222,7 +1206,7 @@ namespace LMSWebUI.Controllers
 
             try
             {
-                var response = await _clientApi.SendRequestAsync<BarcodeTagSettingsViewModel>("/GetBarcodeTagSettings", parameters, Method.Get);
+                var response = await _clientApi.SendRequestAsync<BarcodeTagSettingsViewModel>("/GetBarcodeTagSettings", parameters, Method.GET);
                 model = response ?? BuildDefaultBarcodeTagSettings(tenantName, storeCode);
             }
             catch
@@ -1440,7 +1424,7 @@ namespace LMSWebUI.Controllers
 
             try
             {
-                await _clientApi.SendRequestAsync<CustomerIOResponse>("/SaveBarcodeTagSettings", settings, Method.Post);
+                await _clientApi.SendRequestAsync<CustomerIOResponse>("/SaveBarcodeTagSettings", settings, Method.POST);
             }
             catch
             {
@@ -1548,7 +1532,7 @@ namespace LMSWebUI.Controllers
 
             try
             {
-                var response = await _clientApi.SendRequestAsync<CustomerIOResponse>("/SaveWorkflowStatusSettings", model, Method.Post);
+                var response = await _clientApi.SendRequestAsync<CustomerIOResponse>("/SaveWorkflowStatusSettings", model, Method.POST);
                 TempData["UserMessage"] = JsonConvert.SerializeObject(new MessageDto
                 {
                     CssClassName = "alert alert-success",
@@ -1589,7 +1573,7 @@ namespace LMSWebUI.Controllers
 
             try
             {
-                model = await _clientApi.SendRequestAsync<WorkflowStatusSettingsViewModel>("/GetWorkflowStatusSettings", parameters, Method.Get);
+                model = await _clientApi.SendRequestAsync<WorkflowStatusSettingsViewModel>("/GetWorkflowStatusSettings", parameters, Method.GET);
             }
             catch
             {
@@ -1689,12 +1673,33 @@ namespace LMSWebUI.Controllers
             return View(model);
         }
 
-        // Quick-fix stub: loads payment settings for the given tenant/store.
-        // Ideally this should call a proper API; for now return safe defaults to allow compilation.
         private async Task<Models.Admin.PaymentSettingsViewModel> LoadPaymentSettingsAsync(string tenantName, string storeCode)
         {
-            await Task.CompletedTask;
-            return new Models.Admin.PaymentSettingsViewModel
+            Models.Admin.PaymentSettingsViewModel model;
+            var parameters = new Dictionary<string, string>
+            {
+                { "tenantName", tenantName },
+                { "storeCode", storeCode }
+            };
+
+            try
+            {
+                var response = await _clientApi.SendRequestAsync<PaymentSettingsViewModel>("/GetPaymentSettings", parameters, Method.GET);
+                model = response ?? BuildDefaultPaymentSettings(tenantName, storeCode);
+            }
+            catch
+            {
+                model = BuildDefaultPaymentSettings(tenantName, storeCode);
+            }
+
+            model.TenantName = tenantName;
+            model.StoreCode = storeCode;
+
+            return model;
+        }
+
+        private static PaymentSettingsViewModel BuildDefaultPaymentSettings(string tenantName, string storeCode)
+            => new PaymentSettingsViewModel
             {
                 TenantName = tenantName,
                 StoreCode = storeCode,
@@ -1709,7 +1714,6 @@ namespace LMSWebUI.Controllers
                 RoundOffPayableAmount = false,
                 Notes = string.Empty
             };
-        }
 
         // Quick-fix stub: validate payment settings. Returns true when valid; outputs error message otherwise.
         private bool ValidatePaymentSettings(Models.Admin.PaymentSettingsViewModel model, out string validationError)
@@ -1806,7 +1810,7 @@ namespace LMSWebUI.Controllers
 
             try
             {
-                var response = await _clientApi.SendRequestAsync<CustomerIOResponse>("/SavePaymentSettings", model, Method.Post);
+                var response = await _clientApi.SendRequestAsync<CustomerIOResponse>("/SavePaymentSettings", model, Method.POST);
                 TempData["UserMessage"] = JsonConvert.SerializeObject(new MessageDto
                 {
                     CssClassName = "alert alert-success",
@@ -1877,7 +1881,7 @@ namespace LMSWebUI.Controllers
 
             try
             {
-                var response = await _loginApi.SendRequestAsync<JObject>("/GetAllStoreStatuses", new Dictionary<string, string>(), Method.Get);
+                var response = await _loginApi.SendRequestAsync<JObject>("/GetAllStoreStatuses", new Dictionary<string, string>(), Method.GET);
 
                 var statusesToken = response?["StoreStatuses"] ?? response?["storeStatuses"] ?? new JArray();
                 var statusesArray = statusesToken as JArray ?? statusesToken?["$values"] as JArray ?? new JArray();
@@ -1934,7 +1938,7 @@ namespace LMSWebUI.Controllers
                     { "storeCode", storeCode.Trim() },
                     { "isActive", isActive.ToString().ToLowerInvariant() },
                     { "activatedBy", tenantName }
-                }, Method.Post);
+                }, Method.POST);
 
                 var isSuccess = response != null && string.Equals(response.StatusCode, "200", StringComparison.OrdinalIgnoreCase);
 
@@ -1997,7 +2001,7 @@ namespace LMSWebUI.Controllers
 
             try
             {
-                var response = await _loginApi.SendRequestAsync<JObject>("/GetAllTenantApprovals", new Dictionary<string, string>(), Method.Get);
+                var response = await _loginApi.SendRequestAsync<JObject>("/GetAllTenantApprovals", new Dictionary<string, string>(), Method.GET);
 
                 var approvalsToken = response?["TenantApprovals"] ?? response?["tenantApprovals"] ?? new JArray();
                 var approvalsArray = approvalsToken as JArray ?? approvalsToken?["$values"] as JArray ?? new JArray();
@@ -2066,7 +2070,7 @@ namespace LMSWebUI.Controllers
                     { "approvalStatus", (approvalStatus ?? string.Empty).Trim() },
                     { "reason", (reason ?? string.Empty).Trim() },
                     { "actionedBy", superAdminName }
-                }, Method.Post);
+                }, Method.POST);
 
                 var isSuccess = response != null && string.Equals(response.StatusCode, "200", StringComparison.OrdinalIgnoreCase);
 
@@ -2153,7 +2157,7 @@ namespace LMSWebUI.Controllers
                 LoginIoResponse response = null;
                 try
                 {
-                    response = await _loginApi.SendRequestAsync<LoginIoResponse>("/CreateTenantStore", createRequest, Method.Post);
+                    response = await _loginApi.SendRequestAsync<LoginIoResponse>("/CreateTenantStore", createRequest, Method.POST);
                 }
                 catch (Exception ex)
                 {
@@ -2164,7 +2168,7 @@ namespace LMSWebUI.Controllers
                         throw;
                     }
 
-                    response = await _clientApi.SendRequestAsync<LoginIoResponse>("/CreateTenantStore", createRequest, Method.Post);
+                    response = await _clientApi.SendRequestAsync<LoginIoResponse>("/CreateTenantStore", createRequest, Method.POST);
                 }
 
                 var isSuccess = response != null && string.Equals(response.StatusCode, "200", StringComparison.OrdinalIgnoreCase);
@@ -2322,7 +2326,7 @@ namespace LMSWebUI.Controllers
                     CreatedBy = tenantEmail
                 };
 
-                var response = await _loginApi.SendRequestAsync<CustomerIOResponse>("/CreateStoreUser", request, Method.Post);
+                var response = await _loginApi.SendRequestAsync<CustomerIOResponse>("/CreateStoreUser", request, Method.POST);
                 return Json(new
                 {
                     success = response != null && response.StatusCode == "200",
@@ -2356,7 +2360,7 @@ namespace LMSWebUI.Controllers
 
             try
             {
-                var customersResponse = await _clientApi.SendRequestAsync<CustomerIOResponse>("/GetCustomers", BuildScopedParameters(("eMail", string.Empty)), RestSharp.Method.Get);
+                var customersResponse = await _clientApi.SendRequestAsync<CustomerIOResponse>("/GetCustomers", BuildScopedParameters(("eMail", string.Empty)), RestSharp.Method.GET);
 
                 var customerNames = (customersResponse?.CustomerNames ?? new List<string>())
                     .Where(x => !string.IsNullOrWhiteSpace(x))
@@ -2375,7 +2379,7 @@ namespace LMSWebUI.Controllers
 
                 foreach (var customerName in customerNames)
                 {
-                    var customer = await _clientApi.SendRequestAsync<CustomerIOResponse>("/GetCustomerByName", BuildScopedParameters(("customerName", customerName.Trim())), RestSharp.Method.Get);
+                    var customer = await _clientApi.SendRequestAsync<CustomerIOResponse>("/GetCustomerByName", BuildScopedParameters(("customerName", customerName.Trim())), RestSharp.Method.GET);
 
                     if (customer == null || customer.StatusCode != "200" || string.IsNullOrWhiteSpace(customer.CustCode))
                     {
@@ -2387,7 +2391,7 @@ namespace LMSWebUI.Controllers
                         { "tenantName", tenantName },
                         { "storeCode", storeCode },
                         { "custCode", customer.CustCode }
-                    }, Method.Get);
+                    }, Method.GET);
 
                     var orders = orderResponse?.Orders ?? new List<LaundryOrderDto>();
                     if (orders.Count > 0)
@@ -2423,7 +2427,7 @@ namespace LMSWebUI.Controllers
                 {
                     { "tenantName", tenantName },
                     { "storeCode", storeCode }
-                }, Method.Get);
+                }, Method.GET);
 
                 if (deliveryStatus != null && deliveryStatus.StatusCode == "200")
                 {
@@ -2488,7 +2492,7 @@ namespace LMSWebUI.Controllers
                 {
                     { "tenantEmail", tenantEmail },
                     { "storeCode", resolvedStoreCode }
-                }, Method.Get);
+                }, Method.GET);
 
                 var users = ExtractStoreUsersForUi(response);
 
@@ -2619,29 +2623,19 @@ namespace LMSWebUI.Controllers
 
             if (model.PickupReminderHours < 0 || model.PickupReminderHours > 168)
             {
-                TempData["UserMessage"] = JsonConvert.SerializeObject(new MessageDto
-                {
-                    CssClassName = "alert-warning",
-                    Title = "Warning!",
-                    DisplayMessage = "Pickup reminder should be between 0 and 168 hours."
-                });
-                return View(model);
+                TempData["CustomerAdvancesToast"] = "Pickup reminder should be between 0 and 168 hours.";
+                return RedirectToAction(nameof(CustomerAdvances));
             }
 
             if (model.LoyaltyPointsPerOrder < 0 || model.LoyaltyPointsPerOrder > 100)
             {
-                TempData["UserMessage"] = JsonConvert.SerializeObject(new MessageDto
-                {
-                    CssClassName = "alert-warning",
-                    Title = "Warning!",
-                    DisplayMessage = "Loyalty points per order should be between 0 and 100."
-                });
-                return View(model);
+                TempData["CustomerAdvancesToast"] = "Loyalty points per order should be between 0 and 100.";
+                return RedirectToAction(nameof(CustomerAdvances));
             }
 
             try
             {
-                var response = await _clientApi.SendRequestAsync<CustomerIOResponse>("/SaveCustomerPreferences", model, Method.Post);
+                var response = await _clientApi.SendRequestAsync<CustomerIOResponse>("/SaveCustomerPreferences", model, Method.POST);
                 TempData["CustomerPreferencesToast"] = string.IsNullOrWhiteSpace(response?.Message)
                     ? "Customer preferences saved successfully."
                     : response.Message;
@@ -2781,7 +2775,7 @@ namespace LMSWebUI.Controllers
 
             var paramsGetAllStoresByClient = BuildScopedParameters(("eMail", string.Empty));
 
-            var responseMessage = await _clientApi.SendRequestAsync<CustomerIOResponse>("/GetCustomers", paramsGetAllStoresByClient, RestSharp.Method.Get);
+            var responseMessage = await _clientApi.SendRequestAsync<CustomerIOResponse>("/GetCustomers", paramsGetAllStoresByClient, RestSharp.Method.GET);
             return Json(responseMessage?.CustomerNames ?? new List<string>());
         }
 
@@ -2797,7 +2791,7 @@ namespace LMSWebUI.Controllers
 
             try
             {
-                var responseMessage = await _clientApi.SendRequestAsync<CustomerIOResponse>("/SearchCustomers", parameters, Method.Get);
+                var responseMessage = await _clientApi.SendRequestAsync<CustomerIOResponse>("/SearchCustomers", parameters, Method.GET);
                 return Json(responseMessage?.CustomerNames ?? new List<string>());
             }
             catch
@@ -2826,7 +2820,7 @@ namespace LMSWebUI.Controllers
 
             try
             {
-                responseMessage = await _clientApi.SendRequestAsync<CustomerIOResponse>("/GetCustomerByName", parameters, Method.Get);
+                responseMessage = await _clientApi.SendRequestAsync<CustomerIOResponse>("/GetCustomerByName", parameters, Method.GET);
             }
             catch
             {
@@ -2915,7 +2909,7 @@ namespace LMSWebUI.Controllers
             var responseMessage = new CustomerIOResponse();
             try
             {
-                responseMessage = await _clientApi.SendRequestAsync<CustomerIOResponse>("/InsertCustomer", createRequest, RestSharp.Method.Post);
+                responseMessage = await _clientApi.SendRequestAsync<CustomerIOResponse>("/InsertCustomer", createRequest, RestSharp.Method.POST);
 
                 var isAjax = string.Equals(Request.Headers["X-Requested-With"], "XMLHttpRequest", StringComparison.OrdinalIgnoreCase);
 
@@ -3000,7 +2994,7 @@ namespace LMSWebUI.Controllers
             {
                 var findParams = BuildScopedParameters(("customerName", customerInfoDto.CustomerName.Trim()));
 
-                var existingCustomer = await _clientApi.SendRequestAsync<CustomerIOResponse>("/GetCustomerByName", findParams, Method.Get);
+                var existingCustomer = await _clientApi.SendRequestAsync<CustomerIOResponse>("/GetCustomerByName", findParams, Method.GET);
                 if (existingCustomer != null && existingCustomer.StatusCode == "200")
                 {
                     customerInfoDto.customerCode = existingCustomer.CustCode?.Trim();
@@ -3060,7 +3054,7 @@ namespace LMSWebUI.Controllers
 
             try
             {
-                var responseMessage = await _clientApi.SendRequestAsync<CustomerIOResponse>("/UpdateCustomer", updateRequest, Method.Put);
+                var responseMessage = await _clientApi.SendRequestAsync<CustomerIOResponse>("/UpdateCustomer", updateRequest, Method.PUT);
                 return Json(new
                 {
                     success = responseMessage != null && responseMessage.StatusCode == "200",
@@ -3087,7 +3081,7 @@ namespace LMSWebUI.Controllers
             {
                 var findParams = BuildScopedParameters(("customerName", customerName.Trim()));
 
-                var existingCustomer = await _clientApi.SendRequestAsync<CustomerIOResponse>("/GetCustomerByName", findParams, Method.Get);
+                var existingCustomer = await _clientApi.SendRequestAsync<CustomerIOResponse>("/GetCustomerByName", findParams, Method.GET);
                 if (existingCustomer != null && existingCustomer.StatusCode == "200")
                 {
                     customerCode = existingCustomer.CustCode?.Trim();
@@ -3110,7 +3104,7 @@ namespace LMSWebUI.Controllers
 
             try
             {
-                var responseMessage = await _clientApi.SendRequestAsync<CustomerIOResponse>("/DeleteCustomer", parameters, Method.Delete);
+                var responseMessage = await _clientApi.SendRequestAsync<CustomerIOResponse>("/DeleteCustomer", parameters, Method.DELETE);
                 return Json(new
                 {
                     success = responseMessage != null && responseMessage.StatusCode == "200",
@@ -3233,7 +3227,7 @@ namespace LMSWebUI.Controllers
                     Notes = model.Notes
                 };
 
-                var saveResponse = await _clientApi.SendRequestAsync<CustomerIOResponse>("/SaveCustomerAdvance", saveRequest, Method.Post);
+                var saveResponse = await _clientApi.SendRequestAsync<CustomerIOResponse>("/SaveCustomerAdvance", saveRequest, Method.POST);
                 TempData["CustomerAdvancesToast"] = string.IsNullOrWhiteSpace(saveResponse?.Message)
                     ? "Customer advance saved successfully."
                     : saveResponse.Message;
@@ -3318,7 +3312,7 @@ namespace LMSWebUI.Controllers
                     { "tenantName", tenantName },
                     { "storeCode", storeCode },
                     { "custCode", resolvedCustomerCode }
-                }, Method.Get);
+                }, Method.GET);
 
                 return Json(new
                 {
@@ -3648,7 +3642,7 @@ namespace LMSWebUI.Controllers
                     Items = model.OrderMode == "pieces" ? submittedItems : new List<LaundryOrderItemDto>()
                 };
 
-                var saveResponse = await _clientApi.SendRequestAsync<JObject>("/CreateLaundryOrder", saveRequest, Method.Post);
+                var saveResponse = await _clientApi.SendRequestAsync<JObject>("/CreateLaundryOrder", saveRequest, Method.POST);
 
                 var orderNo = saveResponse?["OrderNo"]?.ToString()
                               ?? saveResponse?["orderNo"]?.ToString()
@@ -4023,7 +4017,7 @@ namespace LMSWebUI.Controllers
                     { "storeCode", storeCode },
                     { "status", string.Empty },
                     { "searchText", orderNo }
-                }, Method.Get);
+                }, Method.GET);
 
                 var order = (response?.Orders ?? new List<LaundryOrderDto>())
                     .FirstOrDefault(x => x != null && string.Equals(x.OrderNo, orderNo, StringComparison.OrdinalIgnoreCase));
@@ -4290,8 +4284,8 @@ namespace LMSWebUI.Controllers
             lines.Add($"Order Mode: {context.OrderMode}");
             lines.Add($"Order Amount: {context.OrderAmount:0.00}");
             lines.Add($"Tax: {context.TaxAmount:0.00}");
-            lines.Add($"Advance Utilized: {context.AdvanceUsed:0.00}");
-            lines.Add($"Paid Now: {context.PaidNow:0.00}");
+            lines.Add($"Advance Utilized (-): {context.AdvanceUsed:0.00}");
+            lines.Add($"Paid Now (-): {context.PaidNow:0.00}");
             lines.Add($"Pending Amount: {context.PendingAmount:0.00}");
             lines.Add($"Net Payable: {context.NetPayable:0.00}");
 
@@ -4417,7 +4411,7 @@ namespace LMSWebUI.Controllers
                             }
                             else
                             {
-                                table.Cell().ColumnSpan(4).BorderBottom(1).BorderColor("#edf1f6").Padding(6).Text("No line items available.");
+                                table.Cell().ColumnSpan(4).BorderBottom(1).BorderColor("#edf1f6").Padding(6).Text("No item lines available.");
                             }
                         });
 
@@ -4581,7 +4575,7 @@ namespace LMSWebUI.Controllers
                     { "tenantName", tenantName },
                     { "storeCode", storeCode },
                     { "custCode", resolvedCustomerCode }
-                }, Method.Get);
+                }, Method.GET);
 
                 return Json(new
                 {
@@ -4650,7 +4644,7 @@ namespace LMSWebUI.Controllers
                     { "storeCode", storeCode },
                     { "status", string.Empty },
                     { "searchText", term }
-                }, Method.Get);
+                }, Method.GET);
 
                 var orders = (ordersResponse?.Orders ?? new List<LaundryOrderDto>())
                     .OrderByDescending(x => x.CreatedDate)
@@ -4708,7 +4702,7 @@ namespace LMSWebUI.Controllers
 
             if (string.IsNullOrWhiteSpace(tenantName) || string.IsNullOrWhiteSpace(storeCode))
             {
-                return Json(new List<string>());
+                return Json(new { success = false, message = "Session expired. Please login again." });
             }
 
             var term = searchText?.Trim();
@@ -4731,7 +4725,7 @@ namespace LMSWebUI.Controllers
                     { "storeCode", storeCode },
                     { "status", string.Empty },
                     { "searchText", term }
-                }, Method.Get);
+                }, Method.GET);
 
                 var orders = (ordersResponse?.Orders ?? new List<LaundryOrderDto>())
                     .OrderByDescending(x => x.CreatedDate)
@@ -4863,7 +4857,7 @@ namespace LMSWebUI.Controllers
                     { "storeCode", storeCode },
                     { "status", status ?? string.Empty },
                     { "searchText", searchText ?? string.Empty }
-                }, Method.Get);
+                }, Method.GET);
 
                 var orders = response?.Orders ?? new List<LaundryOrderDto>();
 
@@ -4949,7 +4943,7 @@ namespace LMSWebUI.Controllers
                         { "storeCode", storeCode },
                         { "status", string.Empty },
                         { "searchText", orderNo.Trim() }
-                    }, Method.Get);
+                    }, Method.GET);
 
                     var orderForDelivery = (orderLookup?.Orders ?? new List<LaundryOrderDto>())
                         .FirstOrDefault(x => x != null && string.Equals(x.OrderNo, orderNo.Trim(), StringComparison.OrdinalIgnoreCase));
@@ -4974,7 +4968,7 @@ namespace LMSWebUI.Controllers
                     { "storeCode", storeCode },
                     { "orderNo", orderNo.Trim() },
                     { "status", status.Trim() }
-                }, Method.Post);
+                }, Method.POST);
 
                 var isSuccess = response != null && response.StatusCode == "200";
                 var message = response?.Message ?? "Unable to update workflow status.";
@@ -5073,7 +5067,7 @@ namespace LMSWebUI.Controllers
                     { "paidAmount", paidAmount.ToString("0.00", CultureInfo.InvariantCulture) },
                     { "paymentMode", paymentMode?.Trim() ?? string.Empty },
                     { "notes", notes?.Trim() ?? string.Empty }
-                }, Method.Post);
+                }, Method.POST);
 
                 if (response == null || string.IsNullOrWhiteSpace(response.OrderNo))
                 {
@@ -5146,14 +5140,14 @@ namespace LMSWebUI.Controllers
                 return null;
             }
 
-            var customer = await _clientApi.SendRequestAsync<CustomerIOResponse>("/GetCustomerByName", BuildScopedParameters(("customerName", normalizedName)), Method.Get);
+            var customer = await _clientApi.SendRequestAsync<CustomerIOResponse>("/GetCustomerByName", BuildScopedParameters(("customerName", normalizedName)), Method.GET);
 
             if (customer != null && customer.StatusCode == "200" && !string.IsNullOrWhiteSpace(customer.CustCode))
             {
                 return customer;
             }
 
-            var searchResponse = await _clientApi.SendRequestAsync<CustomerIOResponse>("/SearchCustomers", BuildScopedParameters(("searchText", normalizedName)), Method.Get);
+            var searchResponse = await _clientApi.SendRequestAsync<CustomerIOResponse>("/SearchCustomers", BuildScopedParameters(("searchText", normalizedName)), Method.GET);
 
             var matches = searchResponse?.CustomerNames ?? new List<string>();
             if (!matches.Any())
@@ -5169,7 +5163,7 @@ namespace LMSWebUI.Controllers
                 return customer;
             }
 
-            return await _clientApi.SendRequestAsync<CustomerIOResponse>("/GetCustomerByName", BuildScopedParameters(("customerName", bestMatch.Trim())), Method.Get);
+            return await _clientApi.SendRequestAsync<CustomerIOResponse>("/GetCustomerByName", BuildScopedParameters(("customerName", bestMatch.Trim())), Method.GET);
         }
 
         [HttpPost]
@@ -5211,7 +5205,7 @@ namespace LMSWebUI.Controllers
                     IsActive = true
                 };
 
-                var response = await _clientApi.SendRequestAsync<CustomerIOResponse>("/SaveLaundryItemPrice", request, Method.Post);
+                var response = await _clientApi.SendRequestAsync<CustomerIOResponse>("/SaveLaundryItemPrice", request, Method.POST);
                 return Json(new
                 {
                     success = response != null && response.StatusCode == "200",
@@ -5257,7 +5251,7 @@ namespace LMSWebUI.Controllers
                     ItemName = itemName.Trim()
                 };
 
-                var response = await _clientApi.SendRequestAsync<CustomerIOResponse>("/DeactivateLaundryItemPrice", request, Method.Post);
+                var response = await _clientApi.SendRequestAsync<CustomerIOResponse>("/DeactivateLaundryItemPrice", request, Method.POST);
 
                 return Json(new
                 {
@@ -5304,7 +5298,7 @@ namespace LMSWebUI.Controllers
                     ItemName = itemName.Trim()
                 };
 
-                var response = await _clientApi.SendRequestAsync<CustomerIOResponse>("/ReactivateLaundryItemPrice", request, Method.Post);
+                var response = await _clientApi.SendRequestAsync<CustomerIOResponse>("/ReactivateLaundryItemPrice", request, Method.POST);
 
                 return Json(new
                 {
@@ -5345,7 +5339,7 @@ namespace LMSWebUI.Controllers
                     { "tenantName", tenantName },
                     { "storeCode", storeCode },
                     { "includeInactive", includeInactive ? "true" : "false" }
-                }, Method.Get);
+                }, Method.GET);
 
                 var items = response ?? new List<LaundryItemPriceDto>();
                 var inactiveCount = items.Count(x => !x.IsActive);
@@ -5393,7 +5387,7 @@ namespace LMSWebUI.Controllers
                         { "tenantName", tenantName },
                         { "storeCode", storeCode },
                         { "overwriteExisting", overwriteExisting ? "true" : "false" }
-                    }, Method.Post);
+                    }, Method.POST);
 
                 return Json(new
                 {
@@ -5438,7 +5432,7 @@ namespace LMSWebUI.Controllers
                         { "tenantName", tenantName },
                         { "storeCode", storeCode },
                         { "includeInactive", "true" }
-                    }, Method.Get) ?? new List<LaundryItemPriceDto>();
+                    }, Method.GET) ?? new List<LaundryItemPriceDto>();
 
                     foreach (var existing in existingItems ?? new List<LaundryItemPriceDto>())
                     {
@@ -5517,7 +5511,7 @@ namespace LMSWebUI.Controllers
                             IsActive = true
                         };
 
-                        var saveResponse = await _clientApi.SendRequestAsync<CustomerIOResponse>("/SaveLaundryItemPrice", request, Method.Post);
+                        var saveResponse = await _clientApi.SendRequestAsync<CustomerIOResponse>("/SaveLaundryItemPrice", request, Method.POST);
                         if (saveResponse != null && saveResponse.StatusCode == "200")
                         {
                             importedCount++;
@@ -5572,10 +5566,82 @@ namespace LMSWebUI.Controllers
                     { "includeInactive", includeInactive ? "true" : "false" }
                 };
 
-                var services = await _clientApi.SendRequestAsync<List<StoreServiceMasterDto>>("/GetStoreServiceMasters", query, Method.Get)
+                var services = await _clientApi.SendRequestAsync<List<StoreServiceMasterDto>>("/GetStoreServiceMasters", query, Method.GET)
                                ?? new List<StoreServiceMasterDto>();
-                var items = await _clientApi.SendRequestAsync<List<StoreItemMasterDto>>("/GetStoreItemMasters", query, Method.Get)
+                var items = await _clientApi.SendRequestAsync<List<StoreItemMasterDto>>("/GetStoreItemMasters", query, Method.GET)
                             ?? new List<StoreItemMasterDto>();
+
+                if (!services.Any() && !items.Any())
+                {
+                    var defaultPrices = await _clientApi.SendRequestAsync<List<LaundryItemPriceDto>>("/GetLaundryItemPrices", query, Method.GET)
+                                       ?? new List<LaundryItemPriceDto>();
+
+                    if (defaultPrices.Any())
+                    {
+                        var now = DateTime.UtcNow;
+
+                        var serviceMasters = defaultPrices
+                            .Select(x => (x.ServiceType ?? string.Empty).Trim())
+                            .Where(x => !string.IsNullOrWhiteSpace(x))
+                            .Distinct(StringComparer.OrdinalIgnoreCase)
+                            .Select(x => new StoreServiceMasterDto
+                            {
+                                TenantName = tenantName,
+                                StoreCode = storeCode,
+                                MasterType = "Service",
+                                Name = x,
+                                IsActive = true,
+                                CreatedDate = now,
+                                ModifiedDate = now
+                            });
+
+                        var categoryMasters = defaultPrices
+                            .Select(x => (x.Category ?? string.Empty).Trim())
+                            .Where(x => !string.IsNullOrWhiteSpace(x))
+                            .Distinct(StringComparer.OrdinalIgnoreCase)
+                            .Select(x => new StoreServiceMasterDto
+                            {
+                                TenantName = tenantName,
+                                StoreCode = storeCode,
+                                MasterType = "Category",
+                                Name = x,
+                                IsActive = true,
+                                CreatedDate = now,
+                                ModifiedDate = now
+                            });
+
+                        services = serviceMasters
+                            .Concat(categoryMasters)
+                            .ToList();
+
+                        items = defaultPrices
+                            .Where(x => !string.IsNullOrWhiteSpace(x.ServiceType)
+                                        && !string.IsNullOrWhiteSpace(x.Category)
+                                        && !string.IsNullOrWhiteSpace(x.ItemName))
+                            .GroupBy(x => new
+                            {
+                                ServiceType = x.ServiceType.Trim().ToLowerInvariant(),
+                                Category = x.Category.Trim().ToLowerInvariant(),
+                                ItemName = x.ItemName.Trim().ToLowerInvariant()
+                            })
+                            .Select(g =>
+                            {
+                                var row = g.First();
+                                return new StoreItemMasterDto
+                                {
+                                    TenantName = tenantName,
+                                    StoreCode = storeCode,
+                                    ServiceType = row.ServiceType?.Trim(),
+                                    Category = row.Category?.Trim(),
+                                    ItemName = row.ItemName?.Trim(),
+                                    IsActive = g.Any(x => x.IsActive),
+                                    CreatedDate = now,
+                                    ModifiedDate = now
+                                };
+                            })
+                            .ToList();
+                    }
+                }
 
                 return Json(new
                 {
@@ -5626,7 +5692,7 @@ namespace LMSWebUI.Controllers
                     IsActive = true
                 };
 
-                var response = await _clientApi.SendRequestAsync<CustomerIOResponse>("/SaveStoreServiceMaster", request, Method.Post);
+                var response = await _clientApi.SendRequestAsync<CustomerIOResponse>("/SaveStoreServiceMaster", request, Method.POST);
                 return Json(new
                 {
                     success = response != null && response.StatusCode == "200",
@@ -5671,7 +5737,7 @@ namespace LMSWebUI.Controllers
                     { "tenantName", tenantName },
                     { "storeCode", storeCode },
                     { "includeInactive", "true" }
-                }, Method.Get) ?? new List<StoreServiceMasterDto>();
+                }, Method.GET) ?? new List<StoreServiceMasterDto>();
 
                 var existingKeys = new HashSet<string>(
                     existingMasters.Select(x => BuildStoreMasterKey(x.MasterType, x.Name)),
@@ -5747,7 +5813,7 @@ namespace LMSWebUI.Controllers
                             IsActive = true
                         };
 
-                        var saveResponse = await _clientApi.SendRequestAsync<CustomerIOResponse>("/SaveStoreServiceMaster", request, Method.Post);
+                        var saveResponse = await _clientApi.SendRequestAsync<CustomerIOResponse>("/SaveStoreServiceMaster", request, Method.POST);
                         if (saveResponse != null && saveResponse.StatusCode == "200")
                         {
                             importedCount++;
@@ -5814,7 +5880,7 @@ namespace LMSWebUI.Controllers
                     IsActive = isActive
                 };
 
-                var response = await _clientApi.SendRequestAsync<CustomerIOResponse>("/SetStoreServiceMasterStatus", request, Method.Post);
+                var response = await _clientApi.SendRequestAsync<CustomerIOResponse>("/SetStoreServiceMasterStatus", request, Method.POST);
                 return Json(new
                 {
                     success = response != null && response.StatusCode == "200",
@@ -5862,7 +5928,7 @@ namespace LMSWebUI.Controllers
                     IsActive = true
                 };
 
-                var response = await _clientApi.SendRequestAsync<CustomerIOResponse>("/SaveStoreItemMaster", request, Method.Post);
+                var response = await _clientApi.SendRequestAsync<CustomerIOResponse>("/SaveStoreItemMaster", request, Method.POST);
                 return Json(new
                 {
                     success = response != null && response.StatusCode == "200",
@@ -5909,7 +5975,7 @@ namespace LMSWebUI.Controllers
                     IsActive = isActive
                 };
 
-                var response = await _clientApi.SendRequestAsync<CustomerIOResponse>("/SetStoreItemMasterStatus", request, Method.Post);
+                var response = await _clientApi.SendRequestAsync<CustomerIOResponse>("/SetStoreItemMasterStatus", request, Method.POST);
                 return Json(new
                 {
                     success = response != null && response.StatusCode == "200",
@@ -6006,7 +6072,7 @@ namespace LMSWebUI.Controllers
             }
             catch
             {
-                // ignored - fallback below
+                // Fall through to the fallback message
             }
 
             return $"{fallbackMessage} {rawMessage}";

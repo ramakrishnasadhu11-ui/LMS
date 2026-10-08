@@ -55,13 +55,23 @@ namespace LMS.Core.Repository.UnitOfWork
                 connection.ConnectionString = connectionString;
             }
 
-            // Following code only working for mysql.
-            var items = _context.Model.GetEntityTypes();
-            foreach (var item in items)
+            // Schema remapping was used for MySQL; this requires mutable model metadata.
+            if ((_context.Database.ProviderName ?? string.Empty).IndexOf("MySql", StringComparison.OrdinalIgnoreCase) >= 0)
             {
-                if (item.Relational() is RelationalEntityTypeAnnotations extensions)
+                var schemaUpdated = false;
+                var items = _context.Model.GetEntityTypes();
+                foreach (var item in items)
                 {
-                    extensions.Schema = database;
+                    if (item is IMutableEntityType mutableEntityType)
+                    {
+                        mutableEntityType.SetSchema(database);
+                        schemaUpdated = true;
+                    }
+                }
+
+                if (!schemaUpdated)
+                {
+                    throw new NotSupportedException("ChangeDatabase schema remapping for MySQL requires mutable EF model metadata. EF Core 8 runtime models are immutable.");
                 }
             }
         }
@@ -104,7 +114,7 @@ namespace LMS.Core.Repository.UnitOfWork
         /// <param name="sql">The raw SQL.</param>
         /// <param name="parameters">The parameters.</param>
         /// <returns>The number of state entities written to database.</returns>
-        public int ExecuteSqlCommand(string sql, params object[] parameters) => _context.Database.ExecuteSqlCommand(sql, parameters);
+        public int ExecuteSqlCommand(string sql, params object[] parameters) => _context.Database.ExecuteSqlRaw(sql, parameters);
 
         /// <summary>
         /// Uses raw SQL queries to fetch the specified <typeparamref name="TEntity" /> data.
@@ -113,7 +123,7 @@ namespace LMS.Core.Repository.UnitOfWork
         /// <param name="sql">The raw SQL.</param>
         /// <param name="parameters">The parameters.</param>
         /// <returns>An <see cref="IQueryable{T}" /> that contains elements that satisfy the condition specified by raw SQL.</returns>
-        public IQueryable<TEntity> FromSql<TEntity>(string sql, params object[] parameters) where TEntity : class => _context.Set<TEntity>().FromSql(sql, parameters);
+        public IQueryable<TEntity> FromSql<TEntity>(string sql, params object[] parameters) where TEntity : class => _context.Set<TEntity>().FromSqlRaw(sql, parameters);
 
         /// <summary>
         /// Saves all changes made in this context to the database.

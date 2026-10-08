@@ -1,4 +1,6 @@
 ﻿using RestSharp;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 using System.Net.Security;
 using System.Security.Cryptography.X509Certificates;
 using System;
@@ -11,34 +13,6 @@ namespace LMSClientFactory.Helper
     public class HttpClientApi : IHttpClientApi
     {
         private readonly IRestClient _client;
-<<<<<<< Updated upstream
-=======
-
-        private static RestClient CreateClient(string url)
-        {
-            var options = new RestClientOptions(url)
-            {
-                // For local development allow self-signed localhost certificates by accepting
-                // certificates when the target host is localhost/127.0.0.1/::1. This is
-                // intentionally limited to local hosts only.
-                RemoteCertificateValidationCallback = (sender, certificate, chain, sslPolicyErrors) =>
-                {
-                    if (string.IsNullOrWhiteSpace(url)) return sslPolicyErrors == SslPolicyErrors.None;
-                    var lower = url.ToLowerInvariant();
-                    if (lower.Contains("localhost") || lower.Contains("127.0.0.1") || lower.Contains("::1"))
-                    {
-                        return true;
-                    }
-
-                    return sslPolicyErrors == SslPolicyErrors.None;
-                }
-            };
-
-            var client = new RestClient(options, configureSerialization: s => s.UseSerializer(() => new RestSharpJsonNetSerializer()));
-            return client;
-        } 
-
->>>>>>> Stashed changes
         public HttpClientApi(string url)
         {
             _client = new RestClient(url);
@@ -57,34 +31,10 @@ namespace LMSClientFactory.Helper
         /// <returns></returns>
         private async Task<T> SendRequest<T>(IRestRequest request) where T : new()
         {
-<<<<<<< Updated upstream
-            try
-            {
-                request.RequestFormat = DataFormat.Json;
-                request.JsonSerializer = new RestSharpJsonNetSerializer();
-                TaskCompletionSource<T> taskCompletionSource = new TaskCompletionSource<T>();
-                _client.ExecuteAsync<T>(request, (response) =>
-                {
-                    if (response.ResponseStatus == ResponseStatus.Error || response.ResponseStatus == ResponseStatus.TimedOut)
-                    {
-                        taskCompletionSource.SetException(response.ErrorException);
-                    }
-                    else if (response.StatusCode == HttpStatusCode.NotFound || response.StatusCode == HttpStatusCode.InternalServerError || response.StatusCode == HttpStatusCode.GatewayTimeout)
-                    {
-                        taskCompletionSource.SetException(response.ErrorException);
-                    }
-                    else
-                    {
-                        taskCompletionSource.SetResult(response.Data);
-                    }
-                });
-                return await taskCompletionSource.Task;
-            }
-            catch (Exception ex)
-            {
-                throw ex;
-=======
-            RestResponse<T> response = await _client.ExecuteAsync<T>(request);
+            request.RequestFormat = DataFormat.Json;
+            request.JsonSerializer = new RestSharpJsonNetSerializer();
+
+            var response = await _client.ExecuteTaskAsync<T>(request);
 
             // RestSharp reports ResponseStatus.Error for any non-success status code, so a
             // status code of 0 is used to detect a genuine transport failure. Otherwise a
@@ -120,8 +70,93 @@ namespace LMSClientFactory.Helper
                 }
 
                 throw response.ErrorException ?? new Exception("The API returned 404.");
->>>>>>> Stashed changes
             }
+
+            if (typeof(T) == typeof(JObject))
+            {
+                if (response.Data is JObject responseObject && responseObject.HasValues)
+                {
+                    return response.Data;
+                }
+
+                if (!string.IsNullOrWhiteSpace(response.Content))
+                {
+                    try
+                    {
+                        var parsedToken = JToken.Parse(response.Content);
+                        if (parsedToken is JObject parsedObject)
+                        {
+                            return (T)(object)parsedObject;
+                        }
+                    }
+                    catch
+                    {
+                    }
+                }
+            }
+
+            if (!string.IsNullOrWhiteSpace(response.Content))
+            {
+                var shouldTryContent = (object)response.Data == null;
+
+                if (!shouldTryContent && response.Data is string rawString)
+                {
+                    shouldTryContent = string.IsNullOrWhiteSpace(rawString);
+                }
+                else if (!shouldTryContent && response.Data is JObject rawObject)
+                {
+                    shouldTryContent = !rawObject.HasValues;
+                }
+                else if (!shouldTryContent && response.Data is JArray rawArray)
+                {
+                    shouldTryContent = rawArray.Count == 0;
+                }
+                else if (!shouldTryContent && response.Data is System.Collections.ICollection rawCollection)
+                {
+                    shouldTryContent = rawCollection.Count == 0;
+                }
+
+                if (!shouldTryContent)
+                {
+                    return response.Data;
+                }
+
+                try
+                {
+                    if (typeof(T) == typeof(string))
+                    {
+                        return (T)(object)response.Content;
+                    }
+
+                    var parsedData = JsonConvert.DeserializeObject<T>(response.Content);
+                    if ((object)parsedData != null)
+                    {
+                        if (parsedData is not System.Collections.ICollection parsedCollection || parsedCollection.Count > 0)
+                        {
+                            return parsedData;
+                        }
+                    }
+
+                    var token = JToken.Parse(response.Content);
+                    var unwrappedToken = token["ResultSet"]
+                        ?? token["resultSet"]
+                        ?? token["Data"]
+                        ?? token["data"]
+                        ?? token["$values"]
+                        ?? token;
+
+                    var unwrappedData = unwrappedToken.ToObject<T>();
+                    if ((object)unwrappedData != null)
+                    {
+                        return unwrappedData;
+                    }
+                }
+                catch
+                {
+                }
+            }
+
+            return response.Data;
         }
         /// <summary>
         /// With Out Async Call
