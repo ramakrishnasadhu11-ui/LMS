@@ -7,14 +7,11 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
-<<<<<<< Updated upstream
-using Swashbuckle.AspNetCore.Swagger;
-=======
 using Microsoft.EntityFrameworkCore;
 using LMS.Core.Repository.UnitOfWork;
 using Microsoft.OpenApi.Models;
->>>>>>> Stashed changes
 using System;
 using System.IO;
 using System.Reflection;
@@ -34,8 +31,7 @@ namespace LMS.Identity.WebApi
         // This method gets called by the runtime. Use this method to add services to the container.
           public void ConfigureContainer(ServiceRegistry services)
         {
-             services.AddMvc()
-                     .SetCompatibilityVersion(CompatibilityVersion.Version_2_2);
+             services.AddControllers();
 
              services.AddDbContext<IdentityDbContext>(options =>
                  options.UseSqlServer(Configuration.GetConnectionString("IdentityDb")));
@@ -59,7 +55,7 @@ namespace LMS.Identity.WebApi
             services.AddSwaggerGen(c =>
             {
                 c.SwaggerDoc("v1",
-                    new Info
+                    new OpenApiInfo
                     {
                         Title = "LMS Identity API",
                         Description = "LMS Identity API"
@@ -102,7 +98,7 @@ namespace LMS.Identity.WebApi
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
-        public void Configure(IApplicationBuilder app, IHostingEnvironment env)
+        public void Configure(IApplicationBuilder app, IWebHostEnvironment env)
         {
             if (env.IsDevelopment())
             {
@@ -112,11 +108,6 @@ namespace LMS.Identity.WebApi
             {
                  app.UseHsts();
             }
-            app.UseHttpsRedirection();
-            app.UseSwaggerUI(c =>
-            {
-                c.SwaggerEndpoint("../swagger/v1/swagger.json", "My First Swagger");
-            });
 
             using (var scope = app.ApplicationServices.CreateScope())
             {
@@ -129,15 +120,9 @@ namespace LMS.Identity.WebApi
             }
 
             app.UseHttpsRedirection();
-<<<<<<< Updated upstream
-            app.UseMvc();
-             app.UseSwagger();
-=======
             app.UseRouting();
             app.UseCors("AllowUI");
-            app.UseEndpoints(endpoints => endpoints.MapControllers());
             app.UseSwagger();
->>>>>>> Stashed changes
             app.UseSwaggerUI(c =>
             {
                 if (env.IsDevelopment())
@@ -149,7 +134,7 @@ namespace LMS.Identity.WebApi
                     c.SwaggerEndpoint(Configuration["VirtualDirectory"] + "/swagger/v1/swagger.json", "LMS Identity API v1");
                 }
             });
-            app.UseCors(options => options.AllowAnyOrigin().AllowAnyHeader().AllowAnyMethod());
+            app.UseEndpoints(endpoints => endpoints.MapControllers());
         }
     }
 }
