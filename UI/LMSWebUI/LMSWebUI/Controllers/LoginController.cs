@@ -186,25 +186,29 @@ namespace LMSWebUI.Controllers
         public async Task<ActionResult> Register(TenantDto tenantDto)
         {
             var responseMessage = new LoginIoResponse();
+            tenantDto ??= new TenantDto();
 
             try
             {
-                if (tenantDto != null)
+                responseMessage = await _clientApi.SendRequestAsync<LoginIoResponse>("/RegisterTenant", tenantDto, RestSharp.Method.POST);
+                if (responseMessage != null && !string.IsNullOrEmpty(responseMessage.TenantId))
                 {
-                    responseMessage = await _clientApi.SendRequestAsync<LoginIoResponse>("/RegisterTenant", tenantDto, RestSharp.Method.POST);
-                    if (responseMessage != null && !string.IsNullOrEmpty(responseMessage.TenantId))
-                    {
-                        tenantDto.Message = responseMessage.Message;
-                        return View(tenantDto);
-                    }
+                    tenantDto.Message = responseMessage.Message;
+                    return View(tenantDto);
                 }
 
                 tenantDto.Message = responseMessage.Message;
                 return View(tenantDto);
             }
-            catch (Exception)
+            catch (ApiUnavailableException)
             {
-                throw;
+                tenantDto.Message = "Registration service is temporarily unavailable. Please try again.";
+                return View(tenantDto);
+            }
+            catch
+            {
+                tenantDto.Message = "Unable to complete registration. Please verify details and try again.";
+                return View(tenantDto);
             }
         }
 

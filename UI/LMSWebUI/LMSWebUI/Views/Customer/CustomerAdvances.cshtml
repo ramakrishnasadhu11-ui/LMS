@@ -36,6 +36,122 @@
     font-weight: 600;
 }
 
+.adv-summary-grid {
+    margin-top: 14px;
+    display: grid;
+    grid-template-columns: repeat(4, minmax(160px, 1fr));
+    gap: 10px;
+}
+
+.adv-summary-card {
+    border: 1px solid var(--els-border);
+    border-radius: 8px;
+    padding: 10px;
+    background: var(--els-surface);
+}
+
+.adv-summary-label {
+    font-size: 12px;
+    color: var(--els-text-muted, #6b7280);
+    margin-bottom: 4px;
+}
+
+.adv-summary-value {
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--els-text);
+}
+
+.adv-summary-value.small {
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.adv-help {
+    margin-top: 12px;
+    border: 1px solid var(--els-border);
+    border-radius: 8px;
+    background: var(--els-accent, #f3f7ff);
+    padding: 10px 12px;
+    font-size: 12px;
+    color: var(--els-text);
+}
+
+.adv-help ul {
+    margin: 6px 0 0 18px;
+    padding: 0;
+}
+
+.adv-help li {
+    margin-bottom: 4px;
+}
+
+.adv-mode-hint {
+    margin-top: 6px;
+    font-size: 12px;
+    color: var(--els-text-muted, #6b7280);
+}
+
+.adv-history-toolbar {
+    display: flex;
+    align-items: end;
+    gap: 10px;
+    flex-wrap: wrap;
+    padding: 10px;
+    border-bottom: 1px solid var(--els-border);
+    background: #f8fbff;
+}
+
+.adv-history-filter {
+    display: flex;
+    flex-direction: column;
+    min-width: 160px;
+}
+
+.adv-history-filter label {
+    font-size: 12px;
+    margin-bottom: 4px;
+    color: var(--els-text);
+}
+
+.adv-history-filter input {
+    border: 1px solid var(--els-border);
+    border-radius: 6px;
+    padding: 8px;
+    background: var(--els-surface);
+    color: var(--els-text);
+}
+
+.adv-muted {
+    color: var(--els-text-muted, #6b7280);
+}
+
+.adv-amount-positive {
+    color: #2f8f46;
+    font-weight: 700;
+}
+
+.adv-amount-negative {
+    color: #b63838;
+    font-weight: 700;
+}
+
+.adv-balance-strong {
+    font-weight: 700;
+}
+
+.adv-legend {
+    display: inline-flex;
+    gap: 12px;
+    align-items: center;
+    border: 1px solid var(--els-border);
+    border-radius: 6px;
+    background: var(--els-surface);
+    padding: 6px 10px;
+    font-size: 12px;
+    color: var(--els-text);
+}
+
 .adv-body {
     padding: 20px;
 }
@@ -170,6 +286,10 @@
         grid-template-columns: 1fr;
     }
 
+    .adv-summary-grid {
+        grid-template-columns: repeat(2, minmax(140px, 1fr));
+    }
+
     .adv-actions {
         justify-content: stretch;
         flex-direction: column;
@@ -193,7 +313,7 @@
     <div class="adv-box">
         <div class="adv-title">Customer Advances - Balance Adjustments</div>
         <div class="adv-body">
-            @using (Html.BeginForm("CustomerAdvances", "Customer", FormMethod.Post))
+            @using (Html.BeginForm("CustomerAdvances", "Customer", FormMethod.Post, new { id = "customerAdvancesForm" }))
             {
                 @Html.HiddenFor(m => m.CustCode, new { id = "custCode" })
                 <div class="adv-grid">
@@ -212,11 +332,13 @@
                     <div class="adv-field">
                         <label for="advanceAmount">Amount</label>
                         @Html.TextBoxFor(m => m.AdvanceAmount, new { @class = "form-control", id = "advanceAmount", type = "number", min = "0.01", step = "0.01" })
+                        <div class="adv-hint">Enter amount greater than zero.</div>
                     </div>
 
                     <div class="adv-field">
                         <label for="transactionType">Transaction Type</label>
                         @Html.DropDownListFor(m => m.TransactionType, new SelectList(new[] { "Credit", "Debit" }), new { @class = "form-control", id = "transactionType" })
+                        <div class="adv-mode-hint" id="transactionTypeHint">Credit adds a new advance amount to customer balance.</div>
                     </div>
 
                     <div class="adv-field" style="grid-column: 1 / -1;">
@@ -227,21 +349,71 @@
 
                 <div class="adv-balance">Current Balance: <span id="advanceBalance">@Model.Balance.ToString("0.00")</span></div>
 
+                <div class="adv-summary-grid">
+                    <div class="adv-summary-card">
+                        <div class="adv-summary-label">Customer</div>
+                        <div class="adv-summary-value small" id="summaryCustomerName">@(Model?.CustomerName ?? "-")</div>
+                    </div>
+                    <div class="adv-summary-card">
+                        <div class="adv-summary-label">Customer Code</div>
+                        <div class="adv-summary-value small" id="summaryCustomerCode">@(Model?.CustCode ?? "-")</div>
+                    </div>
+                    <div class="adv-summary-card">
+                        <div class="adv-summary-label">Total Advances (Credits)</div>
+                        <div class="adv-summary-value" id="summaryTotalAdvances">0.00</div>
+                    </div>
+                    <div class="adv-summary-card">
+                        <div class="adv-summary-label">Amount Used / Adjusted</div>
+                        <div class="adv-summary-value" id="summaryUsedAdjusted">0.00</div>
+                        <div class="adv-hint" id="summaryUsedAdjustedHint">Shown only when usage data is available.</div>
+                    </div>
+                </div>
+
+                <div class="adv-help">
+                    <strong>Help:</strong>
+                    <ul>
+                        <li><strong>Total Advances</strong>: Sum of credit entries returned in advance history.</li>
+                        <li><strong>Amount Used / Adjusted</strong>: Calculated from valid Debit transactions only when transaction history reconciles with available balance.</li>
+                        <li><strong>Available Balance</strong>: Current balance returned by the advance API for this customer, store, and tenant.</li>
+                        <li><strong>Add Advance</strong>: Use <em>Credit</em> transaction type.</li>
+                        <li><strong>Balance Adjustment</strong>: Use <em>Debit</em> transaction type. Debit amount should not exceed available balance.</li>
+                    </ul>
+                </div>
+
                 <div class="adv-actions">
                     <button type="button" class="adv-btn tertiary" id="loadAdvanceBtn">Load History</button>
                     <button type="button" class="adv-btn secondary" onclick="window.location.href='@Url.Action("Index", "Customer")'">Back to Customer</button>
-                    <button type="submit" class="adv-btn">Save Advance</button>
+                    <button type="submit" class="adv-btn" id="saveAdvanceBtn">Save Entry</button>
                 </div>
             }
 
             <div class="adv-history">
+                <div class="adv-history-toolbar">
+                    <div class="adv-history-filter">
+                        <label for="historyFromDate">From Date</label>
+                        <input type="date" id="historyFromDate" />
+                    </div>
+                    <div class="adv-history-filter">
+                        <label for="historyToDate">To Date</label>
+                        <input type="date" id="historyToDate" />
+                    </div>
+                    <div class="adv-legend" aria-label="Transaction sign legend">
+                        <span><span class="adv-amount-positive">+ Credit</span></span>
+                        <span><span class="adv-amount-negative">− Debit</span></span>
+                    </div>
+                    <div class="adv-hint">History is shown latest-first based on transaction date.</div>
+                </div>
                 <table>
                     <thead>
                         <tr>
                             <th>Date (UTC)</th>
                             <th>Type</th>
-                            <th>Amount</th>
-                            <th>Notes</th>
+                            <th>Reference / Invoice</th>
+                            <th>Advance Amount</th>
+                            <th>Used / Adjusted</th>
+                            <th>Remaining Balance</th>
+                            <th>Status</th>
+                            <th>Remarks</th>
                         </tr>
                     </thead>
                     <tbody id="advanceHistoryBody">
@@ -251,8 +423,16 @@
                             {
                                 <tr>
                                     <td>@txn.CreatedDate.ToString("yyyy-MM-dd HH:mm")</td>
-                                    <td>@txn.TransactionType</td>
-                                    <td>@txn.AdvanceAmount.ToString("0.00")</td>
+                                    <td>@(string.Equals(txn.TransactionType, "Credit", StringComparison.OrdinalIgnoreCase) ? "Advance Added" : string.Equals(txn.TransactionType, "Debit", StringComparison.OrdinalIgnoreCase) ? "Balance Adjustment" : txn.TransactionType)</td>
+                                    <td class="adv-muted">-</td>
+                                    <td class="@(string.Equals(txn.TransactionType, "Debit", StringComparison.OrdinalIgnoreCase) ? "adv-amount-negative" : "adv-amount-positive")">
+                                        @(string.Equals(txn.TransactionType, "Debit", StringComparison.OrdinalIgnoreCase) ? "−" : "+")@txn.AdvanceAmount.ToString("0.00")
+                                    </td>
+                                    <td class="@(string.Equals(txn.TransactionType, "Debit", StringComparison.OrdinalIgnoreCase) ? "adv-amount-negative" : "adv-muted")">
+                                        @(string.Equals(txn.TransactionType, "Debit", StringComparison.OrdinalIgnoreCase) ? "−" + txn.AdvanceAmount.ToString("0.00") : "-")
+                                    </td>
+                                    <td class="adv-balance-strong adv-muted">-</td>
+                                    <td class="adv-muted">-</td>
                                     <td>@txn.Notes</td>
                                 </tr>
                             }
@@ -260,7 +440,7 @@
                         else
                         {
                             <tr>
-                                <td colspan="4">No transactions found.</td>
+                                <td colspan="8">No transactions found.</td>
                             </tr>
                         }
                     </tbody>
@@ -272,6 +452,253 @@
 
 <script type="text/javascript">
     (function () {
+        var historyRows = [];
+
+        function parseAmount(value) {
+            var amount = Number(value);
+            return isNaN(amount) ? 0 : amount;
+        }
+
+        function parseDateUtc(value) {
+            if (!value) {
+                return null;
+            }
+
+            var parsed = new Date(value);
+            return isNaN(parsed.getTime()) ? null : parsed;
+        }
+
+        function formatDateDisplay(value) {
+            if (!value) {
+                return "-";
+            }
+
+            return value.toString().replace("T", " ").substring(0, 16);
+        }
+
+        function escapeHtml(value) {
+            var input = value === undefined || value === null ? "" : value.toString();
+            return input
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#39;");
+        }
+
+        function normalizeType(type) {
+            if (!type) {
+                return "-";
+            }
+
+            var normalized = type.toString().trim().toLowerCase();
+            if (normalized === "credit") {
+                return "Advance Added";
+            }
+
+            if (normalized === "debit") {
+                return "Balance Adjustment";
+            }
+
+            return type;
+        }
+
+        function isDebitTransaction(txn) {
+            var type = (txn.TransactionType || txn.transactionType || "").toString().trim().toLowerCase();
+            return type === "debit";
+        }
+
+        function formatSignedAmount(amount, isDebit) {
+            var sign = isDebit ? "−" : "+";
+            return sign + roundMoney(amount).toFixed(2);
+        }
+
+        function getAdjustmentAmount(txn) {
+            var explicitUsed = txn.AmountUsed || txn.amountUsed || txn.AdjustedAmount || txn.adjustedAmount;
+            if (explicitUsed !== undefined && explicitUsed !== null && explicitUsed !== "") {
+                return parseAmount(explicitUsed);
+            }
+
+            var type = (txn.TransactionType || txn.transactionType || "").toString().trim().toLowerCase();
+            var amount = parseAmount(txn.AdvanceAmount || txn.advanceAmount || 0);
+            return type === "debit" ? amount : 0;
+        }
+
+        function roundMoney(value) {
+            return Math.round(parseAmount(value) * 100) / 100;
+        }
+
+        function tryBuildRunningBalances(transactions, authoritativeBalance) {
+            var txns = Array.isArray(transactions) ? transactions.slice() : [];
+            var chronological = txns.slice().sort(function (a, b) {
+                var ad = parseDateUtc(a.CreatedDate || a.createdDate);
+                var bd = parseDateUtc(b.CreatedDate || b.createdDate);
+                var at = ad ? ad.getTime() : 0;
+                var bt = bd ? bd.getTime() : 0;
+                return at - bt;
+            });
+
+            var running = 0;
+            var debitTotal = 0;
+            var canCompute = chronological.length > 0;
+
+            chronological.forEach(function (txn) {
+                var type = (txn.TransactionType || txn.transactionType || "").toString().trim().toLowerCase();
+                var amount = roundMoney(txn.AdvanceAmount || txn.advanceAmount || 0);
+
+                if (amount <= 0) {
+                    canCompute = false;
+                    txn.__computedRemainingBalance = null;
+                    return;
+                }
+
+                if (type === "credit") {
+                    running = roundMoney(running + amount);
+                } else if (type === "debit") {
+                    running = roundMoney(running - amount);
+                    debitTotal = roundMoney(debitTotal + amount);
+                } else {
+                    canCompute = false;
+                }
+
+                txn.__computedRemainingBalance = canCompute ? roundMoney(running) : null;
+            });
+
+            var availableBalance = roundMoney(authoritativeBalance);
+            var reconciles = canCompute && roundMoney(running) === availableBalance;
+
+            if (!reconciles) {
+                chronological.forEach(function (txn) {
+                    txn.__computedRemainingBalance = null;
+                });
+            }
+
+            return {
+                canComputeRunningBalance: reconciles,
+                debitTotal: reconciles ? debitTotal : null
+            };
+        }
+
+        function updateSummaryCards(transactions, balance) {
+            var totalCredits = 0;
+            (transactions || []).forEach(function (txn) {
+                var type = (txn.TransactionType || txn.transactionType || "").toString().trim().toLowerCase();
+                var amount = parseAmount(txn.AdvanceAmount || txn.advanceAmount || 0);
+                if (type === "credit") {
+                    totalCredits += amount;
+                }
+            });
+
+            totalCredits = roundMoney(totalCredits);
+            var runningCalc = tryBuildRunningBalances(transactions || [], balance);
+            var usedAdjusted = runningCalc.debitTotal;
+
+            var totalEl = document.getElementById("summaryTotalAdvances");
+            var usedEl = document.getElementById("summaryUsedAdjusted");
+            var customerNameEl = document.getElementById("summaryCustomerName");
+            var customerCodeEl = document.getElementById("summaryCustomerCode");
+            var usedHintEl = document.getElementById("summaryUsedAdjustedHint");
+            var customerNameInput = document.getElementById("customerName");
+            var customerCodeDisplay = document.getElementById("customerCodeDisplay");
+
+            if (totalEl) {
+                totalEl.textContent = totalCredits.toFixed(2);
+            }
+            if (usedEl) {
+                usedEl.textContent = usedAdjusted === null ? "-" : usedAdjusted.toFixed(2);
+            }
+            if (usedHintEl) {
+                usedHintEl.textContent = usedAdjusted === null
+                    ? "Not shown because history does not fully reconcile with current balance."
+                    : "Calculated from valid Debit transactions in reconciled history.";
+            }
+            if (customerNameEl) {
+                customerNameEl.textContent = (customerNameInput && customerNameInput.value ? customerNameInput.value.trim() : "") || "-";
+            }
+            if (customerCodeEl) {
+                customerCodeEl.textContent = (customerCodeDisplay && customerCodeDisplay.value ? customerCodeDisplay.value.trim() : "") || "-";
+            }
+        }
+
+        function applyHistoryFiltersAndRender() {
+            var tbody = document.getElementById("advanceHistoryBody");
+            if (!tbody) {
+                return;
+            }
+
+            var fromDateEl = document.getElementById("historyFromDate");
+            var toDateEl = document.getElementById("historyToDate");
+            var fromDate = fromDateEl && fromDateEl.value ? new Date(fromDateEl.value + "T00:00:00") : null;
+            var toDate = toDateEl && toDateEl.value ? new Date(toDateEl.value + "T23:59:59") : null;
+
+            var filtered = (historyRows || []).filter(function (txn) {
+                var dt = parseDateUtc(txn.CreatedDate || txn.createdDate);
+                if (!dt) {
+                    return !fromDate && !toDate;
+                }
+
+                if (fromDate && dt < fromDate) {
+                    return false;
+                }
+
+                if (toDate && dt > toDate) {
+                    return false;
+                }
+
+                return true;
+            });
+
+            filtered.sort(function (a, b) {
+                var ad = parseDateUtc(a.CreatedDate || a.createdDate);
+                var bd = parseDateUtc(b.CreatedDate || b.createdDate);
+                var at = ad ? ad.getTime() : 0;
+                var bt = bd ? bd.getTime() : 0;
+                return bt - at;
+            });
+
+            tbody.innerHTML = "";
+            if (!filtered.length) {
+                tbody.innerHTML = "<tr><td colspan='8'>No transactions found.</td></tr>";
+                return;
+            }
+
+            filtered.forEach(function (txn) {
+                var row = document.createElement("tr");
+                var createdDate = txn.CreatedDate || txn.createdDate || "";
+                var type = txn.TransactionType || txn.transactionType || "";
+                var amount = parseAmount(txn.AdvanceAmount || txn.advanceAmount || 0);
+                var isDebit = isDebitTransaction(txn);
+                var reference = txn.TransactionReference || txn.transactionReference || txn.ReferenceNo || txn.referenceNo || txn.InvoiceNo || txn.invoiceNo || "-";
+                var remainingBalance = txn.RemainingBalance;
+                if (remainingBalance === undefined || remainingBalance === null || remainingBalance === "") {
+                    remainingBalance = txn.remainingBalance;
+                }
+                if (remainingBalance === undefined || remainingBalance === null || remainingBalance === "") {
+                    remainingBalance = txn.__computedRemainingBalance;
+                }
+                var status = txn.Status || txn.status || "-";
+                var notes = txn.Notes || txn.notes || "";
+                var adjusted = getAdjustmentAmount(txn);
+                var signedAdvanceAmount = formatSignedAmount(amount, isDebit);
+                var signedAdjustedAmount = isDebit && adjusted > 0 ? formatSignedAmount(adjusted, true) : "-";
+                var remainingBalanceDisplay = (remainingBalance === undefined || remainingBalance === null || remainingBalance === "")
+                    ? "-"
+                    : roundMoney(remainingBalance).toFixed(2);
+                var advanceAmountClass = isDebit ? "adv-amount-negative" : "adv-amount-positive";
+                var adjustedAmountClass = isDebit && adjusted > 0 ? "adv-amount-negative" : "adv-muted";
+
+                row.innerHTML = "<td>" + formatDateDisplay(createdDate) + "</td>"
+                    + "<td>" + escapeHtml(normalizeType(type)) + "</td>"
+                    + "<td>" + escapeHtml(reference || "-") + "</td>"
+                    + "<td class='" + advanceAmountClass + "'>" + signedAdvanceAmount + "</td>"
+                    + "<td class='" + adjustedAmountClass + "'>" + signedAdjustedAmount + "</td>"
+                    + "<td class='adv-balance-strong'>" + remainingBalanceDisplay + "</td>"
+                    + "<td>" + escapeHtml(status) + "</td>"
+                    + "<td>" + escapeHtml(notes) + "</td>";
+                tbody.appendChild(row);
+            });
+        }
+
         function showToast(message, isSuccess) {
             var toast = document.getElementById("customerAdvToast");
             if (!toast) {
@@ -294,30 +721,8 @@
         }
 
         function renderHistoryRows(transactions) {
-            var tbody = document.getElementById("advanceHistoryBody");
-            if (!tbody) {
-                return;
-            }
-
-            tbody.innerHTML = "";
-            if (!transactions || !transactions.length) {
-                tbody.innerHTML = "<tr><td colspan='4'>No transactions found.</td></tr>";
-                return;
-            }
-
-            transactions.forEach(function (txn) {
-                var row = document.createElement("tr");
-                var createdDate = txn.CreatedDate || txn.createdDate || "";
-                var type = txn.TransactionType || txn.transactionType || "";
-                var amount = txn.AdvanceAmount || txn.advanceAmount || 0;
-                var notes = txn.Notes || txn.notes || "";
-
-                row.innerHTML = "<td>" + createdDate.toString().replace("T", " ").substring(0, 16) + "</td>"
-                    + "<td>" + type + "</td>"
-                    + "<td>" + Number(amount).toFixed(2) + "</td>"
-                    + "<td>" + notes + "</td>";
-                tbody.appendChild(row);
-            });
+            historyRows = Array.isArray(transactions) ? transactions.slice() : [];
+            applyHistoryFiltersAndRender();
         }
 
         function loadHistory() {
@@ -344,6 +749,7 @@
                         document.getElementById("advanceBalance").textContent = "0.00";
                         document.getElementById("custCode").value = "";
                         document.getElementById("customerCodeDisplay").value = "";
+                        updateSummaryCards([], 0);
                         return;
                     }
 
@@ -351,6 +757,7 @@
                     document.getElementById("advanceBalance").textContent = Number(balance).toFixed(2);
                     document.getElementById("custCode").value = data.customerCode || "";
                     document.getElementById("customerCodeDisplay").value = data.customerCode || "";
+                    updateSummaryCards(data.transactions || [], balance);
                     renderHistoryRows(data.transactions || []);
                 })
                 .catch(function (error) {
@@ -402,7 +809,70 @@
                 });
             }
 
+            var fromDateInput = document.getElementById("historyFromDate");
+            if (fromDateInput) {
+                fromDateInput.addEventListener("change", applyHistoryFiltersAndRender);
+            }
+
+            var toDateInput = document.getElementById("historyToDate");
+            if (toDateInput) {
+                toDateInput.addEventListener("change", applyHistoryFiltersAndRender);
+            }
+
+            var transactionTypeEl = document.getElementById("transactionType");
+            var transactionTypeHintEl = document.getElementById("transactionTypeHint");
+            function updateTransactionTypeHint() {
+                if (!transactionTypeEl || !transactionTypeHintEl) {
+                    return;
+                }
+
+                var selectedType = (transactionTypeEl.value || "").trim().toLowerCase();
+                if (selectedType === "debit") {
+                    transactionTypeHintEl.textContent = "Debit applies a balance adjustment from existing available advance.";
+                    return;
+                }
+
+                transactionTypeHintEl.textContent = "Credit adds a new advance amount to customer balance.";
+            }
+
+            if (transactionTypeEl) {
+                transactionTypeEl.addEventListener("change", updateTransactionTypeHint);
+                updateTransactionTypeHint();
+            }
+
             loadCustomerSuggestions();
+
+            var form = document.getElementById("customerAdvancesForm");
+            var saveBtn = document.getElementById("saveAdvanceBtn");
+            if (form && saveBtn) {
+                form.addEventListener("submit", function (e) {
+                    var customerNameValue = (document.getElementById("customerName").value || "").trim();
+                    var amountValue = parseAmount(document.getElementById("advanceAmount").value || 0);
+                    var selectedType = (document.getElementById("transactionType").value || "").trim().toLowerCase();
+                    var availableBalance = parseAmount(document.getElementById("advanceBalance").textContent || 0);
+
+                    if (!customerNameValue) {
+                        e.preventDefault();
+                        showToast("Please enter customer name.", false);
+                        return;
+                    }
+
+                    if (amountValue <= 0) {
+                        e.preventDefault();
+                        showToast("Advance amount should be greater than zero.", false);
+                        return;
+                    }
+
+                    if (selectedType === "debit" && amountValue > availableBalance) {
+                        e.preventDefault();
+                        showToast("Debit adjustment cannot be greater than available balance.", false);
+                        return;
+                    }
+
+                    saveBtn.disabled = true;
+                    saveBtn.textContent = "Saving...";
+                });
+            }
 
             var customerNameInput = document.getElementById("customerName");
             if (customerNameInput) {
@@ -425,8 +895,10 @@
                     }
 
                     if (historyBody) {
-                        historyBody.innerHTML = "<tr><td colspan='4'>No transactions found.</td></tr>";
+                        historyBody.innerHTML = "<tr><td colspan='8'>No transactions found.</td></tr>";
                     }
+
+                    updateSummaryCards([], 0);
                 });
             }
 

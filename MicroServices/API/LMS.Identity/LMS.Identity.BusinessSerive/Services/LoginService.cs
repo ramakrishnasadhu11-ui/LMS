@@ -54,6 +54,21 @@ namespace LMS.Identity.BusinessSerive.Services
             }
             else if (tenantDto != null)
             {
+                if (string.IsNullOrWhiteSpace(tenantDto.Email)
+                    || string.IsNullOrWhiteSpace(tenantDto.TenantName)
+                    || tenantDto.NoOfStores <= 0)
+                {
+                    return ActionSet.ActionReturnType(HttpStatusCode.BadRequest, new IOResponse
+                    {
+                        StatusCode = "400",
+                        TenantId = string.Empty,
+                        Message = "Tenant name, email, and number of stores are required."
+                    });
+                }
+
+                tenantDto.Email = tenantDto.Email.Trim();
+                tenantDto.TenantName = tenantDto.TenantName.Trim();
+
                 var result = await _unitOfWork.DbContext.Tenants.FirstOrDefaultAsync(em => em.Email == tenantDto.Email);
                 if (result != null)
                 {
@@ -71,8 +86,12 @@ namespace LMS.Identity.BusinessSerive.Services
                 _unitOfWork.DbContext.Tenants.Add(tenantData);
                 await _unitOfWork.SaveChangesAsync();
                 // No-op reaffirmation to ensure earlier changes are stable.
-                await CreateTenantUserInfoAsync(tenantDto, tenantid);
-                return ActionSet.ActionReturnType(HttpStatusCode.Created, new IOResponse { StatusCode = "200", TenantId = tenantid, Message = IdentityValidationMessage.IDENTITY_INSERT_SUCCESS_MESSAGE, TenantName = tenantDto.TenantName });
+                var registrationMailSent = await CreateTenantUserInfoAsync(tenantDto, tenantid);
+                var registrationMessage = registrationMailSent
+                    ? IdentityValidationMessage.IDENTITY_INSERT_SUCCESS_MESSAGE
+                    : "Registration completed, but email delivery failed. Please contact support to reset your password and retry email delivery.";
+
+                return ActionSet.ActionReturnType(HttpStatusCode.Created, new IOResponse { StatusCode = "200", TenantId = tenantid, Message = registrationMessage, TenantName = tenantDto.TenantName });
             }
             return ActionSet.ActionReturnType(HttpStatusCode.InternalServerError, new IOResponse { StatusCode = "500", TenantId = "", Message = IdentityValidationMessage.IDENTITY_INSERT_ERROR_MESSAGE });
         }
@@ -1263,8 +1282,13 @@ namespace LMS.Identity.BusinessSerive.Services
             TenantStoreInfoEntity.Storecodes = storeCodes;
             _unitOfWork.DbContext.TenantStoreInfos.Add(TenantStoreInfoEntity);
             await _unitOfWork.SaveChangesAsync();
-            await SendEmailToRegisterTenantAsync(tenantDto.Email, password, storeCodes, tenantDto.TenantName);
-            return true;
+            var isRegistrationMailSent = await SendEmailToRegisterTenantAsync(tenantDto.Email, password, storeCodes, tenantDto.TenantName);
+            if (!isRegistrationMailSent)
+            {
+                _logger?.LogWarning("Tenant {TenantId} registered but registration email was not delivered to {Email}.", tenantid, tenantDto?.Email);
+            }
+
+            return isRegistrationMailSent;
         }
         private async Task<bool> SendEmailToChangePasswordAsync(string eMail, string password)
         {
@@ -1345,10 +1369,9 @@ namespace LMS.Identity.BusinessSerive.Services
             }
             catch (Exception ex)
             {
-                // For tenant registration we want visibility into mail failures.
+                // Mail delivery failure should not break tenant registration.
                 _logger?.LogError(ex, "Failed to send tenant registration email to {Email}. StoreCodes: {StoreCodes}", eMail, string.Join(",", storeCodes ?? new List<string>()));
-                // Rethrow so the caller / pipeline can observe the failure during diagnostics.
-                throw;
+                return false;
             }
         }
         public async Task SendMail(string eMail, string successFile, string subject, string body)
