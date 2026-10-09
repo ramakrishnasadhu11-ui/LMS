@@ -41,7 +41,7 @@ namespace LMS.Master.WebApi.Controllers
         {
             if (customerDto == null)
             {
-                return BadRequest("Invalid data for this operation");
+                return BadRequest("Invalid data for this operation.");
             }
 
             var insertCustomerResult = await _customer.AddCustomer(customerDto);
@@ -91,7 +91,7 @@ namespace LMS.Master.WebApi.Controllers
         {
             if (customerDto == null)
             {
-                return BadRequest("Invalid data for this operation");
+                return BadRequest("Invalid data for this operation.");
             }
 
             var updateResult = await _customer.UpdateCustomer(customerDto);
@@ -126,7 +126,7 @@ namespace LMS.Master.WebApi.Controllers
         {
             if (preferenceDto == null)
             {
-                return BadRequest("Invalid data for this operation");
+                return BadRequest("Invalid data for this operation.");
             }
 
             var preferenceResult = await _customer.SaveCustomerPreferences(preferenceDto);
@@ -151,7 +151,7 @@ namespace LMS.Master.WebApi.Controllers
         {
             if (pricingRulesDto == null)
             {
-                return BadRequest("Invalid data for this operation");
+                return BadRequest("Invalid data for this operation.");
             }
 
             var pricingRulesResult = await _customer.SavePricingRules(pricingRulesDto);
@@ -176,7 +176,7 @@ namespace LMS.Master.WebApi.Controllers
         {
             if (paymentSettingsDto == null)
             {
-                return BadRequest("Invalid data for this operation");
+                return BadRequest("Invalid data for this operation.");
             }
 
             var paymentSettingsResult = await _customer.SavePaymentSettings(paymentSettingsDto);
@@ -201,7 +201,7 @@ namespace LMS.Master.WebApi.Controllers
         {
             if (taxInvoiceSettingsDto == null)
             {
-                return BadRequest("Invalid data for this operation");
+                return BadRequest("Invalid data for this operation.");
             }
 
             var taxInvoiceSettingsResult = await _customer.SaveTaxInvoiceSettings(taxInvoiceSettingsDto);
@@ -226,7 +226,7 @@ namespace LMS.Master.WebApi.Controllers
         {
             if (workflowStatusSettingsDto == null)
             {
-                return BadRequest("Invalid data for this operation");
+                return BadRequest("Invalid data for this operation.");
             }
 
             var workflowStatusResult = await _customer.SaveWorkflowStatusSettings(workflowStatusSettingsDto);
@@ -251,7 +251,7 @@ namespace LMS.Master.WebApi.Controllers
         {
             if (barcodeTagSettingsDto == null)
             {
-                return BadRequest("Invalid data for this operation");
+                return BadRequest("Invalid data for this operation.");
             }
 
             var barcodeTagResult = await _customer.SaveBarcodeTagSettings(barcodeTagSettingsDto);
@@ -266,7 +266,7 @@ namespace LMS.Master.WebApi.Controllers
         {
             if (advanceDto == null)
             {
-                return BadRequest("Invalid data for this operation");
+                return BadRequest("Invalid data for this operation.");
             }
 
             var advanceResult = await _customer.SaveCustomerAdvance(advanceDto);
@@ -291,7 +291,7 @@ namespace LMS.Master.WebApi.Controllers
         {
             if (orderDto == null)
             {
-                return BadRequest("Invalid data for this operation");
+                return BadRequest("Invalid data for this operation.");
             }
 
             var orderResult = await _customer.CreateLaundryOrder(orderDto);
@@ -356,7 +356,7 @@ namespace LMS.Master.WebApi.Controllers
         {
             if (itemPriceDto == null)
             {
-                return BadRequest("Invalid data for this operation");
+                return BadRequest("Invalid data for this operation.");
             }
 
             var result = await _customer.SaveLaundryItemPrice(itemPriceDto);
@@ -371,7 +371,7 @@ namespace LMS.Master.WebApi.Controllers
         {
             if (itemPriceDto == null)
             {
-                return BadRequest("Invalid data for this operation");
+                return BadRequest("Invalid data for this operation.");
             }
 
             var result = await _customer.DeactivateLaundryItemPrice(
@@ -391,7 +391,7 @@ namespace LMS.Master.WebApi.Controllers
         {
             if (itemPriceDto == null)
             {
-                return BadRequest("Invalid data for this operation");
+                return BadRequest("Invalid data for this operation.");
             }
 
             var result = await _customer.ReactivateLaundryItemPrice(
@@ -431,7 +431,7 @@ namespace LMS.Master.WebApi.Controllers
         {
             if (masterDto == null)
             {
-                return BadRequest("Invalid data for this operation");
+                return BadRequest("Invalid data for this operation.");
             }
 
             var result = await _customer.SaveStoreServiceMaster(masterDto);
@@ -446,7 +446,7 @@ namespace LMS.Master.WebApi.Controllers
         {
             if (masterDto == null)
             {
-                return BadRequest("Invalid data for this operation");
+                return BadRequest("Invalid data for this operation.");
             }
 
             var result = await _customer.SetStoreServiceMasterStatus(
@@ -476,7 +476,7 @@ namespace LMS.Master.WebApi.Controllers
         {
             if (itemDto == null)
             {
-                return BadRequest("Invalid data for this operation");
+                return BadRequest("Invalid data for this operation.");
             }
 
             var result = await _customer.SaveStoreItemMaster(itemDto);
@@ -491,7 +491,7 @@ namespace LMS.Master.WebApi.Controllers
         {
             if (itemDto == null)
             {
-                return BadRequest("Invalid data for this operation");
+                return BadRequest("Invalid data for this operation.");
             }
 
             var result = await _customer.SetStoreItemMasterStatus(

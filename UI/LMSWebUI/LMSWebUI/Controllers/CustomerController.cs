@@ -123,7 +123,7 @@ namespace LMSWebUI.Controllers
 
             if (string.IsNullOrWhiteSpace(resolvedStoreCode))
             {
-                validationMessage = "Session expired. Please login again.";
+                validationMessage = "Session expired. Please log in again.";
                 return false;
             }
 
@@ -313,8 +313,8 @@ namespace LMSWebUI.Controllers
                 TempData["UserMessage"] = JsonConvert.SerializeObject(new MessageDto
                 {
                     CssClassName = "alert alert-danger",
-                    Title = "Fail!",
-                    DisplayMessage = "Session expired. Please login again."
+                    Title = "Failed.",
+                    DisplayMessage = "Session expired. Please log in again."
                 });
                 return RedirectToAction("Index", "Login");
             }
@@ -463,8 +463,8 @@ namespace LMSWebUI.Controllers
                 TempData["UserMessage"] = JsonConvert.SerializeObject(new MessageDto
                 {
                     CssClassName = "alert alert-danger",
-                    Title = "Fail!",
-                    DisplayMessage = "Session expired. Please login again."
+                    Title = "Failed.",
+                    DisplayMessage = "Session expired. Please log in again."
                 });
                 return RedirectToAction("Index", "Login");
             }
@@ -508,7 +508,7 @@ namespace LMSWebUI.Controllers
                 {
                     CssClassName = "alert alert-danger",
                     Title = "Access Denied!",
-                    DisplayMessage = "Only admin users can access Store Configuration."
+                    DisplayMessage = "Only admin users can access store configuration."
                 });
                 return RedirectToAction("Index", "Dashboard");
             }
@@ -521,8 +521,8 @@ namespace LMSWebUI.Controllers
                 TempData["UserMessage"] = JsonConvert.SerializeObject(new MessageDto
                 {
                     CssClassName = "alert alert-danger",
-                    Title = "Fail!",
-                    DisplayMessage = "Session expired. Please login again."
+                    Title = "Failed.",
+                    DisplayMessage = "Session expired. Please log in again."
                 });
                 return RedirectToAction("Index", "Login");
             }
@@ -538,7 +538,7 @@ namespace LMSWebUI.Controllers
                 TempData["UserMessage"] = JsonConvert.SerializeObject(new MessageDto
                 {
                     CssClassName = "alert-danger",
-                    Title = "Fail!",
+                    Title = "Failed.",
                     DisplayMessage = model.LoadErrorMessage
                 });
             }
@@ -556,7 +556,7 @@ namespace LMSWebUI.Controllers
                 {
                     CssClassName = "alert alert-danger",
                     Title = "Access Denied!",
-                    DisplayMessage = "Only admin users can access Store Configuration."
+                    DisplayMessage = "Only admin users can access store configuration."
                 });
                 return RedirectToAction("Index", "Dashboard");
             }
@@ -569,8 +569,8 @@ namespace LMSWebUI.Controllers
                 TempData["UserMessage"] = JsonConvert.SerializeObject(new MessageDto
                 {
                     CssClassName = "alert alert-danger",
-                    Title = "Fail!",
-                    DisplayMessage = "Session expired. Please login again."
+                    Title = "Failed.",
+                    DisplayMessage = "Session expired. Please log in again."
                 });
                 return RedirectToAction("Index", "Login");
             }
@@ -607,7 +607,7 @@ namespace LMSWebUI.Controllers
                 TempData["UserMessage"] = JsonConvert.SerializeObject(new MessageDto
                 {
                     CssClassName = "alert-warning",
-                    Title = "Warning!",
+                    Title = "Warning.",
                     DisplayMessage = validationError
                 });
 
@@ -622,7 +622,7 @@ namespace LMSWebUI.Controllers
                     TempData["UserMessage"] = JsonConvert.SerializeObject(new MessageDto
                     {
                         CssClassName = "alert-danger",
-                        Title = "Fail!",
+                        Title = "Failed.",
                         DisplayMessage = string.IsNullOrWhiteSpace(saveMessage)
                             ? "Unable to save store configuration"
                             : saveMessage
@@ -645,7 +645,7 @@ namespace LMSWebUI.Controllers
                 TempData["UserMessage"] = JsonConvert.SerializeObject(new MessageDto
                 {
                     CssClassName = "alert-danger",
-                    Title = "Fail!",
+                    Title = "Failed.",
                     DisplayMessage = BuildApiErrorMessage(ex, "Unable to save store configuration")
                 });
 
@@ -664,7 +664,7 @@ namespace LMSWebUI.Controllers
                 {
                     CssClassName = "alert alert-danger",
                     Title = "Access Denied!",
-                    DisplayMessage = "Only admin users can access Pricing Rules."
+                    DisplayMessage = "Only admin users can access pricing rules."
                 });
                 return RedirectToAction("Index", "Dashboard");
             }
@@ -677,8 +677,8 @@ namespace LMSWebUI.Controllers
                 TempData["UserMessage"] = JsonConvert.SerializeObject(new MessageDto
                 {
                     CssClassName = "alert alert-danger",
-                    Title = "Fail!",
-                    DisplayMessage = "Session expired. Please login again."
+                    Title = "Failed.",
+                    DisplayMessage = "Session expired. Please log in again."
                 });
                 return RedirectToAction("Index", "Login");
             }
@@ -715,7 +715,7 @@ namespace LMSWebUI.Controllers
                 {
                     CssClassName = "alert alert-danger",
                     Title = "Access Denied!",
-                    DisplayMessage = "Only admin users can access Pricing Rules."
+                    DisplayMessage = "Only admin users can access pricing rules."
                 });
                 return RedirectToAction("Index", "Dashboard");
             }
@@ -728,8 +728,8 @@ namespace LMSWebUI.Controllers
                 TempData["UserMessage"] = JsonConvert.SerializeObject(new MessageDto
                 {
                     CssClassName = "alert alert-danger",
-                    Title = "Fail!",
-                    DisplayMessage = "Session expired. Please login again."
+                    Title = "Failed.",
+                    DisplayMessage = "Session expired. Please log in again."
                 });
                 return RedirectToAction("Index", "Login");
             }
@@ -747,7 +747,7 @@ namespace LMSWebUI.Controllers
                 TempData["UserMessage"] = JsonConvert.SerializeObject(new MessageDto
                 {
                     CssClassName = "alert-warning",
-                    Title = "Warning!",
+                    Title = "Warning.",
                     DisplayMessage = validationError
                 });
 
@@ -771,7 +771,7 @@ namespace LMSWebUI.Controllers
                 TempData["UserMessage"] = JsonConvert.SerializeObject(new MessageDto
                 {
                     CssClassName = "alert alert-danger",
-                    Title = "Fail!",
+                    Title = "Failed.",
                     DisplayMessage = BuildApiErrorMessage(ex, "Unable to save pricing rules.")
                 });
 
@@ -803,8 +803,8 @@ namespace LMSWebUI.Controllers
                 TempData["UserMessage"] = JsonConvert.SerializeObject(new MessageDto
                 {
                     CssClassName = "alert alert-danger",
-                    Title = "Fail!",
-                    DisplayMessage = "Session expired. Please login again."
+                    Title = "Failed.",
+                    DisplayMessage = "Session expired. Please log in again."
                 });
                 return RedirectToAction("Index", "Login");
             }
@@ -825,7 +825,7 @@ namespace LMSWebUI.Controllers
                 {
                     CssClassName = "alert alert-danger",
                     Title = "Access Denied!",
-                    DisplayMessage = "Only admin users can access Tax & Invoice Settings."
+                    DisplayMessage = "Only admin users can access tax & invoice settings."
                 });
                 return RedirectToAction("Index", "Dashboard");
             }
@@ -838,8 +838,8 @@ namespace LMSWebUI.Controllers
                 TempData["UserMessage"] = JsonConvert.SerializeObject(new MessageDto
                 {
                     CssClassName = "alert alert-danger",
-                    Title = "Fail!",
-                    DisplayMessage = "Session expired. Please login again."
+                    Title = "Failed.",
+                    DisplayMessage = "Session expired. Please log in again."
                 });
                 return RedirectToAction("Index", "Login");
             }
@@ -858,7 +858,7 @@ namespace LMSWebUI.Controllers
                 {
                     CssClassName = "alert alert-danger",
                     Title = "Access Denied!",
-                    DisplayMessage = "Only admin users can access Tax & Invoice Settings."
+                    DisplayMessage = "Only admin users can access tax & invoice settings."
                 });
                 return RedirectToAction("Index", "Dashboard");
             }
@@ -871,8 +871,8 @@ namespace LMSWebUI.Controllers
                 TempData["UserMessage"] = JsonConvert.SerializeObject(new MessageDto
                 {
                     CssClassName = "alert alert-danger",
-                    Title = "Fail!",
-                    DisplayMessage = "Session expired. Please login again."
+                    Title = "Failed.",
+                    DisplayMessage = "Session expired. Please log in again."
                 });
                 return RedirectToAction("Index", "Login");
             }
@@ -891,7 +891,7 @@ namespace LMSWebUI.Controllers
                 TempData["UserMessage"] = JsonConvert.SerializeObject(new MessageDto
                 {
                     CssClassName = "alert-warning",
-                    Title = "Warning!",
+                    Title = "Warning.",
                     DisplayMessage = validationError
                 });
 
@@ -920,7 +920,7 @@ namespace LMSWebUI.Controllers
                 TempData["UserMessage"] = JsonConvert.SerializeObject(new MessageDto
                 {
                     CssClassName = "alert alert-danger",
-                    Title = "Fail!",
+                    Title = "Failed.",
                     DisplayMessage = BuildApiErrorMessage(ex, "Unable to save tax and invoice settings.")
                 });
 
@@ -1093,7 +1093,7 @@ namespace LMSWebUI.Controllers
                 {
                     CssClassName = "alert alert-danger",
                     Title = "Access Denied!",
-                    DisplayMessage = "Only admin users can access Barcode / Tag Settings."
+                    DisplayMessage = "Only admin users can access barcode / tag settings."
                 });
                 return RedirectToAction("Index", "Dashboard");
             }
@@ -1106,8 +1106,8 @@ namespace LMSWebUI.Controllers
                 TempData["UserMessage"] = JsonConvert.SerializeObject(new MessageDto
                 {
                     CssClassName = "alert alert-danger",
-                    Title = "Fail!",
-                    DisplayMessage = "Session expired. Please login again."
+                    Title = "Failed.",
+                    DisplayMessage = "Session expired. Please log in again."
                 });
                 return RedirectToAction("Index", "Login");
             }
@@ -1126,7 +1126,7 @@ namespace LMSWebUI.Controllers
                 {
                     CssClassName = "alert alert-danger",
                     Title = "Access Denied!",
-                    DisplayMessage = "Only admin users can access Barcode / Tag Settings."
+                    DisplayMessage = "Only admin users can access barcode / tag settings."
                 });
                 return RedirectToAction("Index", "Dashboard");
             }
@@ -1139,8 +1139,8 @@ namespace LMSWebUI.Controllers
                 TempData["UserMessage"] = JsonConvert.SerializeObject(new MessageDto
                 {
                     CssClassName = "alert alert-danger",
-                    Title = "Fail!",
-                    DisplayMessage = "Session expired. Please login again."
+                    Title = "Failed.",
+                    DisplayMessage = "Session expired. Please log in again."
                 });
                 return RedirectToAction("Index", "Login");
             }
@@ -1161,7 +1161,7 @@ namespace LMSWebUI.Controllers
                 TempData["UserMessage"] = JsonConvert.SerializeObject(new MessageDto
                 {
                     CssClassName = "alert-warning",
-                    Title = "Warning!",
+                    Title = "Warning.",
                     DisplayMessage = validationError
                 });
 
@@ -1185,7 +1185,7 @@ namespace LMSWebUI.Controllers
                 TempData["UserMessage"] = JsonConvert.SerializeObject(new MessageDto
                 {
                     CssClassName = "alert alert-danger",
-                    Title = "Fail!",
+                    Title = "Failed.",
                     DisplayMessage = BuildApiErrorMessage(ex, "Unable to save barcode / tag settings.")
                 });
 
@@ -1445,7 +1445,7 @@ namespace LMSWebUI.Controllers
                 {
                     CssClassName = "alert alert-danger",
                     Title = "Access Denied!",
-                    DisplayMessage = "Only admin users can access Workflow Status Settings."
+                    DisplayMessage = "Only admin users can access workflow status settings."
                 });
                 return RedirectToAction("Index", "Dashboard");
             }
@@ -1458,8 +1458,8 @@ namespace LMSWebUI.Controllers
                 TempData["UserMessage"] = JsonConvert.SerializeObject(new MessageDto
                 {
                     CssClassName = "alert alert-danger",
-                    Title = "Fail!",
-                    DisplayMessage = "Session expired. Please login again."
+                    Title = "Failed.",
+                    DisplayMessage = "Session expired. Please log in again."
                 });
                 return RedirectToAction("Index", "Login");
             }
@@ -1478,7 +1478,7 @@ namespace LMSWebUI.Controllers
                 {
                     CssClassName = "alert alert-danger",
                     Title = "Access Denied!",
-                    DisplayMessage = "Only admin users can access Workflow Status Settings."
+                    DisplayMessage = "Only admin users can access workflow status settings."
                 });
                 return RedirectToAction("Index", "Dashboard");
             }
@@ -1491,8 +1491,8 @@ namespace LMSWebUI.Controllers
                 TempData["UserMessage"] = JsonConvert.SerializeObject(new MessageDto
                 {
                     CssClassName = "alert alert-danger",
-                    Title = "Fail!",
-                    DisplayMessage = "Session expired. Please login again."
+                    Title = "Failed.",
+                    DisplayMessage = "Session expired. Please log in again."
                 });
                 return RedirectToAction("Index", "Login");
             }
@@ -1514,7 +1514,7 @@ namespace LMSWebUI.Controllers
                 TempData["UserMessage"] = JsonConvert.SerializeObject(new MessageDto
                 {
                     CssClassName = "alert-warning",
-                    Title = "Warning!",
+                    Title = "Warning.",
                     DisplayMessage = validationError
                 });
 
@@ -1547,7 +1547,7 @@ namespace LMSWebUI.Controllers
                 TempData["UserMessage"] = JsonConvert.SerializeObject(new MessageDto
                 {
                     CssClassName = "alert alert-danger",
-                    Title = "Fail!",
+                    Title = "Failed.",
                     DisplayMessage = BuildApiErrorMessage(ex, "Unable to save workflow status settings.")
                 });
 
@@ -1650,7 +1650,7 @@ namespace LMSWebUI.Controllers
                 {
                     CssClassName = "alert alert-danger",
                     Title = "Access Denied!",
-                    DisplayMessage = "Only admin users can access Payment Settings."
+                    DisplayMessage = "Only admin users can access payment settings."
                 });
                 return RedirectToAction("Index", "Dashboard");
             }
@@ -1663,8 +1663,8 @@ namespace LMSWebUI.Controllers
                 TempData["UserMessage"] = JsonConvert.SerializeObject(new MessageDto
                 {
                     CssClassName = "alert alert-danger",
-                    Title = "Fail!",
-                    DisplayMessage = "Session expired. Please login again."
+                    Title = "Failed.",
+                    DisplayMessage = "Session expired. Please log in again."
                 });
                 return RedirectToAction("Index", "Login");
             }
@@ -1764,7 +1764,7 @@ namespace LMSWebUI.Controllers
                 {
                     CssClassName = "alert alert-danger",
                     Title = "Access Denied!",
-                    DisplayMessage = "Only admin users can access Payment Settings."
+                    DisplayMessage = "Only admin users can access payment settings."
                 });
                 return RedirectToAction("Index", "Dashboard");
             }
@@ -1777,8 +1777,8 @@ namespace LMSWebUI.Controllers
                 TempData["UserMessage"] = JsonConvert.SerializeObject(new MessageDto
                 {
                     CssClassName = "alert alert-danger",
-                    Title = "Fail!",
-                    DisplayMessage = "Session expired. Please login again."
+                    Title = "Failed.",
+                    DisplayMessage = "Session expired. Please log in again."
                 });
                 return RedirectToAction("Index", "Login");
             }
@@ -1796,7 +1796,7 @@ namespace LMSWebUI.Controllers
                 TempData["UserMessage"] = JsonConvert.SerializeObject(new MessageDto
                 {
                     CssClassName = "alert-warning",
-                    Title = "Warning!",
+                    Title = "Warning.",
                     DisplayMessage = validationError
                 });
 
@@ -1825,7 +1825,7 @@ namespace LMSWebUI.Controllers
                 TempData["UserMessage"] = JsonConvert.SerializeObject(new MessageDto
                 {
                     CssClassName = "alert alert-danger",
-                    Title = "Fail!",
+                    Title = "Failed.",
                     DisplayMessage = BuildApiErrorMessage(ex, "Unable to save payment settings.")
                 });
 
@@ -1855,8 +1855,8 @@ namespace LMSWebUI.Controllers
                 TempData["UserMessage"] = JsonConvert.SerializeObject(new MessageDto
                 {
                     CssClassName = "alert alert-danger",
-                    Title = "Fail!",
-                    DisplayMessage = "Session expired. Please login again."
+                    Title = "Failed.",
+                    DisplayMessage = "Session expired. Please log in again."
                 });
                 return RedirectToAction("Index", "Login");
             }
@@ -1876,7 +1876,7 @@ namespace LMSWebUI.Controllers
             var tenantName = HttpContext.Session.GetString("TenantName");
             if (string.IsNullOrWhiteSpace(tenantName))
             {
-                return Json(new { success = false, message = "Session expired. Please login again.", stores = new List<object>() });
+                return Json(new { success = false, message = "Session expired. Please log in again.", stores = new List<object>() });
             }
 
             try
@@ -1923,7 +1923,7 @@ namespace LMSWebUI.Controllers
             var tenantName = HttpContext.Session.GetString("TenantName");
             if (string.IsNullOrWhiteSpace(tenantName))
             {
-                return Json(new { success = false, message = "Session expired. Please login again." });
+                return Json(new { success = false, message = "Session expired. Please log in again." });
             }
 
             if (string.IsNullOrWhiteSpace(storeCode))
@@ -1981,8 +1981,8 @@ namespace LMSWebUI.Controllers
                 TempData["UserMessage"] = JsonConvert.SerializeObject(new MessageDto
                 {
                     CssClassName = "alert alert-danger",
-                    Title = "Fail!",
-                    DisplayMessage = "Session expired. Please login again."
+                    Title = "Failed.",
+                    DisplayMessage = "Session expired. Please log in again."
                 });
                 return RedirectToAction("Index", "Login");
             }
@@ -2048,7 +2048,7 @@ namespace LMSWebUI.Controllers
             var superAdminName = HttpContext.Session.GetString("TenantName");
             if (string.IsNullOrWhiteSpace(superAdminName))
             {
-                return Json(new { success = false, message = "Session expired. Please login again." });
+                return Json(new { success = false, message = "Session expired. Please log in again." });
             }
 
             if (string.IsNullOrWhiteSpace(tenantId))
@@ -2113,8 +2113,8 @@ namespace LMSWebUI.Controllers
                 TempData["UserMessage"] = JsonConvert.SerializeObject(new MessageDto
                 {
                     CssClassName = "alert alert-danger",
-                    Title = "Fail!",
-                    DisplayMessage = "Session expired. Please login again."
+                    Title = "Failed.",
+                    DisplayMessage = "Session expired. Please log in again."
                 });
                 return RedirectToAction("Index", "Login");
             }
@@ -2137,7 +2137,7 @@ namespace LMSWebUI.Controllers
 
             if (string.IsNullOrWhiteSpace(tenantName) || string.IsNullOrWhiteSpace(currentStoreCode))
             {
-                return Json(new { success = false, message = "Session expired. Please login again." });
+                return Json(new { success = false, message = "Session expired. Please log in again." });
             }
 
             newStoreCode = newStoreCode?.Trim();
@@ -2240,8 +2240,8 @@ namespace LMSWebUI.Controllers
                 TempData["UserMessage"] = JsonConvert.SerializeObject(new MessageDto
                 {
                     CssClassName = "alert alert-danger",
-                    Title = "Fail!",
-                    DisplayMessage = "Session expired. Please login again."
+                    Title = "Failed.",
+                    DisplayMessage = "Session expired. Please log in again."
                 });
                 return RedirectToAction("Index", "Login");
             }
@@ -2268,7 +2268,7 @@ namespace LMSWebUI.Controllers
 
             if (string.IsNullOrWhiteSpace(tenantEmail) || string.IsNullOrWhiteSpace(currentStoreCode))
             {
-                return Json(new { success = false, message = "Session expired. Please login again." });
+                return Json(new { success = false, message = "Session expired. Please log in again." });
             }
 
             if (string.IsNullOrWhiteSpace(email) || string.IsNullOrWhiteSpace(password))
@@ -2354,7 +2354,7 @@ namespace LMSWebUI.Controllers
                 return Json(new
                 {
                     success = false,
-                    message = "Session expired. Please login again."
+                    message = "Session expired. Please log in again."
                 });
             }
 
@@ -2473,7 +2473,7 @@ namespace LMSWebUI.Controllers
 
             if (string.IsNullOrWhiteSpace(tenantEmail) || string.IsNullOrWhiteSpace(currentStoreCode))
             {
-                return Json(new { success = false, message = "Session expired. Please login again.", users = new List<object>() });
+                return Json(new { success = false, message = "Session expired. Please log in again.", users = new List<object>() });
             }
 
             if (!TryResolveTargetStore(currentStoreCode, storeCode, out var resolvedStoreCode, out var validationMessage))
@@ -2589,8 +2589,8 @@ namespace LMSWebUI.Controllers
                 TempData["UserMessage"] = JsonConvert.SerializeObject(new MessageDto
                 {
                     CssClassName = "alert alert-danger",
-                    Title = "Fail!",
-                    DisplayMessage = "Session expired. Please login again."
+                    Title = "Failed.",
+                    DisplayMessage = "Session expired. Please log in again."
                 });
                 return RedirectToAction("Index", "Login");
             }
@@ -2612,8 +2612,8 @@ namespace LMSWebUI.Controllers
                 TempData["UserMessage"] = JsonConvert.SerializeObject(new MessageDto
                 {
                     CssClassName = "alert alert-danger",
-                    Title = "Fail!",
-                    DisplayMessage = "Session expired. Please login again."
+                    Title = "Failed.",
+                    DisplayMessage = "Session expired. Please log in again."
                 });
                 return RedirectToAction("Index", "Login");
             }
@@ -2646,7 +2646,7 @@ namespace LMSWebUI.Controllers
                 TempData["UserMessage"] = JsonConvert.SerializeObject(new MessageDto
                 {
                     CssClassName = "alert alert-danger",
-                    Title = "Fail!",
+                    Title = "Failed.",
                     DisplayMessage = string.IsNullOrWhiteSpace(apiErrorMessage)
                         ? "Unable to save customer preferences."
                         : $"Unable to save customer preferences. {apiErrorMessage}"
@@ -2810,7 +2810,7 @@ namespace LMSWebUI.Controllers
                 return Json(new CustomerIOResponse
                 {
                     StatusCode = "404",
-                    Message = "Session expired. Please login again."
+                    Message = "Session expired. Please log in again."
                 });
             }
 
@@ -2854,25 +2854,25 @@ namespace LMSWebUI.Controllers
         {
             if (string.IsNullOrWhiteSpace(customerInfoDto.CustomerName))
             {
-                TempData["UserMessage"] = JsonConvert.SerializeObject(new MessageDto { CssClassName = "alert-warning", Title = "warning!", DisplayMessage = "Please enter Customer Name" });
+                TempData["UserMessage"] = JsonConvert.SerializeObject(new MessageDto { CssClassName = "alert-warning", Title = "Warning.", DisplayMessage = "Please enter Customer Name" });
                 return RedirectToAction("Index", "Customer");
             }
 
             if (string.IsNullOrWhiteSpace(customerInfoDto.Address))
             {
-                TempData["UserMessage"] = JsonConvert.SerializeObject(new MessageDto { CssClassName = "alert-warning", Title = "warning!", DisplayMessage = "Please enter Customer Address" });
+                TempData["UserMessage"] = JsonConvert.SerializeObject(new MessageDto { CssClassName = "alert-warning", Title = "Warning.", DisplayMessage = "Please enter Customer Address" });
                 return RedirectToAction("Index", "Customer");
             }
 
             if (!string.IsNullOrWhiteSpace(customerInfoDto.PhoneNumber) && !Regex.IsMatch(customerInfoDto.PhoneNumber.Trim().Replace(" ", string.Empty), @"^\d{7,15}$"))
             {
-                TempData["UserMessage"] = JsonConvert.SerializeObject(new MessageDto { CssClassName = "alert-warning", Title = "warning!", DisplayMessage = "Please enter a valid phone number (7-15 digits)" });
+                TempData["UserMessage"] = JsonConvert.SerializeObject(new MessageDto { CssClassName = "alert-warning", Title = "Warning.", DisplayMessage = "Please enter a valid phone number (7-15 digits)" });
                 return RedirectToAction("Index", "Customer");
             }
 
             if (!string.IsNullOrWhiteSpace(customerInfoDto.Email) && !Regex.IsMatch(customerInfoDto.Email.Trim(), @"^[^\s@]+@[^\s@]+\.[^\s@]+$"))
             {
-                TempData["UserMessage"] = JsonConvert.SerializeObject(new MessageDto { CssClassName = "alert-warning", Title = "warning!", DisplayMessage = "Please enter a valid email address" });
+                TempData["UserMessage"] = JsonConvert.SerializeObject(new MessageDto { CssClassName = "alert-warning", Title = "Warning.", DisplayMessage = "Please enter a valid email address" });
                 return RedirectToAction("Index", "Customer");
             }
 
@@ -2888,7 +2888,7 @@ namespace LMSWebUI.Controllers
 
             if (string.IsNullOrWhiteSpace(tenantName) || string.IsNullOrWhiteSpace(tenanStore))
             {
-                TempData["UserMessage"] = JsonConvert.SerializeObject(new MessageDto { CssClassName = "alert alert-danger", Title = "Fail!", DisplayMessage = "Session expired. Please login again." });
+                TempData["UserMessage"] = JsonConvert.SerializeObject(new MessageDto { CssClassName = "alert alert-danger", Title = "Failed.", DisplayMessage = "Session expired. Please log in again." });
                 return RedirectToAction("Index", "Login");
             }
 
@@ -2960,7 +2960,7 @@ namespace LMSWebUI.Controllers
                     return Json(new { success = false, message = failureMessage });
                 }
 
-                TempData["UserMessage"] = JsonConvert.SerializeObject(new MessageDto { CssClassName = "alert alert-danger", Title = "Fail!", DisplayMessage = failureMessage });
+                TempData["UserMessage"] = JsonConvert.SerializeObject(new MessageDto { CssClassName = "alert alert-danger", Title = "Failed.", DisplayMessage = failureMessage });
                 return RedirectToAction("Index", "Customer");
             }
             catch (Exception ex)
@@ -2978,7 +2978,7 @@ namespace LMSWebUI.Controllers
                 TempData["UserMessage"] = JsonConvert.SerializeObject(new MessageDto
                 {
                     CssClassName = "alert alert-danger",
-                    Title = "Fail!",
+                    Title = "Failed.",
                     DisplayMessage = displayMessage
                 });
                 return RedirectToAction("Index", "Customer");
@@ -3037,7 +3037,7 @@ namespace LMSWebUI.Controllers
 
             if (string.IsNullOrWhiteSpace(customerInfoDto.StoreCode) || string.IsNullOrWhiteSpace(customerInfoDto.TenantName))
             {
-                return Json(new { success = false, message = "Session expired. Please login again." });
+                return Json(new { success = false, message = "Session expired. Please log in again." });
             }
 
             var updateRequest = new
@@ -3132,8 +3132,8 @@ namespace LMSWebUI.Controllers
                 TempData["UserMessage"] = JsonConvert.SerializeObject(new MessageDto
                 {
                     CssClassName = "alert alert-danger",
-                    Title = "Fail!",
-                    DisplayMessage = "Session expired. Please login again."
+                    Title = "Failed.",
+                    DisplayMessage = "Session expired. Please log in again."
                 });
                 return RedirectToAction("Index", "Login");
             }
@@ -3161,8 +3161,8 @@ namespace LMSWebUI.Controllers
                 TempData["UserMessage"] = JsonConvert.SerializeObject(new MessageDto
                 {
                     CssClassName = "alert alert-danger",
-                    Title = "Fail!",
-                    DisplayMessage = "Session expired. Please login again."
+                    Title = "Failed.",
+                    DisplayMessage = "Session expired. Please log in again."
                 });
                 return RedirectToAction("Index", "Login");
             }
@@ -3268,7 +3268,7 @@ namespace LMSWebUI.Controllers
                 return Json(new
                 {
                     success = false,
-                    message = "Session expired. Please login again.",
+                    message = "Session expired. Please log in again.",
                     balance = 0m,
                     transactions = new List<CustomerAdvanceDto>()
                 });
@@ -3372,8 +3372,8 @@ namespace LMSWebUI.Controllers
                 TempData["UserMessage"] = JsonConvert.SerializeObject(new MessageDto
                 {
                     CssClassName = "alert alert-danger",
-                    Title = "Fail!",
-                    DisplayMessage = "Session expired. Please login again."
+                    Title = "Failed.",
+                    DisplayMessage = "Session expired. Please log in again."
                 });
                 return RedirectToAction("Index", "Login");
             }
@@ -3487,8 +3487,8 @@ namespace LMSWebUI.Controllers
                 TempData["UserMessage"] = JsonConvert.SerializeObject(new MessageDto
                 {
                     CssClassName = "alert alert-danger",
-                    Title = "Fail!",
-                    DisplayMessage = "Session expired. Please login again."
+                    Title = "Failed.",
+                    DisplayMessage = "Session expired. Please log in again."
                 });
                 return RedirectToAction("Index", "Login");
             }
@@ -4544,7 +4544,7 @@ namespace LMSWebUI.Controllers
                 return Json(new
                 {
                     success = false,
-                    message = "Session expired. Please login again.",
+                    message = "Session expired. Please log in again.",
                     orders = new List<LaundryOrderDto>()
                 });
             }
@@ -4632,7 +4632,7 @@ namespace LMSWebUI.Controllers
                 return Json(new
                 {
                     success = false,
-                    message = "Session expired. Please login again."
+                    message = "Session expired. Please log in again."
                 });
             }
 
@@ -4714,7 +4714,7 @@ namespace LMSWebUI.Controllers
 
             if (string.IsNullOrWhiteSpace(tenantName) || string.IsNullOrWhiteSpace(storeCode))
             {
-                return Json(new { success = false, message = "Session expired. Please login again." });
+                return Json(new { success = false, message = "Session expired. Please log in again." });
             }
 
             var term = searchText?.Trim();
@@ -4813,8 +4813,8 @@ namespace LMSWebUI.Controllers
                 TempData["UserMessage"] = JsonConvert.SerializeObject(new MessageDto
                 {
                     CssClassName = "alert alert-danger",
-                    Title = "Fail!",
-                    DisplayMessage = "Session expired. Please login again."
+                    Title = "Failed.",
+                    DisplayMessage = "Session expired. Please log in again."
                 });
                 return RedirectToAction("Index", "Login");
             }
@@ -4846,7 +4846,7 @@ namespace LMSWebUI.Controllers
                 return Json(new
                 {
                     success = false,
-                    message = "Session expired. Please login again.",
+                    message = "Session expired. Please log in again.",
                     orders = new List<LaundryOrderDto>()
                 });
             }
@@ -4931,7 +4931,7 @@ namespace LMSWebUI.Controllers
 
             if (string.IsNullOrWhiteSpace(tenantName) || string.IsNullOrWhiteSpace(storeCode))
             {
-                return Json(new { success = false, message = "Session expired. Please login again." });
+                return Json(new { success = false, message = "Session expired. Please log in again." });
             }
 
             if (!CanManageStoreOrderWorkflow())
@@ -5056,7 +5056,7 @@ namespace LMSWebUI.Controllers
 
             if (string.IsNullOrWhiteSpace(tenantName) || string.IsNullOrWhiteSpace(storeCode))
             {
-                return Json(new { success = false, message = "Session expired. Please login again." });
+                return Json(new { success = false, message = "Session expired. Please log in again." });
             }
 
             if (string.IsNullOrWhiteSpace(orderNo))
@@ -5186,7 +5186,7 @@ namespace LMSWebUI.Controllers
 
             if (string.IsNullOrWhiteSpace(tenantName) || string.IsNullOrWhiteSpace(storeCode))
             {
-                return Json(new { success = false, message = "Session expired. Please login again." });
+                return Json(new { success = false, message = "Session expired. Please log in again." });
             }
 
             model.TenantName = tenantName;
@@ -5242,7 +5242,7 @@ namespace LMSWebUI.Controllers
 
             if (string.IsNullOrWhiteSpace(tenantName) || string.IsNullOrWhiteSpace(storeCode))
             {
-                return Json(new { success = false, message = "Session expired. Please login again." });
+                return Json(new { success = false, message = "Session expired. Please log in again." });
             }
 
             if (string.IsNullOrWhiteSpace(serviceType)
@@ -5289,7 +5289,7 @@ namespace LMSWebUI.Controllers
 
             if (string.IsNullOrWhiteSpace(tenantName) || string.IsNullOrWhiteSpace(storeCode))
             {
-                return Json(new { success = false, message = "Session expired. Please login again." });
+                return Json(new { success = false, message = "Session expired. Please log in again." });
             }
 
             if (string.IsNullOrWhiteSpace(serviceType)
@@ -5339,7 +5339,7 @@ namespace LMSWebUI.Controllers
                 return Json(new
                 {
                     success = false,
-                    message = "Session expired. Please login again.",
+                    message = "Session expired. Please log in again.",
                     items = new List<LaundryItemPriceDto>()
                 });
             }
@@ -5388,7 +5388,7 @@ namespace LMSWebUI.Controllers
 
             if (string.IsNullOrWhiteSpace(tenantName) || string.IsNullOrWhiteSpace(storeCode))
             {
-                return Json(new { success = false, message = "Session expired. Please login again." });
+                return Json(new { success = false, message = "Session expired. Please log in again." });
             }
 
             try
@@ -5425,7 +5425,7 @@ namespace LMSWebUI.Controllers
 
             if (string.IsNullOrWhiteSpace(tenantName) || string.IsNullOrWhiteSpace(storeCode))
             {
-                return Json(new { success = false, message = "Session expired. Please login again." });
+                return Json(new { success = false, message = "Session expired. Please log in again." });
             }
 
             if (csvFile == null || csvFile.Length == 0)
@@ -5566,7 +5566,7 @@ namespace LMSWebUI.Controllers
 
             if (string.IsNullOrWhiteSpace(tenantName) || string.IsNullOrWhiteSpace(storeCode))
             {
-                return Json(new { success = false, message = "Session expired. Please login again." });
+                return Json(new { success = false, message = "Session expired. Please log in again." });
             }
 
             try
@@ -5684,7 +5684,7 @@ namespace LMSWebUI.Controllers
 
             if (string.IsNullOrWhiteSpace(tenantName) || string.IsNullOrWhiteSpace(storeCode))
             {
-                return Json(new { success = false, message = "Session expired. Please login again." });
+                return Json(new { success = false, message = "Session expired. Please log in again." });
             }
 
             if (string.IsNullOrWhiteSpace(name))
@@ -5734,7 +5734,7 @@ namespace LMSWebUI.Controllers
 
             if (string.IsNullOrWhiteSpace(tenantName) || string.IsNullOrWhiteSpace(storeCode))
             {
-                return Json(new { success = false, message = "Session expired. Please login again." });
+                return Json(new { success = false, message = "Session expired. Please log in again." });
             }
 
             if (csvFile == null || csvFile.Length == 0)
@@ -5873,7 +5873,7 @@ namespace LMSWebUI.Controllers
 
             if (string.IsNullOrWhiteSpace(tenantName) || string.IsNullOrWhiteSpace(storeCode))
             {
-                return Json(new { success = false, message = "Session expired. Please login again." });
+                return Json(new { success = false, message = "Session expired. Please log in again." });
             }
 
             if (string.IsNullOrWhiteSpace(name))
@@ -5917,7 +5917,7 @@ namespace LMSWebUI.Controllers
 
             if (string.IsNullOrWhiteSpace(tenantName) || string.IsNullOrWhiteSpace(storeCode))
             {
-                return Json(new { success = false, message = "Session expired. Please login again." });
+                return Json(new { success = false, message = "Session expired. Please log in again." });
             }
 
             if (string.IsNullOrWhiteSpace(serviceType)
@@ -5965,7 +5965,7 @@ namespace LMSWebUI.Controllers
 
             if (string.IsNullOrWhiteSpace(tenantName) || string.IsNullOrWhiteSpace(storeCode))
             {
-                return Json(new { success = false, message = "Session expired. Please login again." });
+                return Json(new { success = false, message = "Session expired. Please log in again." });
             }
 
             if (string.IsNullOrWhiteSpace(serviceType)

@@ -308,6 +308,13 @@
 
 <script>
 (function () {
+    if (!window.location.search) {
+        var customItemsCsvFileInput = document.getElementById("customItemsCsvFile");
+        if (customItemsCsvFileInput) {
+            customItemsCsvFileInput.value = "";
+        }
+    }
+
     function showToast(message, isSuccess) {
         var toast = document.getElementById("csvToast");
         if (!toast) {

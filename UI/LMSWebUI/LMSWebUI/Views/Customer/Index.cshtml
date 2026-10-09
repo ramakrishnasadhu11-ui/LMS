@@ -1001,6 +1001,17 @@ textarea.maintain-text {
              window.resetCustomerFormToCreateMode = resetCustomerFormToCreateMode;
 
              document.addEventListener("DOMContentLoaded", function () {
+                var shouldClearCreateFieldsOnFreshLoad = !window.location.search
+                    && !window.location.hash
+                    && '@(actionMode == "create" ? "true" : "false")' === "true"
+                    && !window.customerSaveToastMessage
+                    && !window.updateModeToastMessage
+                    && !window.updateSearchToastMessage;
+
+                if (shouldClearCreateFieldsOnFreshLoad) {
+                    resetCustomerFormToCreateMode();
+                }
+
                 // Apply customer preferences driven UI adjustments
                 try {
                     var prefsJson = @Html.Raw(ViewData["CustomerPreferences"] ?? "null");

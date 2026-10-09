@@ -699,13 +699,13 @@
                                 <li><a href="#">Customer Code</a></li>
                             </ul>
                         </div>
-                        <input type="text" id="searchCustomers" class="form-control" placeholder="Search customer..." />
+                        <input type="text" id="searchCustomers" class="form-control" placeholder="Search customer..." autocomplete="off" />
                     </div>
                     <div id="customerSearchMessage" class="search-no-result"></div>
                 </div>
 
                 <div class="form-group search-input-wrap" id="searchInvoiceradio">
-                    <input type="text" id="searchInvoiceText" class="form-control" placeholder="Search Order No / Invoice No..." />
+                    <input type="text" id="searchInvoiceText" class="form-control" placeholder="Search Order No / Invoice No..." autocomplete="off" />
                     <div id="invoiceSearchMessage" class="search-no-result"></div>
                 </div>
             }
@@ -1689,6 +1689,15 @@ document.addEventListener("click", function (e)
 
         var searchInput = document.getElementById("searchCustomers");
         var invoiceInput = document.getElementById("searchInvoiceText");
+
+        if (!window.location.search && !window.location.hash) {
+            if (searchInput) {
+                searchInput.value = "";
+            }
+            if (invoiceInput) {
+                invoiceInput.value = "";
+            }
+        }
 
         function triggerInvoiceReferenceLookup(referenceText) {
             var value = (referenceText || "").trim();

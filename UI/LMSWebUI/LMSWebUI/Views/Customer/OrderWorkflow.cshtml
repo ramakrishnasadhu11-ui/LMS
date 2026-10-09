@@ -197,7 +197,7 @@
                     <option value="Ready">Ready</option>
                     <option value="Delivered">Delivered</option>
                 </select>
-                <input type="text" id="wfSearchText" class="form-control" placeholder="Search by Order No / Invoice No / Customer / Customer Code" />
+                <input type="text" id="wfSearchText" class="form-control" placeholder="Search by Order No / Invoice No / Customer / Customer Code" autocomplete="off" />
                 <button type="button" id="wfRefreshBtn" class="btn btn-primary">Refresh</button>
             </div>
 
@@ -551,6 +551,33 @@
         var statusFilter = wfById("wfStatusFilter");
         if (statusFilter) statusFilter.onchange = wfLoad;
         var searchInput = wfById("wfSearchText");
+        var initialQueryStatus = "";
+        var initialQuerySearch = "";
+
+        try {
+            initialQueryStatus = getQueryParam("status") || "";
+            initialQuerySearch = getQueryParam("searchText") || "";
+        } catch (e) {
+            initialQueryStatus = "";
+            initialQuerySearch = "";
+        }
+
+        if (!window.location.search && !window.location.hash) {
+            if (statusFilter) {
+                statusFilter.value = "";
+            }
+            if (searchInput) {
+                searchInput.value = "";
+            }
+        } else {
+            if (statusFilter && initialQueryStatus) {
+                statusFilter.value = initialQueryStatus;
+            }
+            if (searchInput && initialQuerySearch) {
+                searchInput.value = initialQuerySearch;
+            }
+        }
+
         if (searchInput) {
             searchInput.onkeydown = function (e) {
                 e = e || window.event;

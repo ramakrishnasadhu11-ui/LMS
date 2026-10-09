@@ -209,7 +209,7 @@
                 <div class="master-import-row">
                     <a class="master-btn secondary" style="text-decoration:none; display:inline-flex; align-items:center;"
                        href="~/templates/StoreServiceCategoryMasterTemplate.csv" download>Download Default List</a>
-                    <input type="file" id="masterCsvFile" accept=".csv,text/csv" />
+                    <input type="file" id="masterCsvFile" accept=".csv,text/csv" autocomplete="off" />
                     <button type="button" class="master-btn" id="importMastersBtn">Upload &amp; Load</button>
                 </div>
                 <div class="master-import-hint">
@@ -230,11 +230,11 @@
                     <div class="master-panel-title">Service Types</div>
                     <div class="master-field">
                         <label for="serviceNameInput">Service Type Name</label>
-                        <input type="text" id="serviceNameInput" maxlength="128" placeholder="e.g. Dry Clean" />
+                            <input type="text" id="serviceNameInput" maxlength="128" placeholder="e.g. Dry Clean" autocomplete="off" />
                     </div>
                     <div class="master-field">
                         <label for="serviceDescInput">Description</label>
-                        <input type="text" id="serviceDescInput" maxlength="256" placeholder="Optional" />
+                            <input type="text" id="serviceDescInput" maxlength="256" placeholder="Optional" autocomplete="off" />
                     </div>
                     <button type="button" class="master-btn" id="addServiceBtn">Add Service Type</button>
                     <div id="serviceTableWrap"></div>
@@ -244,11 +244,11 @@
                     <div class="master-panel-title">Categories</div>
                     <div class="master-field">
                         <label for="categoryNameInput">Category Name</label>
-                        <input type="text" id="categoryNameInput" maxlength="128" placeholder="e.g. Men" />
+                            <input type="text" id="categoryNameInput" maxlength="128" placeholder="e.g. Men" autocomplete="off" />
                     </div>
                     <div class="master-field">
                         <label for="categoryDescInput">Description</label>
-                        <input type="text" id="categoryDescInput" maxlength="256" placeholder="Optional" />
+                            <input type="text" id="categoryDescInput" maxlength="256" placeholder="Optional" autocomplete="off" />
                     </div>
                     <button type="button" class="master-btn" id="addCategoryBtn">Add Category</button>
                     <div id="categoryTableWrap"></div>
@@ -267,12 +267,12 @@
                         </div>
                         <div class="master-field">
                             <label for="itemNameInput">Item Name</label>
-                            <input type="text" id="itemNameInput" maxlength="128" placeholder="e.g. Shirt" />
+                            <input type="text" id="itemNameInput" maxlength="128" placeholder="e.g. Shirt" autocomplete="off" />
                         </div>
                     </div>
                     <div class="master-field">
                         <label for="itemDescInput">Description</label>
-                        <input type="text" id="itemDescInput" maxlength="256" placeholder="Optional" />
+                        <input type="text" id="itemDescInput" maxlength="256" placeholder="Optional" autocomplete="off" />
                     </div>
                     <button type="button" class="master-btn" id="addItemBtn">Add Item</button>
                     <div id="itemTableWrap"></div>
@@ -289,6 +289,20 @@
 
 <script type="text/javascript">
     (function () {
+        if (!window.location.search) {
+            ["serviceNameInput", "serviceDescInput", "categoryNameInput", "categoryDescInput", "itemNameInput", "itemDescInput"].forEach(function (id) {
+                var field = document.getElementById(id);
+                if (field) {
+                    field.value = "";
+                }
+            });
+
+            var masterCsvInput = document.getElementById("masterCsvFile");
+            if (masterCsvInput) {
+                masterCsvInput.value = "";
+            }
+        }
+
         var masterData = { serviceTypes: [], categories: [], items: [] };
         var toastTimer = null;
 

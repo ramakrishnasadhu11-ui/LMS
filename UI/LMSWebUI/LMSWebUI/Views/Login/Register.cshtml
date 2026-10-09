@@ -9,6 +9,39 @@
     <link rel="stylesheet" type="text/css" href="~/css/custom.css">
     <link rel="stylesheet" type="text/css" href="~/css/app-theme.css">
     <link href="https://fonts.googleapis.com/css?family=Poppins:100,300,400,500,600,700&display=swap" rel="stylesheet">
+    <style>
+        .form-content.register .register-form .register-field {
+            margin-bottom: 12px;
+        }
+
+        .form-content.register .register-form .register-field .form-control {
+            margin-bottom: 0;
+        }
+
+        .form-content.register .register-form .register-field .text-danger {
+            display: block;
+            position: static;
+            margin-top: 6px;
+            margin-bottom: 0;
+            font-size: 12px;
+            line-height: 1.35;
+            white-space: normal;
+            word-break: break-word;
+        }
+
+        .form-content.register .register-form .register-field .field-validation-valid {
+            display: none;
+        }
+
+        .form-content.register .register-form .register-field .field-validation-error {
+            display: block;
+        }
+
+        .form-content.register .register-form .validation-summary-errors,
+        .form-content.register .register-form .validation-summary-valid {
+            margin-top: 10px;
+        }
+    </style>
 </head>
 <body>
     <script>
@@ -80,17 +113,36 @@
                         <div class="page-links">
                             <a href="@Url.Action("Login", "Login")">Login</a> <a class="active" href="@Url.Action("Register", "Login")">Register</a>
                         </div>
-                        @using (Html.BeginForm("Register", "Login", FormMethod.Post, new { @class = "form" }))
+                        @using (Html.BeginForm("Register", "Login", FormMethod.Post, new { @class = "form register-form" }))
                         {
-                                @Html.TextBoxFor(m => m.FamilyName, new { @placeholder = "First Name", @class = "form-control", required = "required" })
-                                @Html.TextBoxFor(m => m.MiddleName, new { @placeholder = "Last Name", @class = "form-control", required = "required" })
-                                @Html.TextBoxFor(m => m.TenantName, new { @placeholder = "Company Name", @class = "form-control", required = "required" })
-                                @Html.TextBoxFor(m => m.Email, new { @placeholder = "E-mail Address", @class = "form-control", required = "required" })
-                                @Html.TextBoxFor(m => m.PhoneNumber, new { @placeholder = "Phone Number", @class = "form-control", required = "required" })
-                                @Html.TextBoxFor(m => m.NoOfStores, new { @placeholder = "Number of Stores", @class = "form-control", required = "required" })
+                                <div class="register-field">
+                                    @Html.TextBoxFor(m => m.FamilyName, new { @placeholder = "First Name", @class = "form-control" })
+                                    @Html.ValidationMessageFor(m => m.FamilyName, null, new { @class = "text-danger" })
+                                </div>
+                                <div class="register-field">
+                                    @Html.TextBoxFor(m => m.MiddleName, new { @placeholder = "Last Name", @class = "form-control" })
+                                    @Html.ValidationMessageFor(m => m.MiddleName, null, new { @class = "text-danger" })
+                                </div>
+                                <div class="register-field">
+                                    @Html.TextBoxFor(m => m.TenantName, new { @placeholder = "Company Name", @class = "form-control" })
+                                    @Html.ValidationMessageFor(m => m.TenantName, null, new { @class = "text-danger" })
+                                </div>
+                                <div class="register-field">
+                                    @Html.TextBoxFor(m => m.Email, new { @placeholder = "E-mail Address", @class = "form-control" })
+                                    @Html.ValidationMessageFor(m => m.Email, null, new { @class = "text-danger" })
+                                </div>
+                                <div class="register-field">
+                                    @Html.TextBoxFor(m => m.PhoneNumber, new { @placeholder = "Phone Number", @class = "form-control" })
+                                    @Html.ValidationMessageFor(m => m.PhoneNumber, null, new { @class = "text-danger" })
+                                </div>
+                                <div class="register-field">
+                                    @Html.TextBoxFor(m => m.NoOfStores, new { @placeholder = "Number of Stores", @class = "form-control" })
+                                    @Html.ValidationMessageFor(m => m.NoOfStores, null, new { @class = "text-danger" })
+                                </div>
                                 <button id="submit" type="submit" class="ibtn" disabled="@(disablebtn ? "disabled" : null)">Register</button>
                                 <p>Already have an account?  <a href="@Url.Action("Login", "Login")">Login</a></p>
                         }
+                        @Html.ValidationSummary(excludePropertyErrors: true, message: "", htmlAttributes: new { @class = "text-danger" })
 
                     </div>
                 </div>
@@ -100,15 +152,23 @@
      <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.4.1/jquery.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.16.0/umd/popper.min.js"></script>
     <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.4.1/js/bootstrap.min.js"></script>
+    @await Html.PartialAsync("_ValidationScriptsPartial")
     <script type='text/javascript'>
         syncThemeButtonText();
+        var shouldClearRegisterInputs = @((ViewData.ModelState.IsValid && string.IsNullOrWhiteSpace(Model?.Message)) ? "true" : "false");
 
         $(function ()
         {
-         $("input[type=submit]").click({
-         $('input[type=submit]').attr('disabled', 'disabled');
-    });
-});
+            if (shouldClearRegisterInputs) {
+                var registerPageInputs = $('input').not(':button, :submit, :reset, [type=hidden], [type=checkbox], [type=radio]');
+                registerPageInputs.val('');
+                $('input[type=checkbox], input[type=radio]').prop('checked', false);
+            }
+
+            $("input[type=submit]").on('click', function () {
+                $(this).attr('disabled', 'disabled');
+            });
+        });
     </script>
 </body>
 </html>

@@ -1,0 +1,224 @@
+@using System
+@model LMSWebUI.Models.Login.TenantProfileViewModel
+@{
+    ViewData["Title"] = "My Profile";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+
+    var displayName = string.IsNullOrWhiteSpace(Model?.TenantName) ? "User" : Model.TenantName;
+    var displayEmail = string.IsNullOrWhiteSpace(Model?.Email) ? "-" : Model.Email;
+    var displayPhone = string.IsNullOrWhiteSpace(Model?.PhoneNumber) ? "-" : Model.PhoneNumber;
+    var displayAddress = string.IsNullOrWhiteSpace(Model?.Address) ? "-" : Model.Address;
+    var displayCountry = string.IsNullOrWhiteSpace(Model?.Country) ? "-" : Model.Country;
+    var displayStore = string.IsNullOrWhiteSpace(Model?.TenantStore) ? "-" : Model.TenantStore;
+    var displayRole = string.IsNullOrWhiteSpace(Model?.UserRole) ? "StoreUser" : Model.UserRole;
+    var profileImageUrl = string.IsNullOrWhiteSpace(Model?.ProfileImageUrl) ? Url.Content("~/dist/img/user2-160x160.jpg") : (Model.ProfileImageUrl.Trim().StartsWith("~/", StringComparison.Ordinal) ? Url.Content(Model.ProfileImageUrl.Trim()) : Model.ProfileImageUrl.Trim());
+    var defaultAvatarUrl = Url.Content("~/dist/img/user2-160x160.jpg");
+    var memberSince = Model?.CreatedDate.HasValue == true ? $"{Model.CreatedDate.Value:yyyy}" : "-";
+    var memberSinceFull = Model?.CreatedDate.HasValue == true ? Model.CreatedDate.Value.ToString("yyyy-MM-dd") : "-";
+}
+
+<style>
+.profile-page-wrap {
+    max-width: 960px;
+    margin: 18px auto;
+    padding: 0 12px;
+}
+
+.profile-card {
+    background: var(--els-surface);
+    border: 1px solid var(--els-border);
+    border-radius: 14px;
+    box-shadow: 0 10px 28px rgba(15, 23, 42, 0.10);
+    overflow: hidden;
+}
+
+.profile-header {
+    display: grid;
+    grid-template-columns: 110px 1fr;
+    gap: 16px;
+    align-items: center;
+    padding: 18px;
+    background: linear-gradient(135deg, color-mix(in srgb, var(--els-primary) 24%, #ffffff) 0%, var(--els-surface) 100%);
+    border-bottom: 1px solid var(--els-border);
+}
+
+.profile-avatar {
+    width: 96px;
+    height: 96px;
+    border-radius: 50%;
+    overflow: hidden;
+    border: 2px solid var(--els-primary-light);
+    box-shadow: 0 6px 20px rgba(15, 23, 42, 0.16);
+    background: #fff;
+}
+
+.profile-avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+
+.profile-title {
+    margin: 0;
+    color: var(--els-text);
+    font-size: 24px;
+    font-weight: 700;
+}
+
+.profile-subtitle {
+    margin-top: 4px;
+    color: var(--els-text-muted, #64748b);
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.profile-tags {
+    margin-top: 10px;
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.profile-tag {
+    display: inline-block;
+    padding: 4px 10px;
+    border-radius: 999px;
+    border: 1px solid var(--els-border);
+    background: var(--els-background);
+    color: var(--els-text);
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.profile-body {
+    padding: 16px 18px 20px;
+}
+
+.profile-section-title {
+    margin: 0 0 10px;
+    color: var(--els-text);
+    font-size: 15px;
+    font-weight: 700;
+}
+
+.profile-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px 14px;
+}
+
+.profile-field {
+    border: 1px solid var(--els-border);
+    border-radius: 10px;
+    background: var(--els-background);
+    padding: 10px 12px;
+}
+
+.profile-label {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    color: var(--els-text-muted, #64748b);
+    margin-bottom: 3px;
+    font-weight: 700;
+}
+
+.profile-value {
+    color: var(--els-text);
+    font-size: 14px;
+    font-weight: 600;
+    word-break: break-word;
+}
+
+.profile-message {
+    margin-bottom: 12px;
+    padding: 10px 12px;
+    border-radius: 8px;
+    border: 1px solid #f0d7a8;
+    background: #fff6e5;
+    color: #8a632a;
+    font-size: 13px;
+}
+
+@@media (max-width: 767px) {
+    .profile-header {
+        grid-template-columns: 1fr;
+        text-align: center;
+    }
+
+    .profile-avatar {
+        margin: 0 auto;
+    }
+
+    .profile-tags {
+        justify-content: center;
+    }
+
+    .profile-grid {
+        grid-template-columns: 1fr;
+    }
+}
+</style>
+
+<div class="profile-page-wrap">
+    <div class="profile-card">
+        <div class="profile-header">
+            <div class="profile-avatar">
+                <img src="@profileImageUrl" alt="@($"{displayName} profile image")" data-default-avatar="@defaultAvatarUrl" loading="lazy" onerror="window.handleProfileImageFallback ? window.handleProfileImageFallback(this) : (this.onerror=null,this.src=this.getAttribute('data-default-avatar'))" />
+            </div>
+            <div>
+                <h1 class="profile-title">@displayName</h1>
+                <div class="profile-subtitle">@displayEmail</div>
+                <div class="profile-tags">
+                    <span class="profile-tag">@displayRole</span>
+                    <span class="profile-tag">Store: @displayStore</span>
+                    <span class="profile-tag">Member Since: @memberSince</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="profile-body">
+            @if (TempData["ProfileMessage"] != null)
+            {
+                <div class="profile-message">@TempData["ProfileMessage"]</div>
+            }
+
+            <h2 class="profile-section-title">Profile Information</h2>
+            <div class="profile-grid">
+                <div class="profile-field">
+                    <div class="profile-label">Name</div>
+                    <div class="profile-value">@displayName</div>
+                </div>
+                <div class="profile-field">
+                    <div class="profile-label">Email</div>
+                    <div class="profile-value">@displayEmail</div>
+                </div>
+                <div class="profile-field">
+                    <div class="profile-label">Phone</div>
+                    <div class="profile-value">@displayPhone</div>
+                </div>
+                <div class="profile-field">
+                    <div class="profile-label">Country</div>
+                    <div class="profile-value">@displayCountry</div>
+                </div>
+                <div class="profile-field">
+                    <div class="profile-label">Store</div>
+                    <div class="profile-value">@displayStore</div>
+                </div>
+                <div class="profile-field">
+                    <div class="profile-label">Account Type</div>
+                    <div class="profile-value">@displayRole</div>
+                </div>
+                <div class="profile-field">
+                    <div class="profile-label">Member Since</div>
+                    <div class="profile-value">@memberSinceFull</div>
+                </div>
+                <div class="profile-field">
+                    <div class="profile-label">Address</div>
+                    <div class="profile-value">@displayAddress</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

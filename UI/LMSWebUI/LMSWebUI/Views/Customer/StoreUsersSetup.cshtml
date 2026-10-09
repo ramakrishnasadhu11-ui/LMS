@@ -114,6 +114,17 @@
 
 <script>
 (function () {
+    if (!window.location.search) {
+        var emailInput = document.getElementById("storeUserEmail");
+        var passwordInput = document.getElementById("storeUserPassword");
+        if (emailInput) {
+            emailInput.value = "";
+        }
+        if (passwordInput) {
+            passwordInput.value = "";
+        }
+    }
+
     function renderUsers(users) {
         var host = document.getElementById("storeUsersList");
         if (!host) return;

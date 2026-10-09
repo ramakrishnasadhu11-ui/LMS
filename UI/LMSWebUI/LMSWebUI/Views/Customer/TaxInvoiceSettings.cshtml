@@ -222,6 +222,15 @@
 
 <script type="text/javascript">
     document.addEventListener("DOMContentLoaded", function () {
+        var hasValidationErrors = document.querySelector(".validation-summary-errors li, .field-validation-error:not(:empty)") !== null;
+
+        if (!window.location.search && !hasValidationErrors) {
+            var taxSettingsForm = document.querySelector("form");
+            if (taxSettingsForm) {
+                taxSettingsForm.reset();
+            }
+        }
+
         var enableTax = document.getElementById("enableTax");
         var gstPercent = document.getElementById("gstPercent");
         var gstSplitPreview = document.getElementById("gstSplitPreview");
