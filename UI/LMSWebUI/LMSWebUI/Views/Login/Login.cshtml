@@ -217,6 +217,14 @@
             text-decoration: none;
         }
 
+        .modal-validation-message {
+            display: block;
+            margin-top: 6px;
+            color: #dc3545;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
         .login-card .form-button a:hover {
             text-decoration: underline;
         }
@@ -312,7 +320,7 @@
                             <form>
                                 <div class="login-field">
                                     <label class="login-label" for="tenantEmail">Email address</label>
-                                    @Html.TextBoxFor(m => m.Email, new { @placeholder = "name@company.com", @class = "form-control", required = "required", id = "tenantEmail", autocomplete = "username" })
+                                    @Html.TextBoxFor(m => m.Email, new { @placeholder = "name@company.com", @class = "form-control", required = "required", id = "tenantEmail", autocomplete = "username", autocapitalize = "none", spellcheck = "false" })
                                 </div>
                                 <div class="login-field">
                                     <label class="login-label" for="tenantPassword">Password</label>
@@ -334,7 +342,9 @@
                                     </span>
                                 </div>
                                 <div class="form-button">
-                                    <button id="LoginCheck" onclick="LoginValidate();" type="button" class="ibtn">Sign In</button> <a href="#" data-toggle="modal" data-target="#ForgotPassword">Change password?</a>
+                                    <button id="LoginCheck" type="button" class="ibtn">Sign In</button>
+                                    <a href="javascript:void(0);" data-toggle="modal" data-target="#ChangePassword">Change Password</a>
+                                    <a href="javascript:void(0);" data-toggle="modal" data-target="#ForgotPassword">Forgot Your Password?</a>
                                 </div>
                             </form>
                         @*}*@
@@ -359,7 +369,8 @@
                 <!-- Modal body -->
                 <div class="modal-body">
                     <div class="form-group">
-                        @Html.TextBoxFor(m => m.Email, new { @placeholder = "E-Mail", @class = "form-control", required = "required", id = "tenantforgotpasswordEmail" })
+                        @Html.TextBoxFor(m => m.Email, new { @placeholder = "E-Mail", @class = "form-control", required = "required", id = "tenantforgotpasswordEmail", autocomplete = "email", autocapitalize = "none", spellcheck = "false" })
+                        <span id="forgotPasswordEmailValidation" class="modal-validation-message" style="display:none;"></span>
                     </div>
                 </div>
                 <!-- Modal footer -->
@@ -388,15 +399,23 @@
                 <div class="modal-body">
                     <lable id="lblOTPInformation"></lable>
                     <div class="form-group">
-                        @Html.TextBoxFor(m => m.Email, new { @placeholder = "E-Mail", @class = "form-control", required = "required", id = "tenantEmail" })
+                        @Html.TextBoxFor(m => m.Email, new { @placeholder = "E-Mail", @class = "form-control", required = "required", id = "changePasswordEmail", autocomplete = "email", autocapitalize = "none", spellcheck = "false" })
+                        <span id="changePasswordEmailValidation" class="modal-validation-message" style="display:none;"></span>
                         <div class="login-password-wrap">
-                            @Html.TextBoxFor(m => m.NewPassword, new { @placeholder = "New password", @class = "form-control", required = "required", id = "newPassword", @type = "password" })
-                            <button type="button" class="login-password-toggle" data-password-target="newPassword" aria-controls="newPassword" aria-label="Show new password">SHOW</button>
-                        </div>
-                        <div class="login-password-wrap">
-                            @Html.TextBoxFor(m => m.OldPassword, new { @placeholder = "Old password", @class = "form-control", required = "required", id = "oldPassword", @type = "password" })
+                            @Html.TextBoxFor(m => m.OldPassword, new { @placeholder = "Current password", @class = "form-control", required = "required", id = "oldPassword", @type = "password", autocomplete = "current-password" })
                             <button type="button" class="login-password-toggle" data-password-target="oldPassword" aria-controls="oldPassword" aria-label="Show current password">SHOW</button>
                         </div>
+                        <span id="oldPasswordValidation" class="modal-validation-message" style="display:none;"></span>
+                        <div class="login-password-wrap">
+                            @Html.TextBoxFor(m => m.NewPassword, new { @placeholder = "New password", @class = "form-control", required = "required", id = "newPassword", @type = "password", autocomplete = "new-password" })
+                            <button type="button" class="login-password-toggle" data-password-target="newPassword" aria-controls="newPassword" aria-label="Show new password">SHOW</button>
+                        </div>
+                        <span id="newPasswordValidation" class="modal-validation-message" style="display:none;"></span>
+                        <div class="login-password-wrap">
+                            <input id="confirmNewPassword" type="password" class="form-control" placeholder="Confirm new password" autocomplete="new-password" />
+                            <button type="button" class="login-password-toggle" data-password-target="confirmNewPassword" aria-controls="confirmNewPassword" aria-label="Show confirm new password">SHOW</button>
+                        </div>
+                        <span id="confirmNewPasswordValidation" class="modal-validation-message" style="display:none;"></span>
                     </div>
                 </div>
                 <!-- Modal footer -->
@@ -494,9 +513,48 @@
             progress.hide();
         }
 
+        function isValidEmailAddress(email) {
+            var emailPattern = /^[^\s\x40]+\x40[^\s\x40]+\.[^\s\x40]+$/;
+            return emailPattern.test(email);
+        }
+
+        function clearValidationMessage(selector) {
+            $(selector).text('').hide();
+        }
+
+        function setValidationMessage(selector, message) {
+            $(selector).text(message).show();
+        }
+
+        function resetForgotPasswordModalState() {
+            $('#tenantforgotpasswordEmail').val('');
+            clearValidationMessage('#forgotPasswordEmailValidation');
+            setForgotPasswordProcessing(false);
+            $('#forgotpassword').show();
+        }
+
+        function resetChangePasswordModalState(clearEmail) {
+            if (clearEmail) {
+                $('#changePasswordEmail').val('');
+            }
+            $('#oldPassword').val('');
+            $('#newPassword').val('');
+            $('#confirmNewPassword').val('');
+            clearValidationMessage('#changePasswordEmailValidation');
+            clearValidationMessage('#oldPasswordValidation');
+            clearValidationMessage('#newPasswordValidation');
+            clearValidationMessage('#confirmNewPasswordValidation');
+        }
+
         $(document).ready(function ()
         {
             $('#information').hide();
+
+            if (!window.location.search) {
+                var loginPageInputs = $('input').not(':button, :submit, :reset, [type=hidden], [type=checkbox], [type=radio]');
+                loginPageInputs.val('');
+                $('input[type=checkbox], input[type=radio]').prop('checked', false);
+            }
 
             let storeLookupTimer;
             $('#tenantEmail').on('input', function () {
@@ -517,7 +575,8 @@
                 field.attr('type', isPassword ? 'text' : 'password');
                 $(this).text(isPassword ? 'HIDE' : 'SHOW');
                 var fieldName = field.attr('id') === 'newPassword' ? 'new password'
-                    : field.attr('id') === 'oldPassword' ? 'current password' : 'password';
+                    : field.attr('id') === 'oldPassword' ? 'current password'
+                    : field.attr('id') === 'confirmNewPassword' ? 'confirm new password' : 'password';
                 $(this).attr('aria-label', (isPassword ? 'Hide ' : 'Show ') + fieldName);
             });
 
@@ -528,16 +587,83 @@
                 }
             });
 
+            $('#tenantforgotpasswordEmail').on('input', function () {
+                clearValidationMessage('#forgotPasswordEmailValidation');
+            });
+
+            $('#changePasswordEmail, #oldPassword, #newPassword, #confirmNewPassword').on('input', function () {
+                clearValidationMessage('#changePasswordEmailValidation');
+                clearValidationMessage('#oldPasswordValidation');
+                clearValidationMessage('#newPasswordValidation');
+                clearValidationMessage('#confirmNewPasswordValidation');
+            });
+
+            $('#tenantforgotpasswordEmail').on('keydown', function (e) {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    $('#forgotpassword').click();
+                }
+            });
+
+            $('#changePasswordEmail, #oldPassword, #newPassword, #confirmNewPassword').on('keydown', function (e) {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    $('#changepassword').click();
+                }
+            });
+
+            $('#ForgotPassword').on('shown.bs.modal', function () {
+                resetForgotPasswordModalState();
+            });
+
+            $('#ForgotPassword').on('hidden.bs.modal', function () {
+                resetForgotPasswordModalState();
+            });
+
+            $('#ChangePassword').on('shown.bs.modal', function () {
+                resetChangePasswordModalState(false);
+            });
+
+            $('#ChangePassword').on('hidden.bs.modal', function () {
+                resetChangePasswordModalState(false);
+                $('#lblOTPInformation').empty();
+            });
+
+            $('a[data-target="#ForgotPassword"]').on('click', function () {
+                resetForgotPasswordModalState();
+            });
+
+            $('a[data-target="#ChangePassword"]').on('click', function () {
+                $('#lblOTPInformation').empty();
+                $('#changePasswordEmail').val(($('#tenantEmail').val() || '').trim());
+                resetChangePasswordModalState(false);
+            });
+
             syncThemeButtonText();
+
         });
 
         var tenantStoresRequest = null;
         var loginStoresRequest = null;
         $("#forgotpassword").click(function (e) {
             e.preventDefault();
+            clearValidationMessage('#forgotPasswordEmailValidation');
+
+            var forgotPasswordEmailInput = $("#tenantforgotpasswordEmail").get(0);
+            var forgotPasswordEmail = forgotPasswordEmailInput ? forgotPasswordEmailInput.value.trim() : '';
+            if (!forgotPasswordEmail) {
+                setValidationMessage('#forgotPasswordEmailValidation', 'Email address is required.');
+                return;
+            }
+
+            if (!isValidEmailAddress(forgotPasswordEmail)) {
+                setValidationMessage('#forgotPasswordEmailValidation', 'Please enter a valid email address.');
+                return;
+            }
+
             var model =
             {
-                'Email': $("#tenantforgotpasswordEmail").get(0).value,
+                'Email': forgotPasswordEmail,
             }
             setForgotPasswordProcessing(true);
                                  $.ajax
@@ -564,12 +690,65 @@
         });
       
 
-        $("#changepassword").click(function () {
+        $("#changepassword").click(function (e) {
+            e.preventDefault();
+            clearValidationMessage('#changePasswordEmailValidation');
+            clearValidationMessage('#oldPasswordValidation');
+            clearValidationMessage('#newPasswordValidation');
+            clearValidationMessage('#confirmNewPasswordValidation');
+
+            var changePasswordEmailInput = $("#changePasswordEmail").get(0);
+            var oldPasswordInput = $("#oldPassword").get(0);
+            var newPasswordInput = $("#newPassword").get(0);
+            var confirmNewPasswordInput = $("#confirmNewPassword").get(0);
+
+            var changePasswordEmail = changePasswordEmailInput ? changePasswordEmailInput.value.trim() : '';
+            var oldPassword = oldPasswordInput ? oldPasswordInput.value : '';
+            var newPassword = newPasswordInput ? newPasswordInput.value : '';
+            var confirmNewPassword = confirmNewPasswordInput ? confirmNewPasswordInput.value : '';
+
+            var hasValidationErrors = false;
+            if (!changePasswordEmail) {
+                setValidationMessage('#changePasswordEmailValidation', 'Email address is required.');
+                hasValidationErrors = true;
+            } else if (!isValidEmailAddress(changePasswordEmail)) {
+                setValidationMessage('#changePasswordEmailValidation', 'Please enter a valid email address.');
+                hasValidationErrors = true;
+            }
+
+            if (!oldPassword) {
+                setValidationMessage('#oldPasswordValidation', 'Current password is required.');
+                hasValidationErrors = true;
+            }
+
+            if (!newPassword) {
+                setValidationMessage('#newPasswordValidation', 'New password is required.');
+                hasValidationErrors = true;
+            }
+
+            if (!confirmNewPassword) {
+                setValidationMessage('#confirmNewPasswordValidation', 'Confirm new password is required.');
+                hasValidationErrors = true;
+            } else if (newPassword && confirmNewPassword !== newPassword) {
+                setValidationMessage('#confirmNewPasswordValidation', 'Confirm new password must match new password.');
+                hasValidationErrors = true;
+            }
+
+            if (oldPassword && newPassword && oldPassword === newPassword) {
+                setValidationMessage('#newPasswordValidation', 'New password must be different from current password.');
+                hasValidationErrors = true;
+            }
+
+            if (hasValidationErrors) {
+                return;
+            }
+
             var model =
             {
-                'Email': $("#tenantEmail").get(0).value,
-                'NewPassword': $("#newPassword").get(0).value,
-                'OldPassword': $("#oldPassword").get(0).value,
+                'Email': changePasswordEmail,
+                'NewPassword': newPassword,
+                'OldPassword': oldPassword,
+                'ConfirmNewPassword': confirmNewPassword,
             }
                                  $.ajax
                                 ({
@@ -674,6 +853,7 @@
                             else if (data === "requirePasswordChange")
                             {
                                 $('#lblOTPInformation').html("<p>An One Time Password(OTP) has been sent to: <br>" + email + "</p>");
+                                $('#changePasswordEmail').val(email);
                                 $("#ChangePassword").modal("show");
                             }
                             else if (data === "storeRequired")
@@ -786,10 +966,18 @@
                             $('#LoginCheck').prop('disabled', false);
                         }
                     },
-                    error: function () {
+                    error: function (xhr) {
+                        var mySelect = $('#Store');
+                        mySelect.empty();
+                        mySelect.append($('<option></option>').val('').html('Select a Store...'));
+                        $('#LoginCheck').prop('disabled', true);
+                        setLoginModeHint(false, "", false);
+
+                        var message = (xhr && xhr.responseText) ? xhr.responseText : 'Error occurred while processing your request.';
+
                         BootstrapDialog.show({
                             title: 'Warning Alert',
-                            message: 'Error occurred while processing your request.',
+                            message: message,
                             buttons: [{
                                 label: 'OK',
                                 cssClass: 'btn btn-success btn-middle',

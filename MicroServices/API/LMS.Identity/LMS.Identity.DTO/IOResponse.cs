@@ -64,6 +64,11 @@ namespace LMS.Identity.DTO
          public string Country {get;set;}
 
         /// <summary>
+        /// Tenant membership start date
+        /// </summary>
+        public DateTime? CreatedDate { get; set; }
+
+        /// <summary>
         /// UserRole
         /// </summary>
         public string UserRole { get; set; }

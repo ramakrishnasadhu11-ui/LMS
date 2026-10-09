@@ -1,9 +1,35 @@
-﻿@model LMSWebUI.Models.DashBoard.TenantInfoDto 
+﻿@using Microsoft.AspNetCore.Http
+@using System.Globalization
+@model LMSWebUI.Models.DashBoard.TenantInfoDto 
 @{
     var hideSidebar = Convert.ToBoolean(ViewData["HideSidebar"] ?? false);
     var bodyCss = hideSidebar
         ? "hold-transition skin-blue sidebar-mini sidebar-collapse"
         : "hold-transition skin-blue sidebar-mini";
+    var memberSinceRaw = Context?.Session?.GetString("TenantMemberSince");
+    var memberSinceText = "Member since -";
+    var profileImageUrl = Context?.Session?.GetString("TenantProfileImageUrl");
+    var defaultProfileImageUrl = Url.Content("~/dist/img/user2-160x160.jpg");
+    var resolvedProfileImageUrl = string.IsNullOrWhiteSpace(profileImageUrl)
+        ? defaultProfileImageUrl
+        : (profileImageUrl.Trim().StartsWith("~/", StringComparison.Ordinal)
+            ? Url.Content(profileImageUrl.Trim())
+            : profileImageUrl.Trim());
+    var profileImageAlt = string.IsNullOrWhiteSpace(Model?.TenantName)
+        ? "Profile avatar"
+        : $"{Model.TenantName} profile avatar";
+
+    if (!string.IsNullOrWhiteSpace(memberSinceRaw))
+    {
+        if (DateTimeOffset.TryParse(memberSinceRaw, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var parsedMemberSinceOffset))
+        {
+            memberSinceText = $"Member since {parsedMemberSinceOffset.Year}";
+        }
+        else if (DateTime.TryParse(memberSinceRaw, CultureInfo.InvariantCulture, DateTimeStyles.None, out var parsedMemberSince))
+        {
+            memberSinceText = $"Member since {parsedMemberSince.Year}";
+        }
+    }
 }
 <!DOCTYPE html>
 <html>
@@ -75,6 +101,27 @@
       padding: 18px 12px 14px;
       background: linear-gradient(135deg, var(--els-primary) 0%, var(--els-primary-dark) 100%);
       color: #fff;
+      text-align: center;
+    }
+
+    .user-menu .user-header .profile-avatar-wrap {
+      width: 78px;
+      height: 78px;
+      margin: 0 auto;
+      border-radius: 50%;
+      border: 2px solid rgba(255, 255, 255, 0.7);
+      background: rgba(255, 255, 255, 0.18);
+      padding: 3px;
+      box-shadow: 0 8px 20px rgba(2, 6, 23, 0.28);
+      overflow: hidden;
+    }
+
+    .user-menu .user-header .profile-avatar-wrap img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      border-radius: 50%;
+      display: block;
     }
 
     .user-menu .user-header p {
@@ -84,8 +131,24 @@
       color: #fff;
     }
 
+    .user-menu .user-header .profile-name {
+      display: block;
+      font-size: 15px;
+      font-weight: 700;
+      letter-spacing: 0.2px;
+    }
+
+    .user-menu .user-header .profile-meta {
+      display: block;
+      font-size: 12px;
+      font-weight: 600;
+      opacity: 0.95;
+    }
+
     .user-menu .user-header p small {
       color: rgba(255, 255, 255, 0.88);
+      display: block;
+      margin-top: 2px;
     }
 
     .user-menu .dropdown-menu .user-footer {
@@ -206,22 +269,25 @@
             <!-- Menu Toggle Button -->
             <a href="#" class="dropdown-toggle" data-toggle="dropdown">
               <!-- The user image in the navbar-->
-              <img src="~/dist/img/user2-160x160.jpg" class="user-image" alt="User Image">
+              <img src="@resolvedProfileImageUrl" class="user-image" alt="@profileImageAlt" data-default-avatar="@defaultProfileImageUrl" loading="lazy" onerror="window.handleProfileImageFallback ? window.handleProfileImageFallback(this) : (this.onerror=null,this.src=this.getAttribute('data-default-avatar'))">
               <!-- hidden-xs hides the username on small devices so only the image appears. -->
               <span class="hidden-xs">@Model.TenantName</span>
             </a>
             <ul class="dropdown-menu">
               <!-- The user image in the menu -->
               <li class="user-header">
-                <img src="~/dist/img/user2-160x160.jpg" class="img-circle" alt="User Image">
+                <div class="profile-avatar-wrap">
+                  <img src="@resolvedProfileImageUrl" class="img-circle" alt="@profileImageAlt" data-default-avatar="@defaultProfileImageUrl" loading="lazy" onerror="window.handleProfileImageFallback ? window.handleProfileImageFallback(this) : (this.onerror=null,this.src=this.getAttribute('data-default-avatar'))">
+                </div>
                 <p>
-                  @Model.TenantName - @Model.TenantStore
-                  <small>Member since Nov. 2000</small>
+                  <span class="profile-name">@(string.IsNullOrWhiteSpace(Model?.TenantName) ? "User" : Model.TenantName)</span>
+                  <span class="profile-meta">@(string.IsNullOrWhiteSpace(Model?.TenantStore) ? "Organization details unavailable" : $"{Model.TenantStore} Store")</span>
+                  <small>@memberSinceText</small>
                 </p>
               </li>
               <!-- Menu Body -->
               <li class="user-body">
-                <a class="tenant-menu-action profile" href="@Url.Action("TenantProfileDetailsAsync", "Login", new { tenantEmail = Model.TenantName })">My Profile</a>
+                <a class="tenant-menu-action profile" href="@Url.Action("TenantProfileDetails", "Login")">My Profile</a>
                 <a class="tenant-menu-action signout" href="@Url.Action("Logout", "Login")">Sign out</a>
               </li>
               <!-- Menu Footer-->
@@ -229,7 +295,7 @@
                 @*<div class="pull-left">
                   <a href="javascript:void(0);" class="Detail" onclick="showProfile(this)" id=@Model.TenantName  data-id="@Model.TenantName">Profile</a> 
                 </div>*@
-                <div style="font-size:12px;color:#64748b;">Use Sign out to securely end session</div>
+                <div style="font-size:12px;color:#64748b;">Use sign out to securely end your session.</div>
               </li>
             </ul>
           </li>
@@ -246,7 +312,7 @@
       <!-- Sidebar user panel (optional) -->
       <div class="user-panel">
         <div class="pull-left image">
-          <img src="~/dist/img/user2-160x160.jpg" class="img-circle" alt="User Image">
+          <img src="@resolvedProfileImageUrl" class="img-circle" alt="@profileImageAlt" data-default-avatar="@defaultProfileImageUrl" loading="lazy" onerror="window.handleProfileImageFallback ? window.handleProfileImageFallback(this) : (this.onerror=null,this.src=this.getAttribute('data-default-avatar'))">
         </div>
         <div class="pull-left info">
           <p>@Model.TenantName</p>
@@ -346,6 +412,27 @@
     }
 
     syncThemeButtonText();
+
+    function handleProfileImageFallback(img) {
+      if (!img) {
+        return;
+      }
+
+      var defaultAvatar = img.getAttribute('data-default-avatar');
+      if (!defaultAvatar) {
+        return;
+      }
+
+      var currentSrc = (img.getAttribute('src') || '').trim();
+      var normalizedCurrentSrc = currentSrc.replace(/\/$/, '');
+      var normalizedDefaultSrc = defaultAvatar.replace(/\/$/, '');
+      if (normalizedCurrentSrc === normalizedDefaultSrc) {
+        return;
+      }
+
+      img.onerror = null;
+      img.setAttribute('src', defaultAvatar);
+    }
     </script>
 </body>
 </html>

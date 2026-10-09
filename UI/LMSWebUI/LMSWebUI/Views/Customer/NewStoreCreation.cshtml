@@ -132,6 +132,10 @@
     var storeCodeInput = document.getElementById("newStoreCode");
     var resultBox = document.getElementById("createStoreResult");
 
+    if (!window.location.search && storeCodeInput) {
+        storeCodeInput.value = "";
+    }
+
     function showResult(message, isSuccess) {
         if (!resultBox) {
             return;

@@ -797,6 +797,26 @@
         }
 
         document.addEventListener("DOMContentLoaded", function () {
+            if (!window.location.search && !window.customerAdvToastMessage) {
+                var customerNameInput = document.getElementById("customerName");
+                var advanceAmountInput = document.getElementById("advanceAmount");
+                var notesInput = document.getElementById("notes");
+                var customerCodeDisplay = document.getElementById("customerCodeDisplay");
+                var custCodeHidden = document.getElementById("custCode");
+                var transactionTypeSelect = document.getElementById("transactionType");
+                var fromDateInput = document.getElementById("historyFromDate");
+                var toDateInput = document.getElementById("historyToDate");
+
+                if (customerNameInput) customerNameInput.value = "";
+                if (advanceAmountInput) advanceAmountInput.value = "";
+                if (notesInput) notesInput.value = "";
+                if (customerCodeDisplay) customerCodeDisplay.value = "";
+                if (custCodeHidden) custCodeHidden.value = "";
+                if (transactionTypeSelect) transactionTypeSelect.selectedIndex = 0;
+                if (fromDateInput) fromDateInput.value = "";
+                if (toDateInput) toDateInput.value = "";
+            }
+
             if (window.customerAdvToastMessage) {
                 showToast(window.customerAdvToastMessage, true);
             }

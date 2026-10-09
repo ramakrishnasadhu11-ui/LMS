@@ -1202,7 +1202,7 @@ namespace LMS.Identity.BusinessSerive.Services
                 if (tenantregistryresult == null)
                     return ActionSet.ActionReturnType(HttpStatusCode.NotFound, new IOResponse { StatusCode = "404", Email = eMail, Message = IdentityValidationMessage.IDENTITY_DATANOTFOUND_EMAIL_MESSAGE });
                 else
-                    return ActionSet.ActionReturnType(HttpStatusCode.OK, new IOResponse { StatusCode = "200", Address = tenantregistryresult.Address, Country = tenantregistryresult.Country, PhoneNumber = tenantregistryresult.PhoneNumber, Email = eMail, TenantName = tenantregistryresult.TenantName, Message = IdentityValidationMessage.IDENTITY_DATAFOUND_EMAIL_MESSAGE });
+                    return ActionSet.ActionReturnType(HttpStatusCode.OK, new IOResponse { StatusCode = "200", Address = tenantregistryresult.Address, Country = tenantregistryresult.Country, PhoneNumber = tenantregistryresult.PhoneNumber, Email = eMail, TenantName = tenantregistryresult.TenantName, CreatedDate = tenantregistryresult.CreatedDate, Message = IdentityValidationMessage.IDENTITY_DATAFOUND_EMAIL_MESSAGE });
             }
             return ActionSet.ActionReturnType(HttpStatusCode.InternalServerError, new IOResponse { StatusCode = "500", Email = "", Message = IdentityValidationMessage.IDENTITY_LOGINTENANT_ERROR_MESSAGE });
         }

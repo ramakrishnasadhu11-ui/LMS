@@ -40,7 +40,7 @@ namespace LMS.Identity.WebApi.Controllers
         {
             if (tenantDto == null)
             {
-                return BadRequest("Invalid data for this operation");
+                return BadRequest("Invalid data for this operation.");
             }
 
             var insertTenantResult = await _login.Register(tenantDto);
@@ -58,7 +58,7 @@ namespace LMS.Identity.WebApi.Controllers
         {
             if (request == null || string.IsNullOrWhiteSpace(request.EMail) || string.IsNullOrWhiteSpace(request.Password))
             {
-                return BadRequest("Invalid data for this operation");
+                return BadRequest("Invalid data for this operation.");
             }
 
             var loginResult = await _login.TenantLogin(request.EMail, request.Password, request.StoreCode);
@@ -197,7 +197,7 @@ namespace LMS.Identity.WebApi.Controllers
         {
             if (model == null)
             {
-                return BadRequest("Invalid data for this operation");
+                return BadRequest("Invalid data for this operation.");
             }
 
             var result = await _login.CreateTenantStore(model.TenantName, model.StoreCode);

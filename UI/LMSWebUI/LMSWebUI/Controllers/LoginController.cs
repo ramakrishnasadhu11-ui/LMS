@@ -10,17 +10,24 @@ using VMD.RESTApiResponseWrapper.Core.Wrappers;
 using LMSWebUI.Models.Login;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
+using System.ComponentModel.DataAnnotations;
+using Microsoft.Extensions.Logging;
+using System.Globalization;
 
 namespace LMSWebUI.Controllers
 {
     public class LoginController : Controller
     {
         private readonly ILoginApiClient _clientApi;
+        private readonly ILogger<LoginController> _logger;
         private const string AllowedStoresSessionKey = "TenantAllowedStores";
+        private const string MemberSinceSessionKey = "TenantMemberSince";
+        private static readonly EmailAddressAttribute EmailValidator = new EmailAddressAttribute();
 
-        public LoginController(ILoginApiClient clientAPI)
+        public LoginController(ILoginApiClient clientAPI, ILogger<LoginController> logger)
         {
             _clientApi = clientAPI;
+            _logger = logger;
         }
 
         [HttpGet]
@@ -35,18 +42,52 @@ namespace LMSWebUI.Controllers
         [AllowAnonymous]
         public async Task<IActionResult> TenantProfileDetailsAsync(string tenantEmail)
         {
-            var responseMessage = new LoginIoResponse();
-            var paramsGetAllStoresByClient = new Dictionary<string, string>
-            {
-                { "eMail", tenantEmail }
-            };
+            var sessionTenantEmail = HttpContext.Session.GetString("TenantName");
+            var sessionTenantStore = HttpContext.Session.GetString("TenantStore");
+            var sessionUserRole = HttpContext.Session.GetString("UserRole");
 
-            if (!string.IsNullOrEmpty(tenantEmail))
+            if (string.IsNullOrWhiteSpace(sessionTenantEmail))
             {
-                responseMessage = await _clientApi.SendRequestAsync<LoginIoResponse>("/TenantprofileDetails", paramsGetAllStoresByClient, RestSharp.Method.GET);
+                return RedirectToAction(nameof(Login));
             }
 
-            return View();
+            var model = new TenantProfileViewModel
+            {
+                Email = sessionTenantEmail,
+                TenantName = sessionTenantEmail,
+                TenantStore = sessionTenantStore,
+                UserRole = string.IsNullOrWhiteSpace(sessionUserRole) ? "StoreUser" : sessionUserRole,
+                ProfileImageUrl = HttpContext.Session.GetString("TenantProfileImageUrl")
+            };
+
+            var paramsGetAllStoresByClient = new Dictionary<string, string>
+            {
+                { "eMail", sessionTenantEmail }
+            };
+
+            try
+            {
+                var responseMessage = await _clientApi.SendRequestAsync<LoginIoResponse>("/TenantprofileDetails", paramsGetAllStoresByClient, RestSharp.Method.GET);
+                if (responseMessage != null)
+                {
+                    model.Email = string.IsNullOrWhiteSpace(responseMessage.Email) ? sessionTenantEmail : responseMessage.Email;
+                    model.TenantName = string.IsNullOrWhiteSpace(responseMessage.TenantName) ? model.TenantName : responseMessage.TenantName;
+                    model.PhoneNumber = responseMessage.PhoneNumber;
+                    model.Address = responseMessage.Address;
+                    model.Country = responseMessage.Country;
+                    model.CreatedDate = responseMessage.CreatedDate;
+                }
+            }
+            catch (ApiUnavailableException)
+            {
+                TempData["ProfileMessage"] = "Profile service is temporarily unavailable. Showing available session details.";
+            }
+            catch
+            {
+                TempData["ProfileMessage"] = "Unable to load complete profile details right now.";
+            }
+
+            return View("TenantProfileDetailsAsync", model);
         }
 
         [HttpPost]
@@ -80,7 +121,7 @@ namespace LMSWebUI.Controllers
                     {
                         // A first-time login must reach the change-password screen regardless of
                         // store selection, so this is checked before the store rules below.
-                        if (string.Equals(responseMessage.Message, "Need to change Password", StringComparison.OrdinalIgnoreCase))
+                        if (IsPasswordChangeRequiredMessage(responseMessage.Message))
                         {
                             return "requirePasswordChange";
                         }
@@ -96,6 +137,7 @@ namespace LMSWebUI.Controllers
                             HttpContext.Session.SetString("TenantName", superAdminEmail);
                             HttpContext.Session.SetString("TenantStore", string.Empty);
                             HttpContext.Session.SetString(AllowedStoresSessionKey, string.Empty);
+                            HttpContext.Session.Remove(MemberSinceSessionKey);
                             HttpContext.Session.SetString("UserRole", "SuperAdmin");
                             return "success";
                         }
@@ -127,7 +169,7 @@ namespace LMSWebUI.Controllers
                         return "invalidStore";
                     }
 
-                        if (string.Equals(responseMessage.Message, "Tenant Login Successfully", StringComparison.OrdinalIgnoreCase))
+                        if (IsTenantLoginSuccessMessage(responseMessage.Message))
                         {
                             var tenantSessionEmail = string.IsNullOrWhiteSpace(responseMessage.Email)
                                 ? Email
@@ -136,6 +178,7 @@ namespace LMSWebUI.Controllers
                             HttpContext.Session.SetString("TenantName", tenantSessionEmail);
                             HttpContext.Session.SetString("TenantStore", resolvedStore);
                             HttpContext.Session.SetString(AllowedStoresSessionKey, string.Join(",", allowedStores));
+                            await SetTenantMemberSinceSessionAsync(tenantSessionEmail);
                             var role = string.IsNullOrWhiteSpace(responseMessage.UserRole) ? "StoreUser" : responseMessage.UserRole.Trim();
                             HttpContext.Session.SetString("UserRole", role);
                             return "success";
@@ -173,6 +216,41 @@ namespace LMSWebUI.Controllers
             HttpContext.Session.Clear();
             return RedirectToAction(nameof(Login));
         }
+
+        private async Task SetTenantMemberSinceSessionAsync(string tenantEmail)
+        {
+            if (string.IsNullOrWhiteSpace(tenantEmail))
+            {
+                HttpContext.Session.Remove(MemberSinceSessionKey);
+                return;
+            }
+
+            var parms = new Dictionary<string, string>
+            {
+                { "eMail", tenantEmail.Trim() }
+            };
+
+            try
+            {
+                var profile = await _clientApi.SendRequestAsync<LoginIoResponse>("/TenantprofileDetails", parms, RestSharp.Method.GET);
+                if (profile?.CreatedDate.HasValue == true)
+                {
+                    HttpContext.Session.SetString(MemberSinceSessionKey, profile.CreatedDate.Value.ToString("o", CultureInfo.InvariantCulture));
+                }
+                else
+                {
+                    HttpContext.Session.Remove(MemberSinceSessionKey);
+                }
+            }
+            catch (ApiUnavailableException)
+            {
+                HttpContext.Session.Remove(MemberSinceSessionKey);
+            }
+            catch
+            {
+                HttpContext.Session.Remove(MemberSinceSessionKey);
+            }
+        }
         [HttpGet]
         [AllowAnonymous]
         public IActionResult Register()
@@ -188,6 +266,15 @@ namespace LMSWebUI.Controllers
             var responseMessage = new LoginIoResponse();
             tenantDto ??= new TenantDto();
 
+            NormalizeRegisterInput(tenantDto);
+            ModelState.Clear();
+            TryValidateModel(tenantDto);
+
+            if (!ModelState.IsValid)
+            {
+                return View(tenantDto);
+            }
+
             try
             {
                 responseMessage = await _clientApi.SendRequestAsync<LoginIoResponse>("/RegisterTenant", tenantDto, RestSharp.Method.POST);
@@ -197,70 +284,200 @@ namespace LMSWebUI.Controllers
                     return View(tenantDto);
                 }
 
-                tenantDto.Message = responseMessage.Message;
+                if (IsDuplicateEmailRegistrationError(responseMessage))
+                {
+                    ModelState.AddModelError(nameof(TenantDto.Email), "This email address is already registered.");
+                }
+                else if (TryMapRegisterApiErrorToField(responseMessage?.Message, out var fieldName))
+                {
+                    ModelState.AddModelError(fieldName, responseMessage.Message);
+                }
+                else if (!string.IsNullOrWhiteSpace(responseMessage?.Message))
+                {
+                    ModelState.AddModelError(string.Empty, responseMessage.Message);
+                }
+                else
+                {
+                    ModelState.AddModelError(string.Empty, "Unable to complete registration. Please verify details and try again.");
+                }
+
                 return View(tenantDto);
             }
             catch (ApiUnavailableException)
             {
-                tenantDto.Message = "Registration service is temporarily unavailable. Please try again.";
+                ModelState.AddModelError(string.Empty, "Registration service is temporarily unavailable. Please try again.");
                 return View(tenantDto);
             }
             catch
             {
-                tenantDto.Message = "Unable to complete registration. Please verify details and try again.";
+                ModelState.AddModelError(string.Empty, "Unable to complete registration. Please verify details and try again.");
                 return View(tenantDto);
             }
         }
 
-        [HttpGet]
-        [AllowAnonymous]
-        public async Task<string> GetAllStoresByTenant(string tenantEmail)
+        private static bool IsDuplicateEmailRegistrationError(LoginIoResponse responseMessage)
         {
-            var responseMessage = new LoginIoResponse();
-            var paramsGetAllStoresByClient = new Dictionary<string, string>
+            if (responseMessage == null)
             {
-                { "eMail", tenantEmail }
-            };
-
-            if (!string.IsNullOrEmpty(tenantEmail))
-            {
-                try
-                {
-                    responseMessage = await _clientApi.SendRequestAsync<LoginIoResponse>("/GetTenantStoreDetails", paramsGetAllStoresByClient, RestSharp.Method.GET);
-                    if (responseMessage != null && responseMessage.StatusCode == "200")
-                    {
-                        // Super admins have no stores, so the caller needs the role to avoid
-                        // mistaking the empty list for a store-user login.
-                        if (string.Equals(responseMessage.UserRole, "SuperAdmin", StringComparison.OrdinalIgnoreCase))
-                        {
-                            return "superadmin";
-                        }
-
-                        if (responseMessage.Storecodes != null)
-                        {
-                            return string.Join(",", responseMessage.Storecodes.ToArray());
-                        }
-                    }
-                }
-                catch
-                {
-                    // fallback path: older identity endpoint still used in some deployments
-                    try
-                    {
-                        responseMessage = await _clientApi.SendRequestAsync<LoginIoResponse>("/TenantprofileDetails", paramsGetAllStoresByClient, RestSharp.Method.GET);
-                        if (responseMessage != null && responseMessage.Storecodes != null)
-                        {
-                            return string.Join(",", responseMessage.Storecodes.ToArray());
-                        }
-                    }
-                    catch
-                    {
-                        return string.Empty;
-                    }
-                }
+                return false;
             }
 
-            return string.Empty;
+            var statusCode = responseMessage.StatusCode?.Trim();
+            if (string.Equals(statusCode, "208", StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+
+            var message = responseMessage.Message ?? string.Empty;
+            var hasDuplicateKeywords = message.IndexOf("email", StringComparison.OrdinalIgnoreCase) >= 0
+                && (message.IndexOf("exists", StringComparison.OrdinalIgnoreCase) >= 0
+                    || message.IndexOf("already", StringComparison.OrdinalIgnoreCase) >= 0
+                    || message.IndexOf("registered", StringComparison.OrdinalIgnoreCase) >= 0);
+
+            if (string.Equals(statusCode, "409", StringComparison.OrdinalIgnoreCase) && hasDuplicateKeywords)
+            {
+                return true;
+            }
+
+            if (message.IndexOf("tenant already registered", StringComparison.OrdinalIgnoreCase) >= 0)
+            {
+                return true;
+            }
+
+            return hasDuplicateKeywords;
+        }
+
+        private static bool IsPasswordChangeRequiredMessage(string message)
+            => !string.IsNullOrWhiteSpace(message)
+               && message.IndexOf("need to change password", StringComparison.OrdinalIgnoreCase) >= 0;
+
+        private static bool IsTenantLoginSuccessMessage(string message)
+            => !string.IsNullOrWhiteSpace(message)
+               && message.IndexOf("tenant login successful", StringComparison.OrdinalIgnoreCase) >= 0;
+
+        private static void NormalizeRegisterInput(TenantDto tenantDto)
+        {
+            if (tenantDto == null)
+            {
+                return;
+            }
+
+            tenantDto.FamilyName = tenantDto.FamilyName?.Trim();
+            tenantDto.MiddleName = tenantDto.MiddleName?.Trim();
+            tenantDto.TenantName = tenantDto.TenantName?.Trim();
+            tenantDto.Email = tenantDto.Email?.Trim();
+            tenantDto.PhoneNumber = tenantDto.PhoneNumber?.Trim();
+            tenantDto.NoOfStores = tenantDto.NoOfStores?.Trim();
+        }
+
+        private static bool TryMapRegisterApiErrorToField(string message, out string fieldName)
+        {
+            fieldName = null;
+            if (string.IsNullOrWhiteSpace(message))
+            {
+                return false;
+            }
+
+            if (message.IndexOf("first name", StringComparison.OrdinalIgnoreCase) >= 0)
+            {
+                fieldName = nameof(TenantDto.FamilyName);
+                return true;
+            }
+
+            if (message.IndexOf("last name", StringComparison.OrdinalIgnoreCase) >= 0)
+            {
+                fieldName = nameof(TenantDto.MiddleName);
+                return true;
+            }
+
+            if (message.IndexOf("company", StringComparison.OrdinalIgnoreCase) >= 0
+                || message.IndexOf("tenant", StringComparison.OrdinalIgnoreCase) >= 0)
+            {
+                fieldName = nameof(TenantDto.TenantName);
+                return true;
+            }
+
+            if (message.IndexOf("phone", StringComparison.OrdinalIgnoreCase) >= 0)
+            {
+                fieldName = nameof(TenantDto.PhoneNumber);
+                return true;
+            }
+
+            if (message.IndexOf("store", StringComparison.OrdinalIgnoreCase) >= 0)
+            {
+                fieldName = nameof(TenantDto.NoOfStores);
+                return true;
+            }
+
+            return false;
+        }
+
+        [HttpGet]
+        [AllowAnonymous]
+        public async Task<IActionResult> GetAllStoresByTenant(string tenantEmail)
+        {
+            if (string.IsNullOrWhiteSpace(tenantEmail))
+            {
+                return BadRequest("Tenant email is required.");
+            }
+
+            var normalizedTenantEmail = tenantEmail.Trim();
+            if (!EmailValidator.IsValid(normalizedTenantEmail))
+            {
+                return BadRequest("Tenant email is invalid.");
+            }
+
+            var paramsGetAllStoresByClient = new Dictionary<string, String>
+            {
+                { "eMail", normalizedTenantEmail }
+            };
+
+            try
+            {
+                var responseMessage = await _clientApi.SendRequestAsync<LoginIoResponse>("/GetTenantStoreDetails", paramsGetAllStoresByClient, RestSharp.Method.GET);
+                if (responseMessage != null && responseMessage.StatusCode == "200")
+                {
+                    // Super admins have no stores, so the caller needs the role to avoid
+                    // mistaking the empty list for a store-user login.
+                    if (string.Equals(responseMessage.UserRole, "SuperAdmin", StringComparison.OrdinalIgnoreCase))
+                    {
+                        return Content("superadmin");
+                    }
+
+                    if (responseMessage.Storecodes != null)
+                    {
+                        return Content(string.Join(",", responseMessage.Storecodes.ToArray()));
+                    }
+                }
+
+                return Content(string.Empty);
+            }
+            catch (Exception primaryEx)
+            {
+                _logger.LogWarning(primaryEx, "Primary tenant store lookup endpoint failed. Trying fallback endpoint.");
+
+                try
+                {
+                    // fallback path: older identity endpoint still used in some deployments
+                    var responseMessage = await _clientApi.SendRequestAsync<LoginIoResponse>("/TenantprofileDetails", paramsGetAllStoresByClient, RestSharp.Method.GET);
+                    if (responseMessage != null && responseMessage.Storecodes != null)
+                    {
+                        return Content(string.Join(",", responseMessage.Storecodes.ToArray()));
+                    }
+
+                    return Content(string.Empty);
+                }
+                catch (ApiUnavailableException fallbackUnavailableEx)
+                {
+                    _logger.LogError(fallbackUnavailableEx, "Tenant store lookup is unavailable in both primary and fallback endpoints.");
+                    return StatusCode(StatusCodes.Status503ServiceUnavailable, "Store lookup service is unavailable. Please try again.");
+                }
+                catch (Exception fallbackEx)
+                {
+                    _logger.LogError(fallbackEx, "Fallback tenant store lookup failed unexpectedly.");
+                    return StatusCode(StatusCodes.Status503ServiceUnavailable, "Store lookup service is unavailable. Please try again.");
+                }
+            }
         }
 
         [HttpGet]
@@ -309,7 +526,7 @@ namespace LMSWebUI.Controllers
                 }
 
                 if (responseMessage != null && responseMessage.StatusCode == "200"
-                    && string.Equals(responseMessage.Message, "Need to change Password", StringComparison.OrdinalIgnoreCase))
+                    && IsPasswordChangeRequiredMessage(responseMessage.Message))
                 {
                     // Credentials are valid - let the Login POST drive the change-password screen.
                     return Json(new
@@ -323,7 +540,7 @@ namespace LMSWebUI.Controllers
                 }
 
                 if (responseMessage != null && responseMessage.StatusCode == "200"
-                    && string.Equals(responseMessage.Message, "Tenant Login Successfully", StringComparison.OrdinalIgnoreCase))
+                    && IsTenantLoginSuccessMessage(responseMessage.Message))
                 {
                     var role = string.IsNullOrWhiteSpace(responseMessage.UserRole) ? "StoreUser" : responseMessage.UserRole.Trim();
                     var stores = responseMessage.Storecodes ?? new List<string>();
@@ -385,7 +602,7 @@ namespace LMSWebUI.Controllers
 
             if (string.IsNullOrWhiteSpace(tenantEmail) || string.IsNullOrWhiteSpace(storeCode))
             {
-                return Json(new { success = false, message = "Session expired. Please login again." });
+                return Json(new { success = false, message = "Session expired. Please log in again." });
             }
 
             if (string.IsNullOrWhiteSpace(userEmail))
@@ -464,9 +681,20 @@ namespace LMSWebUI.Controllers
         [AllowAnonymous]
         public async Task<string> ForgotPassword(string Email)
         {
+            var email = Email?.Trim();
+            if (string.IsNullOrWhiteSpace(email))
+            {
+                return "Email address is required.";
+            }
+
+            if (!EmailValidator.IsValid(email))
+            {
+                return "Please enter a valid email address.";
+            }
+
             var forgotPasswordDto = new ChangePasswordDto
             {
-                Email = Email
+                Email = email
             };
 
             var responseMessage = await _clientApi.SendRequestAsync<LoginIoResponse>("/forgotpassword", forgotPasswordDto, RestSharp.Method.POST);
@@ -476,11 +704,47 @@ namespace LMSWebUI.Controllers
 
         [HttpPost]
         [AllowAnonymous]
-        public async Task<string> ChangePassword(string Email, string NewPassword, string OldPassword)
+        public async Task<string> ChangePassword(string Email, string NewPassword, string OldPassword, string ConfirmNewPassword)
         {
+            var email = Email?.Trim();
+            if (string.IsNullOrWhiteSpace(email))
+            {
+                return "Email address is required.";
+            }
+
+            if (!EmailValidator.IsValid(email))
+            {
+                return "Please enter a valid email address.";
+            }
+
+            if (string.IsNullOrWhiteSpace(OldPassword))
+            {
+                return "Current password is required.";
+            }
+
+            if (string.IsNullOrWhiteSpace(NewPassword))
+            {
+                return "New password is required.";
+            }
+
+            if (string.IsNullOrWhiteSpace(ConfirmNewPassword))
+            {
+                return "Confirm new password is required.";
+            }
+
+            if (!string.Equals(NewPassword, ConfirmNewPassword, StringComparison.Ordinal))
+            {
+                return "Confirm new password must match new password.";
+            }
+
+            if (string.Equals(OldPassword, NewPassword, StringComparison.Ordinal))
+            {
+                return "New password must be different from current password.";
+            }
+
             var changePasswordDto = new ChangePasswordDto
             {
-                Email = Email,
+                Email = email,
                 NewPassword = NewPassword,
                 OldPassword = OldPassword
             };

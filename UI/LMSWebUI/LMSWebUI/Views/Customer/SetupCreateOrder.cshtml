@@ -2272,6 +2272,22 @@
             showToast(window.setupOrderToastMessage, true);
         }
 
+        var hasValidationErrors = document.querySelector(".validation-summary-errors li, .field-validation-error:not(:empty)") !== null;
+        var shouldClearFreshEntryFields = !setupOnly
+            && !window.location.search
+            && !window.location.hash
+            && !window.setupOrderToastMessage
+            && !hasValidationErrors;
+
+        if (shouldClearFreshEntryFields) {
+            ["customerName", "orderLookupText", "customerCodeDisplay", "custCode", "advanceUsed", "paidNow", "orderHistorySearch"].forEach(function (id) {
+                var element = document.getElementById(id);
+                if (element) {
+                    element.value = "";
+                }
+            });
+        }
+
         setupPostOrderActions();
 
         renderSelectedItemPane();

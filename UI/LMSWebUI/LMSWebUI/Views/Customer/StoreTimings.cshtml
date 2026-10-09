@@ -241,6 +241,21 @@
 
 <script type="text/javascript">
     document.addEventListener("DOMContentLoaded", function () {
+        var hasValidationErrors = document.querySelector(".validation-summary-errors li, .field-validation-error:not(:empty)") !== null;
+        var isExistingRecordInput = document.querySelector("input[name='IsExistingRecord']");
+        var isExistingRecord = false;
+        if (isExistingRecordInput) {
+            var existingValue = (isExistingRecordInput.value || "").toLowerCase();
+            isExistingRecord = existingValue === "true";
+        }
+
+        if (!window.location.search && !isExistingRecord && !hasValidationErrors) {
+            var storeConfigForm = document.querySelector("form");
+            if (storeConfigForm) {
+                storeConfigForm.reset();
+            }
+        }
+
         if (!window.storeConfigToastMessage) {
             return;
         }

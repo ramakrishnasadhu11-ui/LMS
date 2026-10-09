@@ -74,6 +74,11 @@ namespace LMSWebUI.Models
         /// </summary>
          public string Country {get;set;}
 
+         /// <summary>
+         /// Tenant membership start date
+         /// </summary>
+         public DateTime? CreatedDate { get; set; }
+
         public string UserRole { get; set; }
 
         /// <summary>

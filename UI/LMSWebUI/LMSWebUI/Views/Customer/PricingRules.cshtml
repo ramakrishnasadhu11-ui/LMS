@@ -195,6 +195,15 @@
 
 <script type="text/javascript">
     document.addEventListener("DOMContentLoaded", function () {
+        var hasValidationErrors = document.querySelector(".validation-summary-errors li, .field-validation-error:not(:empty)") !== null;
+
+        if (!window.location.search && !hasValidationErrors) {
+            var pricingRulesForm = document.querySelector("form");
+            if (pricingRulesForm) {
+                pricingRulesForm.reset();
+            }
+        }
+
         if (!window.pricingRulesToastMessage) {
             return;
         }

@@ -200,6 +200,14 @@
 
 <script type="text/javascript">
     (function () {
+        var hasValidationErrors = document.querySelector(".validation-summary-errors li, .field-validation-error:not(:empty)") !== null;
+        if (!window.location.search && !hasValidationErrors) {
+            var workflowForm = document.getElementById("workflowForm");
+            if (workflowForm) {
+                workflowForm.reset();
+            }
+        }
+
         var toast = document.getElementById('workflowToast');
         if (toast && window.workflowToastMessage) {
             toast.textContent = window.workflowToastMessage;
