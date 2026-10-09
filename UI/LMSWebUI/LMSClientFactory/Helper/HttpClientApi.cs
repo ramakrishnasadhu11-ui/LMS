@@ -34,20 +34,34 @@ namespace LMSClientFactory.Helper
             request.RequestFormat = DataFormat.Json;
             request.JsonSerializer = new RestSharpJsonNetSerializer();
 
-            var response = await _client.ExecuteTaskAsync<T>(request);
+            IRestResponse response;
+            try
+            {
+                response = await _client.ExecuteTaskAsync(request);
+            }
+            catch (Exception ex) when (ex is JsonException || ex is System.Xml.XmlException)
+            {
+                throw new ApiUnavailableException("The API returned an invalid response format.", ex);
+            }
 
             // RestSharp reports ResponseStatus.Error for any non-success status code, so a
             // status code of 0 is used to detect a genuine transport failure. Otherwise a
             // meaningful response such as 403 (not approved) would be hidden behind a
             // misleading "service unavailable" message.
-            var hasHttpResponse = response.StatusCode != 0;
+            var hasHttpResponse = response != null && response.StatusCode != 0;
 
             if (!hasHttpResponse
+                && response != null
                 && (response.ResponseStatus == ResponseStatus.Error || response.ResponseStatus == ResponseStatus.TimedOut))
             {
                 throw new ApiUnavailableException(
                     response.ErrorMessage ?? "The API could not be reached.",
                     response.ErrorException);
+            }
+
+            if (response == null)
+            {
+                throw new ApiUnavailableException("The API could not be reached.");
             }
 
             if (response.StatusCode == HttpStatusCode.InternalServerError || response.StatusCode == HttpStatusCode.GatewayTimeout)
@@ -74,11 +88,6 @@ namespace LMSClientFactory.Helper
 
             if (typeof(T) == typeof(JObject))
             {
-                if (response.Data is JObject responseObject && responseObject.HasValues)
-                {
-                    return response.Data;
-                }
-
                 if (!string.IsNullOrWhiteSpace(response.Content))
                 {
                     try
@@ -97,30 +106,6 @@ namespace LMSClientFactory.Helper
 
             if (!string.IsNullOrWhiteSpace(response.Content))
             {
-                var shouldTryContent = (object)response.Data == null;
-
-                if (!shouldTryContent && response.Data is string rawString)
-                {
-                    shouldTryContent = string.IsNullOrWhiteSpace(rawString);
-                }
-                else if (!shouldTryContent && response.Data is JObject rawObject)
-                {
-                    shouldTryContent = !rawObject.HasValues;
-                }
-                else if (!shouldTryContent && response.Data is JArray rawArray)
-                {
-                    shouldTryContent = rawArray.Count == 0;
-                }
-                else if (!shouldTryContent && response.Data is System.Collections.ICollection rawCollection)
-                {
-                    shouldTryContent = rawCollection.Count == 0;
-                }
-
-                if (!shouldTryContent)
-                {
-                    return response.Data;
-                }
-
                 try
                 {
                     if (typeof(T) == typeof(string))
@@ -156,7 +141,7 @@ namespace LMSClientFactory.Helper
                 }
             }
 
-            return response.Data;
+            return default;
         }
         /// <summary>
         /// With Out Async Call

@@ -153,7 +153,15 @@ namespace LMS.Core.Repository.UnitOfWork
         /// <returns>A <see cref="Task{TResult}"/> that represents the asynchronous save operation. The task result contains the number of state entities written to database.</returns>
         public async Task<int> SaveChangesAsync(bool ensureAutoHistory = false, params IUnitOfWork[] unitOfWorks)
         {
-            using (var ts = new TransactionScope())
+            var txOptions = new TransactionOptions
+            {
+                IsolationLevel = System.Transactions.IsolationLevel.ReadCommitted
+            };
+
+            using (var ts = new TransactionScope(
+                TransactionScopeOption.Required,
+                txOptions,
+                TransactionScopeAsyncFlowOption.Enabled))
             {
                 var count = 0;
                 foreach (var unitOfWork in unitOfWorks)

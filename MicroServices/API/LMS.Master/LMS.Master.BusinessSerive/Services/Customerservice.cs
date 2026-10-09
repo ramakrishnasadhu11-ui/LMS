@@ -1239,6 +1239,8 @@ namespace LMS.Master.BusinessSerive.Services
                 ? -Math.Abs(advanceDto.AdvanceAmount)
                 : Math.Abs(advanceDto.AdvanceAmount);
 
+            await using var balanceTxn = await _masterDbContext.Database.BeginTransactionAsync(System.Data.IsolationLevel.Serializable);
+
             var currentBalance = await _masterDbContext.CustomerAdvances
                 .Where(x => x.TenantName == advanceDto.TenantName
                             && x.StoreCode == advanceDto.StoreCode
@@ -1248,6 +1250,7 @@ namespace LMS.Master.BusinessSerive.Services
             var nextBalance = currentBalance + signedAmount;
             if (nextBalance < 0)
             {
+                await balanceTxn.RollbackAsync();
                 return ActionSet.ActionReturnType(HttpStatusCode.BadRequest, new CustomerIOResponse
                 {
                     StatusCode = "400",
@@ -1268,6 +1271,7 @@ namespace LMS.Master.BusinessSerive.Services
 
             _masterDbContext.CustomerAdvances.Add(advanceEntity);
             await _masterDbContext.SaveChangesAsync();
+            await balanceTxn.CommitAsync();
 
             return ActionSet.ActionReturnType(HttpStatusCode.OK, new CustomerIOResponse
             {

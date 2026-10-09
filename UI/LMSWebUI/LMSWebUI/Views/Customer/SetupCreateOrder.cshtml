@@ -87,6 +87,23 @@
 .order-history-action-btn:hover { filter:brightness(0.98); }
 .order-history-primary-btn { border-color:#238554; background:linear-gradient(180deg, #2ea66a 0%, #238554 100%); color:#fff; }
 .order-history-settled { color:#2f8f46; font-weight:700; font-size:12px; margin-right:2px; }
+.available-advance-banner {
+    border: 1px solid var(--els-border);
+    border-radius: 8px;
+    background: #f8fbff;
+    padding: 10px 12px;
+    margin-bottom: 12px;
+}
+.available-advance-text {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--els-text);
+}
+.available-advance-status {
+    margin-top: 4px;
+    font-size: 12px;
+    color: #8a5b00;
+}
 .toast-message { position: fixed; right: 24px; top: 80px; z-index: 9999; min-width: 260px; max-width: 380px; padding: 12px 16px; border-radius: 8px; color: #fff; box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25); font-weight: 600; display: none; }
 .toast-message.success { background: #2f8f46; }
 .toast-message.error { background: #b63838; }
@@ -187,6 +204,11 @@
                         <div class="setup-field" style="align-self:end;">
                             <button type="button" class="setup-btn tertiary" id="loadOrderDataBtn" style="margin-bottom:0;">Load Customer Details</button>
                         </div>
+                    </div>
+
+                    <div class="available-advance-banner" id="availableAdvanceBanner">
+                        <div class="available-advance-text" id="availableAdvanceBalanceText">Available Advance Balance: ₹ 0.00</div>
+                        <div class="available-advance-status" id="availableAdvanceStatus" style="display:none;"></div>
                     </div>
 
                     <div id="postOrderActions" class="side-block" style="display:none; margin-bottom:10px;">
@@ -419,6 +441,7 @@
     var orderHistoryCache = [];
     var cfgPickerEntriesByKey = {};
     var loadItemsRequestId = 0;
+    var loadCustomerRequestId = 0;
     var initialMode = '@Html.Raw(System.Text.Encodings.Web.JavaScriptEncoder.Default.Encode(orderMode ?? "pieces"))';
     var currentOrderMode = (initialMode || "pieces").toLowerCase() === "weight" ? "weight" : "pieces";
 
@@ -471,6 +494,29 @@
         toast.style.display = "block";
         if (window.__setupOrderToastTimer) clearTimeout(window.__setupOrderToastTimer);
         window.__setupOrderToastTimer = setTimeout(function () { toast.style.display = "none"; }, 3200);
+    }
+
+    function updateAvailableAdvanceDisplay(balance, statusMessage) {
+        var normalizedBalance = parseAmount(balance);
+        var balanceLabel = document.getElementById("availableAdvanceBalanceText");
+        var statusLabel = document.getElementById("availableAdvanceStatus");
+        var advBalanceEl = document.getElementById("advBalance");
+
+        if (advBalanceEl) {
+            advBalanceEl.textContent = normalizedBalance.toFixed(2);
+        }
+
+        if (balanceLabel) {
+            balanceLabel.textContent = "Available Advance Balance: ₹ " + normalizedBalance.toFixed(2);
+        }
+
+        if (!statusLabel) {
+            return;
+        }
+
+        var message = (statusMessage || "").trim();
+        statusLabel.textContent = message;
+        statusLabel.style.display = message ? "block" : "none";
     }
 
     function parseAmount(value) {
@@ -1912,6 +1958,8 @@
             return;
         }
 
+        var requestId = ++loadCustomerRequestId;
+
         function parseJsonOrHandleRedirect(response, fallbackMessage) {
             if (!response) {
                 throw new Error(fallbackMessage);
@@ -1954,7 +2002,15 @@
 
         var customerName = (document.getElementById("customerName").value || "").trim();
         var customerCode = (document.getElementById("custCode").value || "").trim();
-        if (!customerName && !customerCode) { showToast("Please enter customer name.", false); return; }
+        var requestedCustomerName = customerName;
+        var requestedCustomerCode = customerCode;
+        if (!customerName && !customerCode) {
+            updateAvailableAdvanceDisplay(0, "Select a customer to view available advance.");
+            showToast("Please enter customer name.", false);
+            return;
+        }
+
+        updateAvailableAdvanceDisplay(0, "Loading latest advance balance...");
 
         function loadOrdersForCustomer(nameValue, codeValue) {
             var orderQuery = [];
@@ -2011,10 +2067,20 @@
         })
         .then(function (response) { return parseJsonOrHandleRedirect(response, 'Unable to fetch customer advances.'); })
         .then(function (advanceData) {
+            if (requestId !== loadCustomerRequestId) {
+                return;
+            }
+
+            var currentName = (document.getElementById("customerName").value || "").trim();
+            var currentCode = (document.getElementById("custCode").value || "").trim();
+            if (currentName !== requestedCustomerName || currentCode !== requestedCustomerCode) {
+                return;
+            }
+
             if (!advanceData || !advanceData.success) {
                 showToast((advanceData && advanceData.message) || "Unable to fetch customer advances. Continuing with 0 advance balance.", false);
                 currentAdvanceBalance = 0;
-                document.getElementById("advBalance").textContent = "0.00";
+                updateAvailableAdvanceDisplay(0, (advanceData && advanceData.message) || "Unable to retrieve latest advance balance.");
                 if (customerCode) {
                     document.getElementById("custCode").value = customerCode;
                     document.getElementById("customerCodeDisplay").value = customerCode;
@@ -2025,7 +2091,7 @@
             }
 
             currentAdvanceBalance = Number(advanceData.balance || 0);
-            document.getElementById("advBalance").textContent = currentAdvanceBalance.toFixed(2);
+            updateAvailableAdvanceDisplay(currentAdvanceBalance, "");
             document.getElementById("custCode").value = advanceData.customerCode || "";
             document.getElementById("customerCodeDisplay").value = advanceData.customerCode || "";
 
@@ -2035,9 +2101,19 @@
             syncTotals();
         })
         .catch(function (error) {
+            if (requestId !== loadCustomerRequestId) {
+                return;
+            }
+
+            var currentName = (document.getElementById("customerName").value || "").trim();
+            var currentCode = (document.getElementById("custCode").value || "").trim();
+            if (currentName !== requestedCustomerName || currentCode !== requestedCustomerCode) {
+                return;
+            }
+
             showToast((error && error.message) || "Unable to fetch customer advances. Continuing with 0 advance balance.", false);
             currentAdvanceBalance = 0;
-            document.getElementById("advBalance").textContent = "0.00";
+            updateAvailableAdvanceDisplay(0, "Unable to retrieve latest advance balance.");
             loadOrdersForCustomer(customerName, customerCode);
             syncTotals();
         });
@@ -2206,7 +2282,14 @@
         if (!setupOnly) {
             document.getElementById("modePiecesBtn").onclick = function (e) { e.preventDefault(); setOrderMode("pieces"); };
             document.getElementById("modeWeightBtn").onclick = function (e) { e.preventDefault(); setOrderMode("weight"); };
-            document.getElementById("loadOrderDataBtn").onclick = function (e) { e.preventDefault(); loadCustomerData(); };
+            document.getElementById("loadOrderDataBtn").onclick = function (e) {
+                e.preventDefault();
+                var customerName = (document.getElementById("customerName").value || "").trim();
+                if (!customerName) {
+                    updateAvailableAdvanceDisplay(0, "Select a customer to view available advance.");
+                }
+                loadCustomerData();
+            };
             document.getElementById("findOrderRefBtn").onclick = function (e) { e.preventDefault(); findOrderReferenceAndLoadCustomer(); };
             document.getElementById("orderLookupText")?.addEventListener("input", loadOrderReferenceSuggestions);
             document.getElementById("orderLookupText")?.addEventListener("keydown", function (e) {
@@ -2255,6 +2338,36 @@
             document.getElementById("weightInKg").addEventListener("input", syncTotals);
             document.getElementById("ratePerKg").addEventListener("input", syncTotals);
             document.getElementById("weightServiceType").addEventListener("change", syncTotals);
+
+            var customerNameInput = document.getElementById("customerName");
+            if (customerNameInput) {
+                customerNameInput.addEventListener("input", function () {
+                    var selectedName = (customerNameInput.value || "").trim();
+                    var custCodeEl = document.getElementById("custCode");
+                    var custCodeDisplayEl = document.getElementById("customerCodeDisplay");
+
+                    loadCustomerRequestId++;
+
+                    if (custCodeEl) {
+                        custCodeEl.value = "";
+                    }
+
+                    if (custCodeDisplayEl) {
+                        custCodeDisplayEl.value = "";
+                    }
+
+                    currentAdvanceBalance = 0;
+                    if (selectedName) {
+                        updateAvailableAdvanceDisplay(0, "Select a valid customer and click Load Customer Details.");
+                        loadOrdersForCustomer(selectedName, "");
+                        syncTotals();
+                    } else {
+                        updateAvailableAdvanceDisplay(0, "Select a customer to view available advance.");
+                        renderOrdersHistory([]);
+                        syncTotals();
+                    }
+                });
+            }
 
             var form = document.getElementById("setupOrderForm");
             form.addEventListener("submit", function (e) {
@@ -2339,7 +2452,10 @@
 
             var hasCustomer = document.getElementById("customerName") && document.getElementById("customerName").value;
             if (hasCustomer) {
+                updateAvailableAdvanceDisplay(0, "Loading latest advance balance...");
                 loadCustomerData();
+            } else {
+                updateAvailableAdvanceDisplay(0, "Select a customer to view available advance.");
             }
         }
 
