@@ -3228,9 +3228,21 @@ namespace LMSWebUI.Controllers
                 };
 
                 var saveResponse = await _clientApi.SendRequestAsync<CustomerIOResponse>("/SaveCustomerAdvance", saveRequest, Method.POST);
-                TempData["CustomerAdvancesToast"] = string.IsNullOrWhiteSpace(saveResponse?.Message)
-                    ? "Customer advance saved successfully."
-                    : saveResponse.Message;
+                var isSaveSuccess = saveResponse != null
+                    && string.Equals(saveResponse.StatusCode, "200", StringComparison.OrdinalIgnoreCase);
+
+                if (isSaveSuccess)
+                {
+                    TempData["CustomerAdvancesToast"] = string.IsNullOrWhiteSpace(saveResponse?.Message)
+                        ? "Customer advance saved successfully."
+                        : saveResponse.Message;
+                }
+                else
+                {
+                    TempData["CustomerAdvancesToast"] = string.IsNullOrWhiteSpace(saveResponse?.Message)
+                        ? "Unable to save customer advance."
+                        : saveResponse.Message;
+                }
             }
             catch (Exception ex)
             {
@@ -3279,7 +3291,7 @@ namespace LMSWebUI.Controllers
 
             try
             {
-                if (!string.IsNullOrWhiteSpace(customerName))
+                if (string.IsNullOrWhiteSpace(resolvedCustomerCode) && !string.IsNullOrWhiteSpace(customerName))
                 {
                     var customer = await ResolveCustomerByNameAsync(customerName);
                     if (customer == null || customer.StatusCode != "200" || string.IsNullOrWhiteSpace(customer.CustCode))
