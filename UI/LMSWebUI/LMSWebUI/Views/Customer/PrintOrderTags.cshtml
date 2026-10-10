@@ -30,6 +30,7 @@
         .tag-card { border: 1px dashed #334155; border-radius:8px; padding:10px; min-height:120px; }
         .tag-title { font-size:16px; font-weight:700; margin-bottom:6px; }
         .tag-row { font-size:12px; margin:2px 0; }
+        .tag-missing { color:#b42318; font-weight:700; }
         @@media print { .noprint { display:none; } }
     </style>
 </head>
@@ -49,16 +50,19 @@
                 for (var i = 1; i <= qty; i++)
                 {
                     runningPieceIndex++;
-                    var defaultTagNo = string.IsNullOrWhiteSpace(Model?.OrderNo)
-                        ? ("TAG-P" + runningPieceIndex.ToString("00"))
-                        : (Model.OrderNo + "-P" + runningPieceIndex.ToString("00"));
-                    var displayTagNo = !string.IsNullOrWhiteSpace(item.TagNo) ? item.TagNo : defaultTagNo;
+                    var persistedTagNo = (item.TagNo ?? string.Empty).Trim();
+                    var usePersistedTagNo = qty <= 1 && !string.IsNullOrWhiteSpace(persistedTagNo);
+                    var displayTagNo = usePersistedTagNo ? persistedTagNo : "TAG NOT ASSIGNED";
                     <div class="tag-card">
-                        <div class="tag-title">@displayTagNo</div>
+                        <div class="tag-title @(usePersistedTagNo ? string.Empty : "tag-missing")">@displayTagNo</div>
                         <div class="tag-row"><b>Invoice:</b> @(string.IsNullOrWhiteSpace(Model?.InvoiceNo) ? Model?.OrderNo : Model?.InvoiceNo)</div>
                         <div class="tag-row"><b>Customer:</b> @Model?.CustomerName</div>
                         <div class="tag-row"><b>Service:</b> @Model?.ServiceType</div>
-                        <div class="tag-row"><b>Piece:</b> @i/@perTagPieceCount</div>
+                        <div class="tag-row"><b>Piece:</b> @runningPieceIndex/@perTagPieceCount</div>
+                        @if (!usePersistedTagNo)
+                        {
+                            <div class="tag-row tag-missing"><b>Tag Status:</b> Missing persisted tag data</div>
+                        }
                     </div>
                 }
             }
@@ -68,15 +72,13 @@
             for (var piece = 1; piece <= fallbackPieceCount; piece++)
             {
                 runningPieceIndex++;
-                var defaultTagNo = string.IsNullOrWhiteSpace(Model?.OrderNo)
-                    ? ("TAG-P" + runningPieceIndex.ToString("00"))
-                    : (Model.OrderNo + "-P" + runningPieceIndex.ToString("00"));
                 <div class="tag-card">
-                    <div class="tag-title">@defaultTagNo</div>
+                    <div class="tag-title tag-missing">TAG NOT ASSIGNED</div>
                     <div class="tag-row"><b>Invoice:</b> @(string.IsNullOrWhiteSpace(Model?.InvoiceNo) ? Model?.OrderNo : Model?.InvoiceNo)</div>
                     <div class="tag-row"><b>Customer:</b> @Model?.CustomerName</div>
                     <div class="tag-row"><b>Service:</b> @Model?.ServiceType</div>
                     <div class="tag-row"><b>Piece:</b> @piece/@fallbackPieceCount</div>
+                    <div class="tag-row tag-missing"><b>Tag Status:</b> Missing persisted tag data</div>
                 </div>
             }
         }

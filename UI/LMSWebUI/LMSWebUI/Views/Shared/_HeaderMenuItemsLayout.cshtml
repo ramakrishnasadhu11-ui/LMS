@@ -5,6 +5,11 @@
 		|| string.Equals(userRole, "SuperAdmin", StringComparison.OrdinalIgnoreCase);
 	var currentController = Convert.ToString(ViewContext.RouteData.Values["controller"]);
 	var currentAction = Convert.ToString(ViewContext.RouteData.Values["action"]);
+	var isStoreConfigurationPage = string.Equals(currentController, "Customer", StringComparison.OrdinalIgnoreCase)
+		&& string.Equals(currentAction, "StoreTimings", StringComparison.OrdinalIgnoreCase);
+	var bodyCss = isStoreConfigurationPage
+		? "header-menu-body store-config-sticky-header"
+		: "header-menu-body";
 
 	bool IsActiveHeaderMenu(string actionName, string controllerName)
 	{
@@ -108,6 +113,19 @@
 		color: var(--els-primary-dark);
 		box-shadow: 0 0 0 1px color-mix(in srgb, var(--els-primary) 30%, transparent);
 	}
+
+	.store-config-sticky-header .header-menu-shell {
+		position: sticky;
+		top: 0;
+		z-index: 1040;
+		background: var(--els-background);
+		border-bottom: 1px solid var(--els-border);
+		box-shadow: 0 4px 14px rgba(2, 6, 23, 0.08);
+	}
+
+	.store-config-sticky-header .header-menu-shell table {
+		background: var(--els-background);
+	}
 </style>
 <script>
 	(function () {
@@ -124,8 +142,9 @@
 	})();
 </script>
 </head>
-<body class="header-menu-body">
-    <table  width="100%" cellpadding="0" cellspacing="0">
+<body class="@bodyCss">
+	<div class="header-menu-shell">
+	<table  width="100%" cellpadding="0" cellspacing="0">
 		<tr>
  	 	 <td width="100%" align="center" valign="bottom" height="30px">
 	  <div class="header-theme-toggle-wrap">
@@ -183,6 +202,7 @@
      </td>
   </tr>
 		</table>
+	</div>
 	@await Html.PartialAsync("_LayoutStatus")
 	<div>
 		@RenderBody()

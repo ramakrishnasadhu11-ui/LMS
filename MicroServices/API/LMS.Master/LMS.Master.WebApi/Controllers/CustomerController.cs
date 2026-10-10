@@ -1,4 +1,5 @@
 ﻿using System.Threading.Tasks;
+using System;
 using LMS.Master.BusinessSerive.Interfaces;
 using LMS.Master.DTO;
 using LMS.Master.Utilities;
@@ -139,7 +140,12 @@ namespace LMS.Master.WebApi.Controllers
         [ProducesResponseType(StatusCodes.Status400BadRequest, Type = typeof(Result<object>))]
         public async Task<ActionResult> GetPricingRules(string tenantName, string storeCode)
         {
-            var pricingRulesResult = await _customer.GetPricingRules(tenantName, storeCode);
+            if (!TryResolvePricingScope(tenantName, storeCode, out var scopedTenantName, out var scopedStoreCode, out var scopeValidationError))
+            {
+                return BadRequest(scopeValidationError);
+            }
+
+            var pricingRulesResult = await _customer.GetPricingRules(scopedTenantName, scopedStoreCode);
             return StatusCode((int)pricingRulesResult.StatusCode, pricingRulesResult.ResultSet);
         }
 
@@ -154,8 +160,67 @@ namespace LMS.Master.WebApi.Controllers
                 return BadRequest("Invalid data for this operation.");
             }
 
+            if (!TryResolvePricingScope(pricingRulesDto.TenantName, pricingRulesDto.StoreCode, out var scopedTenantName, out var scopedStoreCode, out var scopeValidationError))
+            {
+                return BadRequest(scopeValidationError);
+            }
+
+            pricingRulesDto.TenantName = scopedTenantName;
+            pricingRulesDto.StoreCode = scopedStoreCode;
+
             var pricingRulesResult = await _customer.SavePricingRules(pricingRulesDto);
             return StatusCode((int)pricingRulesResult.StatusCode, pricingRulesResult.ResultSet);
+        }
+
+        private bool TryResolvePricingScope(string requestedTenantName, string requestedStoreCode, out string resolvedTenantName, out string resolvedStoreCode, out string validationError)
+        {
+            resolvedTenantName = requestedTenantName?.Trim();
+            resolvedStoreCode = requestedStoreCode?.Trim();
+
+            if (string.IsNullOrWhiteSpace(resolvedTenantName) || string.IsNullOrWhiteSpace(resolvedStoreCode))
+            {
+                validationError = "Invalid data for this operation.";
+                return false;
+            }
+
+            var claimTenant = User?.FindFirst("tenantName")?.Value?.Trim();
+            var claimStore = User?.FindFirst("storeCode")?.Value?.Trim();
+            var headerTenant = Request?.Headers["X-TenantName"].ToString()?.Trim();
+            var headerStore = Request?.Headers["X-StoreCode"].ToString()?.Trim();
+
+            if (!string.IsNullOrWhiteSpace(claimTenant)
+                && !string.Equals(claimTenant, resolvedTenantName, StringComparison.OrdinalIgnoreCase))
+            {
+                validationError = "Unauthorized tenant access.";
+                return false;
+            }
+
+            if (!string.IsNullOrWhiteSpace(claimStore)
+                && !string.Equals(claimStore, resolvedStoreCode, StringComparison.OrdinalIgnoreCase))
+            {
+                validationError = "Unauthorized store access.";
+                return false;
+            }
+
+            if (!string.IsNullOrWhiteSpace(headerTenant)
+                && !string.Equals(headerTenant, resolvedTenantName, StringComparison.OrdinalIgnoreCase))
+            {
+                validationError = "Tenant scope mismatch.";
+                return false;
+            }
+
+            if (!string.IsNullOrWhiteSpace(headerStore)
+                && !string.Equals(headerStore, resolvedStoreCode, StringComparison.OrdinalIgnoreCase))
+            {
+                validationError = "Store scope mismatch.";
+                return false;
+            }
+
+            resolvedTenantName = !string.IsNullOrWhiteSpace(claimTenant) ? claimTenant : resolvedTenantName;
+            resolvedStoreCode = !string.IsNullOrWhiteSpace(claimStore) ? claimStore : resolvedStoreCode;
+
+            validationError = null;
+            return true;
         }
 
         [HttpGet(nameof(GetPaymentSettings))]
@@ -359,6 +424,14 @@ namespace LMS.Master.WebApi.Controllers
                 return BadRequest("Invalid data for this operation.");
             }
 
+            if (!TryResolveTenantStoreScope(itemPriceDto.TenantName, itemPriceDto.StoreCode, out var scopedTenantName, out var scopedStoreCode, out var scopeValidationError))
+            {
+                return BadRequest(scopeValidationError);
+            }
+
+            itemPriceDto.TenantName = scopedTenantName;
+            itemPriceDto.StoreCode = scopedStoreCode;
+
             var result = await _customer.SaveLaundryItemPrice(itemPriceDto);
             return StatusCode((int)result.StatusCode, result.ResultSet);
         }
@@ -374,9 +447,14 @@ namespace LMS.Master.WebApi.Controllers
                 return BadRequest("Invalid data for this operation.");
             }
 
+            if (!TryResolveTenantStoreScope(itemPriceDto.TenantName, itemPriceDto.StoreCode, out var scopedTenantName, out var scopedStoreCode, out var scopeValidationError))
+            {
+                return BadRequest(scopeValidationError);
+            }
+
             var result = await _customer.DeactivateLaundryItemPrice(
-                itemPriceDto.TenantName,
-                itemPriceDto.StoreCode,
+                scopedTenantName,
+                scopedStoreCode,
                 itemPriceDto.ServiceType,
                 itemPriceDto.Category,
                 itemPriceDto.ItemName);
@@ -394,9 +472,14 @@ namespace LMS.Master.WebApi.Controllers
                 return BadRequest("Invalid data for this operation.");
             }
 
+            if (!TryResolveTenantStoreScope(itemPriceDto.TenantName, itemPriceDto.StoreCode, out var scopedTenantName, out var scopedStoreCode, out var scopeValidationError))
+            {
+                return BadRequest(scopeValidationError);
+            }
+
             var result = await _customer.ReactivateLaundryItemPrice(
-                itemPriceDto.TenantName,
-                itemPriceDto.StoreCode,
+                scopedTenantName,
+                scopedStoreCode,
                 itemPriceDto.ServiceType,
                 itemPriceDto.Category,
                 itemPriceDto.ItemName);
@@ -409,7 +492,12 @@ namespace LMS.Master.WebApi.Controllers
         [ProducesResponseType(StatusCodes.Status400BadRequest, Type = typeof(Result<object>))]
         public async Task<ActionResult> GetLaundryItemPrices(string tenantName, string storeCode, bool includeInactive = false)
         {
-            var result = await _customer.GetLaundryItemPrices(tenantName, storeCode, includeInactive);
+            if (!TryResolveTenantStoreScope(tenantName, storeCode, out var scopedTenantName, out var scopedStoreCode, out var scopeValidationError))
+            {
+                return BadRequest(scopeValidationError);
+            }
+
+            var result = await _customer.GetLaundryItemPrices(scopedTenantName, scopedStoreCode, includeInactive);
             return StatusCode((int)result.StatusCode, result.ResultSet);
         }
 
@@ -419,8 +507,48 @@ namespace LMS.Master.WebApi.Controllers
         [ProducesResponseType(StatusCodes.Status400BadRequest, Type = typeof(Result<object>))]
         public async Task<ActionResult> ImportDefaultLaundryItemPrices(string tenantName, string storeCode, bool overwriteExisting = false)
         {
-            var result = await _customer.ImportDefaultLaundryItemPrices(tenantName, storeCode, overwriteExisting);
+            if (!TryResolveTenantStoreScope(tenantName, storeCode, out var scopedTenantName, out var scopedStoreCode, out var scopeValidationError))
+            {
+                return BadRequest(scopeValidationError);
+            }
+
+            var result = await _customer.ImportDefaultLaundryItemPrices(scopedTenantName, scopedStoreCode, overwriteExisting);
             return StatusCode((int)result.StatusCode, result.ResultSet);
+        }
+
+        private bool TryResolveTenantStoreScope(string requestedTenantName, string requestedStoreCode, out string resolvedTenantName, out string resolvedStoreCode, out string validationError)
+        {
+            resolvedTenantName = requestedTenantName?.Trim();
+            resolvedStoreCode = requestedStoreCode?.Trim();
+
+            if (string.IsNullOrWhiteSpace(resolvedTenantName) || string.IsNullOrWhiteSpace(resolvedStoreCode))
+            {
+                validationError = "Invalid data for this operation.";
+                return false;
+            }
+
+            var claimTenant = User?.FindFirst("tenantName")?.Value?.Trim();
+            var claimStore = User?.FindFirst("storeCode")?.Value?.Trim();
+
+            if (!string.IsNullOrWhiteSpace(claimTenant)
+                && !string.Equals(claimTenant, resolvedTenantName, StringComparison.OrdinalIgnoreCase))
+            {
+                validationError = "Unauthorized tenant access.";
+                return false;
+            }
+
+            if (!string.IsNullOrWhiteSpace(claimStore)
+                && !string.Equals(claimStore, resolvedStoreCode, StringComparison.OrdinalIgnoreCase))
+            {
+                validationError = "Unauthorized store access.";
+                return false;
+            }
+
+            resolvedTenantName = !string.IsNullOrWhiteSpace(claimTenant) ? claimTenant : resolvedTenantName;
+            resolvedStoreCode = !string.IsNullOrWhiteSpace(claimStore) ? claimStore : resolvedStoreCode;
+
+            validationError = null;
+            return true;
         }
 
         [HttpPost(nameof(SaveStoreServiceMaster))]

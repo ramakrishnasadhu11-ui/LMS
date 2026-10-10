@@ -162,6 +162,7 @@
         <div class="setup-body">
             @using (Html.BeginForm("SetupCreateOrder", "Customer", FormMethod.Post, new { id = "setupOrderForm", novalidate = "novalidate" }))
             {
+                @Html.AntiForgeryToken()
                 @Html.HiddenFor(m => m.CustCode, new { id = "custCode" })
                 @Html.HiddenFor(m => m.ServiceType, new { id = "serviceType" })
                 @Html.HiddenFor(m => m.OrderAmount, new { id = "orderAmount" })
@@ -442,6 +443,8 @@
     var cfgPickerEntriesByKey = {};
     var loadItemsRequestId = 0;
     var loadCustomerRequestId = 0;
+    var antiForgeryTokenInput = document.querySelector('#setupOrderForm input[name="__RequestVerificationToken"]');
+    var antiForgeryToken = antiForgeryTokenInput ? antiForgeryTokenInput.value : "";
     var initialMode = '@Html.Raw(System.Text.Encodings.Web.JavaScriptEncoder.Default.Encode(orderMode ?? "pieces"))';
     var currentOrderMode = (initialMode || "pieces").toLowerCase() === "weight" ? "weight" : "pieces";
 
@@ -1047,24 +1050,36 @@
         }
 
         function resolveTotalPieces(order) {
-            var explicitPieces = Number(order.TotalPieces ?? order.totalPieces ?? 0);
-            if (!Number.isNaN(explicitPieces) && explicitPieces > 0) {
-                return Math.floor(explicitPieces);
-            }
+            var explicitPiecesRaw = Number(order.TotalPieces ?? order.totalPieces ?? 0);
+            var explicitPieces = (!Number.isNaN(explicitPiecesRaw) && explicitPiecesRaw > 0)
+                ? Math.floor(explicitPiecesRaw)
+                : 0;
 
             var items = order.Items || order.items || [];
+            var qtyFromItems = 0;
             if (Array.isArray(items) && items.length) {
-                var qtyFromItems = items.reduce(function (sum, x) {
+                qtyFromItems = items.reduce(function (sum, x) {
                     var q = Number((x && (x.Quantity ?? x.quantity)) || 0);
                     return sum + (!Number.isNaN(q) && q > 0 ? q : 0);
                 }, 0);
-
-                if (qtyFromItems > 0) {
-                    return qtyFromItems;
-                }
             }
 
-            return 0;
+            if (qtyFromItems > 0) {
+                if (explicitPieces > 0 && explicitPieces !== qtyFromItems) {
+                    return {
+                        value: qtyFromItems,
+                        text: String(qtyFromItems) + " (saved:" + String(explicitPieces) + ")"
+                    };
+                }
+
+                return { value: qtyFromItems, text: String(qtyFromItems) };
+            }
+
+            if (explicitPieces > 0) {
+                return { value: explicitPieces, text: String(explicitPieces) };
+            }
+
+            return { value: 0, text: "0" };
         }
 
         orders.forEach(function (order) {
@@ -1076,8 +1091,8 @@
             var customerEmail = (order.CustomerEmail || order.customerEmail || "").toString();
             var taxValue = resolveOrderTaxAmount(order);
             var orderMode = (order.OrderMode || order.orderMode || "pieces").toLowerCase();
-            var totalPieces = resolveTotalPieces(order);
-            var totalPiecesText = orderMode === "weight" ? "-" : String(totalPieces);
+            var totalPiecesInfo = resolveTotalPieces(order);
+            var totalPiecesText = orderMode === "weight" ? "-" : totalPiecesInfo.text;
             var settleActionHtml = pending > 0
                 ? ("<button type='button' class='order-history-action-btn order-history-primary-btn settle-row-btn' data-order-no='" + orderNo + "' data-pending='" + pending.toFixed(2) + "' data-mode='" + mode + "'>Settle</button>")
                 : "<span class='order-history-settled'>Settled</span>";
@@ -1139,7 +1154,8 @@
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
-                        'X-Requested-With': 'XMLHttpRequest'
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'RequestVerificationToken': antiForgeryToken
                     },
                     body: body.toString()
                 })
@@ -1242,7 +1258,8 @@
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
-                        'X-Requested-With': 'XMLHttpRequest'
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'RequestVerificationToken': antiForgeryToken
                     },
                     body: body.toString()
                 })
@@ -1387,7 +1404,8 @@
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
-                        'X-Requested-With': 'XMLHttpRequest'
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'RequestVerificationToken': antiForgeryToken
                     },
                     body: body.toString()
                 })
@@ -1514,7 +1532,8 @@
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
-                        'X-Requested-With': 'XMLHttpRequest'
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'RequestVerificationToken': antiForgeryToken
                     },
                     body: body.toString()
                 })
@@ -1550,6 +1569,10 @@
         var includeInactive = !!(document.getElementById("showInactiveItemsChk") && document.getElementById("showInactiveItemsChk").checked);
         if (typeof includeInactiveOverride === "boolean") {
             includeInactive = includeInactiveOverride;
+            var inactiveToggleEl = document.getElementById("showInactiveItemsChk");
+            if (inactiveToggleEl) {
+                inactiveToggleEl.checked = includeInactive;
+            }
         }
 
         var itemsUrl = '@Url.Action("GetLaundryItemPrices", "Customer")'
@@ -1575,26 +1598,30 @@
 
             if (!data || !data.success) {
                 configuredItems = [];
+                refreshCategoryOptionsForSelectedService();
+                updateConfigItemSuggestions();
                 renderAllTabsAndCatalog();
+                var message = (data && data.message) || "Unable to load laundry item prices.";
+                showToast(message, false);
                 return;
             }
 
             configuredItems = data.items || [];
 
+            refreshCategoryOptionsForSelectedService();
             updateConfigItemSuggestions();
             renderAllTabsAndCatalog();
         })
-        .catch(function () {
+        .catch(function (error) {
             if (requestId !== loadItemsRequestId) {
                 return;
             }
 
             configuredItems = [];
+            refreshCategoryOptionsForSelectedService();
             updateConfigItemSuggestions();
             renderAllTabsAndCatalog();
-            if (showModeToast) {
-                showToast("Unable to load items for selected filter.", false);
-            }
+            showToast((error && error.message) || "Unable to load items for selected filter.", false);
         });
     }
 
@@ -1633,6 +1660,112 @@
         }
     }
 
+    function refreshCategoryOptionsForSelectedService() {
+        var serviceTypeEl = document.getElementById("cfgServiceType");
+        var categoryEl = document.getElementById("cfgCategory");
+
+        if (!serviceTypeEl || !categoryEl) {
+            return;
+        }
+
+        var selectedService = (serviceTypeEl.value || "").trim().toLowerCase();
+        var previousCategory = (categoryEl.value || "").trim();
+        var includeInactive = !!(document.getElementById("showInactiveItemsChk") && document.getElementById("showInactiveItemsChk").checked);
+        var categories = [];
+        var seen = {};
+
+        if (!includeInactive) {
+            (masterItems || []).forEach(function (item) {
+                if (!(item.IsActive ?? item.isActive ?? true)) {
+                    return;
+                }
+
+                var itemService = (item.ServiceType || item.serviceType || "").trim().toLowerCase();
+                var itemCategory = (item.Category || item.category || "").trim();
+                if (!itemCategory) {
+                    return;
+                }
+
+                if (selectedService && itemService !== selectedService) {
+                    return;
+                }
+
+                var key = itemCategory.toLowerCase();
+                if (seen[key]) {
+                    return;
+                }
+
+                seen[key] = true;
+                categories.push(itemCategory);
+            });
+        }
+
+        (configuredItems || []).forEach(function (item) {
+            var itemService = (item.ServiceType || item.serviceType || "").trim().toLowerCase();
+            var itemCategory = (item.Category || item.category || "").trim();
+            if (!itemCategory) {
+                return;
+            }
+
+            if (selectedService && itemService !== selectedService) {
+                return;
+            }
+
+            var isActive = !!(item.IsActive ?? item.isActive ?? true);
+            if (includeInactive !== !isActive) {
+                return;
+            }
+
+            var key = itemCategory.toLowerCase();
+            if (seen[key]) {
+                return;
+            }
+
+            seen[key] = true;
+            categories.push(itemCategory);
+        });
+
+        categories.sort(function (a, b) { return a.localeCompare(b); });
+
+        categoryEl.innerHTML = "";
+
+        var firstOption = document.createElement("option");
+        firstOption.value = "";
+        firstOption.textContent = categories.length ? "Select category" : "No categories configured";
+        categoryEl.appendChild(firstOption);
+
+        categories.forEach(function (category) {
+            var option = document.createElement("option");
+            option.value = category;
+            option.textContent = category;
+            categoryEl.appendChild(option);
+        });
+
+        if (previousCategory && categories.some(function (x) { return x.toLowerCase() === previousCategory.toLowerCase(); })) {
+            categoryEl.value = categories.find(function (x) { return x.toLowerCase() === previousCategory.toLowerCase(); }) || "";
+        } else {
+            categoryEl.value = "";
+        }
+    }
+
+    function resetConfigItemSelection() {
+        var itemNameEl = document.getElementById("cfgItemName");
+        var unitPriceEl = document.getElementById("cfgUnitPrice");
+        var pickerEl = document.getElementById("cfgItemPicker");
+
+        if (itemNameEl) {
+            itemNameEl.value = "";
+        }
+
+        if (unitPriceEl) {
+            unitPriceEl.value = "";
+        }
+
+        if (pickerEl) {
+            pickerEl.value = "";
+        }
+    }
+
     function loadStoreMasters() {
         var url = '@Url.Action("GetStoreMasters", "Customer")?includeInactive=false&_ts=' + Date.now();
 
@@ -1650,17 +1783,16 @@
         })
         .then(function (data) {
             var serviceTypes = (data && data.success) ? (data.serviceTypes || data.ServiceTypes || []) : [];
-            var categories = (data && data.success) ? (data.categories || data.Categories || []) : [];
             masterItems = (data && data.success) ? (data.items || data.Items || []) : [];
 
             fillMasterSelect("cfgServiceType", serviceTypes, "Select service type", "No service types configured");
-            fillMasterSelect("cfgCategory", categories, "Select category", "No categories configured");
+            refreshCategoryOptionsForSelectedService();
             updateConfigItemSuggestions();
         })
         .catch(function () {
             masterItems = [];
             fillMasterSelect("cfgServiceType", [], "Select service type", "No service types configured");
-            fillMasterSelect("cfgCategory", [], "Select category", "No categories configured");
+            refreshCategoryOptionsForSelectedService();
         });
     }
 
@@ -1687,34 +1819,7 @@
         var entriesByName = {};
         cfgPickerEntriesByKey = {};
 
-        // Items defined in Service & Item Master for the selected service + category.
-        // These are the only names that may be priced, so they drive the picker.
-        if (scopeSelected) {
-            masterItems.forEach(function (item) {
-                var itemService = (item.ServiceType || item.serviceType || "").trim();
-                var itemCategory = (item.Category || item.category || "").trim();
-                var itemName = (item.ItemName || item.itemName || "").trim();
-                if (!itemName || !(item.IsActive ?? item.isActive ?? true)) {
-                    return;
-                }
-
-                if (itemService.toLowerCase() !== serviceTypeLower || itemCategory.toLowerCase() !== categoryLower) {
-                    return;
-                }
-
-                entriesByName[itemName.toLowerCase()] = {
-                    service: itemService,
-                    category: itemCategory,
-                    name: itemName,
-                    price: 0,
-                    isActive: true,
-                    hasPrice: false
-                };
-            });
-        }
-
-        // Merge the configured price rows for the same scope so existing prices show up
-        // and any legacy priced item that is missing from the master is still selectable.
+        // Build suggestions strictly from configured price rows in this scope.
         // Skipped entirely until a scope is chosen, otherwise rows from different
         // service/category combinations would collapse onto the same item name.
         if (scopeSelected) {
@@ -1785,11 +1890,11 @@
         } else if (!Object.keys(entriesByName).length) {
             hintText = includeInactive
                 ? ("No inactive items for " + serviceType + " / " + category + ".")
-                : ("No items found for " + serviceType + " / " + category + ". Add them in Service & Item Master first.");
+                : ("No active priced items found for " + serviceType + " / " + category + ".");
         } else {
             hintText = includeInactive
                 ? ("Showing inactive items for " + serviceType + " / " + category + ".")
-                : ("Showing items for " + serviceType + " / " + category + ". \"No price set\" items still need a price.");
+                : ("Showing active priced items for " + serviceType + " / " + category + ".");
         }
 
         var hintEl = document.getElementById("cfgItemNameHint");
@@ -2148,6 +2253,11 @@
         })
         .then(function (items) {
             listEl.innerHTML = "";
+            if (items && typeof items === 'object' && !Array.isArray(items) && items.success === false) {
+                showToast(items.message || "Unable to load order suggestions.", false);
+                return;
+            }
+
             (Array.isArray(items) ? items : []).forEach(function (value) {
                 if (!value) {
                     return;
@@ -2479,10 +2589,13 @@
         document.getElementById("removePriceConfigBtn")?.addEventListener("click", function (e) { e.preventDefault(); removeConfiguredItemPrice(); });
         document.getElementById("restorePriceConfigBtn")?.addEventListener("click", function (e) { e.preventDefault(); restoreConfiguredItemPrice(); });
         document.getElementById("cfgServiceType")?.addEventListener("change", function () {
+            refreshCategoryOptionsForSelectedService();
+            resetConfigItemSelection();
             updateConfigItemSuggestions();
             applySuggestedPrice();
         });
         document.getElementById("cfgCategory")?.addEventListener("change", function () {
+            resetConfigItemSelection();
             updateConfigItemSuggestions();
             applySuggestedPrice();
         });

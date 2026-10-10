@@ -43,6 +43,7 @@ namespace LMSWebUI.Controllers
         private const string AllowedStoresSessionKey = "TenantAllowedStores";
         private const string OrderPiecesMapSessionKey = "OrderPiecesMap";
         private const string CustomerNotInStoreMessage = "Customer not found in the current store.";
+        private const long MaxCsvUploadBytes = 2 * 1024 * 1024;
 
         /// <summary>
         /// Reads the logged-in store scope from the session. Customer lookups are restricted
@@ -695,8 +696,30 @@ namespace LMSWebUI.Controllers
                 var response = await _clientApi.SendRequestAsync<PricingRulesViewModel>("/GetPricingRules", parameters, Method.GET);
                 model = response ?? BuildDefaultPricingRules(tenantName, storeCode);
             }
+            catch (Exception ex) when (IsNotFoundApiResponse(ex))
+            {
+                model = BuildDefaultPricingRules(tenantName, storeCode);
+            }
+            catch (ApiUnavailableException ex)
+            {
+                TempData["UserMessage"] = JsonConvert.SerializeObject(new MessageDto
+                {
+                    CssClassName = "alert alert-danger",
+                    Title = "Failed.",
+                    DisplayMessage = BuildApiErrorMessage(ex, "Unable to load pricing rules.")
+                });
+
+                model = BuildDefaultPricingRules(tenantName, storeCode);
+            }
             catch
             {
+                TempData["UserMessage"] = JsonConvert.SerializeObject(new MessageDto
+                {
+                    CssClassName = "alert alert-danger",
+                    Title = "Failed.",
+                    DisplayMessage = "Unable to load pricing rules."
+                });
+
                 model = BuildDefaultPricingRules(tenantName, storeCode);
             }
 
@@ -757,6 +780,26 @@ namespace LMSWebUI.Controllers
             try
             {
                 var response = await _clientApi.SendRequestAsync<CustomerIOResponse>("/SavePricingRules", model, Method.POST);
+                var responseStatusCode = response?.StatusCode?.Trim();
+                var isSuccess = string.IsNullOrWhiteSpace(responseStatusCode)
+                                || string.Equals(responseStatusCode, "200", StringComparison.OrdinalIgnoreCase)
+                                || string.Equals(responseStatusCode, "201", StringComparison.OrdinalIgnoreCase)
+                                || string.Equals(responseStatusCode, "204", StringComparison.OrdinalIgnoreCase);
+
+                if (!isSuccess)
+                {
+                    TempData["UserMessage"] = JsonConvert.SerializeObject(new MessageDto
+                    {
+                        CssClassName = "alert alert-danger",
+                        Title = "Failed.",
+                        DisplayMessage = string.IsNullOrWhiteSpace(response?.Message)
+                            ? "Unable to save pricing rules."
+                            : response.Message
+                    });
+
+                    return View(model);
+                }
+
                 TempData["UserMessage"] = JsonConvert.SerializeObject(new MessageDto
                 {
                     CssClassName = "alert alert-success",
@@ -1331,105 +1374,15 @@ namespace LMSWebUI.Controllers
             return normalizedOrderNo + "-P" + safePieceIndex.ToString().PadLeft(2, '0');
         }
 
-        private async Task EnsureOrderTagsFromSettingsAsync(OrderCompletionContextDto context)
+        private Task EnsureOrderTagsFromSettingsAsync(OrderCompletionContextDto context)
         {
             if (context == null || context.Items == null || context.Items.Count == 0)
             {
-                return;
+                return Task.CompletedTask;
             }
 
-            var normalizedItems = context.Items.Where(x => x != null).ToList();
-            if (normalizedItems.Count == 0)
-            {
-                return;
-            }
-
-            var fallbackTotalPieces = context.TotalPieces > 0
-                ? context.TotalPieces
-                : normalizedItems.Sum(x => x.Quantity > 0 ? x.Quantity : 1);
-
-            var perPieceTagMap = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
-            var pieceCursor = 1;
-
-            foreach (var item in normalizedItems)
-            {
-                var qty = item.Quantity > 0 ? item.Quantity : 1;
-                var itemTags = new List<string>(qty);
-                for (var i = 0; i < qty; i++)
-                {
-                    itemTags.Add(BuildOrderTagNumber(context.OrderNo, pieceCursor));
-                    pieceCursor++;
-                }
-
-                var key = (item.ItemName ?? string.Empty).Trim();
-                if (string.IsNullOrWhiteSpace(key))
-                {
-                    key = "__item_" + pieceCursor;
-                }
-
-                perPieceTagMap[key] = itemTags;
-            }
-
-            var tenantName = string.IsNullOrWhiteSpace(context.TenantName)
-                ? HttpContext.Session.GetString("TenantName")
-                : context.TenantName;
-
-            var storeCode = string.IsNullOrWhiteSpace(context.StoreCode)
-                ? HttpContext.Session.GetString("TenantStore")
-                : context.StoreCode;
-
-            if (string.IsNullOrWhiteSpace(tenantName) || string.IsNullOrWhiteSpace(storeCode))
-            {
-                return;
-            }
-
-            BarcodeTagSettingsViewModel settings;
-            try
-            {
-                settings = await LoadBarcodeTagSettingsAsync(tenantName, storeCode);
-            }
-            catch
-            {
-                return;
-            }
-
-            if (settings == null || !settings.EnableTagging)
-            {
-                return;
-            }
-
-            var nextNumber = settings.NextTagNumber < 1 ? 1 : settings.NextTagNumber;
-            var assigned = 0;
-
-            foreach (var item in normalizedItems)
-            {
-                if (!string.IsNullOrWhiteSpace(item.TagNo))
-                {
-                    continue;
-                }
-
-                item.TagNo = BuildPrintableTagNumber(settings.TagPrefix, nextNumber, settings.TagNumberPadding);
-                nextNumber++;
-                assigned++;
-            }
-
-            if (assigned <= 0)
-            {
-                return;
-            }
-
-            settings.TenantName = tenantName;
-            settings.StoreCode = storeCode;
-            settings.NextTagNumber = nextNumber;
-
-            try
-            {
-                await _clientApi.SendRequestAsync<CustomerIOResponse>("/SaveBarcodeTagSettings", settings, Method.POST);
-            }
-            catch
-            {
-                // Best-effort update. Printing should continue even when settings persistence fails.
-            }
+            // Printing must never create or mutate tag values.
+            return Task.CompletedTask;
         }
 
         [HttpGet]
@@ -2093,7 +2046,7 @@ namespace LMSWebUI.Controllers
         }
 
         [HttpGet]
-        public IActionResult NewStoreCreation()
+        public async Task<IActionResult> NewStoreCreation()
         {
             if (!IsAdminUser())
             {
@@ -2121,6 +2074,12 @@ namespace LMSWebUI.Controllers
 
             ViewData["TenantName"] = tenantName;
             ViewData["StoreCode"] = storeCode;
+
+            var (existingStores, loadErrorMessage) = await GetTenantStoreStatusesForNewStoreCreationAsync(tenantName, storeCode);
+            ViewData["ExistingStores"] = existingStores.Select(x => x.StoreCode).ToList();
+            ViewData["ExistingStoreStatuses"] = existingStores;
+            ViewData["ExistingStoresLoadError"] = loadErrorMessage;
+
             return View();
         }
 
@@ -2162,8 +2121,13 @@ namespace LMSWebUI.Controllers
                 catch (Exception ex)
                 {
                     var message = ex?.InnerException?.Message ?? ex?.Message ?? string.Empty;
-                    if (!message.Contains("NotFound", StringComparison.OrdinalIgnoreCase)
-                        && !message.Contains("404", StringComparison.OrdinalIgnoreCase))
+                    var shouldFallbackToMaster = ex is ApiUnavailableException
+                        || message.Contains("NotFound", StringComparison.OrdinalIgnoreCase)
+                        || message.Contains("404", StringComparison.OrdinalIgnoreCase)
+                        || message.Contains("actively refused", StringComparison.OrdinalIgnoreCase)
+                        || message.Contains("No connection could be made", StringComparison.OrdinalIgnoreCase);
+
+                    if (!shouldFallbackToMaster)
                     {
                         throw;
                     }
@@ -2216,6 +2180,273 @@ namespace LMSWebUI.Controllers
                     message = BuildApiErrorMessage(ex, "Unable to create store.", "Store code already exists.")
                 });
             }
+        }
+
+        [HttpPost]
+        public async Task<JsonResult> SetNewStoreCreationStoreActiveStatus(string storeCode, bool isActive)
+        {
+            if (!IsAdminUser())
+            {
+                return Json(new { success = false, message = "Only admin users can change store status." });
+            }
+
+            var tenantName = HttpContext.Session.GetString("TenantName");
+            var currentStoreCode = HttpContext.Session.GetString("TenantStore");
+
+            if (string.IsNullOrWhiteSpace(tenantName) || string.IsNullOrWhiteSpace(currentStoreCode))
+            {
+                return Json(new { success = false, message = "Session expired. Please log in again." });
+            }
+
+            var normalizedStoreCode = storeCode?.Trim();
+            if (string.IsNullOrWhiteSpace(normalizedStoreCode))
+            {
+                return Json(new { success = false, message = "Store code is required." });
+            }
+
+            try
+            {
+                var (tenantStores, loadErrorMessage) = await GetTenantStoreStatusesForNewStoreCreationAsync(tenantName, currentStoreCode);
+                if (!string.IsNullOrWhiteSpace(loadErrorMessage) && tenantStores.Count == 0)
+                {
+                    return Json(new { success = false, message = loadErrorMessage });
+                }
+
+                var targetStore = tenantStores.FirstOrDefault(x => string.Equals(x.StoreCode, normalizedStoreCode, StringComparison.OrdinalIgnoreCase));
+                if (targetStore == null)
+                {
+                    return Json(new { success = false, message = "Invalid store selected." });
+                }
+
+                LoginIoResponse response = null;
+                try
+                {
+                    response = await _loginApi.SendRequestAsync<LoginIoResponse>("/SetStoreActiveStatusByStoreCode", new Dictionary<string, string>
+                    {
+                        { "storeCode", normalizedStoreCode },
+                        { "isActive", isActive ? "true" : "false" },
+                        { "activatedBy", tenantName }
+                    }, Method.POST);
+                }
+                catch (Exception ex)
+                {
+                    var message = ex?.InnerException?.Message ?? ex?.Message ?? string.Empty;
+                    var shouldFallbackToMaster = ex is ApiUnavailableException
+                        || message.Contains("NotFound", StringComparison.OrdinalIgnoreCase)
+                        || message.Contains("404", StringComparison.OrdinalIgnoreCase)
+                        || message.Contains("actively refused", StringComparison.OrdinalIgnoreCase)
+                        || message.Contains("No connection could be made", StringComparison.OrdinalIgnoreCase);
+
+                    if (!shouldFallbackToMaster)
+                    {
+                        throw;
+                    }
+
+                    response = await _clientApi.SendRequestAsync<LoginIoResponse>("/SetStoreActiveStatusByStoreCode", new Dictionary<string, string>
+                    {
+                        { "storeCode", normalizedStoreCode },
+                        { "isActive", isActive ? "true" : "false" },
+                        { "activatedBy", tenantName }
+                    }, Method.POST);
+                }
+
+                var isSuccess = response != null && string.Equals(response.StatusCode, "200", StringComparison.OrdinalIgnoreCase);
+                return Json(new
+                {
+                    success = isSuccess,
+                    message = string.IsNullOrWhiteSpace(response?.Message)
+                        ? (isSuccess
+                            ? (isActive ? "Store enabled successfully." : "Store disabled successfully.")
+                            : "Unable to update store status.")
+                        : response.Message
+                });
+            }
+            catch (Exception ex)
+            {
+                return Json(new
+                {
+                    success = false,
+                    message = BuildApiErrorMessage(ex, "Unable to update store status.")
+                });
+            }
+        }
+
+        [HttpGet]
+        public async Task<JsonResult> GetNewStoreCreationStoreStatuses()
+        {
+            if (!IsAdminUser())
+            {
+                return Json(new { success = false, message = "Only admin users can view store status.", stores = new List<object>() });
+            }
+
+            var tenantName = HttpContext.Session.GetString("TenantName");
+            var currentStoreCode = HttpContext.Session.GetString("TenantStore");
+
+            if (string.IsNullOrWhiteSpace(tenantName) || string.IsNullOrWhiteSpace(currentStoreCode))
+            {
+                return Json(new { success = false, message = "Session expired. Please log in again.", stores = new List<object>() });
+            }
+
+            var (stores, loadErrorMessage) = await GetTenantStoreStatusesForNewStoreCreationAsync(tenantName, currentStoreCode);
+            if (!string.IsNullOrWhiteSpace(loadErrorMessage) && stores.Count == 0)
+            {
+                return Json(new { success = false, message = loadErrorMessage, stores = new List<object>() });
+            }
+
+            return Json(new
+            {
+                success = true,
+                stores = stores.Select(x => new
+                {
+                    storeCode = x.StoreCode,
+                    isActive = x.IsActive
+                })
+            });
+        }
+
+        private sealed class TenantStoreStatusViewModel
+        {
+            public string StoreCode { get; set; }
+            public bool IsActive { get; set; }
+        }
+
+        private async Task<(List<TenantStoreStatusViewModel> Stores, string ErrorMessage)> GetTenantStoreStatusesForNewStoreCreationAsync(string tenantName, string currentStoreCode)
+        {
+            var stores = new List<string>();
+            Exception lastException = null;
+
+            if (!string.IsNullOrWhiteSpace(tenantName))
+            {
+                var parameters = new Dictionary<string, string>
+                {
+                    { "eMail", tenantName }
+                };
+
+                async Task<LoginIoResponse> callLoginApiAsync(string endpoint)
+                    => await _loginApi.SendRequestAsync<LoginIoResponse>(endpoint, parameters, Method.GET);
+
+                async Task<LoginIoResponse> callMasterApiAsync(string endpoint)
+                    => await _clientApi.SendRequestAsync<LoginIoResponse>(endpoint, parameters, Method.GET);
+
+                var attempts = new Func<Task<LoginIoResponse>>[]
+                {
+                    () => callLoginApiAsync("/GetTenantStoreDetails"),
+                    () => callLoginApiAsync("/TenantprofileDetails"),
+                    () => callMasterApiAsync("/GetTenantStoreDetails"),
+                    () => callMasterApiAsync("/TenantprofileDetails")
+                };
+
+                foreach (var attempt in attempts)
+                {
+                    try
+                    {
+                        var response = await attempt();
+                        if (response?.Storecodes != null)
+                        {
+                            stores.AddRange(response.Storecodes);
+                        }
+
+                        if (response != null)
+                        {
+                            break;
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        lastException = ex;
+                    }
+                }
+            }
+
+            if (!string.IsNullOrWhiteSpace(currentStoreCode))
+            {
+                stores.Add(currentStoreCode);
+            }
+
+            var normalizedStores = stores
+                .Where(x => !string.IsNullOrWhiteSpace(x))
+                .Select(x => x.Trim())
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .OrderBy(x => x, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            var statusLookup = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
+
+            if (!string.IsNullOrWhiteSpace(tenantName))
+            {
+                try
+                {
+                    JObject allStatuses = null;
+
+                    try
+                    {
+                        allStatuses = await _loginApi.SendRequestAsync<JObject>("/GetAllStoreStatuses", new Dictionary<string, string>(), Method.GET);
+                    }
+                    catch (Exception ex)
+                    {
+                        lastException = ex;
+
+                        var message = ex?.InnerException?.Message ?? ex?.Message ?? string.Empty;
+                        var shouldFallbackToMaster = ex is ApiUnavailableException
+                            || message.Contains("NotFound", StringComparison.OrdinalIgnoreCase)
+                            || message.Contains("404", StringComparison.OrdinalIgnoreCase)
+                            || message.Contains("actively refused", StringComparison.OrdinalIgnoreCase)
+                            || message.Contains("No connection could be made", StringComparison.OrdinalIgnoreCase);
+
+                        if (shouldFallbackToMaster)
+                        {
+                            allStatuses = await _clientApi.SendRequestAsync<JObject>("/GetAllStoreStatuses", new Dictionary<string, string>(), Method.GET);
+                        }
+                        else
+                        {
+                            throw;
+                        }
+                    }
+
+                    var statusesToken = allStatuses?["StoreStatuses"] ?? allStatuses?["storeStatuses"] ?? new JArray();
+                    var statusesArray = statusesToken as JArray ?? statusesToken?["$values"] as JArray ?? new JArray();
+
+                    foreach (var item in statusesArray)
+                    {
+                        var itemStoreCode = (item?["StoreCode"] ?? item?["storeCode"])?.ToString()?.Trim();
+                        if (string.IsNullOrWhiteSpace(itemStoreCode))
+                        {
+                            continue;
+                        }
+
+                        var itemTenantName = (item?["TenantName"] ?? item?["tenantName"])?.ToString()?.Trim();
+                        var itemTenantEmail = (item?["TenantEmail"] ?? item?["tenantEmail"])?.ToString()?.Trim();
+                        var belongsToTenant = string.Equals(itemTenantName, tenantName, StringComparison.OrdinalIgnoreCase)
+                            || string.Equals(itemTenantEmail, tenantName, StringComparison.OrdinalIgnoreCase);
+
+                        if (!belongsToTenant)
+                        {
+                            continue;
+                        }
+
+                        var isActive = (bool?)(item?["IsActive"] ?? item?["isActive"]) ?? false;
+                        statusLookup[itemStoreCode] = isActive;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    lastException = ex;
+                }
+            }
+
+            var storesWithStatus = normalizedStores
+                .Select(code => new TenantStoreStatusViewModel
+                {
+                    StoreCode = code,
+                    IsActive = statusLookup.TryGetValue(code, out var isActive) && isActive
+                })
+                .ToList();
+
+            var errorMessage = storesWithStatus.Count == 0 && lastException != null
+                ? BuildApiErrorMessage(lastException, "Unable to load existing stores.")
+                : string.Empty;
+
+            return (storesWithStatus, errorMessage);
         }
 
         [HttpGet]
@@ -3477,6 +3708,7 @@ namespace LMSWebUI.Controllers
         }
 
         [HttpPost]
+        [ValidateAntiForgeryToken]
         public async Task<IActionResult> SetupCreateOrder(LaundryOrderDto model)
         {
             var tenantName = HttpContext.Session.GetString("TenantName");
@@ -3542,8 +3774,27 @@ namespace LMSWebUI.Controllers
                 return RedirectToAction(nameof(SetupCreateOrder), new { customerName = model.CustomerName, customerCode = model.CustCode });
             }
 
+            model.OrderAmount = Math.Round(Math.Max(0m, model.OrderAmount), 2, MidpointRounding.AwayFromZero);
             model.AdvanceUsed = Math.Round(model.AdvanceUsed, 2, MidpointRounding.AwayFromZero);
-            var netPayableAfterAdvance = Math.Round(Math.Max(0m, model.OrderAmount - model.AdvanceUsed), 2, MidpointRounding.AwayFromZero);
+
+            var paymentSettings = await LoadPaymentSettingsAsync(tenantName, storeCode);
+            var allowPartialPayment = paymentSettings.AllowPartialPayment;
+
+            var taxSettings = await LoadTaxInvoiceSettingsAsync(tenantName, storeCode);
+            var taxEnabled = taxSettings.EnableTax && taxSettings.GstPercent > 0;
+            var payableBeforeAdvance = model.OrderAmount;
+            if (taxEnabled && !taxSettings.PricesIncludeTax)
+            {
+                var taxRate = taxSettings.GstPercent / 100m;
+                payableBeforeAdvance = Math.Round(model.OrderAmount * (1 + taxRate), 2, MidpointRounding.AwayFromZero);
+            }
+
+            if (model.AdvanceUsed > payableBeforeAdvance)
+            {
+                model.AdvanceUsed = payableBeforeAdvance;
+            }
+
+            var netPayableAfterAdvance = Math.Round(Math.Max(0m, payableBeforeAdvance - model.AdvanceUsed), 2, MidpointRounding.AwayFromZero);
 
             if (model.PaidNow < 0)
             {
@@ -3558,6 +3809,19 @@ namespace LMSWebUI.Controllers
             }
 
             model.PaidNow = Math.Round(model.PaidNow, 2, MidpointRounding.AwayFromZero);
+
+            if (!allowPartialPayment)
+            {
+                const decimal paymentTolerance = 0.01m;
+                if (netPayableAfterAdvance - model.PaidNow > paymentTolerance)
+                {
+                    TempData["SetupCreateOrderToast"] = "Partial payments are disabled for this store. Please use customer's advance or collect full payment before creating the order.";
+                    return RedirectToAction(nameof(SetupCreateOrder), new { customerName = model.CustomerName, customerCode = model.CustCode, orderMode = model.OrderMode });
+                }
+
+                model.PaidNow = netPayableAfterAdvance;
+            }
+
             model.NetPayable = netPayableAfterAdvance;
             model.PendingAmount = Math.Round(Math.Max(0m, model.NetPayable - model.PaidNow), 2, MidpointRounding.AwayFromZero);
 
@@ -3756,8 +4020,26 @@ namespace LMSWebUI.Controllers
 
             if (!orderCreated)
             {
+                var postPaymentSettings = await LoadPaymentSettingsAsync(tenantName, storeCode);
+                var enabledPaymentModes = GetEnabledPaymentModes(postPaymentSettings);
+                if (enabledPaymentModes.Count == 0)
+                {
+                    enabledPaymentModes = new List<string> { "Cash", "UPI", "Card", "Wallet" };
+                }
+
+                ViewData["EnabledPaymentModes"] = enabledPaymentModes;
+                ViewData["AllowPartialPayment"] = postPaymentSettings.AllowPartialPayment;
+                ViewData["AllowCredit"] = postPaymentSettings.AllowCredit;
+                ViewData["RoundOffPayableAmount"] = postPaymentSettings.RoundOffPayableAmount;
+
+                var postTaxSettings = await LoadTaxInvoiceSettingsAsync(tenantName, storeCode);
+                ViewData["TaxEnabled"] = postTaxSettings.EnableTax && postTaxSettings.GstPercent > 0;
+                ViewData["GstPercent"] = postTaxSettings.GstPercent;
+                ViewData["PricesIncludeTax"] = postTaxSettings.PricesIncludeTax;
+
                 ViewData["OrderMode"] = model.OrderMode;
                 ViewData["SetupOnly"] = false;
+                ViewData["IsAdminUser"] = IsAdminUser();
                 return View(model);
             }
 
@@ -3825,6 +4107,7 @@ namespace LMSWebUI.Controllers
         }
 
         [HttpPost]
+        [ValidateAntiForgeryToken]
         public async Task<JsonResult> SendOrderBillEmail(string orderNo, string email)
         {
             var context = await TryGetOrderCompletionContextAsync(orderNo, allowFallback: true);
@@ -5049,6 +5332,7 @@ namespace LMSWebUI.Controllers
         }
 
         [HttpPost]
+        [ValidateAntiForgeryToken]
         public async Task<JsonResult> SettleOrderPendingPayment(string orderNo, decimal paidAmount, string paymentMode = null, string notes = null)
         {
             var tenantName = HttpContext.Session.GetString("TenantName");
@@ -5181,6 +5465,11 @@ namespace LMSWebUI.Controllers
         [HttpPost]
         public async Task<JsonResult> SaveLaundryItemPrice(LaundryItemPriceDto model)
         {
+            if (!IsAdminUser())
+            {
+                return Json(new { success = false, message = "Only admin users can modify store prices." });
+            }
+
             var tenantName = HttpContext.Session.GetString("TenantName");
             var storeCode = HttpContext.Session.GetString("TenantStore");
 
@@ -5237,6 +5526,11 @@ namespace LMSWebUI.Controllers
         [HttpPost]
         public async Task<JsonResult> DeactivateLaundryItemPrice(string serviceType, string category, string itemName)
         {
+            if (!IsAdminUser())
+            {
+                return Json(new { success = false, message = "Only admin users can modify store prices." });
+            }
+
             var tenantName = HttpContext.Session.GetString("TenantName");
             var storeCode = HttpContext.Session.GetString("TenantStore");
 
@@ -5284,6 +5578,11 @@ namespace LMSWebUI.Controllers
         [HttpPost]
         public async Task<JsonResult> ReactivateLaundryItemPrice(string serviceType, string category, string itemName)
         {
+            if (!IsAdminUser())
+            {
+                return Json(new { success = false, message = "Only admin users can modify store prices." });
+            }
+
             var tenantName = HttpContext.Session.GetString("TenantName");
             var storeCode = HttpContext.Session.GetString("TenantStore");
 
@@ -5329,8 +5628,18 @@ namespace LMSWebUI.Controllers
         }
 
         [HttpGet]
-        public async Task<JsonResult> GetLaundryItemPrices([FromQuery] bool includeInactive = false)
+        public async Task<JsonResult> GetLaundryItemPrices([FromQuery] bool includeInactive = false, [FromQuery] bool forImportExport = false)
         {
+            if (forImportExport && !IsAdminUser())
+            {
+                return Json(new
+                {
+                    success = false,
+                    message = "Only admin users can access price import/export data.",
+                    items = new List<LaundryItemPriceDto>()
+                });
+            }
+
             var tenantName = HttpContext.Session.GetString("TenantName");
             var storeCode = HttpContext.Session.GetString("TenantStore");
 
@@ -5383,6 +5692,11 @@ namespace LMSWebUI.Controllers
         [HttpPost]
         public async Task<JsonResult> ImportDefaultLaundryItemPrices(bool overwriteExisting = false)
         {
+            if (!IsAdminUser())
+            {
+                return Json(new { success = false, message = "Only admin users can import default item prices." });
+            }
+
             var tenantName = HttpContext.Session.GetString("TenantName");
             var storeCode = HttpContext.Session.GetString("TenantStore");
 
@@ -5420,6 +5734,11 @@ namespace LMSWebUI.Controllers
         [HttpPost]
         public async Task<JsonResult> ImportLaundryItemPricesCsv(IFormFile csvFile, bool overwriteExisting = false)
         {
+            if (!IsAdminUser())
+            {
+                return Json(new { success = false, message = "Only admin users can import prices." });
+            }
+
             var tenantName = HttpContext.Session.GetString("TenantName");
             var storeCode = HttpContext.Session.GetString("TenantStore");
 
@@ -5433,8 +5752,53 @@ namespace LMSWebUI.Controllers
                 return Json(new { success = false, message = "Please choose a CSV file to import." });
             }
 
+            if (csvFile.Length > MaxCsvUploadBytes)
+            {
+                return Json(new { success = false, message = "CSV file is too large. Max allowed size is 2 MB." });
+            }
+
+            var fileName = csvFile.FileName?.Trim() ?? string.Empty;
+            if (!fileName.EndsWith(".csv", StringComparison.OrdinalIgnoreCase))
+            {
+                return Json(new { success = false, message = "Invalid file type. Please upload a .csv file." });
+            }
+
             try
             {
+                List<string> lines;
+
+                using (var stream = csvFile.OpenReadStream())
+                using (var reader = new StreamReader(stream, Encoding.UTF8, detectEncodingFromByteOrderMarks: true, leaveOpen: false))
+                {
+                    var allText = await reader.ReadToEndAsync();
+                    lines = allText
+                        .Replace("\r\n", "\n")
+                        .Replace("\r", "\n")
+                        .Split('\n')
+                        .ToList();
+                }
+
+                var headerLine = lines
+                    .Select(x => x ?? string.Empty)
+                    .FirstOrDefault(x => !string.IsNullOrWhiteSpace(x));
+
+                if (string.IsNullOrWhiteSpace(headerLine))
+                {
+                    return Json(new { success = false, message = "Selected CSV file is empty." });
+                }
+
+                var normalizedHeader = NormalizeCsvHeader(headerLine);
+
+                const string requiredHeader = "servicetype,category,itemname,unitprice";
+                if (!string.Equals(normalizedHeader, requiredHeader, StringComparison.Ordinal))
+                {
+                    return Json(new
+                    {
+                        success = false,
+                        message = "Invalid CSV header. Required: ServiceType,Category,ItemName,UnitPrice"
+                    });
+                }
+
                 var existingKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
                 if (!overwriteExisting)
@@ -5457,83 +5821,111 @@ namespace LMSWebUI.Controllers
                 var failedCount = 0;
                 var failedLineNumbers = new List<int>();
                 var skippedLineNumbers = new List<int>();
+                var rowIssues = new List<object>();
+                var uploadedFileKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
                 var rowNumber = 0;
 
-                using (var stream = csvFile.OpenReadStream())
-                using (var reader = new StreamReader(stream))
+                foreach (var line in lines)
                 {
-                    while (!reader.EndOfStream)
+                    rowNumber++;
+
+                    if (string.IsNullOrWhiteSpace(line))
                     {
-                        var line = await reader.ReadLineAsync();
-                        rowNumber++;
+                        continue;
+                    }
 
-                        if (string.IsNullOrWhiteSpace(line))
-                        {
-                            continue;
-                        }
+                    var columns = ParseCsvLine(line);
+                    if (columns.Count < 4)
+                    {
+                        failedCount++;
+                        failedLineNumbers.Add(rowNumber);
+                        continue;
+                    }
 
-                        var columns = ParseCsvLine(line);
-                        if (columns.Count < 4)
-                        {
-                            failedCount++;
-                            failedLineNumbers.Add(rowNumber);
-                            continue;
-                        }
+                    var serviceType = columns[0]?.Trim();
+                    var category = columns[1]?.Trim();
+                    var itemName = columns[2]?.Trim();
+                    var priceText = columns[3]?.Trim();
 
-                        var serviceType = columns[0]?.Trim();
-                        var category = columns[1]?.Trim();
-                        var itemName = columns[2]?.Trim();
-                        var priceText = columns[3]?.Trim();
+                    if (string.Equals(NormalizeCsvHeader(line), requiredHeader, StringComparison.Ordinal))
+                    {
+                        continue;
+                    }
 
-                        if (rowNumber == 1
-                            && string.Equals(serviceType, "ServiceType", StringComparison.OrdinalIgnoreCase)
-                            && string.Equals(category, "Category", StringComparison.OrdinalIgnoreCase)
-                            && string.Equals(itemName, "ItemName", StringComparison.OrdinalIgnoreCase))
+                    if (string.IsNullOrWhiteSpace(serviceType)
+                        || string.IsNullOrWhiteSpace(category)
+                        || string.IsNullOrWhiteSpace(itemName)
+                        || !decimal.TryParse(priceText, NumberStyles.Any, CultureInfo.InvariantCulture, out var unitPrice)
+                        || unitPrice < 0)
+                    {
+                        failedCount++;
+                        failedLineNumbers.Add(rowNumber);
+                        rowIssues.Add(new
                         {
-                            continue;
-                        }
+                            lineNumber = rowNumber,
+                            status = "failed",
+                            reason = "Missing required values or invalid UnitPrice (must be a non-negative number using dot decimal format)."
+                        });
+                        continue;
+                    }
 
-                        if (string.IsNullOrWhiteSpace(serviceType)
-                            || string.IsNullOrWhiteSpace(category)
-                            || string.IsNullOrWhiteSpace(itemName)
-                            || !decimal.TryParse(priceText, NumberStyles.Any, CultureInfo.InvariantCulture, out var unitPrice)
-                            || unitPrice < 0)
-                        {
-                            failedCount++;
-                            failedLineNumbers.Add(rowNumber);
-                            continue;
-                        }
+                    var key = BuildLaundryItemKey(serviceType, category, itemName);
 
-                        var key = BuildLaundryItemKey(serviceType, category, itemName);
-                        if (!overwriteExisting && existingKeys.Contains(key))
+                    if (!uploadedFileKeys.Add(key))
+                    {
+                        failedCount++;
+                        failedLineNumbers.Add(rowNumber);
+                        rowIssues.Add(new
                         {
-                            skippedCount++;
-                            skippedLineNumbers.Add(rowNumber);
-                            continue;
-                        }
+                            lineNumber = rowNumber,
+                            status = "failed",
+                            reason = "Duplicate item row in uploaded file for ServiceType + Category + ItemName."
+                        });
+                        continue;
+                    }
 
-                        var request = new LaundryItemPriceDto
+                    if (!overwriteExisting && existingKeys.Contains(key))
+                    {
+                        skippedCount++;
+                        skippedLineNumbers.Add(rowNumber);
+                        rowIssues.Add(new
                         {
-                            TenantName = tenantName,
-                            StoreCode = storeCode,
-                            ServiceType = serviceType,
-                            Category = category,
-                            ItemName = itemName,
-                            UnitPrice = unitPrice,
-                            IsActive = true
-                        };
+                            lineNumber = rowNumber,
+                            status = "skipped",
+                            reason = "Item already exists in current store and overwrite is disabled."
+                        });
+                        continue;
+                    }
 
-                        var saveResponse = await _clientApi.SendRequestAsync<CustomerIOResponse>("/SaveLaundryItemPrice", request, Method.POST);
-                        if (saveResponse != null && saveResponse.StatusCode == "200")
+                    var request = new LaundryItemPriceDto
+                    {
+                        TenantName = tenantName,
+                        StoreCode = storeCode,
+                        ServiceType = serviceType,
+                        Category = category,
+                        ItemName = itemName,
+                        UnitPrice = unitPrice,
+                        IsActive = true
+                    };
+
+                    var saveResponse = await _clientApi.SendRequestAsync<CustomerIOResponse>("/SaveLaundryItemPrice", request, Method.POST);
+                    if (saveResponse != null && saveResponse.StatusCode == "200")
+                    {
+                        importedCount++;
+                        existingKeys.Add(key);
+                    }
+                    else
+                    {
+                        failedCount++;
+                        failedLineNumbers.Add(rowNumber);
+                        rowIssues.Add(new
                         {
-                            importedCount++;
-                            existingKeys.Add(key);
-                        }
-                        else
-                        {
-                            failedCount++;
-                            failedLineNumbers.Add(rowNumber);
-                        }
+                            lineNumber = rowNumber,
+                            status = "failed",
+                            reason = string.IsNullOrWhiteSpace(saveResponse?.Message)
+                                ? "Save failed for this row."
+                                : saveResponse.Message
+                        });
                     }
                 }
 
@@ -5545,7 +5937,8 @@ namespace LMSWebUI.Controllers
                     skippedCount,
                     failedCount,
                     failedLineNumbers,
-                    skippedLineNumbers
+                    skippedLineNumbers,
+                    rowIssues
                 });
             }
             catch (Exception ex)
@@ -6009,6 +6402,18 @@ namespace LMSWebUI.Controllers
             return $"{serviceType?.Trim().ToLowerInvariant()}|{category?.Trim().ToLowerInvariant()}|{itemName?.Trim().ToLowerInvariant()}";
         }
 
+        private static string NormalizeCsvHeader(string headerLine)
+        {
+            if (string.IsNullOrWhiteSpace(headerLine))
+            {
+                return string.Empty;
+            }
+
+            var withoutBom = headerLine.Replace("\uFEFF", string.Empty);
+            var withoutWhitespace = new string(withoutBom.Where(c => !char.IsWhiteSpace(c)).ToArray());
+            return withoutWhitespace.Trim().ToLowerInvariant();
+        }
+
         private static List<string> ParseCsvLine(string line)
         {
             var result = new List<string>();
@@ -6088,6 +6493,44 @@ namespace LMSWebUI.Controllers
             }
 
             return $"{fallbackMessage} {rawMessage}";
+        }
+
+        private static bool IsNotFoundApiResponse(Exception ex)
+        {
+            var rawMessage = ex?.InnerException?.Message ?? ex?.Message;
+            if (string.IsNullOrWhiteSpace(rawMessage))
+            {
+                return false;
+            }
+
+            if (rawMessage.Contains("status code NotFound", StringComparison.OrdinalIgnoreCase)
+                || rawMessage.Contains("\"StatusCode\":\"404\"", StringComparison.OrdinalIgnoreCase)
+                || rawMessage.Contains("\"statusCode\":\"404\"", StringComparison.OrdinalIgnoreCase)
+                || rawMessage.Contains("\"StatusCode\":404", StringComparison.OrdinalIgnoreCase)
+                || rawMessage.Contains("\"statusCode\":404", StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+
+            try
+            {
+                if (!rawMessage.StartsWith("{", StringComparison.Ordinal))
+                {
+                    return false;
+                }
+
+                var token = JToken.Parse(rawMessage);
+                var statusCodeText = token["StatusCode"]?.ToString()
+                                     ?? token["statusCode"]?.ToString()
+                                     ?? token["ResultSet"]?["StatusCode"]?.ToString()
+                                     ?? token["resultSet"]?["statusCode"]?.ToString();
+
+                return string.Equals(statusCodeText, "404", StringComparison.OrdinalIgnoreCase);
+            }
+            catch
+            {
+                return false;
+            }
         }
     }
 }

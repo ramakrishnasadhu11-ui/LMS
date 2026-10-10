@@ -114,6 +114,9 @@
 
 <script>
 (function () {
+    var createRequestInProgress = false;
+    var statusRequestsInProgressByUser = new Set();
+
     if (!window.location.search) {
         var emailInput = document.getElementById("storeUserEmail");
         var passwordInput = document.getElementById("storeUserPassword");
@@ -171,15 +174,25 @@
                 var currentActive = (btn.getAttribute('data-active') || '').toLowerCase() === 'true';
                 var nextActive = !currentActive;
                 var userEmail = decodeURIComponent(encodedEmail);
+                var normalizedEmail = (userEmail || '').trim().toLowerCase();
 
                 if (!userEmail) {
                     window.alert('User email is required.');
                     return;
                 }
 
+                if (statusRequestsInProgressByUser.has(normalizedEmail)) {
+                    return;
+                }
+
                 var body = new URLSearchParams();
                 body.append('userEmail', userEmail);
                 body.append('isActive', nextActive ? 'true' : 'false');
+
+                var originalText = btn.textContent;
+                statusRequestsInProgressByUser.add(normalizedEmail);
+                btn.disabled = true;
+                btn.textContent = nextActive ? 'Activating...' : 'Deactivating...';
 
                 fetch('@Url.Action("SetStoreUserActiveStatus", "Login")', {
                     method: 'POST',
@@ -201,6 +214,11 @@
                 })
                 .catch(function () {
                     window.alert('Unable to update store user status.');
+                })
+                .finally(function () {
+                    statusRequestsInProgressByUser.delete(normalizedEmail);
+                    btn.disabled = false;
+                    btn.textContent = originalText;
                 });
             });
         });
@@ -231,14 +249,47 @@
     var createBtn = document.getElementById("createStoreUserBtn");
     if (createBtn) {
         createBtn.addEventListener("click", function () {
-            var email = (document.getElementById("storeUserEmail") || {}).value || "";
-            var password = (document.getElementById("storeUserPassword") || {}).value || "";
+            if (createRequestInProgress) {
+                return;
+            }
+
+            var emailInput = document.getElementById("storeUserEmail");
+            var passwordInput = document.getElementById("storeUserPassword");
+            var email = (emailInput || {}).value || "";
+            var password = (passwordInput || {}).value || "";
+
+            if (!email.trim()) {
+                window.alert("Store user email is required.");
+                if (emailInput) {
+                    emailInput.focus();
+                }
+                return;
+            }
+
+            if (emailInput && !emailInput.checkValidity()) {
+                window.alert("Enter a valid email address.");
+                emailInput.focus();
+                return;
+            }
+
+            if (!password.trim()) {
+                window.alert("Password is required.");
+                if (passwordInput) {
+                    passwordInput.focus();
+                }
+                return;
+            }
 
             var body = new URLSearchParams();
             body.append("email", email);
             body.append("password", password);
             body.append("role", "StoreUser");
             body.append("storeCode", ((document.getElementById("targetStoreCode") || {}).value || "").trim());
+
+            var originalText = createBtn.textContent;
+            createRequestInProgress = true;
+            createBtn.disabled = true;
+            createBtn.textContent = "Creating...";
 
             fetch('@Url.Action("CreateStoreUser", "Customer")', {
                 method: 'POST',
@@ -259,7 +310,12 @@
                 if (pwd) pwd.value = "";
                 loadUsers();
             })
-            .catch(function () { window.alert("Unable to create store user."); });
+            .catch(function () { window.alert("Unable to create store user."); })
+            .finally(function () {
+                createRequestInProgress = false;
+                createBtn.disabled = false;
+                createBtn.textContent = originalText;
+            });
         });
     }
 
