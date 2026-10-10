@@ -13,6 +13,11 @@ using Microsoft.AspNetCore.Http;
 using System.ComponentModel.DataAnnotations;
 using Microsoft.Extensions.Logging;
 using System.Globalization;
+using System.IO;
+using System.Security.Cryptography;
+using System.Text;
+using Microsoft.AspNetCore.Hosting;
+using Newtonsoft.Json.Linq;
 
 namespace LMSWebUI.Controllers
 {
@@ -20,14 +25,25 @@ namespace LMSWebUI.Controllers
     {
         private readonly ILoginApiClient _clientApi;
         private readonly ILogger<LoginController> _logger;
+        private readonly IWebHostEnvironment _environment;
         private const string AllowedStoresSessionKey = "TenantAllowedStores";
         private const string MemberSinceSessionKey = "TenantMemberSince";
+        private const string ProfileImageSessionKey = "TenantProfileImageUrl";
+        private const string TenantIdSessionKey = "TenantId";
+        private const int MaxProfileImageBytes = 2 * 1024 * 1024;
         private static readonly EmailAddressAttribute EmailValidator = new EmailAddressAttribute();
+        private static readonly HashSet<string> AllowedProfileImageExtensions = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ".jpg",
+            ".jpeg",
+            ".png"
+        };
 
-        public LoginController(ILoginApiClient clientAPI, ILogger<LoginController> logger)
+        public LoginController(ILoginApiClient clientAPI, ILogger<LoginController> logger, IWebHostEnvironment environment)
         {
             _clientApi = clientAPI;
             _logger = logger;
+            _environment = environment;
         }
 
         [HttpGet]
@@ -40,13 +56,14 @@ namespace LMSWebUI.Controllers
 
         [HttpGet]
         [AllowAnonymous]
-        public async Task<IActionResult> TenantProfileDetailsAsync(string tenantEmail)
+        public async Task<IActionResult> TenantProfileDetailsAsync(string tenantEmail, string returnUrl)
         {
             var sessionTenantEmail = HttpContext.Session.GetString("TenantName");
+            var sessionTenantId = HttpContext.Session.GetString(TenantIdSessionKey);
             var sessionTenantStore = HttpContext.Session.GetString("TenantStore");
             var sessionUserRole = HttpContext.Session.GetString("UserRole");
 
-            if (string.IsNullOrWhiteSpace(sessionTenantEmail))
+            if (string.IsNullOrWhiteSpace(sessionTenantEmail) || !EmailValidator.IsValid(sessionTenantEmail))
             {
                 return RedirectToAction(nameof(Login));
             }
@@ -57,8 +74,13 @@ namespace LMSWebUI.Controllers
                 TenantName = sessionTenantEmail,
                 TenantStore = sessionTenantStore,
                 UserRole = string.IsNullOrWhiteSpace(sessionUserRole) ? "StoreUser" : sessionUserRole,
-                ProfileImageUrl = HttpContext.Session.GetString("TenantProfileImageUrl")
+                ProfileImageUrl = HttpContext.Session.GetString(ProfileImageSessionKey)
             };
+
+            SetTenantProfileImageSession(sessionTenantEmail, sessionTenantId);
+            model.ProfileImageUrl = HttpContext.Session.GetString(ProfileImageSessionKey);
+
+            ViewData["BackUrl"] = ResolveSafeProfileBackUrl(returnUrl);
 
             var paramsGetAllStoresByClient = new Dictionary<string, string>
             {
@@ -72,7 +94,7 @@ namespace LMSWebUI.Controllers
                 {
                     model.Email = string.IsNullOrWhiteSpace(responseMessage.Email) ? sessionTenantEmail : responseMessage.Email;
                     model.TenantName = string.IsNullOrWhiteSpace(responseMessage.TenantName) ? model.TenantName : responseMessage.TenantName;
-                    model.PhoneNumber = responseMessage.PhoneNumber;
+                    model.PhoneNumber = ResolveProfilePhoneNumber(responseMessage);
                     model.Address = responseMessage.Address;
                     model.Country = responseMessage.Country;
                     model.CreatedDate = responseMessage.CreatedDate;
@@ -88,6 +110,277 @@ namespace LMSWebUI.Controllers
             }
 
             return View("TenantProfileDetailsAsync", model);
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public IActionResult UploadProfilePhoto(IFormFile profileImage, string returnUrl)
+        {
+            var sessionTenantEmail = HttpContext.Session.GetString("TenantName");
+            var sessionTenantId = HttpContext.Session.GetString(TenantIdSessionKey);
+            if (string.IsNullOrWhiteSpace(sessionTenantEmail) || !EmailValidator.IsValid(sessionTenantEmail))
+            {
+                return RedirectToAction(nameof(Login));
+            }
+
+            if (profileImage == null || profileImage.Length == 0)
+            {
+                TempData["ProfileMessage"] = "Please choose an image to upload.";
+                return RedirectToAction("TenantProfileDetails", new { returnUrl });
+            }
+
+            if (profileImage.Length > MaxProfileImageBytes)
+            {
+                TempData["ProfileMessage"] = "Profile image must be 2 MB or smaller.";
+                return RedirectToAction("TenantProfileDetails", new { returnUrl });
+            }
+
+            var extension = Path.GetExtension(profileImage.FileName);
+            if (string.IsNullOrWhiteSpace(extension) || !AllowedProfileImageExtensions.Contains(extension))
+            {
+                TempData["ProfileMessage"] = "Only JPG, JPEG, and PNG files are allowed.";
+                return RedirectToAction("TenantProfileDetails", new { returnUrl });
+            }
+
+            var contentType = profileImage.ContentType?.Trim();
+            if (!string.Equals(contentType, "image/jpeg", StringComparison.OrdinalIgnoreCase)
+                && !string.Equals(contentType, "image/jpg", StringComparison.OrdinalIgnoreCase)
+                && !string.Equals(contentType, "image/png", StringComparison.OrdinalIgnoreCase))
+            {
+                TempData["ProfileMessage"] = "Only JPG, JPEG, and PNG files are allowed.";
+                return RedirectToAction("TenantProfileDetails", new { returnUrl });
+            }
+
+            if (!IsSupportedImageContent(profileImage, extension))
+            {
+                TempData["ProfileMessage"] = "Invalid image content. Please upload a valid JPG, JPEG, or PNG file.";
+                return RedirectToAction("TenantProfileDetails", new { returnUrl });
+            }
+
+            var tenantKey = BuildTenantKey(sessionTenantEmail, sessionTenantId);
+            var uploadsRoot = Path.Combine(_environment.WebRootPath, "uploads", "tenant-profiles", tenantKey);
+            Directory.CreateDirectory(uploadsRoot);
+            var safeFileName = $"{Guid.NewGuid():N}{extension.ToLowerInvariant()}";
+            var savedFilePath = Path.Combine(uploadsRoot, safeFileName);
+
+            try
+            {
+                using (var outputStream = new FileStream(savedFilePath, FileMode.CreateNew, FileAccess.Write, FileShare.None))
+                {
+                    profileImage.CopyTo(outputStream);
+                }
+
+                var uploadsRootFullPath = Path.GetFullPath(uploadsRoot);
+                var savedFileFullPath = Path.GetFullPath(savedFilePath);
+                var existingImageFiles = Directory
+                    .GetFiles(uploadsRoot)
+                    .Where(file => AllowedProfileImageExtensions.Contains(Path.GetExtension(file)))
+                    .Select(Path.GetFullPath)
+                    .Where(file => file.StartsWith(uploadsRootFullPath, StringComparison.OrdinalIgnoreCase))
+                    .Where(file => !string.Equals(file, savedFileFullPath, StringComparison.OrdinalIgnoreCase))
+                    .ToList();
+
+                foreach (var existingFile in existingImageFiles)
+                {
+                    try
+                    {
+                        System.IO.File.Delete(existingFile);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning(ex, "Failed to remove previous profile image for tenant key {TenantKey}.", tenantKey);
+                    }
+                }
+
+                var relativeUrl = $"~/uploads/tenant-profiles/{tenantKey}/{safeFileName}";
+                HttpContext.Session.SetString(ProfileImageSessionKey, relativeUrl);
+                TempData["ProfileMessage"] = "Profile image uploaded successfully.";
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to save profile image for tenant key {TenantKey}.", tenantKey);
+                TempData["ProfileMessage"] = "Unable to save profile image right now. Please try again.";
+            }
+
+            return RedirectToAction("TenantProfileDetails", new { returnUrl });
+        }
+
+        private static string ResolveProfilePhoneNumber(LoginIoResponse response)
+        {
+            if (response == null)
+            {
+                return null;
+            }
+
+            return new[]
+            {
+                response.PhoneNumber,
+                response.MobileNo,
+                response.ContactNo
+            }.FirstOrDefault(value => !string.IsNullOrWhiteSpace(value));
+        }
+
+        private string ResolveSafeProfileBackUrl(string returnUrl)
+        {
+            var fallbackUrl = Url.Action("Index", "Dashboard") ?? "/";
+            var profileUrl = Url.Action("TenantProfileDetails", "Login") ?? "/Login/TenantProfileDetails";
+
+            if (IsSafeLocalBackUrl(returnUrl, profileUrl))
+            {
+                return returnUrl;
+            }
+
+            if (TryGetLocalPathFromReferer(Request?.Headers["Referer"].ToString(), out var refererLocalUrl)
+                && IsSafeLocalBackUrl(refererLocalUrl, profileUrl))
+            {
+                return refererLocalUrl;
+            }
+
+            return fallbackUrl;
+        }
+
+        private bool IsSafeLocalBackUrl(string candidateUrl, string profileUrl)
+        {
+            if (string.IsNullOrWhiteSpace(candidateUrl) || !Url.IsLocalUrl(candidateUrl))
+            {
+                return false;
+            }
+
+            return string.IsNullOrWhiteSpace(profileUrl)
+                || !candidateUrl.StartsWith(profileUrl, StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static bool TryGetLocalPathFromReferer(string refererHeaderValue, out string localPath)
+        {
+            localPath = null;
+            if (string.IsNullOrWhiteSpace(refererHeaderValue))
+            {
+                return false;
+            }
+
+            if (!Uri.TryCreate(refererHeaderValue, UriKind.Absolute, out var refererUri))
+            {
+                return false;
+            }
+
+            localPath = $"{refererUri.AbsolutePath}{refererUri.Query}";
+            return !string.IsNullOrWhiteSpace(localPath);
+        }
+
+        private void SetTenantProfileImageSession(string tenantEmail, string tenantId)
+        {
+            var persistedProfileImageUrl = ResolvePersistedProfileImageUrl(tenantEmail, tenantId);
+            if (string.IsNullOrWhiteSpace(persistedProfileImageUrl))
+            {
+                HttpContext.Session.Remove(ProfileImageSessionKey);
+                return;
+            }
+
+            HttpContext.Session.SetString(ProfileImageSessionKey, persistedProfileImageUrl);
+        }
+
+        private string ResolvePersistedProfileImageUrl(string tenantEmail, string tenantId)
+        {
+            if (string.IsNullOrWhiteSpace(tenantEmail) || string.IsNullOrWhiteSpace(_environment?.WebRootPath))
+            {
+                return null;
+            }
+
+            var ownerKey = BuildTenantKey(tenantEmail, tenantId);
+            var primaryImageUrl = ResolveLatestImageRelativeUrlForKey(ownerKey);
+            if (!string.IsNullOrWhiteSpace(primaryImageUrl))
+            {
+                return primaryImageUrl;
+            }
+
+            if (!string.IsNullOrWhiteSpace(tenantId))
+            {
+                // Backward compatibility for older uploads keyed only by email.
+                var legacyOwnerKey = BuildTenantKey(tenantEmail, null);
+                return ResolveLatestImageRelativeUrlForKey(legacyOwnerKey);
+            }
+
+            return null;
+        }
+
+        private string ResolveLatestImageRelativeUrlForKey(string ownerKey)
+        {
+            if (string.IsNullOrWhiteSpace(ownerKey) || string.IsNullOrWhiteSpace(_environment?.WebRootPath))
+            {
+                return null;
+            }
+
+            var tenantFolder = Path.Combine(_environment.WebRootPath, "uploads", "tenant-profiles", ownerKey);
+            if (!Directory.Exists(tenantFolder))
+            {
+                return null;
+            }
+
+            var latestImagePath = Directory
+                .GetFiles(tenantFolder)
+                .Where(file => AllowedProfileImageExtensions.Contains(Path.GetExtension(file)))
+                .OrderByDescending(System.IO.File.GetLastWriteTimeUtc)
+                .FirstOrDefault();
+
+            if (string.IsNullOrWhiteSpace(latestImagePath))
+            {
+                return null;
+            }
+
+            var latestImageFileName = Path.GetFileName(latestImagePath);
+            return $"~/uploads/tenant-profiles/{ownerKey}/{latestImageFileName}";
+        }
+
+        private static string BuildTenantKey(string tenantEmail, string tenantId)
+        {
+            var normalizedEmail = tenantEmail?.Trim().ToLowerInvariant() ?? string.Empty;
+            var normalizedTenantId = tenantId?.Trim().ToLowerInvariant() ?? string.Empty;
+            var normalized = string.IsNullOrWhiteSpace(normalizedTenantId)
+                ? normalizedEmail
+                : $"{normalizedTenantId}|{normalizedEmail}";
+
+            using var sha256 = SHA256.Create();
+            var hashBytes = sha256.ComputeHash(Encoding.UTF8.GetBytes(normalized));
+            return Convert.ToHexString(hashBytes).ToLowerInvariant();
+        }
+
+        private static bool IsSupportedImageContent(IFormFile file, string extension)
+        {
+            if (file == null || file.Length == 0)
+            {
+                return false;
+            }
+
+            using var stream = file.OpenReadStream();
+            Span<byte> signature = stackalloc byte[8];
+            var bytesRead = stream.Read(signature);
+            if (bytesRead < 4)
+            {
+                return false;
+            }
+
+            if (extension.Equals(".png", StringComparison.OrdinalIgnoreCase))
+            {
+                return bytesRead >= 8
+                    && signature[0] == 0x89
+                    && signature[1] == 0x50
+                    && signature[2] == 0x4E
+                    && signature[3] == 0x47
+                    && signature[4] == 0x0D
+                    && signature[5] == 0x0A
+                    && signature[6] == 0x1A
+                    && signature[7] == 0x0A;
+            }
+
+            if (extension.Equals(".jpg", StringComparison.OrdinalIgnoreCase)
+                || extension.Equals(".jpeg", StringComparison.OrdinalIgnoreCase))
+            {
+                return signature[0] == 0xFF
+                    && signature[1] == 0xD8
+                    && signature[2] == 0xFF;
+            }
+
+            return false;
         }
 
         [HttpPost]
@@ -135,29 +428,33 @@ namespace LMSWebUI.Controllers
                                 : responseMessage.Email;
 
                             HttpContext.Session.SetString("TenantName", superAdminEmail);
+                            if (!string.IsNullOrWhiteSpace(responseMessage.TenantId))
+                            {
+                                HttpContext.Session.SetString(TenantIdSessionKey, responseMessage.TenantId.Trim());
+                            }
+                            else
+                            {
+                                HttpContext.Session.Remove(TenantIdSessionKey);
+                            }
                             HttpContext.Session.SetString("TenantStore", string.Empty);
                             HttpContext.Session.SetString(AllowedStoresSessionKey, string.Empty);
                             HttpContext.Session.Remove(MemberSinceSessionKey);
+                            SetTenantProfileImageSession(superAdminEmail, HttpContext.Session.GetString(TenantIdSessionKey));
                             HttpContext.Session.SetString("UserRole", "SuperAdmin");
                             return "success";
                         }
 
-                    var allowedStores = (responseMessage.Storecodes ?? new List<string>())
-                        .Where(x => !string.IsNullOrWhiteSpace(x))
-                        .Select(x => x.Trim())
-                        .Distinct(StringComparer.OrdinalIgnoreCase)
-                        .ToList();
+                        var tenantSessionEmail = string.IsNullOrWhiteSpace(responseMessage.Email)
+                            ? Email
+                            : responseMessage.Email;
+
+                        var allowedStores = await FilterEnabledStoresForTenantAsync(tenantSessionEmail, responseMessage.Storecodes ?? new List<string>());
 
                         var resolvedStore = !string.IsNullOrWhiteSpace(Store)
                             ? Store.Trim()
                         : (allowedStores.Count > 0
                             ? allowedStores[0]
                                 : string.Empty);
-
-                    if (allowedStores.Count == 0 && !string.IsNullOrWhiteSpace(resolvedStore))
-                    {
-                        allowedStores.Add(resolvedStore);
-                    }
 
                         if (string.IsNullOrWhiteSpace(resolvedStore))
                         {
@@ -171,13 +468,18 @@ namespace LMSWebUI.Controllers
 
                         if (IsTenantLoginSuccessMessage(responseMessage.Message))
                         {
-                            var tenantSessionEmail = string.IsNullOrWhiteSpace(responseMessage.Email)
-                                ? Email
-                                : responseMessage.Email;
-
                             HttpContext.Session.SetString("TenantName", tenantSessionEmail);
+                            if (!string.IsNullOrWhiteSpace(responseMessage.TenantId))
+                            {
+                                HttpContext.Session.SetString(TenantIdSessionKey, responseMessage.TenantId.Trim());
+                            }
+                            else
+                            {
+                                HttpContext.Session.Remove(TenantIdSessionKey);
+                            }
                             HttpContext.Session.SetString("TenantStore", resolvedStore);
                             HttpContext.Session.SetString(AllowedStoresSessionKey, string.Join(",", allowedStores));
+                            SetTenantProfileImageSession(tenantSessionEmail, HttpContext.Session.GetString(TenantIdSessionKey));
                             await SetTenantMemberSinceSessionAsync(tenantSessionEmail);
                             var role = string.IsNullOrWhiteSpace(responseMessage.UserRole) ? "StoreUser" : responseMessage.UserRole.Trim();
                             HttpContext.Session.SetString("UserRole", role);
@@ -444,10 +746,8 @@ namespace LMSWebUI.Controllers
                         return Content("superadmin");
                     }
 
-                    if (responseMessage.Storecodes != null)
-                    {
-                        return Content(string.Join(",", responseMessage.Storecodes.ToArray()));
-                    }
+                    var enabledStores = await FilterEnabledStoresForTenantAsync(normalizedTenantEmail, responseMessage.Storecodes ?? new List<string>());
+                    return Content(string.Join(",", enabledStores));
                 }
 
                 return Content(string.Empty);
@@ -460,9 +760,10 @@ namespace LMSWebUI.Controllers
                 {
                     // fallback path: older identity endpoint still used in some deployments
                     var responseMessage = await _clientApi.SendRequestAsync<LoginIoResponse>("/TenantprofileDetails", paramsGetAllStoresByClient, RestSharp.Method.GET);
-                    if (responseMessage != null && responseMessage.Storecodes != null)
+                    if (responseMessage != null)
                     {
-                        return Content(string.Join(",", responseMessage.Storecodes.ToArray()));
+                        var enabledStores = await FilterEnabledStoresForTenantAsync(normalizedTenantEmail, responseMessage.Storecodes ?? new List<string>());
+                        return Content(string.Join(",", enabledStores));
                     }
 
                     return Content(string.Empty);
@@ -528,12 +829,20 @@ namespace LMSWebUI.Controllers
                 if (responseMessage != null && responseMessage.StatusCode == "200"
                     && IsPasswordChangeRequiredMessage(responseMessage.Message))
                 {
+                    var tenantEmailForStores = string.IsNullOrWhiteSpace(responseMessage.Email)
+                        ? email
+                        : responseMessage.Email;
+
+                    var stores = isSuperAdmin
+                        ? new List<string>()
+                        : await FilterEnabledStoresForTenantAsync(tenantEmailForStores, responseMessage.Storecodes ?? new List<string>());
+
                     // Credentials are valid - let the Login POST drive the change-password screen.
                     return Json(new
                     {
                         success = true,
                         message = string.Empty,
-                        stores = responseMessage.Storecodes ?? new List<string>(),
+                        stores,
                         role = isSuperAdmin ? "SuperAdmin" : "Admin",
                         isStoreUser = false
                     });
@@ -543,7 +852,10 @@ namespace LMSWebUI.Controllers
                     && IsTenantLoginSuccessMessage(responseMessage.Message))
                 {
                     var role = string.IsNullOrWhiteSpace(responseMessage.UserRole) ? "StoreUser" : responseMessage.UserRole.Trim();
-                    var stores = responseMessage.Storecodes ?? new List<string>();
+                    var tenantEmailForStores = string.IsNullOrWhiteSpace(responseMessage.Email)
+                        ? email
+                        : responseMessage.Email;
+                    var stores = await FilterEnabledStoresForTenantAsync(tenantEmailForStores, responseMessage.Storecodes ?? new List<string>());
                     return Json(new
                     {
                         success = true,
@@ -586,6 +898,55 @@ namespace LMSWebUI.Controllers
                     isStoreUser = false
                 });
             }
+        }
+
+        private async Task<List<string>> FilterEnabledStoresForTenantAsync(string tenantEmail, IEnumerable<string> candidateStores)
+        {
+            var normalizedTenantEmail = tenantEmail?.Trim();
+            if (string.IsNullOrWhiteSpace(normalizedTenantEmail))
+            {
+                return new List<string>();
+            }
+
+            var normalizedCandidateStores = (candidateStores ?? Enumerable.Empty<string>())
+                .Where(x => !string.IsNullOrWhiteSpace(x))
+                .Select(x => x.Trim())
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            if (normalizedCandidateStores.Count == 0)
+            {
+                return normalizedCandidateStores;
+            }
+
+            var enabledStores = await GetEnabledStoreCodesForTenantAsync(normalizedTenantEmail);
+
+            return normalizedCandidateStores
+                .Where(x => enabledStores.Contains(x))
+                .ToList();
+        }
+
+        private async Task<HashSet<string>> GetEnabledStoreCodesForTenantAsync(string tenantEmail)
+        {
+            var response = await _clientApi.SendRequestAsync<JObject>("/GetAllStoreStatuses", new Dictionary<string, string>(), RestSharp.Method.GET);
+
+            var statusesToken = response?["StoreStatuses"] ?? response?["storeStatuses"] ?? new JArray();
+            var statusesArray = statusesToken as JArray ?? statusesToken?["$values"] as JArray ?? new JArray();
+
+            return statusesArray
+                .Select(x => new
+                {
+                    StoreCode = (x?["StoreCode"] ?? x?["storeCode"])?.ToString()?.Trim(),
+                    IsActive = (bool?)(x?["IsActive"] ?? x?["isActive"]) ?? false,
+                    TenantName = (x?["TenantName"] ?? x?["tenantName"])?.ToString()?.Trim(),
+                    TenantEmail = (x?["TenantEmail"] ?? x?["tenantEmail"])?.ToString()?.Trim()
+                })
+                .Where(x => !string.IsNullOrWhiteSpace(x.StoreCode)
+                    && x.IsActive
+                    && (string.Equals(x.TenantName, tenantEmail, StringComparison.OrdinalIgnoreCase)
+                        || string.Equals(x.TenantEmail, tenantEmail, StringComparison.OrdinalIgnoreCase)))
+                .Select(x => x.StoreCode)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
         }
 
         [HttpPost]

@@ -178,6 +178,7 @@
 </style>
 
 <section class="wf-page">
+    @Html.AntiForgeryToken()
     <div class="wf-shell">
         <div class="wf-title">
             Store Order Workflow
@@ -255,11 +256,14 @@
             "<div class='wf-counter-card'><div class='wf-counter-label'>Completed</div><div class='wf-counter-value'>" + n(c.delivered) + "</div></div>";
     }
     function wfReq(url, method, body, ok, fail) {
+        var antiForgeryInput = document.querySelector('input[name="__RequestVerificationToken"]');
+        var antiForgeryToken = antiForgeryInput ? antiForgeryInput.value : "";
         var xhr = new XMLHttpRequest();
         xhr.open(method, url, true);
         xhr.setRequestHeader("X-Requested-With", "XMLHttpRequest");
         if (method === "POST") {
             xhr.setRequestHeader("Content-Type", "application/x-www-form-urlencoded; charset=UTF-8");
+            xhr.setRequestHeader("RequestVerificationToken", antiForgeryToken);
         }
         xhr.onreadystatechange = function () {
             if (xhr.readyState !== 4) return;
@@ -685,12 +689,15 @@
     }
 
     function requestJson(url, method, body, onSuccess, onError) {
+        var antiForgeryInput = document.querySelector('input[name="__RequestVerificationToken"]');
+        var antiForgeryToken = antiForgeryInput ? antiForgeryInput.value : "";
         var xhr = new XMLHttpRequest();
         xhr.open(method, url, true);
         xhr.setRequestHeader("X-Requested-With", "XMLHttpRequest");
 
         if (method === "POST") {
             xhr.setRequestHeader("Content-Type", "application/x-www-form-urlencoded; charset=UTF-8");
+            xhr.setRequestHeader("RequestVerificationToken", antiForgeryToken);
         }
 
         xhr.onreadystatechange = function () {

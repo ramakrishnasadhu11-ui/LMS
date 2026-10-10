@@ -2,14 +2,24 @@
 @using System.Globalization
 @model LMSWebUI.Models.DashBoard.TenantInfoDto 
 @{
-    var hideSidebar = Convert.ToBoolean(ViewData["HideSidebar"] ?? false);
+    var currentController = ViewContext.RouteData.Values["controller"]?.ToString();
+    var currentAction = ViewContext.RouteData.Values["action"]?.ToString();
+    var isDashboardIndexPage = string.Equals(currentController, "Dashboard", StringComparison.OrdinalIgnoreCase)
+        && string.Equals(currentAction, "Index", StringComparison.OrdinalIgnoreCase);
+    var isMyProfilePage = string.Equals(currentController, "Login", StringComparison.OrdinalIgnoreCase)
+        && string.Equals(currentAction, "TenantProfileDetails", StringComparison.OrdinalIgnoreCase);
+    var hideSidebar = Convert.ToBoolean(ViewData["HideSidebar"] ?? false) || isMyProfilePage;
     var bodyCss = hideSidebar
-        ? "hold-transition skin-blue sidebar-mini sidebar-collapse"
+        ? "hold-transition skin-blue sidebar-mini sidebar-collapse no-sidebar-page"
         : "hold-transition skin-blue sidebar-mini";
+    if (isDashboardIndexPage)
+    {
+        bodyCss += " fixed dashboard-fixed-header";
+    }
     var memberSinceRaw = Context?.Session?.GetString("TenantMemberSince");
     var memberSinceText = "Member since -";
     var profileImageUrl = Context?.Session?.GetString("TenantProfileImageUrl");
-    var defaultProfileImageUrl = Url.Content("~/dist/img/user2-160x160.jpg");
+    var defaultProfileImageUrl = Url.Content("~/dist/img/noimage.png");
     var resolvedProfileImageUrl = string.IsNullOrWhiteSpace(profileImageUrl)
         ? defaultProfileImageUrl
         : (profileImageUrl.Trim().StartsWith("~/", StringComparison.Ordinal)
@@ -18,6 +28,8 @@
     var profileImageAlt = string.IsNullOrWhiteSpace(Model?.TenantName)
         ? "Profile avatar"
         : $"{Model.TenantName} profile avatar";
+    var currentPathAndQuery = $"{Context?.Request?.Path}{Context?.Request?.QueryString}";
+    var myProfileUrl = Url.Action("TenantProfileDetails", "Login", new { returnUrl = currentPathAndQuery });
 
     if (!string.IsNullOrWhiteSpace(memberSinceRaw))
     {
@@ -207,6 +219,60 @@
       filter: brightness(0.96);
     }
 
+    .no-sidebar-page .main-header .navbar {
+      margin-left: 0 !important;
+    }
+
+    .no-sidebar-page .main-header .logo {
+      width: 0;
+      padding: 0;
+      overflow: hidden;
+      border: 0;
+    }
+
+    .no-sidebar-page .main-header .sidebar-toggle {
+      display: none;
+    }
+
+    .no-sidebar-page .content-wrapper,
+    .no-sidebar-page .main-footer,
+    .no-sidebar-page .main-header .navbar {
+      margin-left: 0 !important;
+    }
+
+    .dashboard-fixed-header .content-wrapper,
+    .dashboard-fixed-header .main-footer,
+    .dashboard-fixed-header .right-side {
+      padding-top: 58px;
+    }
+
+    .dashboard-fixed-header .main-header {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      z-index: 1030;
+    }
+
+    .dashboard-fixed-header .main-header .navbar {
+      margin-left: 0 !important;
+    }
+
+    .dashboard-fixed-header .navbar-nav > .user-menu > .dropdown-menu,
+    .dashboard-fixed-header .navbar-nav > .user-menu.open > .dropdown-menu {
+      position: absolute;
+      left: auto;
+      right: 0;
+    }
+
+    @@media (max-width: 767px) {
+      .dashboard-fixed-header .content-wrapper,
+      .dashboard-fixed-header .main-footer,
+      .dashboard-fixed-header .right-side {
+        padding-top: 108px;
+      }
+    }
+
     @@media (max-width: 768px) {
       .user-menu .dropdown-menu {
         width: 92vw;
@@ -238,8 +304,6 @@
   <!-- Google Font -->
   <link rel="stylesheet"
         href="https://fonts.googleapis.com/css?family=Source+Sans+Pro:300,400,600,700,300italic,400italic,600italic">
-  <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.4.1/jquery.min.js"></script>
-  <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.11.1/jquery.min.js"></script>
 </head>
 <body class="@bodyCss">
 <div class="wrapper">
@@ -287,7 +351,7 @@
               </li>
               <!-- Menu Body -->
               <li class="user-body">
-                <a class="tenant-menu-action profile" href="@Url.Action("TenantProfileDetails", "Login")">My Profile</a>
+                <a class="tenant-menu-action profile" href="@myProfileUrl">My Profile</a>
                 <a class="tenant-menu-action signout" href="@Url.Action("Logout", "Login")">Sign out</a>
               </li>
               <!-- Menu Footer-->
@@ -355,9 +419,6 @@
 <script src="~/bower_components/bootstrap/dist/js/bootstrap.min.js"></script>
 <!-- AdminLTE App -->
 <script src="~/dist/js/adminlte.min.js"></script>
-<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.4.1/jquery.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.16.0/umd/popper.min.js"></script>
-<script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.4.1/js/bootstrap.min.js"></script>
   
     <script>
     //function showProfile(e)
@@ -433,6 +494,81 @@
       img.onerror = null;
       img.setAttribute('src', defaultAvatar);
     }
+
+    (function setupDashboardProfileDropdownAnchor() {
+      var body = document.body;
+      if (!body || !body.classList.contains('dashboard-fixed-header') || typeof window.jQuery === 'undefined') {
+        return;
+      }
+
+      var userMenu = document.querySelector('.navbar-nav > .user-menu');
+      if (!userMenu) {
+        return;
+      }
+
+      var toggle = userMenu.querySelector('.dropdown-toggle');
+      var dropdownMenu = userMenu.querySelector('.dropdown-menu');
+      if (!toggle || !dropdownMenu) {
+        return;
+      }
+
+      var isTracking = false;
+
+      function alignProfileDropdown() {
+        if (!userMenu.classList.contains('open')) {
+          return;
+        }
+
+        var triggerRect = toggle.getBoundingClientRect();
+        var menuWidth = dropdownMenu.offsetWidth || 280;
+        var top = Math.round(triggerRect.bottom + 8);
+        var left = Math.round(triggerRect.right - menuWidth);
+
+        dropdownMenu.style.position = 'fixed';
+        dropdownMenu.style.top = top + 'px';
+        dropdownMenu.style.left = left + 'px';
+        dropdownMenu.style.right = 'auto';
+      }
+
+      function resetProfileDropdown() {
+        dropdownMenu.style.position = '';
+        dropdownMenu.style.top = '';
+        dropdownMenu.style.left = '';
+        dropdownMenu.style.right = '';
+      }
+
+      function startTracking() {
+        if (isTracking) {
+          return;
+        }
+
+        isTracking = true;
+        window.addEventListener('scroll', alignProfileDropdown, { passive: true });
+        window.addEventListener('resize', alignProfileDropdown);
+        document.addEventListener('scroll', alignProfileDropdown, true);
+      }
+
+      function stopTracking() {
+        if (!isTracking) {
+          return;
+        }
+
+        isTracking = false;
+        window.removeEventListener('scroll', alignProfileDropdown);
+        window.removeEventListener('resize', alignProfileDropdown);
+        document.removeEventListener('scroll', alignProfileDropdown, true);
+      }
+
+      jQuery(userMenu).on('shown.bs.dropdown', function () {
+        alignProfileDropdown();
+        startTracking();
+      });
+
+      jQuery(userMenu).on('hidden.bs.dropdown', function () {
+        stopTracking();
+        resetProfileDropdown();
+      });
+    })();
     </script>
 </body>
 </html>

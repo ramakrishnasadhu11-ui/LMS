@@ -8,6 +8,7 @@ using Microsoft.EntityFrameworkCore;
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.Data;
 using System.IO;
 using System.Linq;
 using System.Net;
@@ -1398,6 +1399,19 @@ namespace LMS.Master.BusinessSerive.Services
                 orderDto.OrderMode = "pieces";
             }
 
+            if (string.Equals(orderDto.OrderMode, "pieces", StringComparison.OrdinalIgnoreCase))
+            {
+                var pieceSchemaReady = await IsPieceTagSchemaReadyAsync();
+                if (!pieceSchemaReady)
+                {
+                    return ActionSet.ActionReturnType(HttpStatusCode.ServiceUnavailable, new CustomerIOResponse
+                    {
+                        StatusCode = "503",
+                        Message = "Piece-tag schema is not deployed. Please run the approved database migration before creating piece-based orders."
+                    });
+                }
+            }
+
             if (orderDto.OrderMode == "weight")
             {
                 if (orderDto.WeightInKg <= 0)
@@ -1429,6 +1443,20 @@ namespace LMS.Master.BusinessSerive.Services
                     Message = "Order amount should be greater than zero."
                 });
             }
+
+            var submittedItems = NormalizeSubmittedOrderItems(orderDto.Items);
+            if (string.Equals(orderDto.OrderMode, "pieces", StringComparison.OrdinalIgnoreCase) && submittedItems.Count == 0)
+            {
+                return ActionSet.ActionReturnType(HttpStatusCode.BadRequest, new CustomerIOResponse
+                {
+                    StatusCode = "400",
+                    Message = "Please add at least one garment item for piece-based orders."
+                });
+            }
+
+            var totalPieces = string.Equals(orderDto.OrderMode, "pieces", StringComparison.OrdinalIgnoreCase)
+                ? submittedItems.Sum(x => x.Quantity > 0 ? x.Quantity : 0)
+                : 0;
 
             if (orderDto.AdvanceUsed < 0)
             {
@@ -1492,55 +1520,146 @@ namespace LMS.Master.BusinessSerive.Services
             var orderNo = GenerateOrderNo();
             var invoiceNo = BuildInvoiceNo(taxSettings, orderNo);
             var defaultStatus = await GetDefaultWorkflowStatusAsync(orderDto.TenantName, orderDto.StoreCode);
+            var persistedItems = new List<LaundryOrderItemDto>();
+            LaundryOrderEntity orderEntity = null;
 
-            var orderEntity = new LaundryOrderEntity
+            await using (var tx = await _masterDbContext.Database.BeginTransactionAsync(IsolationLevel.Serializable))
             {
-                TenantName = orderDto.TenantName,
-                StoreCode = orderDto.StoreCode,
-                CustCode = orderDto.CustCode,
-                CustomerName = customer.CustomerName,
-                OrderNo = orderNo,
-                ServiceType = orderDto.ServiceType,
-                OrderMode = orderDto.OrderMode,
-                WeightInKg = orderDto.OrderMode == "weight" ? Math.Round(orderDto.WeightInKg, 3, MidpointRounding.AwayFromZero) : 0,
-                RatePerKg = orderDto.OrderMode == "weight" ? Math.Round(orderDto.RatePerKg, 2, MidpointRounding.AwayFromZero) : 0,
-                OrderAmount = orderDto.OrderAmount,
-                SubTotal = breakup.SubTotal,
-                TaxPercent = breakup.TaxPercent,
-                TaxAmount = breakup.TaxAmount,
-                CgstAmount = breakup.CgstAmount,
-                SgstAmount = breakup.SgstAmount,
-                TotalAmount = breakup.TotalAmount,
-                InvoiceNo = invoiceNo,
-                Status = defaultStatus,
-                AdvanceUsed = orderDto.AdvanceUsed,
-                PaidNow = orderDto.PaidNow,
-                PendingAmount = orderDto.PendingAmount,
-                NetPayable = orderDto.NetPayable,
-                PaymentMode = orderDto.PaymentMode,
-                Notes = orderDto.Notes,
-                CreatedDate = DateTime.UtcNow
-            };
-
-            _masterDbContext.LaundryOrders.Add(orderEntity);
-
-            if (orderDto.AdvanceUsed > 0)
-            {
-                var debitAdvance = new CustomerAdvanceEntity
+                orderEntity = new LaundryOrderEntity
                 {
                     TenantName = orderDto.TenantName,
                     StoreCode = orderDto.StoreCode,
                     CustCode = orderDto.CustCode,
-                    AdvanceAmount = -Math.Abs(orderDto.AdvanceUsed),
-                    TransactionType = "Debit",
-                    Notes = $"Advance used in order {orderNo}",
+                    CustomerName = customer.CustomerName,
+                    OrderNo = orderNo,
+                    ServiceType = orderDto.ServiceType,
+                    OrderMode = orderDto.OrderMode,
+                    WeightInKg = orderDto.OrderMode == "weight" ? Math.Round(orderDto.WeightInKg, 3, MidpointRounding.AwayFromZero) : 0,
+                    RatePerKg = orderDto.OrderMode == "weight" ? Math.Round(orderDto.RatePerKg, 2, MidpointRounding.AwayFromZero) : 0,
+                    OrderAmount = orderDto.OrderAmount,
+                    SubTotal = breakup.SubTotal,
+                    TaxPercent = breakup.TaxPercent,
+                    TaxAmount = breakup.TaxAmount,
+                    CgstAmount = breakup.CgstAmount,
+                    SgstAmount = breakup.SgstAmount,
+                    TotalAmount = breakup.TotalAmount,
+                    InvoiceNo = invoiceNo,
+                    Status = defaultStatus,
+                    AdvanceUsed = orderDto.AdvanceUsed,
+                    PaidNow = orderDto.PaidNow,
+                    PendingAmount = orderDto.PendingAmount,
+                    NetPayable = orderDto.NetPayable,
+                    PaymentMode = orderDto.PaymentMode,
+                    Notes = orderDto.Notes,
                     CreatedDate = DateTime.UtcNow
                 };
 
-                _masterDbContext.CustomerAdvances.Add(debitAdvance);
-            }
+                _masterDbContext.LaundryOrders.Add(orderEntity);
 
-            await _masterDbContext.SaveChangesAsync();
+                if (string.Equals(orderDto.OrderMode, "pieces", StringComparison.OrdinalIgnoreCase) && submittedItems.Count > 0)
+                {
+                    var tagSettings = await _masterDbContext.BarcodeTagSettings
+                        .FirstOrDefaultAsync(x => x.TenantName == orderDto.TenantName && x.StoreCode == orderDto.StoreCode);
+
+                    if (tagSettings == null)
+                    {
+                        tagSettings = new BarcodeTagSettingsEntity
+                        {
+                            TenantName = orderDto.TenantName,
+                            StoreCode = orderDto.StoreCode,
+                            EnableTagging = true,
+                            TagPrefix = BuildStoreInvoicePrefix(orderDto.StoreCode),
+                            NextTagNumber = 1,
+                            TagNumberPadding = 4,
+                            ResetTagNumberYearly = false,
+                            Notes = null,
+                            CreatedDate = DateTime.UtcNow,
+                            ModifiedDate = DateTime.UtcNow
+                        };
+
+                        _masterDbContext.BarcodeTagSettings.Add(tagSettings);
+                    }
+
+                    var tagSequence = tagSettings.NextTagNumber < 1 ? 1 : tagSettings.NextTagNumber;
+                    var tagPadding = tagSettings.TagNumberPadding < 1 || tagSettings.TagNumberPadding > 12
+                        ? 4
+                        : tagSettings.TagNumberPadding;
+                    var taggingEnabled = tagSettings.EnableTagging;
+
+                    if (!taggingEnabled)
+                    {
+                        return ActionSet.ActionReturnType(HttpStatusCode.BadRequest, new CustomerIOResponse
+                        {
+                            StatusCode = "400",
+                            Message = "Tagging is disabled for this store. Enable barcode/tag settings before creating piece-based orders."
+                        });
+                    }
+
+                    foreach (var item in submittedItems)
+                    {
+                        var qty = item.Quantity > 0 ? item.Quantity : 1;
+                        for (var pieceNo = 1; pieceNo <= qty; pieceNo++)
+                        {
+                            string tagNo = null;
+                            if (taggingEnabled)
+                            {
+                                tagNo = BuildPrintableTagNumber(tagSettings.TagPrefix, tagSequence, tagPadding);
+                                tagSequence++;
+                            }
+
+                            _masterDbContext.LaundryOrderItems.Add(new LaundryOrderItemEntity
+                            {
+                                TenantName = orderDto.TenantName,
+                                StoreCode = orderDto.StoreCode,
+                                OrderNo = orderNo,
+                                ServiceType = string.IsNullOrWhiteSpace(item.ServiceType) ? orderDto.ServiceType : item.ServiceType,
+                                Category = item.Category,
+                                ItemName = item.ItemName,
+                                UnitPrice = item.UnitPrice,
+                                PieceNo = pieceNo,
+                                TagNo = tagNo,
+                                CreatedDate = DateTime.UtcNow
+                            });
+
+                            persistedItems.Add(new LaundryOrderItemDto
+                            {
+                                ServiceType = string.IsNullOrWhiteSpace(item.ServiceType) ? orderDto.ServiceType : item.ServiceType,
+                                Category = item.Category,
+                                ItemName = item.ItemName,
+                                UnitPrice = item.UnitPrice,
+                                Quantity = 1,
+                                PieceNo = pieceNo,
+                                TagNo = tagNo
+                            });
+                        }
+                    }
+
+                    if (taggingEnabled)
+                    {
+                        tagSettings.NextTagNumber = tagSequence;
+                        tagSettings.ModifiedDate = DateTime.UtcNow;
+                    }
+                }
+
+                if (orderDto.AdvanceUsed > 0)
+                {
+                    var debitAdvance = new CustomerAdvanceEntity
+                    {
+                        TenantName = orderDto.TenantName,
+                        StoreCode = orderDto.StoreCode,
+                        CustCode = orderDto.CustCode,
+                        AdvanceAmount = -Math.Abs(orderDto.AdvanceUsed),
+                        TransactionType = "Debit",
+                        Notes = $"Advance used in order {orderNo}",
+                        CreatedDate = DateTime.UtcNow
+                    };
+
+                    _masterDbContext.CustomerAdvances.Add(debitAdvance);
+                }
+
+                await _masterDbContext.SaveChangesAsync();
+                await tx.CommitAsync();
+            }
 
             return ActionSet.ActionReturnType(HttpStatusCode.OK, new LaundryOrderDto
             {
@@ -1568,8 +1687,47 @@ namespace LMS.Master.BusinessSerive.Services
                 NetPayable = orderEntity.NetPayable,
                 PaymentMode = orderEntity.PaymentMode,
                 Notes = orderEntity.Notes,
-                CreatedDate = orderEntity.CreatedDate
+                CreatedDate = orderEntity.CreatedDate,
+                TotalPieces = totalPieces,
+                Items = persistedItems
             });
+        }
+
+        private async Task<bool> IsPieceTagSchemaReadyAsync()
+        {
+            const string sql = @"
+SELECT
+    CASE
+        WHEN OBJECT_ID(N'[dbo].[LaundryOrderItems]', N'U') IS NULL THEN 0
+        WHEN OBJECT_ID(N'[dbo].[BarcodeTagSettings]', N'U') IS NULL THEN 0
+        WHEN NOT EXISTS (
+            SELECT 1
+            FROM sys.indexes
+            WHERE name = N'IX_LaundryOrderItems_TenantName_StoreCode_TagNo'
+              AND object_id = OBJECT_ID(N'[dbo].[LaundryOrderItems]')
+              AND is_unique = 1
+        ) THEN 0
+        ELSE 1
+    END";
+
+            var connection = _masterDbContext.Database.GetDbConnection();
+            var openedHere = false;
+            if (connection.State != ConnectionState.Open)
+            {
+                await connection.OpenAsync();
+                openedHere = true;
+            }
+
+            await using var command = connection.CreateCommand();
+            command.CommandText = sql;
+            var value = await command.ExecuteScalarAsync();
+
+            if (openedHere)
+            {
+                await connection.CloseAsync();
+            }
+
+            return value != null && Convert.ToInt32(value, CultureInfo.InvariantCulture) == 1;
         }
 
         public async Task<ActionReturnType> SettleLaundryOrderPayment(string tenantName, string storeCode, string orderNo, decimal paidAmount, string paymentMode = null, string notes = null)
@@ -1757,16 +1915,13 @@ namespace LMS.Master.BusinessSerive.Services
                 })
                 .ToListAsync();
 
+            await PopulateOrderItemsAndTotalsAsync(tenantName, storeCode, orders);
+
             foreach (var order in orders)
             {
                 if (TryNormalizeWorkflowLifecycleStatus(order.Status, out var normalized))
                 {
                     order.Status = normalized;
-                }
-
-                if (string.Equals(order.OrderMode, "pieces", StringComparison.OrdinalIgnoreCase))
-                {
-                    order.TotalPieces = ExtractTotalPieces(order.Notes);
                 }
             }
 
@@ -1864,16 +2019,13 @@ namespace LMS.Master.BusinessSerive.Services
                 })
                 .ToListAsync();
 
+            await PopulateOrderItemsAndTotalsAsync(tenantName, storeCode, orders);
+
             foreach (var order in orders)
             {
                 if (TryNormalizeWorkflowLifecycleStatus(order.Status, out var normalized))
                 {
                     order.Status = normalized;
-                }
-
-                if (string.Equals(order.OrderMode, "pieces", StringComparison.OrdinalIgnoreCase))
-                {
-                    order.TotalPieces = ExtractTotalPieces(order.Notes);
                 }
             }
 
@@ -1891,14 +2043,137 @@ namespace LMS.Master.BusinessSerive.Services
                 return 0;
             }
 
-            var match = Regex.Match(
+            var matches = Regex.Matches(
                 notes,
                 @"\bx\s*(\d+)\b",
                 RegexOptions.IgnoreCase);
 
-            return match.Success && int.TryParse(match.Groups[1].Value, out var quantity)
-                ? quantity
-                : 0;
+            var total = 0;
+            foreach (Match match in matches)
+            {
+                if (match.Success && int.TryParse(match.Groups[1].Value, out var quantity) && quantity > 0)
+                {
+                    total += quantity;
+                }
+            }
+
+            return total;
+        }
+
+        private static List<LaundryOrderItemDto> NormalizeSubmittedOrderItems(IEnumerable<LaundryOrderItemDto> items)
+        {
+            return (items ?? Enumerable.Empty<LaundryOrderItemDto>())
+                .Where(x => x != null && !string.IsNullOrWhiteSpace(x.ItemName) && x.Quantity > 0)
+                .Select(x => new LaundryOrderItemDto
+                {
+                    ServiceType = string.IsNullOrWhiteSpace(x.ServiceType) ? null : x.ServiceType.Trim(),
+                    Category = string.IsNullOrWhiteSpace(x.Category) ? null : x.Category.Trim(),
+                    ItemName = x.ItemName.Trim(),
+                    UnitPrice = x.UnitPrice,
+                    Quantity = x.Quantity > 0 ? x.Quantity : 1
+                })
+                .ToList();
+        }
+
+        private async Task PopulateOrderItemsAndTotalsAsync(string tenantName, string storeCode, List<LaundryOrderDto> orders)
+        {
+            if (orders == null || orders.Count == 0)
+            {
+                return;
+            }
+
+            var orderNos = orders
+                .Select(x => x?.OrderNo?.Trim())
+                .Where(x => !string.IsNullOrWhiteSpace(x))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            if (orderNos.Count == 0)
+            {
+                foreach (var order in orders)
+                {
+                    order.Items = new List<LaundryOrderItemDto>();
+                    order.TotalPieces = string.Equals(order.OrderMode, "pieces", StringComparison.OrdinalIgnoreCase)
+                        ? ExtractTotalPieces(order.Notes)
+                        : 0;
+                }
+
+                return;
+            }
+
+            var persistedItems = new List<(string OrderNo, LaundryOrderItemDto Item)>();
+            try
+            {
+                var persistedRows = await _masterDbContext.LaundryOrderItems
+                    .AsNoTracking()
+                    .Where(x => x.TenantName == tenantName
+                                && x.StoreCode == storeCode
+                                && orderNos.Contains(x.OrderNo))
+                    .OrderBy(x => x.Id)
+                    .Select(x => new
+                    {
+                        x.OrderNo,
+                        x.ServiceType,
+                        x.Category,
+                        x.ItemName,
+                        x.UnitPrice,
+                        x.PieceNo,
+                        x.TagNo
+                    })
+                    .ToListAsync();
+
+                persistedItems = persistedRows
+                    .Select(x => (x.OrderNo, new LaundryOrderItemDto
+                    {
+                        ServiceType = x.ServiceType,
+                        Category = x.Category,
+                        ItemName = x.ItemName,
+                        UnitPrice = x.UnitPrice,
+                        Quantity = 1,
+                        PieceNo = x.PieceNo,
+                        TagNo = x.TagNo
+                    }))
+                    .ToList();
+            }
+            catch
+            {
+            }
+
+            var grouped = persistedItems
+                .GroupBy(x => x.OrderNo, StringComparer.OrdinalIgnoreCase)
+                .ToDictionary(
+                    g => g.Key,
+                    g => g.Select(x => x.Item).ToList(),
+                    StringComparer.OrdinalIgnoreCase);
+
+            foreach (var order in orders)
+            {
+                var orderNo = order?.OrderNo?.Trim();
+                if (!string.IsNullOrWhiteSpace(orderNo) && grouped.TryGetValue(orderNo, out var itemsForOrder) && itemsForOrder.Count > 0)
+                {
+                    order.Items = itemsForOrder;
+                    order.TotalPieces = itemsForOrder.Count;
+                }
+                else
+                {
+                    order.Items = new List<LaundryOrderItemDto>();
+                    order.TotalPieces = string.Equals(order.OrderMode, "pieces", StringComparison.OrdinalIgnoreCase)
+                        ? ExtractTotalPieces(order.Notes)
+                        : 0;
+                }
+            }
+        }
+
+        private static string BuildPrintableTagNumber(string tagPrefix, int nextTagNumber, int tagNumberPadding)
+        {
+            var safeNumber = nextTagNumber < 1 ? 1 : nextTagNumber;
+            var safePadding = tagNumberPadding < 1 || tagNumberPadding > 12 ? 4 : tagNumberPadding;
+            var numberPart = safeNumber.ToString(CultureInfo.InvariantCulture).PadLeft(safePadding, '0');
+            var prefix = (tagPrefix ?? string.Empty).Trim();
+
+            return string.IsNullOrWhiteSpace(prefix)
+                ? numberPart
+                : prefix + numberPart;
         }
 
         public async Task<ActionReturnType> UpdateLaundryOrderStatus(string tenantName, string storeCode, string orderNo, string status)
@@ -2915,8 +3190,9 @@ IF NOT EXISTS (
     WHERE name = N'IX_LaundryOrderItems_TenantName_StoreCode_TagNo'
       AND object_id = OBJECT_ID(N'[dbo].[LaundryOrderItems]'))
 BEGIN
-    CREATE NONCLUSTERED INDEX [IX_LaundryOrderItems_TenantName_StoreCode_TagNo]
-    ON [dbo].[LaundryOrderItems] ([TenantName], [StoreCode], [TagNo]);
+    CREATE UNIQUE NONCLUSTERED INDEX [IX_LaundryOrderItems_TenantName_StoreCode_TagNo]
+    ON [dbo].[LaundryOrderItems] ([TenantName], [StoreCode], [TagNo])
+    WHERE [TagNo] IS NOT NULL;
 END;";
 
             await _masterDbContext.Database.ExecuteSqlRawAsync(createTableSql);

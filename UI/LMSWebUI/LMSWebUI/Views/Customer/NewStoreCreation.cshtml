@@ -3,6 +3,9 @@
     Layout = "~/Views/Shared/_HeaderMenuItemsLayout.cshtml";
     var tenantName = Convert.ToString(ViewData["TenantName"] ?? "-");
     var currentStoreCode = Convert.ToString(ViewData["StoreCode"] ?? "-");
+    var existingStores = ViewData["ExistingStores"] as IEnumerable<string> ?? Array.Empty<string>();
+    var existingStoreStatuses = ViewData["ExistingStoreStatuses"] ?? Array.Empty<object>();
+    var existingStoresLoadError = Convert.ToString(ViewData["ExistingStoresLoadError"] ?? string.Empty);
 }
 
 <style>
@@ -94,6 +97,82 @@
     border-color: #9cc6a8;
     background: #f4fff7;
 }
+.stores-list-box {
+    margin-top: 16px;
+    border: 1px solid var(--els-border);
+    border-radius: 8px;
+    background: var(--els-surface);
+    padding: 12px;
+}
+.stores-list-title {
+    font-weight: 600;
+    color: var(--els-text);
+    margin-bottom: 8px;
+}
+.stores-list-state {
+    color: #5f6b7a;
+}
+.stores-list-state.error {
+    color: #b34848;
+}
+.stores-list {
+    margin: 0;
+    padding-left: 0;
+    color: var(--els-text);
+    list-style: none;
+}
+.store-list-item {
+    border: 1px solid var(--els-border);
+    border-radius: 8px;
+    margin-top: 8px;
+    padding: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+.store-list-item:first-child {
+    margin-top: 0;
+}
+.store-code {
+    font-weight: 600;
+    color: var(--els-text);
+}
+.store-status-wrap {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+.store-status-pill {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 700;
+}
+.store-status-pill.active {
+    background: rgba(22, 163, 74, 0.12);
+    color: #15803d;
+    border: 1px solid #15803d;
+}
+.store-status-pill.inactive {
+    background: rgba(201, 48, 44, 0.10);
+    color: var(--els-danger);
+    border: 1px solid var(--els-danger);
+}
+.store-toggle-btn {
+    min-width: 110px;
+    min-height: 34px;
+    border-radius: 6px;
+    border: 1px solid transparent;
+    font-weight: 600;
+    cursor: pointer;
+    color: #fff;
+    background: linear-gradient(180deg, var(--els-primary-light) 0%, var(--els-primary) 100%);
+}
+.store-toggle-btn.secondary {
+    background: linear-gradient(180deg, #8f99a4 0%, #6f7a86 100%);
+}
 </style>
 
 <section class="admin-setup-page">
@@ -118,6 +197,14 @@
 
             <div id="createStoreResult" class="result-box"></div>
 
+            <div class="stores-list-box">
+                <div class="stores-list-title">Existing Stores</div>
+                <div id="existingStoresLoading" class="stores-list-state" style="display:none;">Loading existing stores...</div>
+                <div id="existingStoresError" class="stores-list-state error" style="display:none;"></div>
+                <div id="existingStoresEmpty" class="stores-list-state" style="display:none;">No stores available.</div>
+                <ul id="existingStoresList" class="stores-list" style="display:none;"></ul>
+            </div>
+
             <div class="admin-setup-actions">
                 <button type="button" class="admin-btn secondary" onclick="window.location.href='@Url.Action("StoreUsersSetup", "Customer")'">Go to Store Users Setup</button>
                 <button type="button" class="admin-btn secondary" onclick="window.location.href='@Url.Action("Index", "Dashboard")'">Back to Dashboard</button>
@@ -131,10 +218,254 @@
     var createBtn = document.getElementById("createStoreBtn");
     var storeCodeInput = document.getElementById("newStoreCode");
     var resultBox = document.getElementById("createStoreResult");
+    var storesLoading = document.getElementById("existingStoresLoading");
+    var storesError = document.getElementById("existingStoresError");
+    var storesEmpty = document.getElementById("existingStoresEmpty");
+    var storesList = document.getElementById("existingStoresList");
+    var existingStores = @Html.Raw(Newtonsoft.Json.JsonConvert.SerializeObject(existingStores));
+    var existingStoreStatuses = @Html.Raw(Newtonsoft.Json.JsonConvert.SerializeObject(existingStoreStatuses));
+    var existingStoresLoadError = @Html.Raw(Newtonsoft.Json.JsonConvert.SerializeObject(existingStoresLoadError));
+    var createStoreInProgress = false;
+    var storeStatusesLoadRequestId = 0;
+
+    if (createBtn && createBtn.getAttribute("data-handler-bound") === "true") {
+        return;
+    }
 
     if (!window.location.search && storeCodeInput) {
         storeCodeInput.value = "";
     }
+
+    function renderStoreStatusPill(isActive) {
+        return isActive
+            ? "<span class='store-status-pill active'>Enabled</span>"
+            : "<span class='store-status-pill inactive'>Disabled</span>";
+    }
+
+    function getStoreCode(item) {
+        if (!item) {
+            return "";
+        }
+
+        var value = item.storeCode;
+        if (!value && value !== 0) {
+            value = item.StoreCode;
+        }
+
+        return (value || "").toString().trim();
+    }
+
+    function getStoreIsActive(item) {
+        if (!item) {
+            return false;
+        }
+
+        var value = item.isActive;
+        if (typeof value === "undefined") {
+            value = item.IsActive;
+        }
+
+        if (typeof value === "string") {
+            return value.toLowerCase() === "true";
+        }
+
+        return !!value;
+    }
+
+    function setStoresState(showLoading, errorMessage, stores) {
+        if (!storesLoading || !storesError || !storesEmpty || !storesList) {
+            return;
+        }
+
+        storesLoading.style.display = showLoading ? "block" : "none";
+
+        if (errorMessage) {
+            storesError.textContent = errorMessage;
+            storesError.style.display = "block";
+            storesEmpty.style.display = "none";
+            storesList.style.display = "none";
+            storesList.innerHTML = "";
+            return;
+        }
+
+        storesError.style.display = "none";
+        storesError.textContent = "";
+
+        if (!stores || !stores.length) {
+            storesEmpty.style.display = "block";
+            storesList.style.display = "none";
+            storesList.innerHTML = "";
+            return;
+        }
+
+        storesEmpty.style.display = "none";
+        storesList.style.display = "block";
+        storesList.innerHTML = stores.map(function (store) {
+            var storeCode = getStoreCode(store);
+            var isActive = getStoreIsActive(store);
+            var actionText = isActive ? "Disable" : "Enable";
+            var actionClass = isActive ? " secondary" : "";
+
+            return "<li class='store-list-item'>"
+                + "<div>"
+                + "<div class='store-code'>" + storeCode + "</div>"
+                + "<div class='store-status-wrap'>" + renderStoreStatusPill(isActive) + "</div>"
+                + "</div>"
+                + "<button type='button' class='store-toggle-btn" + actionClass + " js-store-toggle-btn' data-store='" + storeCode + "' data-active='" + (isActive ? "true" : "false") + "'>"
+                + actionText
+                + "</button>"
+                + "</li>";
+        }).join("");
+    }
+
+    function normalizeStoreStatusList(stores) {
+        if (!Array.isArray(stores)) {
+            return [];
+        }
+
+        var normalized = [];
+        var lookup = {};
+
+        stores.forEach(function (item) {
+            var value = "";
+            var isActive = false;
+
+            if (typeof item === "string") {
+                value = item.trim();
+            } else {
+                value = getStoreCode(item);
+                isActive = getStoreIsActive(item);
+            }
+
+            if (!value) {
+                return;
+            }
+
+            var key = value.toLowerCase();
+            if (!lookup[key]) {
+                lookup[key] = { storeCode: value, isActive: isActive };
+                normalized.push(lookup[key]);
+                return;
+            }
+
+            lookup[key].isActive = isActive;
+        });
+
+        normalized.sort(function (a, b) {
+            return a.storeCode.localeCompare(b.storeCode);
+        });
+
+        return normalized;
+    }
+
+    function bindStoreToggleHandlers() {
+        if (!storesList) {
+            return;
+        }
+
+        Array.prototype.forEach.call(storesList.querySelectorAll(".js-store-toggle-btn"), function (btn) {
+            if (btn.getAttribute("data-handler-bound") === "true") {
+                return;
+            }
+
+            btn.setAttribute("data-handler-bound", "true");
+            btn.addEventListener("click", function () {
+                if (btn.disabled) {
+                    return;
+                }
+
+                var storeCode = btn.getAttribute("data-store") || "";
+                var currentActive = btn.getAttribute("data-active") === "true";
+                var nextActive = !currentActive;
+
+                var confirmMessage = nextActive
+                    ? "Are you sure you want to enable store '" + storeCode + "'?"
+                    : "Are you sure you want to disable store '" + storeCode + "'?";
+
+                if (!window.confirm(confirmMessage)) {
+                    return;
+                }
+
+                var body = new URLSearchParams();
+                body.append("storeCode", storeCode);
+                body.append("isActive", nextActive ? "true" : "false");
+
+                btn.disabled = true;
+                btn.textContent = nextActive ? "Enabling..." : "Disabling...";
+
+                fetch('@Url.Action("SetNewStoreCreationStoreActiveStatus", "Customer")', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    body: body.toString()
+                })
+                .then(function (response) { return response.json(); })
+                .then(function (data) {
+                    if (!data || !data.success) {
+                        showResult((data && data.message) || "Unable to update store status.", false);
+                        return;
+                    }
+
+                    showResult(data.message || "Store status updated.", true);
+                    loadStoreStatuses();
+                })
+                .catch(function () {
+                    showResult("Unable to update store status.", false);
+                })
+                .finally(function () {
+                    btn.disabled = false;
+                    btn.textContent = currentActive ? "Disable" : "Enable";
+                });
+            });
+        });
+    }
+
+    function loadStoreStatuses() {
+        var requestId = ++storeStatusesLoadRequestId;
+        setStoresState(true, "", []);
+
+        fetch('@Url.Action("GetNewStoreCreationStoreStatuses", "Customer")', {
+            method: 'GET',
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest'
+            }
+        })
+        .then(function (response) { return response.json(); })
+        .then(function (data) {
+            if (requestId !== storeStatusesLoadRequestId) {
+                return;
+            }
+
+            if (!data || !data.success) {
+                setStoresState(false, (data && data.message) || "Unable to load existing stores.", []);
+                return;
+            }
+
+            existingStoreStatuses = normalizeStoreStatusList(data.stores || []);
+            setStoresState(false, "", existingStoreStatuses);
+            bindStoreToggleHandlers();
+        })
+        .catch(function () {
+            if (requestId !== storeStatusesLoadRequestId) {
+                return;
+            }
+
+            setStoresState(false, "Unable to load existing stores.", []);
+        });
+    }
+
+    setStoresState(true, "", []);
+    existingStoreStatuses = normalizeStoreStatusList(existingStoreStatuses);
+
+    if (existingStoreStatuses.length === 0 && Array.isArray(existingStores) && existingStores.length > 0) {
+        existingStoreStatuses = normalizeStoreStatusList(existingStores);
+    }
+
+    setStoresState(false, existingStoresLoadError, existingStoreStatuses);
+    bindStoreToggleHandlers();
+    loadStoreStatuses();
 
     function showResult(message, isSuccess) {
         if (!resultBox) {
@@ -148,15 +479,23 @@
     }
 
     function createStore() {
+        if (createStoreInProgress) {
+            return;
+        }
+
         var code = (storeCodeInput && storeCodeInput.value ? storeCodeInput.value : "").trim();
         if (!code) {
             showResult("Please enter store code.", false);
+            if (storeCodeInput && typeof storeCodeInput.focus === "function") {
+                storeCodeInput.focus();
+            }
             return;
         }
 
         if (createBtn) {
+            createStoreInProgress = true;
             createBtn.disabled = true;
-            createBtn.textContent = "Processing...";
+            createBtn.textContent = "Creating Store...";
         }
 
         var body = new URLSearchParams();
@@ -178,6 +517,25 @@
             }
 
             showResult(data.message || "Store code captured.", true);
+            if (Array.isArray(data.allowedStores) && data.allowedStores.length) {
+                existingStoreStatuses = normalizeStoreStatusList(data.allowedStores.map(function (storeCode) {
+                    var existing = existingStoreStatuses.find(function (x) {
+                        return x.storeCode && x.storeCode.toLowerCase() === (storeCode || "").toString().toLowerCase();
+                    });
+
+                    return {
+                        storeCode: storeCode,
+                        isActive: existing ? !!existing.isActive : false
+                    };
+                }));
+            } else if (data.storeCode) {
+                existingStoreStatuses = normalizeStoreStatusList(existingStoreStatuses.concat([{ storeCode: data.storeCode, isActive: false }]));
+            }
+
+            setStoresState(false, "", existingStoreStatuses);
+            bindStoreToggleHandlers();
+            loadStoreStatuses();
+
             if (storeCodeInput) {
                 storeCodeInput.value = "";
             }
@@ -186,6 +544,7 @@
             showResult("Unable to create store.", false);
         })
         .finally(function () {
+            createStoreInProgress = false;
             if (createBtn) {
                 createBtn.disabled = false;
                 createBtn.textContent = "Create Store";
@@ -193,16 +552,22 @@
         });
     }
 
-    createBtn?.addEventListener("click", function (e) {
-        e.preventDefault();
-        createStore();
-    });
-
-    storeCodeInput?.addEventListener("keydown", function (e) {
-        if (e.key === "Enter") {
+    if (createBtn) {
+        createBtn.setAttribute("data-handler-bound", "true");
+        createBtn.addEventListener("click", function (e) {
             e.preventDefault();
             createStore();
-        }
-    });
+        });
+    }
+
+    if (storeCodeInput && storeCodeInput.getAttribute("data-handler-bound") !== "true") {
+        storeCodeInput.setAttribute("data-handler-bound", "true");
+        storeCodeInput.addEventListener("keydown", function (e) {
+            if (e.key === "Enter") {
+                e.preventDefault();
+                createStore();
+            }
+        });
+    }
 })();
 </script>

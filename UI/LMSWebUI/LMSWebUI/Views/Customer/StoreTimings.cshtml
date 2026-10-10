@@ -136,7 +136,7 @@
                 <div style="margin-top:6px;">Configure store timings and remaining store details for this store.</div>
             </div>
 
-            <form asp-action="StoreTimings" asp-controller="Customer" method="post">
+            <form asp-action="StoreTimings" asp-controller="Customer" method="post" id="storeConfigForm">
                 @Html.AntiForgeryToken()
                 <input asp-for="IsExistingRecord" type="hidden" />
                 <div asp-validation-summary="All" class="validation-summary-errors"></div>
@@ -231,7 +231,7 @@
                 </div>
 
                 <div class="store-actions">
-                    <button type="submit" class="store-btn">@(Model.IsExistingRecord ? "Update Store Configuration" : "Save Store Configuration")</button>
+                    <button type="submit" class="store-btn" id="saveStoreConfigBtn" data-default-label="@(Model.IsExistingRecord ? "Update Store Configuration" : "Save Store Configuration")">@(Model.IsExistingRecord ? "Update Store Configuration" : "Save Store Configuration")</button>
                     <button type="button" class="store-btn secondary" onclick="window.location.href='@Url.Action("MyDashboard", "Dashboard")'">Back to My Dashboard</button>
                 </div>
             </form>
@@ -241,6 +241,10 @@
 
 <script type="text/javascript">
     document.addEventListener("DOMContentLoaded", function () {
+        var storeConfigForm = document.getElementById("storeConfigForm");
+        var saveStoreConfigBtn = document.getElementById("saveStoreConfigBtn");
+        var isSubmittingStoreConfig = false;
+
         var hasValidationErrors = document.querySelector(".validation-summary-errors li, .field-validation-error:not(:empty)") !== null;
         var isExistingRecordInput = document.querySelector("input[name='IsExistingRecord']");
         var isExistingRecord = false;
@@ -254,6 +258,35 @@
             if (storeConfigForm) {
                 storeConfigForm.reset();
             }
+        }
+
+        if (storeConfigForm && saveStoreConfigBtn) {
+            var defaultSaveLabel = saveStoreConfigBtn.getAttribute("data-default-label") || saveStoreConfigBtn.textContent || "Save";
+
+            storeConfigForm.addEventListener("submit", function (event) {
+                if (isSubmittingStoreConfig) {
+                    event.preventDefault();
+                    return;
+                }
+
+                if (typeof storeConfigForm.checkValidity === "function" && !storeConfigForm.checkValidity()) {
+                    var firstInvalidField = storeConfigForm.querySelector(":invalid");
+                    if (firstInvalidField && typeof firstInvalidField.focus === "function") {
+                        firstInvalidField.focus();
+                    }
+                    return;
+                }
+
+                isSubmittingStoreConfig = true;
+                saveStoreConfigBtn.disabled = true;
+                saveStoreConfigBtn.textContent = "Saving...";
+            });
+
+            window.addEventListener("pageshow", function () {
+                isSubmittingStoreConfig = false;
+                saveStoreConfigBtn.disabled = false;
+                saveStoreConfigBtn.textContent = defaultSaveLabel;
+            });
         }
 
         if (!window.storeConfigToastMessage) {

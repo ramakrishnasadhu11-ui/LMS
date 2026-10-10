@@ -5,6 +5,7 @@ using System.Linq;
 using System.Net;
 using System.Runtime.Serialization;
 using System.Threading.Tasks;
+using Newtonsoft.Json;
 using VMD.RESTApiResponseWrapper.Core.Wrappers;
 
 namespace LMSWebUI.Models
@@ -58,6 +59,12 @@ namespace LMSWebUI.Models
         ///  PhoneNumber
         /// </summary>
         public string PhoneNumber {get;set;}
+
+        [JsonProperty("ContactNo")]
+        public string ContactNo { get; set; }
+
+        [JsonProperty("MobileNo")]
+        public string MobileNo { get; set; }
 
         /// <summary>
         ///  Address
@@ -134,6 +141,12 @@ namespace LMSWebUI.Models
         ///  PhoneNumber
         /// </summary>
         public string PhoneNumber {get;set;}
+
+        [JsonProperty("ContactNo")]
+        public string ContactNo { get; set; }
+
+        [JsonProperty("MobileNo")]
+        public string MobileNo { get; set; }
 
         /// <summary>
         ///  Address

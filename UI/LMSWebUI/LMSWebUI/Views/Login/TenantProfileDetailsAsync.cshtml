@@ -2,6 +2,7 @@
 @model LMSWebUI.Models.Login.TenantProfileViewModel
 @{
     ViewData["Title"] = "My Profile";
+    ViewData["HideSidebar"] = true;
     Layout = "~/Views/Shared/_Layout.cshtml";
 
     var displayName = string.IsNullOrWhiteSpace(Model?.TenantName) ? "User" : Model.TenantName;
@@ -11,10 +12,15 @@
     var displayCountry = string.IsNullOrWhiteSpace(Model?.Country) ? "-" : Model.Country;
     var displayStore = string.IsNullOrWhiteSpace(Model?.TenantStore) ? "-" : Model.TenantStore;
     var displayRole = string.IsNullOrWhiteSpace(Model?.UserRole) ? "StoreUser" : Model.UserRole;
-    var profileImageUrl = string.IsNullOrWhiteSpace(Model?.ProfileImageUrl) ? Url.Content("~/dist/img/user2-160x160.jpg") : (Model.ProfileImageUrl.Trim().StartsWith("~/", StringComparison.Ordinal) ? Url.Content(Model.ProfileImageUrl.Trim()) : Model.ProfileImageUrl.Trim());
-    var defaultAvatarUrl = Url.Content("~/dist/img/user2-160x160.jpg");
+    var profileImageUrl = string.IsNullOrWhiteSpace(Model?.ProfileImageUrl) ? Url.Content("~/dist/img/noimage.png") : (Model.ProfileImageUrl.Trim().StartsWith("~/", StringComparison.Ordinal) ? Url.Content(Model.ProfileImageUrl.Trim()) : Model.ProfileImageUrl.Trim());
+    var defaultAvatarUrl = Url.Content("~/dist/img/noimage.png");
     var memberSince = Model?.CreatedDate.HasValue == true ? $"{Model.CreatedDate.Value:yyyy}" : "-";
     var memberSinceFull = Model?.CreatedDate.HasValue == true ? Model.CreatedDate.Value.ToString("yyyy-MM-dd") : "-";
+    var backUrl = ViewData["BackUrl"] as string;
+    if (string.IsNullOrWhiteSpace(backUrl))
+    {
+        backUrl = Url.Action("Index", "Dashboard");
+    }
 }
 
 <style>
@@ -22,6 +28,27 @@
     max-width: 960px;
     margin: 18px auto;
     padding: 0 12px;
+}
+
+.profile-back-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 10px;
+    padding: 6px 10px;
+    border: 1px solid var(--els-border);
+    border-radius: 8px;
+    background: var(--els-surface);
+    color: var(--els-primary-dark);
+    font-size: 13px;
+    font-weight: 600;
+    text-decoration: none;
+}
+
+.profile-back-link:hover {
+    text-decoration: none;
+    background: color-mix(in srgb, var(--els-accent) 26%, #ffffff);
+    color: var(--els-primary-dark);
 }
 
 .profile-card {
@@ -141,6 +168,52 @@
     font-size: 13px;
 }
 
+.profile-upload-form {
+    margin: 12px 0 0;
+}
+
+.profile-upload-actions {
+    margin-top: 10px;
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.profile-btn {
+    border: 1px solid var(--els-border);
+    border-radius: 8px;
+    padding: 7px 12px;
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 1.2;
+    background: #fff;
+    color: var(--els-text);
+}
+
+.profile-btn.primary {
+    border-color: var(--els-primary-light);
+    background: color-mix(in srgb, var(--els-accent) 24%, #ffffff);
+    color: var(--els-primary-dark);
+}
+
+.profile-btn[disabled] {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.profile-upload-hint {
+    margin-top: 8px;
+    font-size: 12px;
+    color: var(--els-text-muted, #64748b);
+}
+
+.profile-upload-error {
+    margin-top: 8px;
+    font-size: 12px;
+    color: #b42318;
+    font-weight: 600;
+}
+
 @@media (max-width: 767px) {
     .profile-header {
         grid-template-columns: 1fr;
@@ -162,10 +235,11 @@
 </style>
 
 <div class="profile-page-wrap">
+    <a class="profile-back-link" href="@backUrl">&larr; Back</a>
     <div class="profile-card">
         <div class="profile-header">
             <div class="profile-avatar">
-                <img src="@profileImageUrl" alt="@($"{displayName} profile image")" data-default-avatar="@defaultAvatarUrl" loading="lazy" onerror="window.handleProfileImageFallback ? window.handleProfileImageFallback(this) : (this.onerror=null,this.src=this.getAttribute('data-default-avatar'))" />
+                <img id="profileAvatarImage" src="@profileImageUrl" alt="@($"{displayName} profile image")" data-default-avatar="@defaultAvatarUrl" data-original-src="@profileImageUrl" loading="lazy" onerror="window.handleProfileImageFallback ? window.handleProfileImageFallback(this) : (this.onerror=null,this.src=this.getAttribute('data-default-avatar'))" />
             </div>
             <div>
                 <h1 class="profile-title">@displayName</h1>
@@ -175,6 +249,17 @@
                     <span class="profile-tag">Store: @displayStore</span>
                     <span class="profile-tag">Member Since: @memberSince</span>
                 </div>
+                <form class="profile-upload-form" method="post" asp-action="UploadProfilePhoto" asp-controller="Login" enctype="multipart/form-data">
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" name="returnUrl" value="@backUrl" />
+                    <input id="profileImageInput" type="file" name="profileImage" accept=".jpg,.jpeg,.png,image/jpeg,image/png" />
+                    <div class="profile-upload-actions">
+                        <button id="profileImageSaveBtn" type="submit" class="profile-btn primary" disabled>Save/Upload</button>
+                        <button id="profileImageCancelBtn" type="button" class="profile-btn" disabled>Cancel</button>
+                    </div>
+                    <div class="profile-upload-hint">Upload JPG/JPEG/PNG only, up to 2 MB.</div>
+                    <div id="profileUploadError" class="profile-upload-error" style="display:none;"></div>
+                </form>
             </div>
         </div>
 
@@ -219,6 +304,82 @@
                     <div class="profile-value">@displayAddress</div>
                 </div>
             </div>
+
+<script>
+    (function () {
+        var input = document.getElementById('profileImageInput');
+        var saveBtn = document.getElementById('profileImageSaveBtn');
+        var cancelBtn = document.getElementById('profileImageCancelBtn');
+        var avatar = document.getElementById('profileAvatarImage');
+        var error = document.getElementById('profileUploadError');
+        if (!input || !saveBtn || !cancelBtn || !avatar || !error) {
+            return;
+        }
+
+        var maxBytes = 2 * 1024 * 1024;
+        var allowedTypes = ['image/jpeg', 'image/png'];
+        var allowedExt = ['.jpg', '.jpeg', '.png'];
+        var defaultSrc = avatar.getAttribute('data-default-avatar') || '';
+        var originalSrc = avatar.getAttribute('data-original-src') || avatar.getAttribute('src') || defaultSrc;
+
+        function setError(message) {
+            if (!message) {
+                error.style.display = 'none';
+                error.textContent = '';
+                return;
+            }
+
+            error.textContent = message;
+            error.style.display = 'block';
+        }
+
+        function resetSelection() {
+            input.value = '';
+            saveBtn.disabled = true;
+            cancelBtn.disabled = true;
+            avatar.src = originalSrc || defaultSrc;
+            setError('');
+        }
+
+        input.addEventListener('change', function () {
+            setError('');
+            var file = input.files && input.files.length > 0 ? input.files[0] : null;
+            if (!file) {
+                resetSelection();
+                return;
+            }
+
+            var fileName = (file.name || '').toLowerCase();
+            var hasValidExt = allowedExt.some(function (x) { return fileName.endsWith(x); });
+            var hasValidType = !file.type || allowedTypes.indexOf(file.type.toLowerCase()) >= 0;
+
+            if (!hasValidExt || !hasValidType) {
+                resetSelection();
+                setError('Only JPG, JPEG, and PNG files are allowed.');
+                return;
+            }
+
+            if (file.size > maxBytes) {
+                resetSelection();
+                setError('Profile image must be 2 MB or smaller.');
+                return;
+            }
+
+            var reader = new FileReader();
+            reader.onload = function (e) {
+                avatar.src = e.target && e.target.result ? e.target.result : originalSrc;
+            };
+            reader.readAsDataURL(file);
+
+            saveBtn.disabled = false;
+            cancelBtn.disabled = false;
+        });
+
+        cancelBtn.addEventListener('click', function () {
+            resetSelection();
+        });
+    })();
+</script>
         </div>
     </div>
 </div>

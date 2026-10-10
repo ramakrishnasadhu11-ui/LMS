@@ -29,12 +29,20 @@
                 <button type="button" class="action-btn secondary" id="openCsvRulesBtn">CSV Format Rules</button>
             </div>
 
+            <div class="bulk-import-row" style="margin-top:8px;">
+                <label for="overwriteExistingPricesChk" style="font-size:12px; color:var(--els-text); display:inline-flex; align-items:center; gap:8px;">
+                    <input type="checkbox" id="overwriteExistingPricesChk" />
+                    Overwrite existing prices for matching ServiceType + Category + ItemName
+                </label>
+            </div>
+
             <div class="field-hint">
                 Export template, edit in your system, then import back. Required columns: <b>ServiceType,Category,ItemName,UnitPrice</b>.
             </div>
 
             <div id="csvImportSummary" class="import-summary-box">
                 <div class="import-summary-title">Last Import Summary</div>
+                <div class="import-summary-overall" id="sumOverallResult"></div>
                 <div class="import-summary-grid">
                     <div class="import-summary-chip"><span>Imported</span><b id="sumImported">0</b></div>
                     <div class="import-summary-chip"><span>Skipped</span><b id="sumSkipped">0</b></div>
@@ -42,6 +50,11 @@
                 </div>
                 <div class="import-summary-lines" id="sumSkippedLines"></div>
                 <div class="import-summary-lines" id="sumFailedLines"></div>
+                <div class="import-summary-issues" id="sumRowIssuesWrap" style="display:none;">
+                    <div class="import-summary-issues-title">Row Issues</div>
+                    <ul class="import-summary-issues-list" id="sumRowIssuesList"></ul>
+                    <div class="import-summary-issues-more" id="sumRowIssuesMore"></div>
+                </div>
             </div>
         </div>
     </div>
@@ -189,6 +202,48 @@
     color: #475467;
 }
 
+.import-summary-overall {
+    margin-bottom: 8px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--els-text);
+}
+
+.import-summary-issues {
+    margin-top: 10px;
+    border: 1px solid var(--els-border);
+    border-radius: 8px;
+    background: #fff;
+    padding: 8px;
+}
+
+.import-summary-issues-title {
+    font-size: 12px;
+    font-weight: 700;
+    margin-bottom: 6px;
+    color: var(--els-text);
+}
+
+.import-summary-issues-list {
+    list-style: disc;
+    margin: 0;
+    padding-left: 18px;
+    max-height: 220px;
+    overflow-y: auto;
+}
+
+.import-summary-issues-list li {
+    font-size: 12px;
+    color: #475467;
+    margin-bottom: 4px;
+}
+
+.import-summary-issues-more {
+    margin-top: 6px;
+    font-size: 11px;
+    color: #6b7280;
+}
+
 .csv-rules-modal-backdrop {
     position: fixed;
     inset: 0;
@@ -308,6 +363,8 @@
 
 <script>
 (function () {
+    var importInProgress = false;
+
     if (!window.location.search) {
         var customItemsCsvFileInput = document.getElementById("customItemsCsvFile");
         if (customItemsCsvFileInput) {
@@ -472,7 +529,7 @@
         var uploadBtn = document.getElementById("importUploadedItemsBtn");
         var hasFile = !!(fileInput && fileInput.files && fileInput.files.length);
         if (uploadBtn) {
-            uploadBtn.disabled = !hasFile;
+            uploadBtn.disabled = importInProgress || !hasFile;
         }
     }
 
@@ -481,26 +538,69 @@
         var importedEl = document.getElementById("sumImported");
         var skippedEl = document.getElementById("sumSkipped");
         var failedEl = document.getElementById("sumFailed");
+        var overallEl = document.getElementById("sumOverallResult");
         var skippedLinesEl = document.getElementById("sumSkippedLines");
         var failedLinesEl = document.getElementById("sumFailedLines");
+        var issuesWrap = document.getElementById("sumRowIssuesWrap");
+        var issuesList = document.getElementById("sumRowIssuesList");
+        var issuesMore = document.getElementById("sumRowIssuesMore");
 
-        if (!wrap || !importedEl || !skippedEl || !failedEl || !skippedLinesEl || !failedLinesEl) {
+        if (!wrap || !importedEl || !skippedEl || !failedEl || !overallEl || !skippedLinesEl || !failedLinesEl || !issuesWrap || !issuesList || !issuesMore) {
             return;
         }
 
         if (!data) {
             wrap.style.display = "none";
+            overallEl.textContent = "";
             skippedLinesEl.textContent = "";
             failedLinesEl.textContent = "";
+            issuesWrap.style.display = "none";
+            issuesList.textContent = "";
+            issuesMore.textContent = "";
             return;
         }
 
-        importedEl.textContent = parseAmount(data.importedCount || 0).toString();
-        skippedEl.textContent = parseAmount(data.skippedCount || 0).toString();
-        failedEl.textContent = parseAmount(data.failedCount || 0).toString();
+        var importedCount = parseAmount(data.importedCount || 0);
+        var skippedCount = parseAmount(data.skippedCount || 0);
+        var failedCount = parseAmount(data.failedCount || 0);
+
+        importedEl.textContent = importedCount.toString();
+        skippedEl.textContent = skippedCount.toString();
+        failedEl.textContent = failedCount.toString();
 
         var skippedLines = Array.isArray(data.skippedLineNumbers) ? data.skippedLineNumbers : [];
         var failedLines = Array.isArray(data.failedLineNumbers) ? data.failedLineNumbers : [];
+        var rawIssues = Array.isArray(data.rowIssues) ? data.rowIssues : [];
+
+        function getIssueLineNumber(issue) {
+            if (!issue) {
+                return "?";
+            }
+
+            var value = issue.lineNumber;
+            if (value === undefined || value === null || value === "") {
+                value = issue.LineNumber;
+            }
+            if (value === undefined || value === null || value === "") {
+                value = issue.rowNumber;
+            }
+
+            return value === undefined || value === null || value === "" ? "?" : String(value);
+        }
+
+        function getIssueStatus(issue) {
+            var status = issue && (issue.status || issue.Status || "");
+            var normalized = String(status || "").trim().toLowerCase();
+            if (normalized === "skipped") {
+                return "Skipped";
+            }
+            return "Failed";
+        }
+
+        function getIssueReason(issue) {
+            var reason = issue && (issue.reason || issue.Reason || issue.message || issue.Message || issue.error || issue.Error);
+            return String(reason || "No reason provided.");
+        }
 
         skippedLinesEl.textContent = skippedLines.length
             ? ("Skipped line numbers: " + skippedLines.join(", "))
@@ -510,11 +610,54 @@
             ? ("Failed line numbers: " + failedLines.join(", "))
             : "Failed line numbers: none";
 
+        var validationRejectedBeforeRowProcessing = !data.success
+            && importedCount === 0
+            && skippedCount === 0
+            && failedCount === 0;
+
+        if (validationRejectedBeforeRowProcessing) {
+            overallEl.textContent = "Import rejected before processing because of file validation.";
+        } else if (failedCount > 0) {
+            overallEl.textContent = "Import completed with some failures; some rows may already have been saved.";
+        } else if (skippedCount > 0) {
+            overallEl.textContent = "Import completed with skipped rows.";
+        } else {
+            overallEl.textContent = "All rows imported successfully.";
+        }
+
+        issuesList.textContent = "";
+        issuesMore.textContent = "";
+        issuesWrap.style.display = "none";
+
+        if (rawIssues.length) {
+            var maxIssuesToRender = 100;
+            var visibleIssues = rawIssues.slice(0, maxIssuesToRender);
+
+            visibleIssues.forEach(function (issue) {
+                var lineNumber = getIssueLineNumber(issue);
+                var statusText = getIssueStatus(issue);
+                var reasonText = getIssueReason(issue);
+
+                var listItem = document.createElement("li");
+                listItem.textContent = "Line " + lineNumber + " - " + statusText + ": " + reasonText;
+                issuesList.appendChild(listItem);
+            });
+
+            if (rawIssues.length > maxIssuesToRender) {
+                issuesMore.textContent = "Showing first " + maxIssuesToRender + " of " + rawIssues.length + " issues.";
+            }
+
+            issuesWrap.style.display = "block";
+        } else if ((failedCount > 0 || skippedCount > 0) && !validationRejectedBeforeRowProcessing) {
+            issuesMore.textContent = "Detailed row issues were not returned by the server for this response.";
+            issuesWrap.style.display = "block";
+        }
+
         wrap.style.display = "block";
     }
 
     function downloadItemsTemplateCsv() {
-        fetch('@Url.Action("GetLaundryItemPrices", "Customer")?includeInactive=false', {
+        fetch('@Url.Action("GetLaundryItemPrices", "Customer")?includeInactive=false&forImportExport=true', {
             method: 'GET',
             headers: { 'X-Requested-With': 'XMLHttpRequest' }
         })
@@ -563,7 +706,13 @@
     }
 
     function importUploadedItemsCsv() {
+        if (importInProgress) {
+            return;
+        }
+
         var fileInput = document.getElementById("customItemsCsvFile");
+        var uploadBtn = document.getElementById("importUploadedItemsBtn");
+        var overwriteChk = document.getElementById("overwriteExistingPricesChk");
         var selectedFile = fileInput && fileInput.files && fileInput.files.length ? fileInput.files[0] : null;
         if (!selectedFile) {
             showToast("Please choose a CSV file to import.", false);
@@ -601,9 +750,18 @@
                     return;
                 }
 
+                importInProgress = true;
+                if (uploadBtn) {
+                    uploadBtn.disabled = true;
+                    uploadBtn.textContent = "Importing CSV...";
+                }
+                if (fileInput) {
+                    fileInput.disabled = true;
+                }
+
                 var formData = new FormData();
                 formData.append("csvFile", selectedFile);
-                formData.append("overwriteExisting", "true");
+                formData.append("overwriteExisting", overwriteChk && overwriteChk.checked ? "true" : "false");
 
                 fetch('@Url.Action("ImportLaundryItemPricesCsv", "Customer")', {
                     method: 'POST',
@@ -628,6 +786,16 @@
                     })
                     .catch(function () {
                         showToast("Unable to import uploaded CSV items.", false);
+                    })
+                    .finally(function () {
+                        importInProgress = false;
+                        if (uploadBtn) {
+                            uploadBtn.textContent = "Import CSV File";
+                        }
+                        if (fileInput) {
+                            fileInput.disabled = false;
+                        }
+                        updateImportActionState();
                     });
             })
             .catch(function () {
