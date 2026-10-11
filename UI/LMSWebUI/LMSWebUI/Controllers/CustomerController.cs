@@ -27,6 +27,8 @@ using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using RestSharp;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
+using System.Diagnostics;
 
 namespace LMSWebUI.Controllers
 {
@@ -37,6 +39,7 @@ namespace LMSWebUI.Controllers
         private readonly IStoreConfigurationService _storeConfigurationService;
         private readonly IConfiguration _configuration;
         private readonly ApplicationDbContext _dbContext;
+        private readonly ILogger<CustomerController> _logger;
         private const string CustomerPreferencesSessionKey = "CustomerPreferences";
         private const string SelectedCustomerNameSessionKey = "SelectedCustomerName";
         private const string SelectedCustomerCodeSessionKey = "SelectedCustomerCode";
@@ -342,13 +345,15 @@ namespace LMSWebUI.Controllers
             ILoginApiClient loginApi,
             IStoreConfigurationService storeConfigurationService,
             IConfiguration configuration,
-            ApplicationDbContext dbContext)
+            ApplicationDbContext dbContext,
+            ILogger<CustomerController> logger)
         {
             _clientApi = clientAPI;
             _loginApi = loginApi;
             _storeConfigurationService = storeConfigurationService;
             _configuration = configuration;
             _dbContext = dbContext;
+            _logger = logger;
         }
 
         public async Task<IActionResult> Index(string customerName = null, string mode = null)
@@ -693,7 +698,11 @@ namespace LMSWebUI.Controllers
 
             try
             {
+                var pricingRulesUrl = $"{(_configuration["Services:Master:BaseUrl"] ?? string.Empty).TrimEnd('/')}/Customer/GetPricingRules";
+                var stopwatch = Stopwatch.StartNew();
                 var response = await _clientApi.SendRequestAsync<PricingRulesViewModel>("/GetPricingRules", parameters, Method.GET);
+                stopwatch.Stop();
+                _logger.LogInformation("PricingRules load succeeded in {ElapsedMs} ms. Endpoint: {Endpoint}. Tenant: {TenantName}, Store: {StoreCode}", stopwatch.ElapsedMilliseconds, pricingRulesUrl, tenantName, storeCode);
                 model = response ?? BuildDefaultPricingRules(tenantName, storeCode);
             }
             catch (Exception ex) when (IsNotFoundApiResponse(ex))
@@ -702,22 +711,25 @@ namespace LMSWebUI.Controllers
             }
             catch (ApiUnavailableException ex)
             {
+                var pricingRulesUrl = $"{(_configuration["Services:Master:BaseUrl"] ?? string.Empty).TrimEnd('/')}/Customer/GetPricingRules";
+                _logger.LogError(ex, "PricingRules load failed due to unavailable API. Endpoint: {Endpoint}. Tenant: {TenantName}, Store: {StoreCode}", pricingRulesUrl, tenantName, storeCode);
                 TempData["UserMessage"] = JsonConvert.SerializeObject(new MessageDto
                 {
                     CssClassName = "alert alert-danger",
                     Title = "Failed.",
-                    DisplayMessage = BuildApiErrorMessage(ex, "Unable to load pricing rules.")
+                    DisplayMessage = "Unable to load pricing rules right now. Please try again shortly."
                 });
 
                 model = BuildDefaultPricingRules(tenantName, storeCode);
             }
-            catch
+            catch (Exception ex)
             {
+                _logger.LogError(ex, "PricingRules load failed unexpectedly. Tenant: {TenantName}, Store: {StoreCode}", tenantName, storeCode);
                 TempData["UserMessage"] = JsonConvert.SerializeObject(new MessageDto
                 {
                     CssClassName = "alert alert-danger",
                     Title = "Failed.",
-                    DisplayMessage = "Unable to load pricing rules."
+                    DisplayMessage = "Unable to load pricing rules right now. Please try again shortly."
                 });
 
                 model = BuildDefaultPricingRules(tenantName, storeCode);

@@ -10,89 +10,278 @@
     <link rel="stylesheet" type="text/css" href="~/css/app-theme.css">
     <link href="https://fonts.googleapis.com/css?family=Poppins:100,300,400,500,600,700&display=swap" rel="stylesheet">
     <style>
-        html, body {
-            height: 100%;
-            overflow: hidden;
+        html,
+        body {
+            min-height: 100%;
+            margin: 0;
+            font-family: "Poppins", sans-serif;
+            background: #f4f7fc;
+            color: #0f172a;
         }
 
-        .form-body {
-            height: 100vh;
-            min-height: 0;
-        }
-
-        .form-body > .row {
-            height: 100vh;
-            min-height: 0;
-        }
-
-        .form-holder,
-        .form-holder .form-content {
-            height: 100vh;
-            min-height: 0;
-        }
-
-        .form-content {
+        .login-shell {
+            min-height: 100dvh;
+            box-sizing: border-box;
+            padding: clamp(10px, 2vh, 24px) clamp(10px, 1.8vw, 24px);
             display: flex;
             align-items: center;
             justify-content: center;
-            padding: 16px;
-            overflow: auto;
+            background: radial-gradient(circle at 0% 0%, rgba(37, 99, 235, 0.12), transparent 42%), linear-gradient(165deg, #f5f8ff 0%, #edf3fc 100%);
         }
 
-        .form-content .form-items {
-            max-height: calc(100vh - 32px);
-            overflow-y: auto;
+        .login-shell,
+        .login-shell * {
+            box-sizing: border-box;
+        }
+
+        .login-grid {
+            width: min(1180px, 100%);
+            max-width: 100%;
+            box-sizing: border-box;
+            border-radius: 18px;
+            overflow: hidden;
+            display: grid;
+            grid-template-columns: minmax(380px, 1fr) minmax(360px, 460px);
+            border: 1px solid rgba(15, 23, 42, 0.08);
+            box-shadow: 0 24px 70px rgba(15, 23, 42, 0.14);
+            background: #ffffff;
+        }
+
+        .brand-panel {
+            background: linear-gradient(170deg, #0b1b4d 0%, #132f77 52%, #19409b 100%);
+            color: #e8f0ff;
+            padding: clamp(24px, 4vh, 44px) clamp(24px, 3vw, 48px);
+            display: flex;
+            flex-direction: column;
+            gap: clamp(10px, 1.6vh, 18px);
+        }
+
+        .brand-logo-link {
+            display: inline-flex;
+            align-items: center;
+        }
+
+        .brand-logo {
+            width: 146px;
+            max-width: 100%;
+            height: auto;
+        }
+
+        .brand-eyebrow {
+            margin: 12px 0 0;
+            font-size: 11px;
+            letter-spacing: 0.16em;
+            font-weight: 600;
+            color: rgba(226, 234, 255, 0.88);
+        }
+
+        .brand-headline {
+            margin: 0;
+            font-size: clamp(30px, 3.1vw, 42px);
+            line-height: 1.14;
+            font-weight: 600;
+            color: #ffffff;
+        }
+
+        .brand-message {
+            margin: 0;
+            max-width: 560px;
+            font-size: 15px;
+            line-height: 1.75;
+            color: rgba(232, 240, 255, 0.92);
+        }
+
+        .brand-benefits {
+            margin: 2px 0;
+            padding: 0;
+            list-style: none;
+            display: grid;
+            gap: 10px;
+        }
+
+        .brand-benefits li {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 14px;
+            font-weight: 500;
+            color: rgba(236, 243, 255, 0.96);
+        }
+
+        .benefit-line {
+            width: 22px;
+            height: 1px;
+            background: rgba(236, 243, 255, 0.75);
+            flex: 0 0 auto;
+        }
+
+        .brand-growth {
+            margin: 4px 0 0;
+            font-size: 14px;
+            line-height: 1.7;
+            color: rgba(222, 234, 255, 0.9);
+        }
+
+        .brand-tagline {
+            margin: 0;
+            font-size: 13px;
+            color: rgba(244, 248, 255, 0.94);
+        }
+
+        .brand-visual {
+            margin-top: auto;
+            max-height: clamp(120px, 22vh, 220px);
+            border-radius: 12px;
+            overflow: hidden;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            box-shadow: 0 18px 34px rgba(8, 17, 43, 0.34);
+            background: rgba(255, 255, 255, 0.08);
+        }
+
+        .brand-visual img {
+            width: 100%;
+            height: 100%;
+            display: block;
+            object-fit: cover;
+        }
+
+        .login-panel {
+            background: #f8fbff;
+            padding: clamp(20px, 4vh, 42px) clamp(18px, 2vw, 34px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
         }
 
         .login-card {
-            width: 380px;
-            max-width: 100%;
-            padding: 24px 26px;
+            width: min(400px, 100%);
+            padding: clamp(20px, 2.8vh, 28px) clamp(16px, 2vw, 28px);
             border-radius: 14px;
-            background: var(--els-surface);
-            border: 1px solid var(--els-border);
-            box-shadow: 0 18px 45px rgba(15, 23, 42, 0.12);
+            background: #ffffff;
+            border: 1px solid #d8e3f3;
+            box-shadow: 0 14px 36px rgba(15, 23, 42, 0.11);
+        }
+
+        .login-card-logo {
+            width: 148px;
+            max-width: 100%;
+            height: auto;
+            margin-bottom: 14px;
         }
 
         .login-card-head {
             display: flex;
             align-items: flex-start;
             justify-content: space-between;
-            gap: 12px;
+            gap: 16px;
             margin-bottom: 14px;
         }
 
-        .login-title {
-            font-size: 20px;
-            font-weight: 600;
-            color: var(--els-text);
+        .theme-toggle-btn {
+            border: 1px solid #c6d8f4;
+            background: #f2f7ff;
+            color: #0f2d75;
+            border-radius: 8px;
+            padding: 6px 10px;
             margin: 0;
+            font-size: 11px;
+            font-weight: 600;
+            letter-spacing: 0.02em;
+            cursor: pointer;
+            white-space: nowrap;
+        }
+
+        @@media (max-height: 840px) and (min-width: 901px) {
+            .brand-panel {
+                padding: 22px 26px;
+                gap: 10px;
+            }
+
+            .brand-headline {
+                font-size: 31px;
+            }
+
+            .brand-message {
+                font-size: 14px;
+                line-height: 1.55;
+            }
+
+            .brand-benefits {
+                gap: 7px;
+            }
+
+            .brand-growth {
+                font-size: 13px;
+                line-height: 1.5;
+            }
+
+            .brand-visual {
+                display: none;
+            }
+
+            .login-panel {
+                padding: 20px 16px;
+            }
+
+            .login-card-logo {
+                width: 136px;
+                margin-bottom: 10px;
+            }
+
+            .login-title {
+                font-size: 24px;
+            }
+
+            .login-subtitle {
+                margin-top: 4px;
+            }
+        }
+
+        .theme-toggle-btn:hover {
+            background: #e6f0ff;
+        }
+
+        .login-title {
+            margin: 0;
+            font-size: 26px;
+            line-height: 1.2;
+            font-weight: 600;
+            color: #0f172a;
         }
 
         .login-subtitle {
+            margin: 7px 0 0;
+            font-size: 14px;
+            color: #475569;
+        }
+
+        #information {
+            margin-bottom: 12px;
+            border-radius: 8px;
+            border: 1px solid #bfdbfe;
+            background: #eff6ff;
+            color: #1e3a8a;
             font-size: 13px;
-            color: var(--els-text-muted, #64748b);
-            margin: 4px 0 0;
         }
 
         .login-card .page-links {
             display: flex;
             gap: 20px;
-            border-bottom: 1px solid var(--els-border);
+            border-bottom: 1px solid #dde6f3;
             margin-bottom: 16px;
         }
 
         .login-card .page-links a {
             position: relative;
-            padding-bottom: 8px;
+            padding-bottom: 9px;
             font-size: 14px;
             font-weight: 600;
-            color: var(--els-text-muted, #64748b);
+            color: #64748b;
             text-decoration: none;
         }
 
         .login-card .page-links a.active {
-            color: var(--els-primary-dark);
+            color: #1d4ed8;
         }
 
         .login-card .page-links a.active::after {
@@ -102,16 +291,15 @@
             right: 0;
             bottom: -1px;
             height: 2px;
-            background: var(--els-primary);
+            background: #2563eb;
             border-radius: 2px;
         }
-        /* Plain, no-color active tab: keep it simple (no background, no shadow) */
+
         .login-card .page-links a.professional-active {
             color: inherit !important;
             background: transparent !important;
-            /* add a small top border as a subtle, neutral indicator */
             padding: 6px 0 0 !important;
-            border-top: 3px solid #9CA3AF; /* neutral gray, avoid green/blue */
+            border-top: 3px solid #9ca3af;
             border-radius: 0 !important;
             display: inline-block;
             box-shadow: none !important;
@@ -119,6 +307,7 @@
             font-weight: 700;
             box-sizing: border-box;
         }
+
         .login-card .page-links a.professional-active::after {
             display: none;
         }
@@ -129,32 +318,33 @@
 
         .login-label {
             display: block;
-            font-size: 12px;
+            font-size: 11px;
             font-weight: 600;
-            letter-spacing: 0.2px;
+            letter-spacing: 0.09em;
             text-transform: uppercase;
-            color: var(--els-text-muted, #64748b);
-            margin-bottom: 5px;
+            color: #64748b;
+            margin-bottom: 6px;
         }
 
         .login-card .form-control,
         .login-card select {
             width: 100%;
-            height: 42px;
-            padding: 0 12px;
-            border: 1px solid var(--els-border);
+            min-height: 44px;
+            padding: 10px 12px;
+            border: 1px solid #cdd9eb;
             border-radius: 8px;
-            background: var(--els-background);
-            color: var(--els-text);
+            background: #ffffff;
+            color: #0f172a;
             font-size: 14px;
             box-shadow: none;
+            transition: border-color 0.2s ease, box-shadow 0.2s ease;
         }
 
         .login-card .form-control:focus,
         .login-card select:focus {
             outline: none;
-            border-color: var(--els-primary);
-            box-shadow: 0 0 0 3px color-mix(in srgb, var(--els-primary) 20%, transparent);
+            border-color: #2563eb;
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.2);
         }
 
         .login-password-wrap {
@@ -162,7 +352,7 @@
         }
 
         .login-password-wrap .form-control {
-            padding-right: 60px;
+            padding-right: 66px;
         }
 
         .login-password-toggle {
@@ -172,17 +362,19 @@
             transform: translateY(-50%);
             border: none;
             background: transparent;
-            color: var(--els-primary-dark);
-            font-size: 12px;
+            color: #1e3a8a;
+            font-size: 11px;
             font-weight: 700;
+            letter-spacing: 0.03em;
             cursor: pointer;
             padding: 4px 6px;
         }
 
         .login-hint {
             font-size: 12px;
-            color: var(--els-text-muted, #64748b);
+            color: #64748b;
             margin-top: 6px;
+            line-height: 1.45;
         }
 
         .login-card .form-button {
@@ -195,76 +387,201 @@
 
         .login-card .form-button .ibtn {
             width: 100%;
-            height: 44px;
+            min-height: 46px;
             border: none;
             border-radius: 8px;
-            background: linear-gradient(180deg, var(--els-primary-light) 0%, var(--els-primary) 100%);
-            color: #fff;
+            background: linear-gradient(180deg, #2563eb 0%, #1d4ed8 100%);
+            color: #ffffff;
             font-size: 15px;
             font-weight: 600;
             cursor: pointer;
+            transition: transform 0.14s ease, box-shadow 0.2s ease, filter 0.2s ease;
         }
 
         .login-card .form-button .ibtn:hover {
-            filter: brightness(0.96);
+            filter: brightness(0.97);
+            box-shadow: 0 8px 18px rgba(37, 99, 235, 0.24);
+        }
+
+        .login-card .form-button .ibtn:disabled {
+            opacity: 0.7;
+            cursor: not-allowed;
+            box-shadow: none;
         }
 
         .login-card .form-button a {
             text-align: center;
             font-size: 13px;
             font-weight: 600;
-            color: var(--els-primary-dark);
+            color: #1d4ed8;
             text-decoration: none;
-        }
-
-        .modal-validation-message {
-            display: block;
-            margin-top: 6px;
-            color: #dc3545;
-            font-size: 12px;
-            font-weight: 600;
         }
 
         .login-card .form-button a:hover {
             text-decoration: underline;
         }
 
+        .modal-validation-message {
+            display: block;
+            margin-top: 6px;
+            color: #dc2626;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
         .login-card .other-links {
             margin-top: 16px;
             padding-top: 12px;
-            border-top: 1px solid var(--els-border);
+            border-top: 1px solid #e3ebf7;
             text-align: center;
             font-size: 12px;
-            color: var(--els-text-muted, #64748b);
+            color: #64748b;
         }
 
         .login-card button:focus-visible,
         .login-card a:focus-visible,
         .login-card .form-control:focus-visible,
-        .login-card select:focus-visible {
-            outline: 2px solid var(--els-primary);
+        .login-card select:focus-visible,
+        .theme-toggle-btn:focus-visible {
+            outline: 2px solid #2563eb;
             outline-offset: 2px;
         }
 
-        @@media (max-height: 760px) {
-            .login-card {
-                padding: 18px 22px;
+        @@media (max-width: 1100px) {
+            .login-shell {
+                padding: 16px;
             }
 
-            .login-card-head {
-                margin-bottom: 10px;
+            .brand-panel {
+                padding: 32px;
+                gap: 14px;
             }
 
-            .login-subtitle {
+            .brand-headline {
+                font-size: clamp(26px, 2.8vw, 34px);
+            }
+
+            .login-panel {
+                padding: 28px 24px;
+            }
+        }
+
+        @@media (max-width: 900px) {
+            .login-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .brand-panel {
+                padding: 24px 24px 18px;
+            }
+
+            .brand-headline {
+                font-size: 28px;
+            }
+
+            .brand-message {
+                font-size: 14px;
+                line-height: 1.6;
+            }
+
+            .brand-visual {
+                margin-top: 6px;
+                max-height: 180px;
+            }
+
+            .brand-visual img {
+                height: 180px;
+                object-fit: cover;
+            }
+
+            .login-panel {
+                padding: 20px;
+            }
+        }
+
+        @@media (max-width: 640px) {
+            .login-shell {
+                padding: 10px;
+            }
+
+            .login-grid {
+                border-radius: 14px;
+            }
+
+            .brand-panel {
+                padding: 18px 16px 14px;
+                gap: 10px;
+            }
+
+            .brand-logo {
+                width: 116px;
+            }
+
+            .brand-eyebrow {
+                font-size: 10px;
+                letter-spacing: 0.13em;
+            }
+
+            .brand-headline {
+                font-size: 24px;
+            }
+
+            .brand-message,
+            .brand-benefits,
+            .brand-tagline {
                 display: none;
+            }
+
+            .brand-growth {
+                margin: 0;
+                font-size: 13px;
+                line-height: 1.5;
+            }
+
+            .brand-visual {
+                display: none;
+            }
+
+            .login-panel {
+                padding: 14px;
+            }
+
+            .login-card {
+                padding: 20px 16px;
+                border-radius: 12px;
+            }
+
+            .login-card-logo {
+                width: 128px;
+            }
+
+            .login-title {
+                font-size: 22px;
+            }
+
+            .theme-toggle-btn {
+                font-size: 10px;
+                padding: 5px 8px;
+            }
+        }
+
+        @@media (max-height: 760px) {
+            .login-shell {
+                padding-top: 12px;
+                padding-bottom: 12px;
+            }
+
+            .login-panel {
+                padding-top: 18px;
+                padding-bottom: 18px;
+            }
+
+            .login-card {
+                padding: 22px;
             }
 
             .login-card .other-links {
                 display: none;
-            }
-
-            .login-field {
-                margin-bottom: 10px;
             }
         }
     </style>
@@ -284,76 +601,84 @@
             }
         })();
     </script>
-    <div class="form-body">
-        <div class="website-logo">
-            <a href="index.html">
-                <div class="logo">
-                    <img class="logo-size" src="~/Images/els-white.png" alt="">
-                </div>
-            </a>
-        </div>
-        <div class="row">
-            <div class="img-holder">
-                <div class="bg"></div>
-                <div class="info-holder">
+    <div class="login-shell">
+        <div class="login-grid">
+            <aside class="brand-panel" aria-label="LMS value proposition">
+                <a class="brand-logo-link" href="@Url.Action("Login", "Login")" aria-label="LMS login">
+                    <img class="brand-logo" src="~/Images/els-white.png" alt="LMS">
+                </a>
+                <p class="brand-eyebrow">CLOUD-BASED LAUNDRY MANAGEMENT</p>
+                <h1 class="brand-headline">Elevate Your Laundry Business.</h1>
+                <p class="brand-message">Manage orders, streamline daily operations, and deliver an exceptional customer experience with one intelligent platform built for modern laundry and dry-cleaning businesses.</p>
+
+                <ul class="brand-benefits" aria-label="Platform benefits">
+                    <li><span class="benefit-line" aria-hidden="true"></span>Seamless Order Management</li>
+                    <li><span class="benefit-line" aria-hidden="true"></span>Smarter Business Operations</li>
+                    <li><span class="benefit-line" aria-hidden="true"></span>Exceptional Customer Experience</li>
+                </ul>
+
+                <p class="brand-growth">Deliver premium service. Build customer loyalty. Unlock new growth opportunities.</p>
+                <p class="brand-tagline"><strong>Built for better service. Designed for business growth.</strong></p>
+
+                <div class="brand-visual" aria-hidden="true">
                     <img src="~/Images/loginimage.png" alt="">
                 </div>
-            </div>
-            <div class="form-holder">
-                <div class="form-content">
-                    <div class="form-items login-card">
-                        <div class="login-card-head">
-                            <div>
-                                <img class="logo-size" src="~/Images/els-blue-web.png" alt="ELS" style="width: 150px;">
-                                <h1 class="login-title" style="margin-top:14px;">Sign in to your account</h1>
-                                <p class="login-subtitle">Manage your dry cleaning and laundry operations.</p>
+            </aside>
+
+            <main class="login-panel">
+                <div class="login-card">
+                    <div class="login-card-head">
+                        <div>
+                            <img class="login-card-logo" src="~/Images/els-blue-web.png" alt="LMS">
+                            <h2 class="login-title">Welcome Back</h2>
+                            <p class="login-subtitle">Sign in to manage your business.</p>
+                        </div>
+                        <button id="themeToggleLogin" type="button" class="theme-toggle-btn" onclick="toggleTheme()">Dark Theme</button>
+                    </div>
+
+                    <div id="information" class="alert alert-success" role="alert"><strong>Well done!</strong><span class="glyphi glyphicon glyphicon-exclamation-sign"></span>@Model.Message</div>
+
+                    <div class="page-links">
+                        <a id="loginTab" class="active" href="@Url.Action("Login", "Login")">Login</a>
+                        <a id="registerTab" href="@Url.Action("Register", "Login")">Register</a>
+                    </div>
+
+                    <form>
+                        <div class="login-field">
+                            <label class="login-label" for="tenantEmail">Email address</label>
+                            @Html.TextBoxFor(m => m.Email, new { @placeholder = "name@company.com", @class = "form-control", required = "required", id = "tenantEmail", autocomplete = "username", autocapitalize = "none", spellcheck = "false" })
+                        </div>
+                        <div class="login-field">
+                            <label class="login-label" for="tenantPassword">Password</label>
+                            <div class="login-password-wrap">
+                                @Html.TextBoxFor(m => m.Password, new { @placeholder = "Enter your password", @class = "form-control", required = "required", id = "tenantPassword", @type = "password", autocomplete = "current-password" })
+                                <button type="button" class="login-password-toggle" id="togglePassword" data-password-target="tenantPassword" aria-controls="tenantPassword" aria-label="Show password">SHOW</button>
                             </div>
-                            <button id="themeToggleLogin" type="button" class="theme-toggle-btn" onclick="toggleTheme()">Dark Theme</button>
                         </div>
-                        <div id="information" class="alert alert-success" role="alert"><strong>Well done!</strong><span class="glyphi glyphicon glyphicon-exclamation-sign"></span>@Model.Message</div>
-                        <div class="page-links">
-                            <a id="loginTab" class="active" href="@Url.Action("Login", "Login")">Login</a>
-                            <a id="registerTab" href="@Url.Action("Register", "Login")">Register</a>
+                        <div class="login-field" id="storeDropdownContainer">
+                            <label class="login-label" for="Store">Store</label>
+                            @Html.DropDownListFor(x => x.StoreCode, new List<SelectListItem> { }, "Select a Store...", new { id = "Store" })
                         </div>
-                        @*@using (Html.BeginForm("CheckIsPasswordChangedByclient", "Login", FormMethod.Post, new { @class = "form" }))
-                        {*@
-                            <form>
-                                <div class="login-field">
-                                    <label class="login-label" for="tenantEmail">Email address</label>
-                                    @Html.TextBoxFor(m => m.Email, new { @placeholder = "name@company.com", @class = "form-control", required = "required", id = "tenantEmail", autocomplete = "username", autocapitalize = "none", spellcheck = "false" })
-                                </div>
-                                <div class="login-field">
-                                    <label class="login-label" for="tenantPassword">Password</label>
-                                    <div class="login-password-wrap">
-                                        @Html.TextBoxFor(m => m.Password, new { @placeholder = "Enter your password", @class = "form-control", required = "required", id = "tenantPassword", @type = "password", autocomplete = "current-password" })
-                                        <button type="button" class="login-password-toggle" id="togglePassword" data-password-target="tenantPassword" aria-controls="tenantPassword" aria-label="Show password">SHOW</button>
-                                    </div>
-                                </div>
-                                <div class="login-field" id="storeDropdownContainer">
-                                    <label class="login-label" for="Store">Store</label>
-                                    @Html.DropDownListFor(x => x.StoreCode, new List<SelectListItem> { }, "Select a Store...", new { id = "Store" })
-                                </div>
-                                <div id="storeUserHint" class="login-hint">
-                                    Tenant/Admin login: select a store. Store-user login: store is auto-detected.
-                                </div>
-                                <div id="storeUserModeBadge" style="display:none; margin-top:8px;">
-                                    <span id="storeUserModeBadgeText" style="display:inline-block; padding:4px 10px; border-radius:999px; font-size:11px; font-weight:700; letter-spacing:.2px; background:color-mix(in srgb, var(--els-accent) 45%, #ffffff); color:var(--els-primary-dark); border:1px solid var(--els-primary-light);">
-                                        Store User Mode
-                                    </span>
-                                </div>
-                                <div class="form-button">
-                                    <button id="LoginCheck" type="button" class="ibtn">Sign In</button>
-                                    <a href="javascript:void(0);" data-toggle="modal" data-target="#ChangePassword">Change Password</a>
-                                    <a href="javascript:void(0);" data-toggle="modal" data-target="#ForgotPassword">Forgot Your Password?</a>
-                                </div>
-                            </form>
-                        @*}*@
-                        <div class="other-links">
-                            <span><i>The best way to manage your Dry cleaning and Laundry business</i></span>
+                        <div id="storeUserHint" class="login-hint">
+                            Tenant/Admin login: select a store. Store-user login: store is auto-detected.
                         </div>
+                        <div id="storeUserModeBadge" style="display:none; margin-top:8px;">
+                            <span id="storeUserModeBadgeText" style="display:inline-block; padding:4px 10px; border-radius:999px; font-size:11px; font-weight:700; letter-spacing:.2px; background:color-mix(in srgb, var(--els-accent) 45%, #ffffff); color:var(--els-primary-dark); border:1px solid var(--els-primary-light);">
+                                Store User Mode
+                            </span>
+                        </div>
+                        <div class="form-button">
+                            <button id="LoginCheck" type="button" class="ibtn">Sign In</button>
+                            <a href="javascript:void(0);" data-toggle="modal" data-target="#ChangePassword">Change Password</a>
+                            <a href="javascript:void(0);" data-toggle="modal" data-target="#ForgotPassword">Forgot Your Password?</a>
+                        </div>
+                    </form>
+
+                    <div class="other-links">
+                        <span><i>The best way to manage your Dry cleaning and Laundry business</i></span>
                     </div>
                 </div>
-            </div>
+            </main>
         </div>
     </div>
     <!-- popup Forgot Your Password html -->

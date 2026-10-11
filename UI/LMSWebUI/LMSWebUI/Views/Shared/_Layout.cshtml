@@ -1,6 +1,5 @@
 ﻿@using Microsoft.AspNetCore.Http
 @using System.Globalization
-@model LMSWebUI.Models.DashBoard.TenantInfoDto 
 @{
     var currentController = ViewContext.RouteData.Values["controller"]?.ToString();
     var currentAction = ViewContext.RouteData.Values["action"]?.ToString();
@@ -8,6 +7,7 @@
         && string.Equals(currentAction, "Index", StringComparison.OrdinalIgnoreCase);
     var isMyProfilePage = string.Equals(currentController, "Login", StringComparison.OrdinalIgnoreCase)
         && string.Equals(currentAction, "TenantProfileDetails", StringComparison.OrdinalIgnoreCase);
+    var isAdminCompanyHeaderOnly = Convert.ToBoolean(ViewData["AdminCompanyHeaderOnly"] ?? false);
     var hideSidebar = Convert.ToBoolean(ViewData["HideSidebar"] ?? false) || isMyProfilePage;
     var bodyCss = hideSidebar
         ? "hold-transition skin-blue sidebar-mini sidebar-collapse no-sidebar-page"
@@ -16,18 +16,28 @@
     {
         bodyCss += " fixed dashboard-fixed-header";
     }
+    if (isAdminCompanyHeaderOnly)
+    {
+        bodyCss += " admin-company-header-only";
+    }
     var memberSinceRaw = Context?.Session?.GetString("TenantMemberSince");
     var memberSinceText = "Member since -";
+    var businessNameRaw = Context?.Session?.GetString("TenantBusinessName");
+    var fallbackBusinessName = "LMS";
+    var resolvedBusinessName = string.IsNullOrWhiteSpace(businessNameRaw)
+        ? fallbackBusinessName
+        : businessNameRaw.Trim();
     var profileImageUrl = Context?.Session?.GetString("TenantProfileImageUrl");
+    var tenantStoreRaw = Context?.Session?.GetString("TenantStore");
     var defaultProfileImageUrl = Url.Content("~/dist/img/noimage.png");
     var resolvedProfileImageUrl = string.IsNullOrWhiteSpace(profileImageUrl)
         ? defaultProfileImageUrl
         : (profileImageUrl.Trim().StartsWith("~/", StringComparison.Ordinal)
             ? Url.Content(profileImageUrl.Trim())
             : profileImageUrl.Trim());
-    var profileImageAlt = string.IsNullOrWhiteSpace(Model?.TenantName)
+    var profileImageAlt = string.IsNullOrWhiteSpace(resolvedBusinessName)
         ? "Profile avatar"
-        : $"{Model.TenantName} profile avatar";
+        : $"{resolvedBusinessName} profile avatar";
     var currentPathAndQuery = $"{Context?.Request?.Path}{Context?.Request?.QueryString}";
     var myProfileUrl = Url.Action("TenantProfileDetails", "Login", new { returnUrl = currentPathAndQuery });
 
@@ -69,6 +79,60 @@
 
     .navbar-nav > .user-menu {
       position: relative;
+    }
+
+    .admin-company-header-only .main-header .navbar {
+      margin-left: 0 !important;
+      min-height: 58px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: linear-gradient(90deg, var(--els-primary) 0%, var(--els-primary-dark) 100%);
+      padding: 0 16px;
+    }
+
+    .admin-company-header-only .main-header .sidebar-toggle,
+    .admin-company-header-only .main-header .navbar-custom-menu,
+    .admin-company-header-only .main-header .logo {
+      display: none !important;
+    }
+
+    .admin-company-header-only .header-business-name {
+      margin: 0;
+      max-width: min(92vw, 760px);
+      padding: 8px 14px;
+      border-radius: 999px;
+      border: 1px solid rgba(255, 255, 255, 0.38);
+      background: rgba(255, 255, 255, 0.12);
+      color: #ffffff;
+      font-size: 14px;
+      font-weight: 700;
+    }
+
+    .header-business-name {
+      display: inline-flex;
+      align-items: center;
+      max-width: clamp(180px, 28vw, 420px);
+      margin: 14px 8px 0;
+      padding: 6px 10px;
+      border-radius: 8px;
+      border: 1px solid rgba(255, 255, 255, 0.28);
+      color: #ffffff;
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 0.2px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      background: rgba(255, 255, 255, 0.1);
+    }
+
+    @@media (max-width: 767px) {
+      .header-business-name {
+        max-width: 150px;
+        margin-top: 12px;
+        font-size: 12px;
+      }
     }
 
     .navbar-nav > .user-menu > .dropdown-toggle {
@@ -309,6 +373,8 @@
 <div class="wrapper">
   <!-- Main Header -->
   <header class="main-header">
+    @if (!isAdminCompanyHeaderOnly)
+    {
     <!-- Logo -->
     <a href="index2.html" class="logo">
       <!-- mini logo for sidebar mini 50x50 pixels -->
@@ -316,12 +382,19 @@
       <!-- logo for regular state and mobile devices -->
       <span class="logo-lg">Excel<b>Laundry<b>Services</b></b></span>
     </a>
+    }
     <!-- Header Navbar -->
     <nav class="navbar navbar-static-top" role="navigation">
+      @if (!isAdminCompanyHeaderOnly)
+      {
       <!-- Sidebar toggle button-->
       <a href="#" class="sidebar-toggle" data-toggle="push-menu" role="button">
         <span class="sr-only">Main Menu</span>
       </a>
+      }
+      <span class="header-business-name" title="@resolvedBusinessName">@resolvedBusinessName</span>
+      @if (!isAdminCompanyHeaderOnly)
+      {
       <!-- Navbar Right Menu -->
       <div class="navbar-custom-menu">
         <ul class="nav navbar-nav">
@@ -335,7 +408,7 @@
               <!-- The user image in the navbar-->
               <img src="@resolvedProfileImageUrl" class="user-image" alt="@profileImageAlt" data-default-avatar="@defaultProfileImageUrl" loading="lazy" onerror="window.handleProfileImageFallback ? window.handleProfileImageFallback(this) : (this.onerror=null,this.src=this.getAttribute('data-default-avatar'))">
               <!-- hidden-xs hides the username on small devices so only the image appears. -->
-              <span class="hidden-xs">@Model.TenantName</span>
+              <span class="hidden-xs" title="@resolvedBusinessName">@resolvedBusinessName</span>
             </a>
             <ul class="dropdown-menu">
               <!-- The user image in the menu -->
@@ -344,8 +417,8 @@
                   <img src="@resolvedProfileImageUrl" class="img-circle" alt="@profileImageAlt" data-default-avatar="@defaultProfileImageUrl" loading="lazy" onerror="window.handleProfileImageFallback ? window.handleProfileImageFallback(this) : (this.onerror=null,this.src=this.getAttribute('data-default-avatar'))">
                 </div>
                 <p>
-                  <span class="profile-name">@(string.IsNullOrWhiteSpace(Model?.TenantName) ? "User" : Model.TenantName)</span>
-                  <span class="profile-meta">@(string.IsNullOrWhiteSpace(Model?.TenantStore) ? "Organization details unavailable" : $"{Model.TenantStore} Store")</span>
+                  <span class="profile-name" title="@resolvedBusinessName">@resolvedBusinessName</span>
+                  <span class="profile-meta">@(string.IsNullOrWhiteSpace(tenantStoreRaw) ? "Organization details unavailable" : $"{tenantStoreRaw} Store")</span>
                   <small>@memberSinceText</small>
                 </p>
               </li>
@@ -357,7 +430,7 @@
               <!-- Menu Footer-->
               <li class="user-footer">
                 @*<div class="pull-left">
-                  <a href="javascript:void(0);" class="Detail" onclick="showProfile(this)" id=@Model.TenantName  data-id="@Model.TenantName">Profile</a> 
+                  <a href="javascript:void(0);" class="Detail" onclick="showProfile(this)">Profile</a> 
                 </div>*@
                 <div style="font-size:12px;color:#64748b;">Use sign out to securely end your session.</div>
               </li>
@@ -365,6 +438,7 @@
           </li>
         </ul>
       </div>
+      }
     </nav>
   </header>
   <!-- Left side column. contains the logo and sidebar -->
@@ -379,7 +453,7 @@
           <img src="@resolvedProfileImageUrl" class="img-circle" alt="@profileImageAlt" data-default-avatar="@defaultProfileImageUrl" loading="lazy" onerror="window.handleProfileImageFallback ? window.handleProfileImageFallback(this) : (this.onerror=null,this.src=this.getAttribute('data-default-avatar'))">
         </div>
         <div class="pull-left info">
-          <p>@Model.TenantName</p>
+          <p title="@resolvedBusinessName">@resolvedBusinessName</p>
           <!-- Status -->
           <a href="#"><i class="fa fa-circle text-success"></i> Online</a>
         </div>
@@ -570,5 +644,6 @@
       });
     })();
     </script>
+    @RenderSection("Scripts", required: false)
 </body>
 </html>

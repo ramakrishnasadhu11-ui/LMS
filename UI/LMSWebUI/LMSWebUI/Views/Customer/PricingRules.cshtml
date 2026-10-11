@@ -104,6 +104,30 @@
 .toast-message.error {
     background: #b63838;
 }
+
+.pricing-rules-loading {
+    position: fixed;
+    inset: 0;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    background: rgba(15, 23, 42, 0.35);
+    z-index: 11000;
+}
+
+.pricing-rules-loading.visible {
+    display: flex;
+}
+
+.pricing-rules-loading-card {
+    padding: 12px 16px;
+    border-radius: 8px;
+    background: #ffffff;
+    border: 1px solid var(--els-border);
+    color: var(--els-text);
+    font-weight: 600;
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.16);
+}
 </style>
 
 @if (TempData["UserMessage"] != null)
@@ -122,6 +146,9 @@
 }
 
 <div id="pricingRulesToast" class="toast-message"></div>
+<div id="pricingRulesLoading" class="pricing-rules-loading" aria-live="polite" aria-busy="true">
+    <div class="pricing-rules-loading-card">Loading pricing rules...</div>
+</div>
 
 <section class="pricing-rules-page">
     <div class="pricing-rules-box">
