@@ -30,6 +30,7 @@ namespace LMSWebUI.Controllers
         private const string MemberSinceSessionKey = "TenantMemberSince";
         private const string ProfileImageSessionKey = "TenantProfileImageUrl";
         private const string TenantIdSessionKey = "TenantId";
+        private const string BusinessNameSessionKey = "TenantBusinessName";
         private const int MaxProfileImageBytes = 2 * 1024 * 1024;
         private static readonly EmailAddressAttribute EmailValidator = new EmailAddressAttribute();
         private static readonly HashSet<string> AllowedProfileImageExtensions = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
@@ -428,6 +429,7 @@ namespace LMSWebUI.Controllers
                                 : responseMessage.Email;
 
                             HttpContext.Session.SetString("TenantName", superAdminEmail);
+                            await EnsureBusinessNameSessionAsync(superAdminEmail, responseMessage.TenantName);
                             if (!string.IsNullOrWhiteSpace(responseMessage.TenantId))
                             {
                                 HttpContext.Session.SetString(TenantIdSessionKey, responseMessage.TenantId.Trim());
@@ -480,7 +482,7 @@ namespace LMSWebUI.Controllers
                             HttpContext.Session.SetString("TenantStore", resolvedStore);
                             HttpContext.Session.SetString(AllowedStoresSessionKey, string.Join(",", allowedStores));
                             SetTenantProfileImageSession(tenantSessionEmail, HttpContext.Session.GetString(TenantIdSessionKey));
-                            await SetTenantMemberSinceSessionAsync(tenantSessionEmail);
+                            await SetTenantMemberSinceSessionAsync(tenantSessionEmail, responseMessage.TenantName);
                             var role = string.IsNullOrWhiteSpace(responseMessage.UserRole) ? "StoreUser" : responseMessage.UserRole.Trim();
                             HttpContext.Session.SetString("UserRole", role);
                             return "success";
@@ -510,6 +512,46 @@ namespace LMSWebUI.Controllers
             return RedirectToAction("Login");
         }
 
+        private void SetBusinessNameSession(string tenantBusinessName)
+        {
+            if (string.IsNullOrWhiteSpace(tenantBusinessName))
+            {
+                HttpContext.Session.Remove(BusinessNameSessionKey);
+                return;
+            }
+
+            HttpContext.Session.SetString(BusinessNameSessionKey, tenantBusinessName.Trim());
+        }
+
+        private async Task EnsureBusinessNameSessionAsync(string tenantEmail, string tenantBusinessNameCandidate)
+        {
+            SetBusinessNameSession(tenantBusinessNameCandidate);
+
+            if (!string.IsNullOrWhiteSpace(HttpContext.Session.GetString(BusinessNameSessionKey))
+                || string.IsNullOrWhiteSpace(tenantEmail))
+            {
+                return;
+            }
+
+            var parms = new Dictionary<string, string>
+            {
+                { "eMail", tenantEmail.Trim() }
+            };
+
+            try
+            {
+                var profile = await _clientApi.SendRequestAsync<LoginIoResponse>("/TenantprofileDetails", parms, RestSharp.Method.GET);
+                if (!string.IsNullOrWhiteSpace(profile?.TenantName))
+                {
+                    SetBusinessNameSession(profile.TenantName);
+                }
+            }
+            catch
+            {
+                // Keep business name unset when lookup fails; do not trust client-side alternatives.
+            }
+        }
+
         [HttpPost]
         [ValidateAntiForgeryToken]
         [ActionName("Logout")]
@@ -519,8 +561,10 @@ namespace LMSWebUI.Controllers
             return RedirectToAction(nameof(Login));
         }
 
-        private async Task SetTenantMemberSinceSessionAsync(string tenantEmail)
+        private async Task SetTenantMemberSinceSessionAsync(string tenantEmail, string tenantBusinessNameCandidate = null)
         {
+            SetBusinessNameSession(tenantBusinessNameCandidate);
+
             if (string.IsNullOrWhiteSpace(tenantEmail))
             {
                 HttpContext.Session.Remove(MemberSinceSessionKey);
@@ -535,6 +579,13 @@ namespace LMSWebUI.Controllers
             try
             {
                 var profile = await _clientApi.SendRequestAsync<LoginIoResponse>("/TenantprofileDetails", parms, RestSharp.Method.GET);
+
+                if (string.IsNullOrWhiteSpace(HttpContext.Session.GetString(BusinessNameSessionKey))
+                    && !string.IsNullOrWhiteSpace(profile?.TenantName))
+                {
+                    SetBusinessNameSession(profile.TenantName);
+                }
+
                 if (profile?.CreatedDate.HasValue == true)
                 {
                     HttpContext.Session.SetString(MemberSinceSessionKey, profile.CreatedDate.Value.ToString("o", CultureInfo.InvariantCulture));

@@ -1,0 +1,9 @@
+@using Microsoft.AspNetCore.Http
+@{
+    var viewDataCompanyName = Convert.ToString(ViewData["HeaderCompanyName"]);
+    var sessionCompanyName = Context?.Session?.GetString("TenantBusinessName");
+    var resolvedCompanyName = string.IsNullOrWhiteSpace(viewDataCompanyName)
+        ? (string.IsNullOrWhiteSpace(sessionCompanyName) ? "LMS" : sessionCompanyName.Trim())
+        : viewDataCompanyName.Trim();
+}
+<div class="company-name-header" title="@resolvedCompanyName">@resolvedCompanyName</div>

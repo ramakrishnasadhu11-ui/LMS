@@ -1,238 +1,185 @@
-﻿@using Microsoft.AspNetCore.Http
 @{
-	var userRole = Context?.Session?.GetString("UserRole");
-	var isAdminUser = string.Equals(userRole, "Admin", StringComparison.OrdinalIgnoreCase)
-		|| string.Equals(userRole, "SuperAdmin", StringComparison.OrdinalIgnoreCase);
-	var currentController = Convert.ToString(ViewContext.RouteData.Values["controller"]);
-	var currentAction = Convert.ToString(ViewContext.RouteData.Values["action"]);
-	var isStoreConfigurationPage = string.Equals(currentController, "Customer", StringComparison.OrdinalIgnoreCase)
-		&& string.Equals(currentAction, "StoreTimings", StringComparison.OrdinalIgnoreCase);
-	var bodyCss = isStoreConfigurationPage
-		? "header-menu-body store-config-sticky-header"
-		: "header-menu-body";
-
-	bool IsActiveHeaderMenu(string actionName, string controllerName)
-	{
-		return string.Equals(currentController, controllerName, StringComparison.OrdinalIgnoreCase)
-			&& string.Equals(currentAction, actionName, StringComparison.OrdinalIgnoreCase);
-	}
+    Layout = "~/Views/Shared/_Layout.cshtml";
+    ViewData["HideSidebar"] = true;
+    ViewData["AdminCompanyHeaderOnly"] = true;
 }
 
-<!DOCTYPE html>
-<html>
-<head>
-<meta name="viewport" content="width=device-width, initial-scale=1">
-@*<link rel="stylesheet" type="text/css" href="~/headerfiles/style.css">*@
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
-<link rel="stylesheet" href="~/css/app-theme.css">
 <style>
-	.header-menu-body #cnet {
-		display: flex;
-		flex-wrap: wrap;
-		gap: 8px;
-		justify-content: center;
-		padding: 0;
-		margin: 0;
-		list-style: none;
-	}
+    .admin-company-header-only .content-wrapper {
+        background: var(--els-page-bg, #f4f6f9) !important;
+        min-height: calc(100vh - 58px);
+    }
 
-	.header-menu-body #cnet > li.istylei0 {
-		list-style: none;
-	}
+    .admin-company-header-only .admin-content-shell {
+        padding-bottom: 18px;
+    }
 
-	.header-menu-body #cnet > li.istylei0 > a {
-		display: inline-block;
-		padding: 10px 16px;
-		border: 1px solid var(--els-border);
-		border-radius: 10px;
-		background: var(--els-surface);
-		color: var(--els-text);
-		font-weight: 700;
-		text-decoration: none;
-		box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
-		transition: all 0.18s ease;
-	}
+    .admin-company-header-only .admin-setup-page,
+    .admin-company-header-only .tax-settings-page,
+    .admin-company-header-only .store-config-page,
+    .admin-company-header-only .pricing-rules-page,
+    .admin-company-header-only .wf-settings-page,
+    .admin-company-header-only .admin-feature-page,
+    .admin-company-header-only .tag-settings-page,
+    .admin-company-header-only .adv-page,
+    .admin-company-header-only .preferences-page,
+    .admin-company-header-only .payment-settings-page,
+    .admin-company-header-only .wf-page,
+    .admin-company-header-only .master-page,
+    .admin-company-header-only .setup-page,
+    .admin-company-header-only .customer-page {
+        padding: clamp(14px, 2.3vw, 24px) !important;
+    }
 
-	.header-menu-body #cnet > li.istylei0 > a:hover {
-		background: var(--els-accent);
-		border-color: var(--els-primary-light);
-		transform: translateY(-1px);
-	}
+    .admin-company-header-only .admin-setup-box,
+    .admin-company-header-only .tax-settings-box,
+    .admin-company-header-only .store-config-box,
+    .admin-company-header-only .pricing-rules-box,
+    .admin-company-header-only .wf-settings-box,
+    .admin-company-header-only .admin-feature-box,
+    .admin-company-header-only .tag-settings-box,
+    .admin-company-header-only .adv-box,
+    .admin-company-header-only .preferences-box,
+    .admin-company-header-only .payment-settings-box,
+    .admin-company-header-only .wf-box,
+    .admin-company-header-only .master-box,
+    .admin-company-header-only .setup-box,
+    .admin-company-header-only .customer-box {
+        border: 1px solid #dbe6f6 !important;
+        border-radius: 12px !important;
+        box-shadow: 0 3px 14px rgba(15, 23, 42, 0.08) !important;
+        background: var(--els-surface) !important;
+        overflow: hidden;
+    }
 
-	.header-menu-body #cnet > li.istylei0 > a > span {
-		color: inherit;
-	}
+    .admin-company-header-only .admin-setup-title,
+    .admin-company-header-only .tax-settings-title,
+    .admin-company-header-only .store-config-title,
+    .admin-company-header-only .pricing-rules-title,
+    .admin-company-header-only .wf-settings-title,
+    .admin-company-header-only .admin-feature-title,
+    .admin-company-header-only .tag-settings-title,
+    .admin-company-header-only .adv-title,
+    .admin-company-header-only .preferences-title,
+    .admin-company-header-only .payment-settings-title,
+    .admin-company-header-only .wf-title,
+    .admin-company-header-only .master-title,
+    .admin-company-header-only .setup-title,
+    .admin-company-header-only .customer-title {
+        background: linear-gradient(90deg, var(--els-primary) 0%, var(--els-primary-dark) 100%) !important;
+        color: #ffffff !important;
+        padding: 14px 20px !important;
+        font-size: 20px !important;
+        font-weight: 600 !important;
+        border-bottom: 1px solid color-mix(in srgb, var(--els-primary-dark) 56%, #0f172a);
+    }
 
-	.header-menu-body #cnet > li.istylei0 > a.header-back-link {
-		background: var(--els-accent);
-		border-color: var(--els-primary-light);
-		color: var(--els-primary-dark);
-	}
+    .admin-company-header-only .admin-setup-body,
+    .admin-company-header-only .tax-settings-body,
+    .admin-company-header-only .store-config-body,
+    .admin-company-header-only .pricing-rules-body,
+    .admin-company-header-only .wf-settings-body,
+    .admin-company-header-only .admin-feature-body,
+    .admin-company-header-only .tag-settings-body,
+    .admin-company-header-only .adv-body,
+    .admin-company-header-only .preferences-body,
+    .admin-company-header-only .payment-settings-body,
+    .admin-company-header-only .wf-body,
+    .admin-company-header-only .master-body,
+    .admin-company-header-only .setup-body,
+    .admin-company-header-only .customer-body {
+        padding: clamp(16px, 2.4vw, 24px) !important;
+        background: var(--els-surface);
+    }
 
-		.header-menu-body #cnet > li.istylei0 > a.header-back-link i {
-			margin-right: 6px;
-		}
+    .admin-company-header-only .admin-setup-note,
+    .admin-company-header-only .tax-settings-note,
+    .admin-company-header-only .store-config-note,
+    .admin-company-header-only .pricing-rules-note,
+    .admin-company-header-only .wf-settings-note,
+    .admin-company-header-only .admin-feature-note,
+    .admin-company-header-only .tag-settings-note,
+    .admin-company-header-only .adv-note,
+    .admin-company-header-only .preferences-note,
+    .admin-company-header-only .payment-settings-note,
+    .admin-company-header-only .wf-note,
+    .admin-company-header-only .master-note,
+    .admin-company-header-only .setup-note,
+    .admin-company-header-only .customer-note {
+        border: 1px solid #dbe6f6 !important;
+        border-radius: 10px !important;
+        background: #f4f8ff !important;
+        color: var(--els-text) !important;
+    }
 
-	.header-menu-body #cnet .istylem0 {
-		display: grid;
-		grid-template-columns: 1fr;
-		gap: 8px;
-		padding: 10px;
-		background: var(--els-surface);
-		border: 1px solid var(--els-border);
-		border-radius: 10px;
-		box-shadow: 0 8px 22px rgba(0, 0, 0, 0.12);
-	}
+    .admin-company-header-only .admin-btn,
+    .admin-company-header-only .tax-btn,
+    .admin-company-header-only .store-btn,
+    .admin-company-header-only .pricing-btn,
+    .admin-company-header-only .wf-btn,
+    .admin-company-header-only .admin-feature-btn,
+    .admin-company-header-only .tag-btn,
+    .admin-company-header-only .adv-btn,
+    .admin-company-header-only .pref-btn,
+    .admin-company-header-only .payment-btn,
+    .admin-company-header-only .action-btn,
+    .admin-company-header-only .master-btn,
+    .admin-company-header-only .setup-btn,
+    .admin-company-header-only .customer-btn {
+        min-height: 42px;
+        border-radius: 8px !important;
+        border: 1px solid transparent !important;
+        background: linear-gradient(180deg, var(--els-primary-light) 0%, var(--els-primary) 100%) !important;
+        color: #fff !important;
+        font-weight: 600 !important;
+    }
 
-	.header-menu-body #cnet .istylem0 li {
-		margin: 0;
-		padding: 0;
-	}
+    .admin-company-header-only .tax-input,
+    .admin-company-header-only .store-input,
+    .admin-company-header-only .store-select,
+    .admin-company-header-only .pricing-input,
+    .admin-company-header-only .wf-input,
+    .admin-company-header-only .tag-input,
+    .admin-company-header-only .payment-input,
+    .admin-company-header-only .payment-select,
+    .admin-company-header-only .master-input,
+    .admin-company-header-only .setup-input,
+    .admin-company-header-only .customer-input,
+    .admin-company-header-only .tax-textarea,
+    .admin-company-header-only .store-textarea,
+    .admin-company-header-only .pricing-textarea,
+    .admin-company-header-only .tag-textarea,
+    .admin-company-header-only .payment-textarea {
+        border-color: #cfdcf0 !important;
+        border-radius: 8px !important;
+        background: #ffffff !important;
+    }
 
-	.header-menu-body #cnet .istylem0 li a {
-		display: block;
-		padding: 9px 12px;
-		border: 1px solid var(--els-border);
-		border-radius: 8px;
-		background: var(--els-background);
-		color: var(--els-text);
-		font-weight: 600;
-		text-decoration: none;
-		transition: all 0.18s ease;
-	}
-
-	.header-menu-body #cnet .istylem0 li a:hover {
-		background: var(--els-accent);
-		border-color: var(--els-primary-light);
-		transform: translateY(-1px);
-	}
-
-	.header-menu-body #cnet .istylem0 li a.active {
-		background: var(--els-accent);
-		border-color: var(--els-primary);
-		color: var(--els-primary-dark);
-		box-shadow: 0 0 0 1px color-mix(in srgb, var(--els-primary) 30%, transparent);
-	}
-
-	.store-config-sticky-header .header-menu-shell {
-		position: sticky;
-		top: 0;
-		z-index: 1040;
-		background: var(--els-background);
-		border-bottom: 1px solid var(--els-border);
-		box-shadow: 0 4px 14px rgba(2, 6, 23, 0.08);
-	}
-
-	.store-config-sticky-header .header-menu-shell table {
-		background: var(--els-background);
-	}
+    @@media (max-width: 768px) {
+        .admin-company-header-only .admin-setup-page,
+        .admin-company-header-only .tax-settings-page,
+        .admin-company-header-only .store-config-page,
+        .admin-company-header-only .pricing-rules-page,
+        .admin-company-header-only .wf-settings-page,
+        .admin-company-header-only .admin-feature-page,
+        .admin-company-header-only .tag-settings-page,
+        .admin-company-header-only .adv-page,
+        .admin-company-header-only .preferences-page,
+        .admin-company-header-only .payment-settings-page,
+        .admin-company-header-only .wf-page,
+        .admin-company-header-only .master-page,
+        .admin-company-header-only .setup-page,
+        .admin-company-header-only .customer-page {
+            padding: 10px !important;
+        }
+    }
 </style>
-<script>
-	(function () {
-		try {
-			var selectedTheme = localStorage.getItem('els-theme');
-			if (selectedTheme === 'dark') {
-				document.documentElement.setAttribute('data-theme', 'dark');
-			} else {
-				document.documentElement.removeAttribute('data-theme');
-			}
-		} catch (e) {
-			document.documentElement.removeAttribute('data-theme');
-		}
-	})();
-</script>
-</head>
-<body class="@bodyCss">
-	<div class="header-menu-shell">
-	<table  width="100%" cellpadding="0" cellspacing="0">
-		<tr>
- 	 	 <td width="100%" align="center" valign="bottom" height="30px">
-	  <div class="header-theme-toggle-wrap">
-	   <button id="themeToggleHeader" type="button" class="theme-toggle-btn" onclick="toggleTheme()">Dark Theme</button>
-	 </div>
- <ul id="cnet" class="istylem1">
-	@if (isAdminUser)
-	{
-		@* Keep only screens (not post-order actions) visible for admins as well. *@
-		<li class="istylei0"><a href="#"><span>Quick Access</span></a>
-		<div><h1></h1><h2></h2><ul class="istylem0">
-			<li><a class="@(IsActiveHeaderMenu("SetupCreateOrder", "Customer") ? "active" : string.Empty)" href="@Url.Action("SetupCreateOrder", "Customer")">Create Laundry Order</a></li>
-			<li><a class="@(IsActiveHeaderMenu("CustomerAdvances", "Customer") ? "active" : string.Empty)" href="@Url.Action("CustomerAdvances", "Customer")">Customer Advances</a></li>
-			<li style="padding:6px 2px; border-top:1px dashed var(--els-border); color:#64748b; font-size:11px; line-height:1.35;">
-				Print tags / print bill / download PDF / send bill email are available only after order creation on the Create Laundry Order screen.
-			</li>
-		</ul></div>
-		</li>
 
-		if (!IsActiveHeaderMenu("Index", "Dashboard"))
-		{
-			<li class="istylei0"><a class="header-back-link" href="@Url.Action("Index", "Dashboard")"><i class="fa fa-arrow-left"></i> <span>Back to Dashboard</span></a></li>
-		}
-	}
-	else
-	{
-		<li class="istylei0"><a href="#"><span>Customer</span></a>
-		<div><h1></h1><h2></h2><ul class="istylem0">
-			<li class="istylei-1"><a class="@(IsActiveHeaderMenu("Index", "Dashboard") || IsActiveHeaderMenu("MyDashboard", "Dashboard") ? "active" : string.Empty)" href="@Url.Action("Index", "Dashboard", new { searchMode = "customer" })"><b>Search Customer</b></a></li>
-			<li><a class="@(IsActiveHeaderMenu("Index", "Dashboard") || IsActiveHeaderMenu("MyDashboard", "Dashboard") ? "active" : string.Empty)" href="@Url.Action("Index", "Dashboard", new { searchMode = "invoice" })"><b>Search Invoice</b></a></li>
-			<li><a class="@(IsActiveHeaderMenu("AddNewCustomer", "Customer") || IsActiveHeaderMenu("Index", "Customer") ? "active" : string.Empty)" href="@Url.Action("AddNewCustomer", "Customer")">Create Customer</a></li>
-			<li><a class="@(IsActiveHeaderMenu("Index", "Customer") ? "active" : string.Empty)" href="@Url.Action("Index", "Customer", new { mode = "update" })">Update Customer</a></li>
-			<li><a class="@(IsActiveHeaderMenu("CustomerAdvances", "Customer") ? "active" : string.Empty)" href="@Url.Action("CustomerAdvances", "Customer")">Customer Advances</a></li>
-		</ul></div>
-		</li>
+@await Html.PartialAsync("_LayoutStatus")
+<main class="admin-content-shell">
+    @RenderBody()
+</main>
 
-		<li class="istylei0"><a href="#"><span>Orders</span></a>
-		<div><h1></h1><h2></h2><ul class="istylem0">
-			<li class="istylei-1"><a class="@(IsActiveHeaderMenu("SetupCreateOrder", "Customer") ? "active" : string.Empty)" href="@Url.Action("SetupCreateOrder", "Customer")"><b>Create Laundry Order</b></a></li>
-			<li><a class="@(IsActiveHeaderMenu("OrderWorkflow", "Customer") ? "active" : string.Empty)" href="@Url.Action("OrderWorkflow", "Customer")">Order Workflow</a></li>
-			<li><a class="@(IsActiveHeaderMenu("Index", "Dashboard") || IsActiveHeaderMenu("MyDashboard", "Dashboard") ? "active" : string.Empty)" href="@Url.Action("Index", "Dashboard", new { searchMode = "customer" })">Search Customer Orders</a></li>
-			<li><a class="@(IsActiveHeaderMenu("SetupCreateOrder", "Customer") ? "active" : string.Empty)" href="@Url.Action("SetupCreateOrder", "Customer", new { orderMode = "pieces" })">Quick Order Entry (Pieces)</a></li>
-			<li><a class="@(IsActiveHeaderMenu("SetupCreateOrder", "Customer") ? "active" : string.Empty)" href="@Url.Action("SetupCreateOrder", "Customer", new { orderMode = "weight" })">Quick Order Entry (Weight)</a></li>
-		</ul></div>
-		</li>
-
-		<li class="istylei0"><a href="#"><span>Store Operations</span></a>
-		<div><h1></h1><h2></h2><ul class="istylem0">
-			<li class="istylei-1"><a class="@(IsActiveHeaderMenu("Index", "Dashboard") || IsActiveHeaderMenu("MyDashboard", "Dashboard") ? "active" : string.Empty)" href="@Url.Action("Index", "Dashboard", new { searchMode = "customer" })"><b>Live Counter Dashboard</b></a></li>
-			<li><a class="@(IsActiveHeaderMenu("MyDashboard", "Dashboard") || IsActiveHeaderMenu("Index", "Dashboard") ? "active" : string.Empty)" href="@Url.Action("MyDashboard", "Dashboard")">Day Summary</a></li>
-		</ul></div>
-		</li>
-	}
-	</ul>
-     </td>
-  </tr>
-		</table>
-	</div>
-	@await Html.PartialAsync("_LayoutStatus")
-	<div>
-		@RenderBody()
-	</div>
-
-<script>
-	function toggleTheme() {
-		var current = document.documentElement.getAttribute('data-theme');
-		var next = current === 'dark' ? 'light' : 'dark';
-
-		if (next === 'dark') {
-			document.documentElement.setAttribute('data-theme', 'dark');
-		} else {
-			document.documentElement.removeAttribute('data-theme');
-		}
-
-		localStorage.setItem('els-theme', next);
-		syncThemeButtonText();
-	}
-
-	function syncThemeButtonText() {
-		var isDark = document.documentElement.getAttribute('data-theme') === 'dark';
-		var toggle = document.getElementById('themeToggleHeader');
-		if (toggle) {
-			toggle.textContent = isDark ? 'Light Theme' : 'Dark Theme';
-		}
-	}
-
-	syncThemeButtonText();
-</script>
-@RenderSection("Scripts", required: false)
-</body>
-</html>
+@section Scripts {
+    @RenderSection("Scripts", required: false)
+}
