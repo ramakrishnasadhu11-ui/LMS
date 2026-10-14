@@ -76,6 +76,7 @@ namespace LMS.Identity.BusinessSerive.Services
                 }
 
                 var tenantData = _mapper.Map<TenantEntity>(tenantDto);
+                // Assign TenantId early so tenant-level configuration can reference it atomically.
                 var guid = Guid.NewGuid();
                 var tenantid = Convert.ToString(guid);
                 tenantData.TenantId = tenantid;
@@ -83,8 +84,46 @@ namespace LMS.Identity.BusinessSerive.Services
                 tenantData.CreatedDate = DateTime.UtcNow;
                 // New tenants stay pending until a super admin approves them.
                 tenantData.ApprovalStatus = TenantApprovalStatus.Pending;
+
+                // Build tenant-level configuration (StoreCode = empty) and persist it together with tenant to avoid partial state.
+                // Build configuration JSON for tenant-level (StoreCode = empty). TenantName intentionally set to tenant email per API contract.
+                var configurationJson = Newtonsoft.Json.JsonConvert.SerializeObject(new
+                {
+                    TenantName = tenantDto.Email,
+                    StoreCode = string.Empty,
+                    CurrencyCode = string.IsNullOrWhiteSpace(tenantDto.CurrencyCode) ? CountryCurrencyMapping.GetDefaultForCountry(tenantDto.Country)?.CurrencyCode : tenantDto.CurrencyCode,
+                    CurrencySymbol = string.IsNullOrWhiteSpace(tenantDto.CurrencySymbol) ? CountryCurrencyMapping.GetDefaultForCountry(tenantDto.Country)?.CurrencySymbol : tenantDto.CurrencySymbol,
+                    CurrencyLocale = string.IsNullOrWhiteSpace(tenantDto.CurrencyLocale) ? CountryCurrencyMapping.GetDefaultForCountry(tenantDto.Country)?.CurrencyLocale : tenantDto.CurrencyLocale,
+                    CurrencyDecimalDigits = tenantDto.CurrencyDecimalDigits ?? CountryCurrencyMapping.GetDefaultForCountry(tenantDto.Country)?.DecimalDigits
+                });
+
+                // Add both tenant and tenant-level configuration and save in one transaction so failure leaves no partial state.
                 _unitOfWork.DbContext.Tenants.Add(tenantData);
-                await _unitOfWork.SaveChangesAsync();
+                var cfgEntity = new LMS.Identity.DTO.Entities.StoreConfigurationEntity
+                {
+                    TenantId = tenantData.TenantId,
+                    StoreCode = string.Empty,
+                    ConfigurationJson = configurationJson,
+                    CreatedDate = DateTime.UtcNow,
+                    ModifiedDate = DateTime.UtcNow,
+                    CreatedBy = tenantDto.Email,
+                    ModifiedBy = tenantDto.Email
+                };
+                _unitOfWork.DbContext.StoreConfigurations.Add(cfgEntity);
+            // Keep TenantStoreInfos.Status in sync with tenant approval state so the
+            // approval and the store info status are persisted together atomically.
+            var tenantStoreInfo = await GetTenantStoreByTenantIdAsync(tenantid);
+            if (tenantStoreInfo != null)
+            {
+                // New tenant starts as Pending; only Approved tenants are Active.
+                tenantStoreInfo.Status = tenantData.ApprovalStatus == TenantApprovalStatus.Approved
+                    ? "Active"
+                    : tenantData.ApprovalStatus == TenantApprovalStatus.Rejected
+                        ? "InActive"
+                        : tenantStoreInfo.Status;
+            }
+
+            await _unitOfWork.SaveChangesAsync();
                 // No-op reaffirmation to ensure earlier changes are stable.
                 var registrationMailSent = await CreateTenantUserInfoAsync(tenantDto, tenantid);
                 var registrationMessage = registrationMailSent
@@ -874,6 +913,15 @@ namespace LMS.Identity.BusinessSerive.Services
             tenant.ApprovalDate = DateTime.UtcNow;
             tenant.ModifiedDate = DateTime.UtcNow;
 
+            // Also update the legacy TenantStoreInfos.Status to reflect approval state
+            // so UI and authentication checks (which read TenantStoreInfos.Status) see the
+            // correct active/inactive value. Do not modify other fields.
+            var tenantStoreInfo = await GetTenantStoreByTenantIdAsync(tenant.TenantId);
+            if (tenantStoreInfo != null)
+            {
+                tenantStoreInfo.Status = isApprove ? "Active" : (isReject ? "InActive" : tenantStoreInfo.Status);
+            }
+
             await _unitOfWork.SaveChangesAsync();
 
             var message = isApprove
@@ -1056,12 +1104,13 @@ namespace LMS.Identity.BusinessSerive.Services
 
         public async Task<ActionReturnType> GetStoreConfiguration(string tenantEmail, string storeCode)
         {
-            if (string.IsNullOrWhiteSpace(tenantEmail) || string.IsNullOrWhiteSpace(storeCode))
+            // tenantEmail is required; storeCode may be empty string to indicate tenant-level configuration
+            if (string.IsNullOrWhiteSpace(tenantEmail) || storeCode == null)
             {
                 return ActionSet.ActionReturnType(HttpStatusCode.BadRequest, new IOResponse
                 {
                     StatusCode = "400",
-                    Message = "Tenant email and store code are required."
+                    Message = "Tenant email is required. Store code may be empty for tenant-level configuration."
                 });
             }
 
@@ -1101,12 +1150,13 @@ namespace LMS.Identity.BusinessSerive.Services
 
         public async Task<ActionReturnType> NewStoreConfiguration(NewStoreConfigurationDto model)
         {
-            if (model == null || string.IsNullOrWhiteSpace(model.TenantEmail) || string.IsNullOrWhiteSpace(model.StoreCode) || string.IsNullOrWhiteSpace(model.ConfigurationJson))
+            // Allow storeCode to be empty string for tenant-level configuration; require tenant email and configuration JSON
+            if (model == null || string.IsNullOrWhiteSpace(model.TenantEmail) || model.StoreCode == null || string.IsNullOrWhiteSpace(model.ConfigurationJson))
             {
                 return ActionSet.ActionReturnType(HttpStatusCode.BadRequest, new IOResponse
                 {
                     StatusCode = "400",
-                    Message = "Tenant email, store code and configuration are required."
+                    Message = "Tenant email and configuration are required. Store code may be empty for tenant-level configuration."
                 });
             }
 
@@ -1270,7 +1320,7 @@ namespace LMS.Identity.BusinessSerive.Services
             TenantStoreInfoEntity TenantStoreInfoEntity = new TenantStoreInfoEntity();
             TenantStoreInfoEntity.TenantId = tenantid;
             TenantStoreInfoEntity.Name = tenantDto.TenantName;
-            TenantStoreInfoEntity.Status = "ÏnActive";
+            TenantStoreInfoEntity.Status = "InActive";
             TenantStoreInfoEntity.IsPasswordChanged = false;
             TenantStoreInfoEntity.Password = PasswordHasher.Hash(password);
             List<string> storeCodes = new List<string>();
@@ -1459,7 +1509,7 @@ namespace LMS.Identity.BusinessSerive.Services
                     {
                         TenantId = tenantId,
                         Name = tenantregistryresult.TenantName,
-                        Status = "ÏnActive",
+                        Status = "InActive",
                         IsPasswordChanged = false,
                         Password = string.Empty,
                         Storecodes = generatedStores
@@ -1467,6 +1517,26 @@ namespace LMS.Identity.BusinessSerive.Services
 
                     _unitOfWork.DbContext.TenantStoreInfos.Add(tenantstoreinforesult);
             await _unitOfWork.SaveChangesAsync();
+
+            // Ensure the TenantStoreInfos.Status column reflects the current activation state
+            try
+            {
+                var tsi = await GetTenantStoreByTenantIdAsync(tenantId);
+                if (tsi != null)
+                {
+                    // Determine whether any store for this tenant is marked active in TenantStoreStatuses
+                    var anyActive = await _unitOfWork.DbContext.TenantStoreStatuses
+                        .AnyAsync(s => s.TenantId == tenantId && s.IsActive);
+
+                    tsi.Status = anyActive ? "Active" : "InActive";
+                    // Save status change to TenantStoreInfos
+                    await _unitOfWork.SaveChangesAsync();
+                }
+            }
+            catch
+            {
+                // ignore failures updating mirror status to avoid breaking activation flow
+            }
                 }
 
                 List<string> stores = tenantstoreinforesult.Storecodes ?? new List<string>();

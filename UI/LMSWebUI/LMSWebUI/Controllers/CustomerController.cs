@@ -37,6 +37,7 @@ namespace LMSWebUI.Controllers
         private readonly ICustomerApiClient _clientApi;
         private readonly ILoginApiClient _loginApi;
         private readonly IStoreConfigurationService _storeConfigurationService;
+        private readonly LMSWebUI.Services.ICurrencyService _currencyService;
         private readonly IConfiguration _configuration;
         private readonly ApplicationDbContext _dbContext;
         private readonly ILogger<CustomerController> _logger;
@@ -344,6 +345,7 @@ namespace LMSWebUI.Controllers
             ICustomerApiClient clientAPI,
             ILoginApiClient loginApi,
             IStoreConfigurationService storeConfigurationService,
+            LMSWebUI.Services.ICurrencyService currencyService,
             IConfiguration configuration,
             ApplicationDbContext dbContext,
             ILogger<CustomerController> logger)
@@ -351,6 +353,7 @@ namespace LMSWebUI.Controllers
             _clientApi = clientAPI;
             _loginApi = loginApi;
             _storeConfigurationService = storeConfigurationService;
+            _currencyService = currencyService;
             _configuration = configuration;
             _dbContext = dbContext;
             _logger = logger;
@@ -4454,9 +4457,10 @@ namespace LMSWebUI.Controllers
                 }
             }
 
-            var billLines = BuildBillLines(context);
+            var currencyCfg = await _currencyService.GetEffectiveCurrencyAsync(HttpContext.Session.GetString("TenantName"), HttpContext.Session.GetString("TenantStore"));
+            var billLines = BuildBillLines(context, currencyCfg, _currencyService);
             var body = string.Join("\n", billLines);
-            var pdfBytes = BuildStyledInvoicePdf(context);
+            var pdfBytes = BuildStyledInvoicePdf(context, currencyCfg, _currencyService);
             var invoiceNo = string.IsNullOrWhiteSpace(context.InvoiceNo) ? context.OrderNo : context.InvoiceNo;
 
             Exception lastException = null;
@@ -4558,7 +4562,7 @@ namespace LMSWebUI.Controllers
             }
         }
 
-        private static List<string> BuildBillLines(OrderCompletionContextDto context)
+        private static List<string> BuildBillLines(OrderCompletionContextDto context, LMSWebUI.Services.CurrencyConfig currencyCfg, LMSWebUI.Services.ICurrencyService currencyService)
         {
             var lines = new List<string>
             {
@@ -4572,12 +4576,15 @@ namespace LMSWebUI.Controllers
                 "Items:"
             };
 
-            if (context.Items != null && context.Items.Count > 0)
+                if (context.Items != null && context.Items.Count > 0)
             {
                 var idx = 1;
                 foreach (var item in context.Items)
                 {
-                    lines.Add($"{idx}. {item.ItemName}  Qty:{item.Quantity}  Unit:{item.UnitPrice:0.00}  Tag:{item.TagNo}");
+                        var unitPriceText = currencyService != null && currencyCfg != null
+                            ? currencyService.Format(item.UnitPrice, currencyCfg)
+                            : item.UnitPrice.ToString("0.00", CultureInfo.InvariantCulture);
+                        lines.Add($"{idx}. {item.ItemName}  Qty:{item.Quantity}  Unit:{unitPriceText}  Tag:{item.TagNo}");
                     idx++;
                 }
             }
@@ -4589,17 +4596,29 @@ namespace LMSWebUI.Controllers
             lines.Add("");
             lines.Add($"Service: {context.ServiceType}");
             lines.Add($"Order Mode: {context.OrderMode}");
-            lines.Add($"Order Amount: {context.OrderAmount:0.00}");
-            lines.Add($"Tax: {context.TaxAmount:0.00}");
-            lines.Add($"Advance Utilized (-): {context.AdvanceUsed:0.00}");
-            lines.Add($"Paid Now (-): {context.PaidNow:0.00}");
-            lines.Add($"Pending Amount: {context.PendingAmount:0.00}");
-            lines.Add($"Net Payable: {context.NetPayable:0.00}");
+            if (currencyService != null && currencyCfg != null)
+            {
+                lines.Add($"Order Amount: {currencyService.Format(context.OrderAmount, currencyCfg)}");
+                lines.Add($"Tax: {currencyService.Format(context.TaxAmount, currencyCfg)}");
+                lines.Add($"Advance Utilized (-): {currencyService.Format(context.AdvanceUsed, currencyCfg)}");
+                lines.Add($"Paid Now (-): {currencyService.Format(context.PaidNow, currencyCfg)}");
+                lines.Add($"Pending Amount: {currencyService.Format(context.PendingAmount, currencyCfg)}");
+                lines.Add($"Net Payable: {currencyService.Format(context.NetPayable, currencyCfg)}");
+            }
+            else
+            {
+                lines.Add($"Order Amount: {context.OrderAmount:0.00}");
+                lines.Add($"Tax: {context.TaxAmount:0.00}");
+                lines.Add($"Advance Utilized (-): {context.AdvanceUsed:0.00}");
+                lines.Add($"Paid Now (-): {context.PaidNow:0.00}");
+                lines.Add($"Pending Amount: {context.PendingAmount:0.00}");
+                lines.Add($"Net Payable: {context.NetPayable:0.00}");
+            }
 
             return lines;
         }
 
-        private static byte[] BuildStyledInvoicePdf(OrderCompletionContextDto context)
+        private static byte[] BuildStyledInvoicePdf(OrderCompletionContextDto context, LMSWebUI.Services.CurrencyConfig currencyCfg, LMSWebUI.Services.ICurrencyService currencyService)
         {
             context ??= new OrderCompletionContextDto();
             context.Items ??= new List<LaundryOrderItemDto>();
@@ -4618,6 +4637,10 @@ namespace LMSWebUI.Controllers
                 : (tenantNameRaw.Contains("@") ? tenantNameRaw.Split('@')[0].Replace('.', ' ').Replace('_', ' ') : tenantNameRaw);
 
             QuestPDF.Settings.License = LicenseType.Community;
+            string FormatAmount(decimal value, LMSWebUI.Services.CurrencyConfig cfg)
+            {
+                return CurrencyFormatting.FormatAmount(value, cfg, currencyService);
+            }
 
             return Document.Create(container =>
             {
@@ -4711,9 +4734,9 @@ namespace LMSWebUI.Controllers
                                         : $"{item.ItemName} (Tag: {item.TagNo})";
 
                                     table.Cell().BorderBottom(1).BorderColor("#edf1f6").Padding(6).Text(desc ?? string.Empty);
-                                    table.Cell().BorderBottom(1).BorderColor("#edf1f6").Padding(6).AlignRight().Text(item.UnitPrice.ToString("0.00"));
+                                    table.Cell().BorderBottom(1).BorderColor("#edf1f6").Padding(6).AlignRight().Text(FormatAmount(item.UnitPrice, currencyCfg));
                                     table.Cell().BorderBottom(1).BorderColor("#edf1f6").Padding(6).AlignRight().Text(item.Quantity.ToString());
-                                    table.Cell().BorderBottom(1).BorderColor("#edf1f6").Padding(6).AlignRight().Text(lineTotal.ToString("0.00"));
+                                    table.Cell().BorderBottom(1).BorderColor("#edf1f6").Padding(6).AlignRight().Text(FormatAmount(lineTotal, currencyCfg));
                                 }
                             }
                             else
@@ -4744,15 +4767,15 @@ namespace LMSWebUI.Controllers
                                 }
                             }
 
-                            sumRow("Subtotal", subTotal.ToString("0.00"));
-                            sumRow("Tax", tax.ToString("0.00"));
-                            sumRow("Advance Utilized (-)", advanceUsed.ToString("0.00"));
-                            sumRow("Paid Now (-)", context.PaidNow.ToString("0.00"));
-                            sumRow("Pending Amount", context.PendingAmount.ToString("0.00"));
-                            sumRow("Total Due", totalDue.ToString("0.00"), true);
+                            sumRow("Subtotal", FormatAmount(subTotal, currencyCfg));
+                            sumRow("Tax", FormatAmount(tax, currencyCfg));
+                            sumRow("Advance Utilized (-)", FormatAmount(advanceUsed, currencyCfg));
+                            sumRow("Paid Now (-)", FormatAmount(context.PaidNow, currencyCfg));
+                            sumRow("Pending Amount", FormatAmount(context.PendingAmount, currencyCfg));
+                            sumRow("Total Due", FormatAmount(totalDue, currencyCfg), true);
                         });
 
-                        col.Item().Border(1).BorderColor("#dbe3ec").Padding(8).Text($"Payment Information: {context.OrderMode} / {context.ServiceType} / Advance Used: {context.AdvanceUsed:0.00} / Paid Now: {context.PaidNow:0.00} / Pending: {context.PendingAmount:0.00}");
+                        col.Item().Border(1).BorderColor("#dbe3ec").Padding(8).Text($"Payment Information: {context.OrderMode} / {context.ServiceType} / Advance Used: {FormatAmount(context.AdvanceUsed, currencyCfg)} / Paid Now: {FormatAmount(context.PaidNow, currencyCfg)} / Pending: {FormatAmount(context.PendingAmount, currencyCfg)}");
                         col.Item().AlignCenter().Text("Thank you for your business!").FontColor("#1f4e79").SemiBold();
                     });
                 });
@@ -6408,6 +6431,64 @@ namespace LMSWebUI.Controllers
                 });
             }
         }
+
+        
+           [HttpGet]
+            public async Task<JsonResult> GetSelectedCustomerOrders()
+            {
+            if (!TryGetCustomerScope(out var tenantName, out var storeCode))
+            {
+                return Json(new
+                {
+                    success = false,
+                    message = "Session expired. Please log in again.",
+                    orders = new List<LaundryOrderDto>()
+                });
+            }
+
+            var custCode = HttpContext.Session.GetString(
+                SelectedCustomerCodeSessionKey);
+
+            if (string.IsNullOrWhiteSpace(custCode))
+            {
+                return Json(new
+                {
+                    success = false,
+                    message = "Please search for a customer first.",
+                    orders = new List<LaundryOrderDto>()
+                });
+            }
+
+            try
+            {
+                var response = await _clientApi.SendRequestAsync<LaundryOrderResponseDto>(
+                    "/GetLaundryOrders",
+                    new Dictionary<string, string>
+                    {
+                { "tenantName", tenantName },
+                { "storeCode", storeCode },
+                { "custCode", custCode }
+                    },
+                    Method.GET);
+
+                return Json(new
+                {
+                    success = true,
+                    message = string.Empty,
+                    orders = response?.Orders ?? new List<LaundryOrderDto>()
+                });
+            }
+            catch (Exception)
+            {
+                return Json(new
+                {
+                    success = false,
+                    message = "Unable to load customer orders. Please try again.",
+                    orders = new List<LaundryOrderDto>()
+                });
+            }
+        }
+
 
         private static string BuildLaundryItemKey(string serviceType, string category, string itemName)
         {

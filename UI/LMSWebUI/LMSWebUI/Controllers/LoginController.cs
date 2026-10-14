@@ -721,6 +721,10 @@ namespace LMSWebUI.Controllers
             tenantDto.Email = tenantDto.Email?.Trim();
             tenantDto.PhoneNumber = tenantDto.PhoneNumber?.Trim();
             tenantDto.NoOfStores = tenantDto.NoOfStores?.Trim();
+            tenantDto.Country = tenantDto.Country?.Trim();
+            tenantDto.CurrencyCode = tenantDto.CurrencyCode?.Trim();
+            tenantDto.CurrencySymbol = tenantDto.CurrencySymbol?.Trim();
+            tenantDto.CurrencyLocale = tenantDto.CurrencyLocale?.Trim();
         }
 
         private static bool TryMapRegisterApiErrorToField(string message, out string fieldName)

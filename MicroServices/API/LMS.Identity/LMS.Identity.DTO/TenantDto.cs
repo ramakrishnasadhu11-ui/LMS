@@ -19,6 +19,11 @@ namespace LMS.Identity.DTO
        public string Region { get; set; }
        public string Zip { get; set; }
        public string Country { get; set; }
+       // Optional currency suggested/overridden by administrator during registration
+       public string CurrencyCode { get; set; }
+       public string CurrencySymbol { get; set; }
+       public string CurrencyLocale { get; set; }
+       public int? CurrencyDecimalDigits { get; set; }
        public DateTime CreatedDate { get; set; }
     }
 }

@@ -25,6 +25,9 @@ namespace LMSWebUI
             services.AddTransient<ILoginApiClient, LoginApiClient>();
             services.AddTransient<ICustomerApiClient, CustomerApiClient>();
             services.AddTransient<IStoreConfigurationService, StoreConfigurationService>();
+            // Currency resolution service and caching
+            services.AddMemoryCache();
+            services.AddScoped<ICurrencyService, CurrencyService>();
             return services;
         }
 
