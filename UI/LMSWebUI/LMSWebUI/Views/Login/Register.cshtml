@@ -139,6 +139,23 @@
                                     @Html.TextBoxFor(m => m.NoOfStores, new { @placeholder = "Number of Stores", @class = "form-control" })
                                     @Html.ValidationMessageFor(m => m.NoOfStores, null, new { @class = "text-danger" })
                                 </div>
+                                <div class="register-field">
+                                    @Html.DropDownListFor(m => m.Country, new Microsoft.AspNetCore.Mvc.Rendering.SelectList(LMSWebUI.Services.CountryCurrencyMapping.GetMappings().Keys), "Select Country", new { @class = "form-control", id = "countrySelect" })
+                                    @Html.ValidationMessageFor(m => m.Country, null, new { @class = "text-danger" })
+                                </div>
+                                <div class="register-field">
+                                    @Html.TextBoxFor(m => m.CurrencyCode, new { @placeholder = "Currency Code (e.g. INR)", @class = "form-control", id = "currencyCode" })
+                                    @Html.ValidationMessageFor(m => m.CurrencyCode, null, new { @class = "text-danger" })
+                                </div>
+                                <div class="register-field">
+                                    @Html.TextBoxFor(m => m.CurrencySymbol, new { @placeholder = "Currency Symbol (e.g. ₹)", @class = "form-control", id = "currencySymbol" })
+                                </div>
+                                <div class="register-field">
+                                    @Html.TextBoxFor(m => m.CurrencyLocale, new { @placeholder = "Currency Locale (e.g. en-IN)", @class = "form-control", id = "currencyLocale" })
+                                </div>
+                                <div class="register-field">
+                                    @Html.TextBoxFor(m => m.CurrencyDecimalDigits, new { @placeholder = "Decimal Digits (e.g. 2)", @class = "form-control", id = "currencyDigits", type = "number", min = "0", max = "6" })
+                                </div>
                                 <button id="submit" type="submit" class="ibtn" disabled="@(disablebtn ? "disabled" : null)">Register</button>
                                 <p>Already have an account?  <a href="@Url.Action("Login", "Login")">Login</a></p>
                         }
@@ -157,8 +174,35 @@
         syncThemeButtonText();
         var shouldClearRegisterInputs = @((ViewData.ModelState.IsValid && string.IsNullOrWhiteSpace(Model?.Message)) ? "true" : "false");
 
+        // Embed country->currency mappings for the registration page. This is a suggestion only;
+        // administrators may override the suggested currency before submitting.
+        var countryCurrencyMap = @Html.Raw(Newtonsoft.Json.JsonConvert.SerializeObject(LMSWebUI.Services.CountryCurrencyMapping.GetMappings()));
+
         $(function ()
         {
+            // Suggest currency when country selection changes. Do not infer country automatically.
+            $('#countrySelect').on('change', function () {
+                try {
+                    var selected = $(this).val();
+                    if (selected && countryCurrencyMap && countryCurrencyMap[selected]) {
+                        var cfg = countryCurrencyMap[selected];
+                        $('#currencyCode').val(cfg.CurrencyCode || '');
+                        $('#currencySymbol').val(cfg.CurrencySymbol || '');
+                        $('#currencyLocale').val(cfg.CurrencyLocale || '');
+                        $('#currencyDigits').val(cfg.DecimalDigits != null ? cfg.DecimalDigits : '');
+                    }
+                    else {
+                        // no suggestion available - clear fields to allow manual input
+                        $('#currencyCode').val('');
+                        $('#currencySymbol').val('');
+                        $('#currencyLocale').val('');
+                        $('#currencyDigits').val('');
+                    }
+                } catch (e) {
+                    // no-op
+                }
+            });
+
             if (shouldClearRegisterInputs) {
                 var registerPageInputs = $('input').not(':button, :submit, :reset, [type=hidden], [type=checkbox], [type=radio]');
                 registerPageInputs.val('');

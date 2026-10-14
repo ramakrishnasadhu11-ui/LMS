@@ -8,6 +8,7 @@
     var isMyProfilePage = string.Equals(currentController, "Login", StringComparison.OrdinalIgnoreCase)
         && string.Equals(currentAction, "TenantProfileDetails", StringComparison.OrdinalIgnoreCase);
     var isAdminCompanyHeaderOnly = Convert.ToBoolean(ViewData["AdminCompanyHeaderOnly"] ?? false);
+    var showHeaderNavigation = Convert.ToBoolean(ViewData["ShowHeaderNavigation"] ?? false);
     var hideSidebar = Convert.ToBoolean(ViewData["HideSidebar"] ?? false) || isMyProfilePage;
     var bodyCss = hideSidebar
         ? "hold-transition skin-blue sidebar-mini sidebar-collapse no-sidebar-page"
@@ -283,6 +284,65 @@
       filter: brightness(0.96);
     }
 
+    .app-header-navigation {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px clamp(12px, 2vw, 24px);
+      background: #ffffff;
+      border-bottom: 1px solid #dbe3ee;
+      box-shadow: 0 2px 5px rgba(15, 23, 42, 0.04);
+      overflow-x: auto;
+      white-space: nowrap;
+      position: relative;
+      z-index: 1020;
+    }
+
+    .app-header-navigation a {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      min-height: 38px;
+      padding: 8px 13px;
+      border: 1px solid transparent;
+      border-radius: 8px;
+      color: #334155;
+      font-weight: 600;
+      text-decoration: none;
+      transition: background-color 0.15s ease, color 0.15s ease;
+    }
+
+    .app-header-navigation a:hover,
+    .app-header-navigation a:focus {
+      color: var(--els-primary-dark, #174ea6);
+      background: #eff6ff;
+      text-decoration: none;
+      outline: none;
+    }
+
+    .app-header-navigation a.active {
+      color: var(--els-primary-dark, #174ea6);
+      background: #eaf2ff;
+      border-color: #cfe0ff;
+    }
+
+    .app-header-navigation a i {
+      width: 16px;
+      text-align: center;
+    }
+
+    @@media (max-width: 600px) {
+      .app-header-navigation {
+        gap: 4px;
+        padding: 7px 8px;
+      }
+
+      .app-header-navigation a {
+        padding: 8px 10px;
+        font-size: 13px;
+      }
+    }
+
     .no-sidebar-page .main-header .navbar {
       margin-left: 0 !important;
     }
@@ -360,6 +420,51 @@
           }
       })();
   </script>
+    @{
+        // Currency metadata is rendered asynchronously via a ViewComponent to avoid blocking
+        // the layout with synchronous service calls. Default client-side fallbacks are used
+        // inside the script below so Razor does not attempt to evaluate server variables.
+    }
+
+    <script type="text/javascript">
+        // window.__currency: authoritative client-side metadata for formatting monetary values
+        // Start with safe client-side defaults (no server-side interpolation here) so
+        // Razor does not attempt to evaluate server variables in the script body.
+        window.__currency = {
+            code: 'INR',
+            symbol: '₹',
+            locale: 'en-IN',
+            decimalDigits: 2
+        };
+
+        // Shared client-side currency formatter used across pages. Uses Intl.NumberFormat when possible
+        // and falls back to symbol + fixed decimal formatting. Does not infer currency from client locale.
+        function formatCurrency(value) {
+            try {
+                var meta = window.__currency || { code: 'INR', symbol: '₹', locale: 'en-IN', decimalDigits: 2 };
+                var digits = Number.isFinite(Number(meta.decimalDigits)) ? Number(meta.decimalDigits) : 2;
+                var num = Number(value);
+                if (!isFinite(num)) return '';
+
+                // Prefer Intl.NumberFormat when currency code and locale are available
+                try {
+                    var nf = new Intl.NumberFormat(meta.locale || undefined, { style: 'currency', currency: meta.code || undefined, minimumFractionDigits: digits, maximumFractionDigits: digits });
+                    var formatted = nf.format(num);
+
+                    // If the resolved symbol differs and Intl did not include it (rare), prefix with configured symbol
+                    if (meta.symbol && formatted.indexOf(meta.symbol) === -1) {
+                        return meta.symbol + ' ' + num.toFixed(digits);
+                    }
+
+                    return formatted;
+                } catch (e) {
+                    return (meta.symbol || '') + ' ' + num.toFixed(digits);
+                }
+            } catch (e) {
+                return '';
+            }
+        }
+    </script>
   <!-- jQuery 3 -->
   <script src="~/bower_components/jquery/dist/jquery.min.js"></script>
   <!--Load the AJAX API-->
@@ -370,6 +475,7 @@
         href="https://fonts.googleapis.com/css?family=Source+Sans+Pro:300,400,600,700,300italic,400italic,600italic">
 </head>
 <body class="@bodyCss">
+@await Component.InvokeAsync("CurrencyMetadata")
 <div class="wrapper">
   <!-- Main Header -->
   <header class="main-header">
@@ -441,7 +547,24 @@
       }
     </nav>
   </header>
-  <!-- Left side column. contains the logo and sidebar -->
+  @if (showHeaderNavigation)
+  {
+    <nav class="app-header-navigation" aria-label="Application navigation">
+      <a class="@(string.Equals(currentController, "Dashboard", StringComparison.OrdinalIgnoreCase) && string.Equals(currentAction, "Index", StringComparison.OrdinalIgnoreCase) ? "active" : string.Empty)" href="@Url.Action("Index", "Dashboard")">
+        <i class="fa fa-dashboard" aria-hidden="true"></i><span>Dashboard</span>
+      </a>
+      <a href="@Url.Action("Index", "Dashboard")#customer-search">
+        <i class="fa fa-search" aria-hidden="true"></i><span>Search</span>
+      </a>
+      <a class="@(string.Equals(currentController, "Customer", StringComparison.OrdinalIgnoreCase) && string.Equals(currentAction, "Index", StringComparison.OrdinalIgnoreCase) ? "active" : string.Empty)" href="@Url.Action("Index", "Customer")">
+        <i class="fa fa-users" aria-hidden="true"></i><span>Customers</span>
+      </a>
+      <a class="@(string.Equals(currentController, "Customer", StringComparison.OrdinalIgnoreCase) && string.Equals(currentAction, "SetupCreateOrder", StringComparison.OrdinalIgnoreCase) ? "active" : string.Empty)" href="@Url.Action("SetupCreateOrder", "Customer")">
+        <i class="fa fa-plus-circle" aria-hidden="true"></i><span>Create Order</span>
+      </a>
+    </nav>
+  }
+  <!-- Left side column. contains the sidebar -->
   @if (!hideSidebar)
   {
   <aside class="main-sidebar">

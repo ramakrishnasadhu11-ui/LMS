@@ -1,4 +1,5 @@
 @model LMSWebUI.Models.Customer.OrderCompletionContextDto
+@using LMSWebUI.Helpers
 @{
     Layout = null;
     var autoPrint = Convert.ToBoolean(ViewData["AutoPrint"] ?? false);
@@ -295,9 +296,9 @@
                         var lineTotal = item.UnitPrice * item.Quantity;
                         <tr>
                             <td>@item.ItemName @(string.IsNullOrWhiteSpace(item.TagNo) ? string.Empty : $"(Tag: {item.TagNo})")</td>
-                            <td class="num">@item.UnitPrice.ToString("0.00")</td>
+                            <td class="num">@await ((IHtmlHelper)Html).FormatCurrencyAsync(item.UnitPrice)</td>
                             <td class="num">@item.Quantity</td>
-                            <td class="num">@lineTotal.ToString("0.00")</td>
+                            <td class="num">@await ((IHtmlHelper)Html).FormatCurrencyAsync(lineTotal)</td>
                         </tr>
                     }
                 }
@@ -312,33 +313,33 @@
             <div class="summary-box">
                 <div class="summary-row">
                     <span>Subtotal</span>
-                    <span>@subTotal.ToString("0.00")</span>
+                    <span>@await ((IHtmlHelper)Html).FormatCurrencyAsync(subTotal)</span>
                 </div>
                 <div class="summary-row">
                     <span>Tax</span>
-                    <span>@tax.ToString("0.00")</span>
+                    <span>@await ((IHtmlHelper)Html).FormatCurrencyAsync(tax)</span>
                 </div>
                 <div class="summary-row">
                     <span>Advance Utilized (-)</span>
-                    <span>@advanceUsed.ToString("0.00")</span>
+                    <span>@await ((IHtmlHelper)Html).FormatCurrencyAsync(advanceUsed)</span>
                 </div>
                 <div class="summary-row">
                     <span>Paid Now (-)</span>
-                    <span>@paidNow.ToString("0.00")</span>
+                    <span>@await ((IHtmlHelper)Html).FormatCurrencyAsync(paidNow)</span>
                 </div>
                 <div class="summary-row">
                     <span>Pending Amount</span>
-                    <span>@pendingAmount.ToString("0.00")</span>
+                    <span>@await ((IHtmlHelper)Html).FormatCurrencyAsync(pendingAmount)</span>
                 </div>
                 <div class="summary-row total">
                     <span>Total Due</span>
-                    <span>@totalDue.ToString("0.00")</span>
+                    <span>@await ((IHtmlHelper)Html).FormatCurrencyAsync(totalDue)</span>
                 </div>
             </div>
         </div>
 
         <div class="payment-info">
-            <span class="label">Payment Information:</span> @Model?.OrderMode / @Model?.ServiceType / Mode: @Model?.PaymentMode / Advance Used: @advanceUsed.ToString("0.00") / Paid Now: @paidNow.ToString("0.00") / Pending: @pendingAmount.ToString("0.00")
+            <span class="label">Payment Information:</span> @Model?.OrderMode / @Model?.ServiceType / Mode: @Model?.PaymentMode / Advance Used: @await ((IHtmlHelper)Html).FormatCurrencyAsync(advanceUsed) / Paid Now: @await ((IHtmlHelper)Html).FormatCurrencyAsync(paidNow) / Pending: @await ((IHtmlHelper)Html).FormatCurrencyAsync(pendingAmount)
         </div>
 
         <div class="footer-note">

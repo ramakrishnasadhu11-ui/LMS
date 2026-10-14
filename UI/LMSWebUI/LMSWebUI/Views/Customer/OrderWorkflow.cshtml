@@ -349,7 +349,7 @@
                     var mode = (btn.getAttribute("data-mode") || "Cash").trim() || "Cash";
                     if (!orderNo || pendingValue <= 0) return;
 
-                    var amountText = window.prompt("Enter settle amount for order " + orderNo + " (max " + pendingValue.toFixed(2) + "):", pendingValue.toFixed(2));
+                    var amountText = window.prompt("Enter settle amount for order " + orderNo + " (max " + formatCurrency(pendingValue) + "):", pendingValue.toFixed(2));
                     if (amountText === null) {
                         return;
                     }
@@ -366,7 +366,7 @@
 
                     wfReq('@Url.Action("SettleOrderPendingPayment", "Customer")', "POST", wfBody({
                         orderNo: orderNo,
-                        paidAmount: paidAmount.toFixed(2),
+                        paidAmount: paidAmount,
                         paymentMode: mode,
                         notes: "Settled from Store Order Workflow"
                     }), function (data) {
@@ -500,8 +500,8 @@
                 + "<td><span class='wf-status-pill " + wfStatusClass(status) + "'>" + wfEsc(status) + "</span></td>"
                 + "<td><span class='wf-mode-pill'>" + (mode === "weight" ? "Weight" : "Pieces") + "</span></td>"
                 + "<td style='text-align:right; font-weight:600; color:#1f4e79;'>" + wfEsc(pcs) + "</td>"
-                + "<td style='text-align:right;'>" + amount.toFixed(2) + "</td>"
-                + "<td class='" + (pending > 0 ? "wf-pending-red" : "wf-pending-green") + "' style='text-align:right; font-weight:700;'>" + pending.toFixed(2) + "</td>"
+                + "<td style='text-align:right;'>" + formatCurrency(amount) + "</td>"
+                + "<td class='" + (pending > 0 ? "wf-pending-red" : "wf-pending-green") + "' style='text-align:right; font-weight:700;'>" + formatCurrency(pending) + "</td>"
                 + "<td>" + actions + "</td>"
                 + "</tr>";
         }
@@ -831,8 +831,8 @@
                 + "<td><span class='wf-status-pill " + statusClass + "'>" + esc(status) + "</span></td>"
                 + "<td><span class='wf-mode-pill'>" + (orderMode === "weight" ? "Weight" : "Pieces") + "</span></td>"
                 + "<td style='text-align:right; font-weight:600; color:#1f4e79;">" + totalPiecesText + "</td>"
-                + "<td style='text-align:right;'>" + Number(o.OrderAmount || o.orderAmount || 0).toFixed(2) + "</td>"
-                + "<td class='" + pendingClass + "' style='text-align:right; font-weight:700;'>" + pendingAmount.toFixed(2) + "</td>"
+                + "<td style='text-align:right;'>" + formatCurrency(Number(o.OrderAmount || o.orderAmount || 0)) + "</td>"
+                + "<td class='" + pendingClass + "' style='text-align:right; font-weight:700;'>" + formatCurrency(pendingAmount) + "</td>"
                 + "<td>" + actionHtml + "</td>";
             body.appendChild(tr);
         });
@@ -877,7 +877,7 @@
                     return;
                 }
 
-                var amountText = window.prompt("Enter settle amount for order " + orderNo + " (max " + pendingValue.toFixed(2) + "):", pendingValue.toFixed(2));
+                var amountText = window.prompt("Enter settle amount for order " + orderNo + " (max " + formatCurrency(pendingValue) + "):", pendingValue.toFixed(2));
                 if (amountText === null) {
                     return;
                 }
@@ -893,7 +893,7 @@
 
                 var body = toFormBody({
                     orderNo: orderNo,
-                    paidAmount: paidAmount.toFixed(2),
+                    paidAmount: paidAmount,
                     paymentMode: "Cash",
                     notes: "Settled from Store Order Workflow"
                 });

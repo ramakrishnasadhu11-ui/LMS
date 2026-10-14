@@ -1,4 +1,5 @@
 @model LMSWebUI.Models.Customer.LaundryOrderDto
+@using LMSWebUI.Helpers
 @{
     ViewData["Title"] = "Admin Setup - Create Laundry Order";
     Layout = "~/Views/Shared/_HeaderMenuItemsLayout.cshtml";
@@ -208,7 +209,7 @@
                     </div>
 
                     <div class="available-advance-banner" id="availableAdvanceBanner">
-                        <div class="available-advance-text" id="availableAdvanceBalanceText">Available Advance Balance: ₹ 0.00</div>
+                    <div class="available-advance-text" id="availableAdvanceBalanceText">Available Advance Balance: <span id="availableAdvanceValue">@await Html.FormatCurrencyAsync(0m)</span></div>
                         <div class="available-advance-status" id="availableAdvanceStatus" style="display:none;"></div>
                     </div>
 
@@ -336,7 +337,7 @@
                                     <input type="number" id="ratePerKg" name="RatePerKg" min="0.01" step="0.01" value="@(Model?.RatePerKg ?? 0)" @((isAdminUser) ? "" : "disabled=\"disabled\"") />
                                 </div>
                             </div>
-                            <div class="stat-chip" style="margin-top:8px;"><span>Weight Amount</span><b id="weightAmountDisplay">0.00</b></div>
+                                <div class="stat-chip" style="margin-top:8px;"><span>Weight Amount</span><b id="weightAmountDisplay">@await ((IHtmlHelper)Html).FormatCurrencyAsync(0m)</b></div>
                         </div>
 
                         <div class="right-pane">
@@ -344,7 +345,7 @@
                                 <div class="side-title">Selected Item</div>
                                 <div class="stat-chip"><span>Name</span><b id="selectedItemName">-</b></div>
                                 <input type="text" id="manualItemName" placeholder="Enter item name" style="display:none; margin:6px 0; padding:6px; width:100%;" />
-                                <div class="stat-chip"><span>Unit Price</span><b id="selectedItemPrice">0.00</b></div>
+                                <div class="stat-chip"><span>Unit Price</span><b id="selectedItemPrice">@await ((IHtmlHelper)Html).FormatCurrencyAsync(0m)</b></div>
                                 <input type="number" id="manualUnitPrice" min="0" step="0.01" value="0.00" style="display:none; margin:6px 0; padding:6px; width:100%;" />
                                 <div class="qty-row">
                                     <button class="qty-btn" type="button" id="qtyMinus">-</button>
@@ -362,18 +363,18 @@
                             </div>
 
                             <div class="side-block">
-                                <div class="stat-chip"><span>Advance Balance</span><b id="advBalance">0.00</b></div>
-                                <div class="stat-chip"><span>Advance Utilized</span><b id="advUsedDisplay">0.00</b></div>
-                                <div class="stat-chip"><span>Advance Remaining</span><b id="advRemainingDisplay">0.00</b></div>
-                                <div class="stat-chip"><span>Order Amount</span><b id="orderAmountDisplay">0.00</b></div>
+                                <div class="stat-chip"><span>Advance Balance</span><b id="advBalance">@await ((IHtmlHelper)Html).FormatCurrencyAsync(0m)</b></div>
+                                <div class="stat-chip"><span>Advance Utilized</span><b id="advUsedDisplay">@await ((IHtmlHelper)Html).FormatCurrencyAsync(0m)</b></div>
+                                <div class="stat-chip"><span>Advance Remaining</span><b id="advRemainingDisplay">@await ((IHtmlHelper)Html).FormatCurrencyAsync(0m)</b></div>
+                                <div class="stat-chip"><span>Order Amount</span><b id="orderAmountDisplay">@await ((IHtmlHelper)Html).FormatCurrencyAsync(0m)</b></div>
                                 @if (taxEnabled)
                                 {
-                                    <div class="stat-chip"><span>Sub Total</span><b id="subTotalDisplay">0.00</b></div>
-                                    <div class="stat-chip"><span>CGST @((gstPercent / 2).ToString("0.##"))%</span><b id="cgstDisplay">0.00</b></div>
-                                    <div class="stat-chip"><span>SGST @((gstPercent / 2).ToString("0.##"))%</span><b id="sgstDisplay">0.00</b></div>
-                                    <div class="stat-chip"><span>Total (incl. GST)</span><b id="totalAmountDisplay">0.00</b></div>
+                                    <div class="stat-chip"><span>Sub Total</span><b id="subTotalDisplay">@await ((IHtmlHelper)Html).FormatCurrencyAsync(0m)</b></div>
+                                    <div class="stat-chip"><span>CGST @((gstPercent / 2).ToString("0.##"))%</span><b id="cgstDisplay">@await ((IHtmlHelper)Html).FormatCurrencyAsync(0m)</b></div>
+                                    <div class="stat-chip"><span>SGST @((gstPercent / 2).ToString("0.##"))%</span><b id="sgstDisplay">@await ((IHtmlHelper)Html).FormatCurrencyAsync(0m)</b></div>
+                                    <div class="stat-chip"><span>Total (incl. GST)</span><b id="totalAmountDisplay">@await ((IHtmlHelper)Html).FormatCurrencyAsync(0m)</b></div>
                                 }
-                                <div class="stat-chip"><span>Net Before Payment</span><b id="netPayableDisplay">0.00</b></div>
+                                <div class="stat-chip"><span>Net Before Payment</span><b id="netPayableDisplay">@await ((IHtmlHelper)Html).FormatCurrencyAsync(0m)</b></div>
                                 <div class="stat-chip"><span>Paid Now</span><b id="paidNowDisplay">0.00</b></div>
                                 <div class="stat-chip"><span>Pending Amount</span><b id="pendingAmountDisplay">0.00</b></div>
                             </div>
@@ -506,11 +507,15 @@
         var advBalanceEl = document.getElementById("advBalance");
 
         if (advBalanceEl) {
-            advBalanceEl.textContent = normalizedBalance.toFixed(2);
+            advBalanceEl.textContent = formatCurrency(normalizedBalance);
         }
 
         if (balanceLabel) {
-            balanceLabel.textContent = "Available Advance Balance: ₹ " + normalizedBalance.toFixed(2);
+            try {
+                document.getElementById("availableAdvanceValue").textContent = formatCurrency(normalizedBalance);
+            } catch (e) {
+                balanceLabel.textContent = "Available Advance Balance: " + formatCurrency(normalizedBalance);
+            }
         }
 
         if (!statusLabel) {
@@ -624,7 +629,7 @@
         var breakup = computeTaxBreakup(orderAmount);
         var advanceInput = document.getElementById("advanceUsed");
         var advanceUsed = parseAmount(advanceInput ? advanceInput.value : 0);
-
+        // preserve numeric input.value assignments (keep toFixed for form values)
         if (advanceUsed > currentAdvanceBalance) {
             advanceUsed = currentAdvanceBalance;
             if (advanceInput) {
@@ -648,12 +653,14 @@
             paidNow = netBeforePayment;
             if (paidNowInput) {
                 paidNowInput.value = netBeforePayment.toFixed(2);
+                // Preserve numeric formatting for form input (use toFixed on hidden/display fields)
             }
         } else {
             if (paidNow > netBeforePayment) {
                 paidNow = netBeforePayment;
                 if (paidNowInput) {
                     paidNowInput.value = netBeforePayment.toFixed(2);
+                    // Preserve numeric formatting for form input (use toFixed on hidden/display fields)
                 }
             }
         }
@@ -668,12 +675,12 @@
             remainingAdvance = 0;
         }
 
-        document.getElementById("orderAmountDisplay").textContent = orderAmount.toFixed(2);
-        document.getElementById("netPayableDisplay").textContent = netBeforePayment.toFixed(2);
-        document.getElementById("paidNowDisplay").textContent = paidNow.toFixed(2);
-        document.getElementById("pendingAmountDisplay").textContent = pendingAmount.toFixed(2);
-        document.getElementById("advUsedDisplay").textContent = advanceUsed.toFixed(2);
-        document.getElementById("advRemainingDisplay").textContent = remainingAdvance.toFixed(2);
+        document.getElementById("orderAmountDisplay").textContent = formatCurrency(orderAmount);
+        document.getElementById("netPayableDisplay").textContent = formatCurrency(netBeforePayment);
+        document.getElementById("paidNowDisplay").textContent = formatCurrency(paidNow);
+        document.getElementById("pendingAmountDisplay").textContent = formatCurrency(pendingAmount);
+        document.getElementById("advUsedDisplay").textContent = formatCurrency(advanceUsed);
+        document.getElementById("advRemainingDisplay").textContent = formatCurrency(remainingAdvance);
         document.getElementById("orderAmount").value = orderAmount.toFixed(2);
         document.getElementById("netPayableInput").value = pendingAmount.toFixed(2);
         document.getElementById("pendingAmountInput").value = pendingAmount.toFixed(2);
@@ -681,15 +688,15 @@
 
         var subTotalEl = document.getElementById("subTotalDisplay");
         if (subTotalEl) {
-            subTotalEl.textContent = breakup.subTotal.toFixed(2);
-            document.getElementById("cgstDisplay").textContent = breakup.cgst.toFixed(2);
-            document.getElementById("sgstDisplay").textContent = breakup.sgst.toFixed(2);
-            document.getElementById("totalAmountDisplay").textContent = breakup.total.toFixed(2);
+            subTotalEl.textContent = formatCurrency(breakup.subTotal);
+            document.getElementById("cgstDisplay").textContent = formatCurrency(breakup.cgst);
+            document.getElementById("sgstDisplay").textContent = formatCurrency(breakup.sgst);
+            document.getElementById("totalAmountDisplay").textContent = formatCurrency(breakup.total);
         }
 
         if (currentOrderMode === "weight") {
             document.getElementById("serviceType").value = document.getElementById("weightServiceType").value || "Wash & Fold";
-            document.getElementById("weightAmountDisplay").textContent = orderAmount.toFixed(2);
+            document.getElementById("weightAmountDisplay").textContent = formatCurrency(orderAmount);
         } else {
             document.getElementById("serviceType").value = selectedService;
             var weightAmountEl = document.getElementById("weightAmountDisplay");
@@ -894,12 +901,12 @@
             items = fallback;
         }
 
-        items.forEach(function (item) {
+            items.forEach(function (item) {
             var card = document.createElement("div");
             card.className = "item-card" + (selectedItem && selectedItem.name === item.name ? " active" : "");
             card.innerHTML = "<div class='item-icon'>" + item.icon + "</div>"
                 + "<div class='item-name'>" + item.name + "</div>"
-                + "<div class='item-price'>" + item.price.toFixed(2) + "</div>";
+                + "<div class='item-price'>" + formatCurrency(item.price) + "</div>";
             card.onclick = function () {
                 selectedItem = { service: selectedService, category: selectedCategory, name: item.name, price: item.price, icon: item.icon };
                 renderCatalogGrid();
@@ -923,13 +930,13 @@
             if (manualNameEl) manualNameEl.style.display = 'none';
             if (manualPriceEl) manualPriceEl.style.display = 'none';
             nameEl.textContent = selectedItem.name;
-            priceEl.textContent = selectedItem.price.toFixed(2);
+            priceEl.textContent = formatCurrency(selectedItem.price);
         } else {
             if (manualNameEl) manualNameEl.style.display = 'block';
             if (manualPriceEl) manualPriceEl.style.display = 'block';
             nameEl.textContent = (manualNameEl && manualNameEl.value) ? manualNameEl.value : "-";
             var manualPrice = manualPriceEl ? parseAmount(manualPriceEl.value) : 0;
-            priceEl.textContent = (manualPrice > 0 ? manualPrice : 0).toFixed(2);
+            priceEl.textContent = formatCurrency(manualPrice > 0 ? manualPrice : 0);
         }
     }
 
@@ -952,7 +959,7 @@
             row.className = "order-line";
             row.innerHTML = "<span>" + line.name + "</span>"
                 + "<span>x" + line.qty + "</span>"
-                + "<span>" + (line.qty * line.price).toFixed(2) + "</span>"
+                + "<span>" + formatCurrency(line.qty * line.price) + "</span>"
                 + "<button type='button' class='remove-line' data-idx='" + index + "'>×</button>";
             container.appendChild(row);
         });
@@ -980,11 +987,11 @@
             var rate = parseAmount(document.getElementById("ratePerKg").value);
             if (weight <= 0 || rate <= 0) return "";
             var service = document.getElementById("weightServiceType").value || "Wash & Fold";
-            return "Weight Order: " + service + " | " + weight.toFixed(3) + " Kg x " + rate.toFixed(2);
+        return "Weight Order: " + service + " | " + weight.toFixed(3) + " Kg x " + formatCurrency(rate);
         }
 
         if (!orderLines.length) return "";
-        return orderLines.map(function (line) { return line.name + " x" + line.qty + " at " + line.price.toFixed(2); }).join(" | ");
+        return orderLines.map(function (line) { return line.name + " x" + line.qty + " at " + formatCurrency(line.price); }).join(" | ");
     }
 
     function getNormalizedSelectedQty() {
@@ -1094,7 +1101,7 @@
             var totalPiecesInfo = resolveTotalPieces(order);
             var totalPiecesText = orderMode === "weight" ? "-" : totalPiecesInfo.text;
             var settleActionHtml = pending > 0
-                ? ("<button type='button' class='order-history-action-btn order-history-primary-btn settle-row-btn' data-order-no='" + orderNo + "' data-pending='" + pending.toFixed(2) + "' data-mode='" + mode + "'>Settle</button>")
+                ? ("<button type='button' class='order-history-action-btn order-history-primary-btn settle-row-btn' data-order-no='" + orderNo + "' data-pending='" + pending + "' data-mode='" + mode + "'>Settle</button>")
                 : "<span class='order-history-settled'>Settled</span>";
             var actionHtml = "<div class='order-history-actions'>"
                 + settleActionHtml
@@ -1110,10 +1117,10 @@
                 + "<td>" + (orderMode === "weight" ? "Weight" : "Pieces") + "</td>"
                 + "<td>" + (order.ServiceType || order.serviceType || "") + "</td>"
                 + "<td>" + totalPiecesText + "</td>"
-                + "<td>" + Number(order.OrderAmount || order.orderAmount || 0).toFixed(2) + "</td>"
-                + "<td>" + taxValue.toFixed(2) + "</td>"
-                + "<td>" + Number(order.AdvanceUsed || order.advanceUsed || 0).toFixed(2) + "</td>"
-                + "<td>" + pending.toFixed(2) + "</td>"
+                + "<td>" + formatCurrency(Number(order.OrderAmount || order.orderAmount || 0)) + "</td>"
+                + "<td>" + formatCurrency(taxValue) + "</td>"
+                + "<td>" + formatCurrency(Number(order.AdvanceUsed || order.advanceUsed || 0)) + "</td>"
+                + "<td>" + formatCurrency(pending) + "</td>"
                 + "<td>" + mode + "</td>"
                 + "<td>" + actionHtml + "</td>";
             tbody.appendChild(tr);
@@ -1130,7 +1137,7 @@
                     return;
                 }
 
-                var amountText = window.prompt('Enter settle amount for order ' + targetOrderNo + ' (max ' + pendingValue.toFixed(2) + '):', pendingValue.toFixed(2));
+                var amountText = window.prompt("Enter settle amount for order " + targetOrderNo + " (max " + formatCurrency(pendingValue) + "): ", pendingValue.toFixed(2));
                 if (amountText === null) {
                     return;
                 }
@@ -1143,7 +1150,7 @@
 
                 var body = new URLSearchParams();
                 body.append('orderNo', targetOrderNo);
-                body.append('paidAmount', paidAmount.toFixed(2));
+                body.append('paidAmount', paidAmount);
                 body.append('paymentMode', paymentModeValue);
                 body.append('notes', 'Settled from order history row');
 
@@ -1345,7 +1352,7 @@
         if (info) {
             var infoText = "Order " + orderNo + " created. Invoice " + invoiceNo + ".";
             if (pendingAmount > 0) {
-                infoText += " Pending: " + pendingAmount.toFixed(2);
+                infoText += " Pending: " + formatCurrency(pendingAmount);
             }
             info.textContent = infoText;
         }
@@ -1357,8 +1364,8 @@
         if (settleBlock && settleAmountInput && settleBtn) {
             if (pendingAmount > 0) {
                 settleBlock.style.display = "block";
-                settleAmountInput.value = pendingAmount.toFixed(2);
-                settleAmountInput.max = pendingAmount.toFixed(2);
+                    settleAmountInput.value = pendingAmount.toFixed(2);
+                    settleAmountInput.max = pendingAmount.toFixed(2); // keep numeric toFixed for form validation
             } else {
                 settleBlock.style.display = "none";
             }
@@ -1370,7 +1377,7 @@
                 }
 
                 var amountText = window.prompt(
-                    "Enter settle amount for order " + (ctx.orderNo || "") + " (max " + pendingAmount.toFixed(2) + "): ",
+                    "Enter settle amount for order " + (ctx.orderNo || "") + " (max " + formatCurrency(pendingAmount) + "): ",
                     defaultAmount.toFixed(2)
                 );
 
@@ -1389,13 +1396,13 @@
                     return;
                 }
 
-                settleAmountInput.value = amount.toFixed(2);
+                    settleAmountInput.value = amount.toFixed(2);
 
-                var body = new URLSearchParams();
-                body.append('orderNo', ctx.orderNo || '');
-                body.append('paidAmount', amount.toFixed(2));
-                body.append('paymentMode', settleModeInput ? (settleModeInput.value || 'Cash') : 'Cash');
-                body.append('notes', 'Settled from setup order screen');
+                    var body = new URLSearchParams();
+                    body.append('orderNo', ctx.orderNo || '');
+                    body.append('paidAmount', amount);
+                    body.append('paymentMode', settleModeInput ? (settleModeInput.value || 'Cash') : 'Cash');
+                    body.append('notes', 'Settled from setup order screen');
 
                 settleBtn.disabled = true;
                 settleBtn.textContent = 'Settling...';
@@ -1457,14 +1464,14 @@
 
                     if (pendingAmount > 0) {
                         settleAmountInput.value = pendingAmount.toFixed(2);
-                        settleAmountInput.max = pendingAmount.toFixed(2);
+                        settleAmountInput.max = pendingAmount.toFixed(2); // keep numeric toFixed for form validation
                     } else {
                         settleBlock.style.display = 'none';
                     }
 
                     if (info) {
                         info.textContent = "Order " + orderNo + " created. Invoice " + invoiceNo + "."
-                            + (pendingAmount > 0 ? (" Pending: " + pendingAmount.toFixed(2)) : " Payment settled.");
+                            + (pendingAmount > 0 ? (" Pending: " + formatCurrency(pendingAmount)) : " Payment settled.");
                     }
                 })
                 .catch(function () {
@@ -1869,7 +1876,7 @@
             var opt = document.createElement("option");
             opt.value = entry.name;
             opt.label = entry.price > 0
-                ? (entry.name + " (" + entry.price.toFixed(2) + ", " + statusLabel + ")")
+                ? (entry.name + " (" + formatCurrency(entry.price) + ", " + statusLabel + ")")
                 : (entry.name + " (" + statusLabel + ")");
             datalist.appendChild(opt);
 
@@ -1878,7 +1885,7 @@
                 selectOpt.value = entry.pickerKey;
                 selectOpt.textContent = entry.name
                     + " - " + statusLabel
-                    + (entry.price > 0 ? (", " + entry.price.toFixed(2)) : "");
+                    + (entry.price > 0 ? (", " + formatCurrency(entry.price)) : "");
                 picker.appendChild(selectOpt);
                 cfgPickerEntriesByKey[entry.pickerKey] = entry;
             }

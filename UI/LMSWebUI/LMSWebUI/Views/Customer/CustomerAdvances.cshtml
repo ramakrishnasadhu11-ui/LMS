@@ -1,4 +1,5 @@
 @model LMSWebUI.Models.Customer.CustomerAdvanceDto
+@using LMSWebUI.Helpers
 @{
     ViewData["Title"] = "Customer Advances";
     Layout = "~/Views/Shared/_HeaderMenuItemsLayout.cshtml";
@@ -347,7 +348,7 @@
                     </div>
                 </div>
 
-                <div class="adv-balance">Current Balance: <span id="advanceBalance">@Model.Balance.ToString("0.00")</span></div>
+                <div class="adv-balance">Current Balance: <span id="advanceBalance">@((IHtmlHelper)Html).FormatCurrency(Model?.Balance)</span></div>
 
                 <div class="adv-summary-grid">
                     <div class="adv-summary-card">
@@ -360,11 +361,11 @@
                     </div>
                     <div class="adv-summary-card">
                         <div class="adv-summary-label">Total Advances (Credits)</div>
-                        <div class="adv-summary-value" id="summaryTotalAdvances">0.00</div>
+                        <div class="adv-summary-value" id="summaryTotalAdvances">@((IHtmlHelper)Html).FormatCurrency(0m)</div>
                     </div>
                     <div class="adv-summary-card">
                         <div class="adv-summary-label">Amount Used / Adjusted</div>
-                        <div class="adv-summary-value" id="summaryUsedAdjusted">0.00</div>
+                        <div class="adv-summary-value" id="summaryUsedAdjusted">@((IHtmlHelper)Html).FormatCurrency(0m)</div>
                         <div class="adv-hint" id="summaryUsedAdjustedHint">Shown only when usage data is available.</div>
                     </div>
                 </div>
@@ -426,10 +427,10 @@
                                     <td>@(string.Equals(txn.TransactionType, "Credit", StringComparison.OrdinalIgnoreCase) ? "Advance Added" : string.Equals(txn.TransactionType, "Debit", StringComparison.OrdinalIgnoreCase) ? "Balance Adjustment" : txn.TransactionType)</td>
                                     <td class="adv-muted">-</td>
                                     <td class="@(string.Equals(txn.TransactionType, "Debit", StringComparison.OrdinalIgnoreCase) ? "adv-amount-negative" : "adv-amount-positive")">
-                                        @(string.Equals(txn.TransactionType, "Debit", StringComparison.OrdinalIgnoreCase) ? "−" : "+")@txn.AdvanceAmount.ToString("0.00")
+                                        @(string.Equals(txn.TransactionType, "Debit", StringComparison.OrdinalIgnoreCase) ? "−" : "+")@((IHtmlHelper)Html).FormatCurrency(txn.AdvanceAmount)
                                     </td>
                                     <td class="@(string.Equals(txn.TransactionType, "Debit", StringComparison.OrdinalIgnoreCase) ? "adv-amount-negative" : "adv-muted")">
-                                        @(string.Equals(txn.TransactionType, "Debit", StringComparison.OrdinalIgnoreCase) ? "−" + txn.AdvanceAmount.ToString("0.00") : "-")
+                                        @(string.Equals(txn.TransactionType, "Debit", StringComparison.OrdinalIgnoreCase) ? ("−" + Html.Raw(((IHtmlHelper)Html).FormatCurrency(txn.AdvanceAmount).ToString())) : "-")
                                     </td>
                                     <td class="adv-balance-strong adv-muted">-</td>
                                     <td class="adv-muted">-</td>
@@ -510,7 +511,7 @@
 
         function formatSignedAmount(amount, isDebit) {
             var sign = isDebit ? "−" : "+";
-            return sign + roundMoney(amount).toFixed(2);
+            return sign + ' ' + formatCurrency(amount);
         }
 
         function getAdjustmentAmount(txn) {
@@ -602,10 +603,10 @@
             var customerCodeDisplay = document.getElementById("customerCodeDisplay");
 
             if (totalEl) {
-                totalEl.textContent = totalCredits.toFixed(2);
+                totalEl.textContent = formatCurrency(totalCredits);
             }
             if (usedEl) {
-                usedEl.textContent = usedAdjusted === null ? "-" : usedAdjusted.toFixed(2);
+                usedEl.textContent = usedAdjusted === null ? "-" : formatCurrency(usedAdjusted);
             }
             if (usedHintEl) {
                 usedHintEl.textContent = usedAdjusted === null
@@ -683,7 +684,7 @@
                 var signedAdjustedAmount = isDebit && adjusted > 0 ? formatSignedAmount(adjusted, true) : "-";
                 var remainingBalanceDisplay = (remainingBalance === undefined || remainingBalance === null || remainingBalance === "")
                     ? "-"
-                    : roundMoney(remainingBalance).toFixed(2);
+                    : formatCurrency(remainingBalance);
                 var advanceAmountClass = isDebit ? "adv-amount-negative" : "adv-amount-positive";
                 var adjustedAmountClass = isDebit && adjusted > 0 ? "adv-amount-negative" : "adv-muted";
 
@@ -746,7 +747,7 @@
                     if (!data || !data.success) {
                         showToast((data && data.message) || "Unable to fetch customer advances.", false);
                         renderHistoryRows([]);
-                        document.getElementById("advanceBalance").textContent = "0.00";
+                        document.getElementById("advanceBalance").textContent = formatCurrency(0);
                         document.getElementById("custCode").value = "";
                         document.getElementById("customerCodeDisplay").value = "";
                         updateSummaryCards([], 0);
@@ -754,7 +755,7 @@
                     }
 
                     var balance = data.balance || 0;
-                    document.getElementById("advanceBalance").textContent = Number(balance).toFixed(2);
+                    document.getElementById("advanceBalance").textContent = formatCurrency(balance);
                     document.getElementById("custCode").value = data.customerCode || "";
                     document.getElementById("customerCodeDisplay").value = data.customerCode || "";
                     updateSummaryCards(data.transactions || [], balance);
