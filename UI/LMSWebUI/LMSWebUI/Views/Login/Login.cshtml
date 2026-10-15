@@ -1215,15 +1215,59 @@
                             }
                             else
                             {
+                                // Prefer a server-provided message (string or { message: '...' }) with a sensible fallback.
+                                var message = "Login failed. Please check your email/password.";
+                                try {
+                                    if (data && typeof data === 'string') {
+                                        message = data;
+                                    } else if (data && data.message) {
+                                        message = data.message;
+                                    }
+                                } catch (e) { /* ignore parsing errors */ }
+
                                 $('#information').show();
-                                $('#information').html("<p>Login failed. Please check your email/password.</p>");
+                                $('#information').html("<p>" + message + "</p>");
                             }
                         },
-                        error: function () {
+                        error: function (jqXHR) {
+                            var msg = "Login failed. Please check your email/password.";
+                            try {
+                                if (jqXHR && jqXHR.responseJSON && jqXHR.responseJSON.message) {
+                                    msg = jqXHR.responseJSON.message;
+                                } else if (jqXHR && jqXHR.responseText) {
+                                    try {
+                                        var parsed = JSON.parse(jqXHR.responseText);
+                                        if (parsed && parsed.message) msg = parsed.message;
+                                        else msg = jqXHR.responseText;
+                                    } catch (e) {
+                                        msg = jqXHR.responseText;
+                                    }
+                                }
+                            } catch (e) { /* ignore */ }
+
                             $('#information').show();
-                            $('#information').html("<p>Login failed. Please check your email/password.</p>");
+                            $('#information').html("<p>" + msg + "</p>");
                         }
                     });
+                error: function (jqXHR, textStatus, errorThrown) {
+                    var msg = "Login failed. Please check your email/password.";
+                    try {
+                        if (jqXHR && jqXHR.responseJSON && jqXHR.responseJSON.message) {
+                            msg = jqXHR.responseJSON.message;
+                        } else if (jqXHR && jqXHR.responseText) {
+                            // Try to extract a JSON message if returned as text
+                            try {
+                                var parsed = JSON.parse(jqXHR.responseText);
+                                if (parsed && parsed.message) msg = parsed.message;
+                            } catch (e) {
+                                msg = jqXHR.responseText;
+                            }
+                        }
+                    } catch (e) { /* ignore parsing errors */ }
+                    $('#information').show();
+                    $('#information').html('<p>' + msg + '</p>');
+                }
+            });
                 },
                 error: function () {
                     $('#information').show();
