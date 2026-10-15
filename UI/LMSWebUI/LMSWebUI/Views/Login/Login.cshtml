@@ -269,10 +269,21 @@
         #information {
             margin-bottom: 12px;
             border-radius: 8px;
+            font-size: 13px;
+            padding: 12px;
+            display: none; /* hidden by default; JS will show */
+        }
+
+        #information.info {
             border: 1px solid #bfdbfe;
             background: #eff6ff;
             color: #1e3a8a;
-            font-size: 13px;
+        }
+
+        #information.error {
+            border: 1px solid #fecaca;
+            background: #fff1f2;
+            color: #991b1b;
         }
 
         .login-card .page-links {
@@ -652,6 +663,10 @@
                         <a id="registerTab" href="@Url.Action("Register", "Login")">Register</a>
                     </div>
 
+                    <!-- Area for inline information and error messages from API -->
+                    <div id="information" role="alert" aria-live="polite" style="display:none; padding:12px;">
+                    </div>
+
                     <form>
                         <div class="login-field">
                             <label class="login-label" for="tenantEmail">Email address</label>
@@ -984,6 +999,43 @@
 
         });
 
+        // Helper to show information/toast messages with auto-hide
+        function showInfo(message, type, timeoutMs) {
+            try {
+                var el = $('#information');
+                if (!el || el.length === 0) return;
+                type = (type || 'info');
+                el.stop(true, true);
+                el.removeClass('info error').addClass(type);
+                el.html('<p>' + message + '</p>');
+                el.show();
+                var t = typeof timeoutMs === 'number' ? timeoutMs : 4500;
+                setTimeout(function () {
+                    el.fadeOut(250, function () { el.empty().removeClass('info error'); });
+                }, t);
+            } catch (e) { /* ignore */ }
+        }
+
+        // MutationObserver fallback: if any code shows #information directly, auto-hide it
+        (function () {
+            try {
+                var infoEl = document.getElementById('information');
+                if (!infoEl) return;
+                var hideTimer = null;
+                function scheduleHide() {
+                    clearTimeout(hideTimer);
+                    var style = window.getComputedStyle(infoEl);
+                    if (style && style.display !== 'none' && infoEl.innerHTML.trim() !== '') {
+                        hideTimer = setTimeout(function () {
+                            $(infoEl).fadeOut(250, function () { $(infoEl).empty().removeClass('info error'); });
+                        }, 4500);
+                    }
+                }
+                var mo = new MutationObserver(function () { scheduleHide(); });
+                mo.observe(infoEl, { attributes: true, attributeFilter: ['style', 'class'], childList: true, subtree: true });
+            } catch (e) { /* ignore */ }
+        })();
+
         var tenantStoresRequest = null;
         var loginStoresRequest = null;
         $("#forgotpassword").click(function (e) {
@@ -1163,7 +1215,6 @@
                             setLoginModeHint(true, storeForLogin, false);
                         }
                     } else if (isSuperAdmin) {
-                        // Super admins are global accounts with no store of their own.
                         setLoginModeHint(false, "", true);
                         storeForLogin = "";
                     } else {
@@ -1187,35 +1238,28 @@
                         url: '@Url.Action("Login", "Login")',
                         data: model,
                         success: function (data) {
-                            if (data === "success")
-                            {
+                            if (data === "success") {
                                 window.location.href = newUrl;
                             }
-                            else if (data === "requirePasswordChange")
-                            {
+                            else if (data === "requirePasswordChange") {
                                 $('#lblOTPInformation').html("<p>An One Time Password(OTP) has been sent to: <br>" + email + "</p>");
                                 $('#changePasswordEmail').val(email);
                                 $("#ChangePassword").modal("show");
                             }
-                            else if (data === "storeRequired")
-                            {
+                            else if (data === "storeRequired") {
                                 $('#information').show();
                                 $('#information').html("<p>Store mapping not found for this user.</p>");
                             }
-                            else if (data === "serviceUnavailable")
-                            {
+                            else if (data === "serviceUnavailable") {
                                 $('#information').show();
                                 $('#information').html("<p>The login service is unavailable. Please try again shortly.</p>");
                             }
-                            else if (typeof data === "string" && data.indexOf("notApproved|") === 0)
-                            {
+                            else if (typeof data === "string" && data.indexOf("notApproved|") === 0) {
                                 var blockedMessage = data.substring("notApproved|".length);
                                 $('#information').show();
                                 $('#information').text(blockedMessage);
                             }
-                            else
-                            {
-                                // Prefer a server-provided message (string or { message: '...' }) with a sensible fallback.
+                            else {
                                 var message = "Login failed. Please check your email/password.";
                                 try {
                                     if (data && typeof data === 'string') {
@@ -1223,8 +1267,7 @@
                                     } else if (data && data.message) {
                                         message = data.message;
                                     }
-                                } catch (e) { /* ignore parsing errors */ }
-
+                                } catch (e) { }
                                 $('#information').show();
                                 $('#information').html("<p>" + message + "</p>");
                             }
@@ -1243,35 +1286,28 @@
                                         msg = jqXHR.responseText;
                                     }
                                 }
-                            } catch (e) { /* ignore */ }
-
+                            } catch (e) { }
                             $('#information').show();
                             $('#information').html("<p>" + msg + "</p>");
                         }
                     });
+                },
                 error: function (jqXHR, textStatus, errorThrown) {
                     var msg = "Login failed. Please check your email/password.";
                     try {
                         if (jqXHR && jqXHR.responseJSON && jqXHR.responseJSON.message) {
                             msg = jqXHR.responseJSON.message;
                         } else if (jqXHR && jqXHR.responseText) {
-                            // Try to extract a JSON message if returned as text
                             try {
                                 var parsed = JSON.parse(jqXHR.responseText);
-                                if (parsed && parsed.message) msg = parsed.message;
+                                if (parsed && parsed.message) msg = parsed.message; else msg = jqXHR.responseText;
                             } catch (e) {
                                 msg = jqXHR.responseText;
                             }
                         }
-                    } catch (e) { /* ignore parsing errors */ }
+                    } catch (e) { }
                     $('#information').show();
                     $('#information').html('<p>' + msg + '</p>');
-                }
-            });
-                },
-                error: function () {
-                    $('#information').show();
-                    $('#information').html("<p>Login failed. Please check your email/password.</p>");
                 }
             });
         });

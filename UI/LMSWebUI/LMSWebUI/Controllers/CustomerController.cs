@@ -34,6 +34,7 @@ namespace LMSWebUI.Controllers
 {
     public class CustomerController : Controller
     {
+        private readonly Microsoft.Extensions.Caching.Memory.IMemoryCache _memoryCache;
         private readonly ICustomerApiClient _clientApi;
         private readonly ILoginApiClient _loginApi;
         private readonly IStoreConfigurationService _storeConfigurationService;
@@ -2176,6 +2177,30 @@ namespace LMSWebUI.Controllers
                 }
 
                 HttpContext.Session.SetString(AllowedStoresSessionKey, string.Join(",", allowedStores));
+
+                // Invalidate currency cache for this tenant/store so dashboard reflects new defaults immediately
+                try
+                {
+                    var tenant = tenantName ?? string.Empty;
+                    var store = newStoreCode ?? string.Empty;
+                    try
+                    {
+                        var versionKey = LMSWebUI.Services.CurrencyCacheKeys.TenantVersionKey(tenant);
+                        _memoryCache.Remove(versionKey);
+                    }
+                    catch { }
+
+                    try
+                    {
+                        var specificKey = LMSWebUI.Services.CurrencyCacheKeys.CurrencyKey(_memoryCache, tenant, store);
+                        _memoryCache.Remove(specificKey);
+                    }
+                    catch { }
+                }
+                catch
+                {
+                    // ignore cache eviction failures
+                }
 
                 return Json(new
                 {

@@ -19,5 +19,14 @@ namespace LMS.Identity.DTO.Entities
         public bool IsPasswordChanged {get;set;}
 
         public List<string> Storecodes {get;set;}
+
+        // Tenant-level default currency information. Nullable to preserve compatibility.
+        public string CurrencyCode { get; set; }
+
+        public string CurrencySymbol { get; set; }
+
+        public string CurrencyLocale { get; set; }
+
+        public int? CurrencyDecimalDigits { get; set; }
     }
 }

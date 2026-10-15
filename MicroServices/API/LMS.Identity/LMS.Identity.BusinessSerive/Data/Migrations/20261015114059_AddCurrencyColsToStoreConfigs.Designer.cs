@@ -12,8 +12,8 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace LMS.Identity.BusinessSerive.Data.Migrations
 {
     [DbContext(typeof(IdentityDbContext))]
-    [Migration("20261015082534_RegenerateSnapshotTemp")]
-    partial class RegenerateSnapshotTemp
+    [Migration("20261015114059_AddCurrencyColsToStoreConfigs")]
+    partial class AddCurrencyColsToStoreConfigs
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -285,6 +285,21 @@ namespace LMS.Identity.BusinessSerive.Data.Migrations
                         .HasColumnType("int");
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("CurrencyCode")
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
+
+                    b.Property<int?>("CurrencyDecimalDigits")
+                        .HasColumnType("int");
+
+                    b.Property<string>("CurrencyLocale")
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<string>("CurrencySymbol")
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
 
                     b.Property<bool>("IsPasswordChanged")
                         .HasColumnType("bit");

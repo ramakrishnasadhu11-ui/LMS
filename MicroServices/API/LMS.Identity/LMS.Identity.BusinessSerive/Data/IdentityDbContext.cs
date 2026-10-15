@@ -55,6 +55,10 @@ namespace LMS.Identity.BusinessSerive.Data
                 entity.Property(x => x.Name).HasMaxLength(256).IsRequired();
                 entity.Property(x => x.Password).HasMaxLength(256).IsRequired();
                 entity.Property(x => x.Status).HasMaxLength(64).IsRequired();
+                entity.Property(x => x.CurrencyCode).HasMaxLength(16).HasColumnType("nvarchar(16)");
+                entity.Property(x => x.CurrencySymbol).HasMaxLength(16).HasColumnType("nvarchar(16)");
+                entity.Property(x => x.CurrencyLocale).HasMaxLength(32).HasColumnType("nvarchar(32)");
+                entity.Property(x => x.CurrencyDecimalDigits).HasColumnType("int");
                 entity.Property(x => x.Storecodes)
                     .HasConversion(
                         value => string.Join(',', value ?? new List<string>()),
