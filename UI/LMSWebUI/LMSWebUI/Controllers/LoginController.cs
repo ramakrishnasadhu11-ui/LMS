@@ -658,6 +658,8 @@ namespace LMSWebUI.Controllers
             }
             catch (ApiUnavailableException)
             {
+                // API could not be reached. Present the error on the registration form
+                // so the user stays in the registration context and can retry.
                 ModelState.AddModelError(string.Empty, "Registration service is temporarily unavailable. Please try again.");
                 return View(tenantDto);
             }

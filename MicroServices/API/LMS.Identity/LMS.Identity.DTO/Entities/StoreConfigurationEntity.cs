@@ -19,6 +19,19 @@ namespace LMS.Identity.DTO.Entities
         [Required]
         public string ConfigurationJson { get; set; }
 
+        // New dedicated currency columns. Nullable to preserve backward-compatibility
+        // and allow existing rows to be backfilled by migration.
+        [MaxLength(16)]
+        public string CurrencyCode { get; set; }
+
+        [MaxLength(16)]
+        public string CurrencySymbol { get; set; }
+
+        [MaxLength(32)]
+        public string CurrencyLocale { get; set; }
+
+        public int? CurrencyDecimalDigits { get; set; }
+
         public DateTime CreatedDate { get; set; }
 
         [MaxLength(256)]

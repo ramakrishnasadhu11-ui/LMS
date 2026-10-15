@@ -46,6 +46,14 @@
             box-shadow: 0 24px 70px rgba(15, 23, 42, 0.14);
             background: #ffffff;
         }
+@@media (min-width: 901px) {
+    .login-grid {
+        /* Let the grid fill the wrapper but scroll internally if needed. */
+        max-height: 100%;
+        overflow: auto;
+        box-sizing: border-box;
+    }
+}
 
         .brand-panel {
             background: linear-gradient(170deg, #0b1b4d 0%, #132f77 52%, #19409b 100%);
@@ -147,7 +155,9 @@
 
         .login-panel {
             background: #f8fbff;
-            padding: clamp(20px, 4vh, 42px) clamp(18px, 2vw, 34px);
+            /* reduce padding to make right panel more compact on desktop while
+               keeping responsive spacing on small screens */
+            padding: clamp(12px, 2.5vh, 28px) clamp(12px, 1.6vw, 20px);
             display: flex;
             align-items: center;
             justify-content: center;
@@ -155,7 +165,8 @@
 
         .login-card {
             width: min(400px, 100%);
-            padding: clamp(20px, 2.8vh, 28px) clamp(16px, 2vw, 28px);
+            /* slightly smaller padding to reduce card height */
+            padding: clamp(12px, 2vh, 20px) clamp(12px, 1.6vw, 20px);
             border-radius: 14px;
             background: #ffffff;
             border: 1px solid #d8e3f3;
@@ -166,7 +177,7 @@
             width: 148px;
             max-width: 100%;
             height: auto;
-            margin-bottom: 14px;
+            margin-bottom: 8px;
         }
 
         .login-card-head {
@@ -174,7 +185,7 @@
             align-items: flex-start;
             justify-content: space-between;
             gap: 16px;
-            margin-bottom: 14px;
+            margin-bottom: 8px;
         }
 
         .theme-toggle-btn {
@@ -273,7 +284,7 @@
 
         .login-card .page-links a {
             position: relative;
-            padding-bottom: 9px;
+            padding-bottom: 6px;
             font-size: 14px;
             font-weight: 600;
             color: #64748b;
@@ -313,7 +324,7 @@
         }
 
         .login-field {
-            margin-bottom: 12px;
+            margin-bottom: 8px;
         }
 
         .login-label {
@@ -329,8 +340,8 @@
         .login-card .form-control,
         .login-card select {
             width: 100%;
-            min-height: 44px;
-            padding: 10px 12px;
+            min-height: 40px;
+            padding: 8px 10px;
             border: 1px solid #cdd9eb;
             border-radius: 8px;
             background: #ffffff;
@@ -380,14 +391,14 @@
         .login-card .form-button {
             display: flex;
             flex-direction: column;
-            gap: 10px;
+            gap: 8px;
             align-items: stretch;
-            margin-top: 16px;
+            margin-top: 12px;
         }
 
         .login-card .form-button .ibtn {
             width: 100%;
-            min-height: 46px;
+            min-height: 42px;
             border: none;
             border-radius: 8px;
             background: linear-gradient(180deg, #2563eb 0%, #1d4ed8 100%);
@@ -636,8 +647,6 @@
                         <button id="themeToggleLogin" type="button" class="theme-toggle-btn" onclick="toggleTheme()">Dark Theme</button>
                     </div>
 
-                    <div id="information" class="alert alert-success" role="alert"><strong>Well done!</strong><span class="glyphi glyphicon glyphicon-exclamation-sign"></span>@Model.Message</div>
-
                     <div class="page-links">
                         <a id="loginTab" class="active" href="@Url.Action("Login", "Login")">Login</a>
                         <a id="registerTab" href="@Url.Action("Register", "Login")">Register</a>
@@ -672,6 +681,13 @@
                             <a href="javascript:void(0);" data-toggle="modal" data-target="#ChangePassword">Change Password</a>
                             <a href="javascript:void(0);" data-toggle="modal" data-target="#ForgotPassword">Forgot Your Password?</a>
                         </div>
+
+                        @if (TempData["RegistrationServiceUnavailable"] != null)
+                        {
+                            <div id="registrationServiceAlert" class="alert alert-danger" role="alert" style="margin-top:12px;">
+                                @TempData["RegistrationServiceUnavailable"]
+                            </div>
+                        }
                     </form>
 
                     <div class="other-links">

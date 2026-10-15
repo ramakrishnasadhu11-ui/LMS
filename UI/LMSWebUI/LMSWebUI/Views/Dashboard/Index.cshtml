@@ -2016,14 +2016,15 @@ document.addEventListener("click", function (e)
                 if (response.readyPendingReason) {
                     statusText += " (Delivery status pending API)";
                 }
-                try { statusText += " | Pending " + formatCurrency(pendingAmount); } catch(e) {
+                    try { statusText += " | Pending " + formatCurrency(pendingAmount); } catch(e) {
                     try {
                         var digits = (window.__currency && Number.isFinite(Number(window.__currency.decimalDigits))) ? Number(window.__currency.decimalDigits) : 2;
-                        var sym = (window.__currency && window.__currency.symbol) ? window.__currency.symbol : '₹';
-                        statusText += ' | Pending ' + sym + ' ' + Number(pendingAmount).toFixed(digits);
+                        var sym = (window.__currency && window.__currency.symbol) ? window.__currency.symbol : '';
+                        // If symbol exists, include it; otherwise show numeric value only (preserve numeric precision)
+                        statusText += ' | Pending ' + (sym ? (sym + ' ' + Number(pendingAmount).toFixed(digits)) : Number(pendingAmount).toFixed(digits));
                     } catch (e2) {
-                        // Last-resort fallback: legacy INR with two decimals
-                        statusText += ' | Pending ₹ ' + Number(pendingAmount).toFixed(2);
+                        // Last-resort fallback: show numeric value only with two decimals
+                        statusText += ' | Pending ' + Number(pendingAmount).toFixed(2);
                     }
                 }
 

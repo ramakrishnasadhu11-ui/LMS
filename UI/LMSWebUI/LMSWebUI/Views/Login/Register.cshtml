@@ -148,7 +148,7 @@
                                     @Html.ValidationMessageFor(m => m.CurrencyCode, null, new { @class = "text-danger" })
                                 </div>
                                 <div class="register-field">
-                                    @Html.TextBoxFor(m => m.CurrencySymbol, new { @placeholder = "Currency Symbol (e.g. ₹)", @class = "form-control", id = "currencySymbol" })
+                                    @Html.TextBoxFor(m => m.CurrencySymbol, new { @placeholder = "Currency Symbol", @class = "form-control", id = "currencySymbol" })
                                 </div>
                                 <div class="register-field">
                                     @Html.TextBoxFor(m => m.CurrencyLocale, new { @placeholder = "Currency Locale (e.g. en-IN)", @class = "form-control", id = "currencyLocale" })
@@ -156,7 +156,7 @@
                                 <div class="register-field">
                                     @Html.TextBoxFor(m => m.CurrencyDecimalDigits, new { @placeholder = "Decimal Digits (e.g. 2)", @class = "form-control", id = "currencyDigits", type = "number", min = "0", max = "6" })
                                 </div>
-                                <button id="submit" type="submit" class="ibtn" disabled="@(disablebtn ? "disabled" : null)">Register</button>
+                                <button id="registerBtn" type="submit" class="ibtn" disabled="@(disablebtn ? "disabled" : null)">Register</button>
                                 <p>Already have an account?  <a href="@Url.Action("Login", "Login")">Login</a></p>
                         }
                         @Html.ValidationSummary(excludePropertyErrors: true, message: "", htmlAttributes: new { @class = "text-danger" })

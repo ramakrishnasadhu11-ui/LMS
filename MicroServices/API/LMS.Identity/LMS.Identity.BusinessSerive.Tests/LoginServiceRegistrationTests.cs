@@ -47,6 +47,29 @@ namespace LMS.Identity.BusinessSerive.Tests
         }
 
         [Fact]
+        public async Task NewStoreConfiguration_Persists_DedicatedCurrencyColumns()
+        {
+            // Create tenant first
+            var tenant = new TenantEntity { TenantId = Guid.NewGuid().ToString(), Email = "cfgtenant@example.com", TenantName = "CfgTenant", NoOfStores = 1, CreatedDate = DateTime.UtcNow, ModifiedDate = DateTime.UtcNow };
+            _context.Tenants.Add(tenant);
+            await _context.SaveChangesAsync();
+
+            var cfgJson = JObject.FromObject(new { TenantName = tenant.Email, StoreCode = "S2", CurrencyCode = "EUR", CurrencySymbol = "€", CurrencyLocale = "de-DE", CurrencyDecimalDigits = 2 }).ToString();
+            var dto = new NewStoreConfigurationDto { TenantEmail = tenant.Email, StoreCode = "S2", ConfigurationJson = cfgJson, UpdatedBy = tenant.Email };
+
+            var res = await _service.NewStoreConfiguration(dto);
+            var io = res.ResultSet as dynamic;
+            Assert.Equal("200", (string)io.StatusCode);
+
+            var persisted = _context.StoreConfigurations.FirstOrDefault(s => s.TenantId == tenant.TenantId && s.StoreCode == "S2");
+            Assert.NotNull(persisted);
+            Assert.Equal("EUR", persisted.CurrencyCode);
+            Assert.Equal("€", persisted.CurrencySymbol);
+            Assert.Equal("de-DE", persisted.CurrencyLocale);
+            Assert.Equal(2, persisted.CurrencyDecimalDigits);
+        }
+
+        [Fact]
         public async Task India_BlankCurrency_Persists_INR()
         {
             var dto = new TenantDto { Email = "india@example.com", TenantName = "IndiaTenant", NoOfStores = 1, Country = "India" };
@@ -56,11 +79,10 @@ namespace LMS.Identity.BusinessSerive.Tests
             Assert.Equal("200", (string)io.StatusCode);
 
             // configuration saved as StoreConfigurationEntity with StoreCode = ""
-            var cfg = _context.StoreConfigurations.FirstOrDefault(s => s.TenantId == _context.Tenants.First().TenantId && s.StoreCode == string.Empty);
+            var cfg = _context.StoreConfigurations.FirstOrDefault(s => s.TenantId == _context.Tenants.First().TenantId);
             Assert.NotNull(cfg);
-            var parsed = JObject.Parse(cfg.ConfigurationJson);
-            Assert.Equal("INR", (string)parsed["CurrencyCode"]);
-            Assert.Equal("₹", (string)parsed["CurrencySymbol"]);
+            Assert.Equal("INR", cfg.CurrencyCode);
+            Assert.Equal("₹", cfg.CurrencySymbol);
         }
 
         [Fact]
@@ -73,9 +95,8 @@ namespace LMS.Identity.BusinessSerive.Tests
 
             var cfg = _context.StoreConfigurations.FirstOrDefault();
             Assert.NotNull(cfg);
-            var parsed = JObject.Parse(cfg.ConfigurationJson);
-            Assert.Equal("USD", (string)parsed["CurrencyCode"]);
-            Assert.Equal("$", (string)parsed["CurrencySymbol"]);
+            Assert.Equal("USD", cfg.CurrencyCode);
+            Assert.Equal("$", cfg.CurrencySymbol);
         }
 
         [Fact]
@@ -88,11 +109,10 @@ namespace LMS.Identity.BusinessSerive.Tests
 
             var cfg = _context.StoreConfigurations.FirstOrDefault();
             Assert.NotNull(cfg);
-            var parsed = JObject.Parse(cfg.ConfigurationJson);
-            Assert.Equal("USD", (string)parsed["CurrencyCode"]);
-            Assert.Equal("$", (string)parsed["CurrencySymbol"]);
-            Assert.Equal("en-US", (string)parsed["CurrencyLocale"]);
-            Assert.Equal(2, (int)parsed["CurrencyDecimalDigits"]);
+            Assert.Equal("USD", cfg.CurrencyCode);
+            Assert.Equal("$", cfg.CurrencySymbol);
+            Assert.Equal("en-US", cfg.CurrencyLocale);
+            Assert.Equal(2, cfg.CurrencyDecimalDigits);
         }
 
         [Fact]
@@ -104,10 +124,9 @@ namespace LMS.Identity.BusinessSerive.Tests
             Assert.Equal("200", (string)io.StatusCode);
 
             // Tenant-level config exists
-            var tenantCfg = _context.StoreConfigurations.FirstOrDefault(s => s.StoreCode == string.Empty);
+            var tenantCfg = _context.StoreConfigurations.FirstOrDefault(s => s.TenantId == _context.Tenants.First().TenantId);
             Assert.NotNull(tenantCfg);
-            var tenantParsed = JObject.Parse(tenantCfg.ConfigurationJson);
-            Assert.Equal("USD", (string)tenantParsed["CurrencyCode"]);
+            Assert.Equal("USD", tenantCfg.CurrencyCode);
 
             // Simulate saving store-specific config with no currency override -> it should inherit tenant currency when asked by StoreConfigurationService.LoadAsync
             var storeCfgEntity = new StoreConfigurationEntity
@@ -126,9 +145,8 @@ namespace LMS.Identity.BusinessSerive.Tests
 
             // Now load store config and ensure CurrencyCode is null (explicit), but in effective resolution tenant currency should apply — that's covered by UI/CurrencyService tests already.
             var loaded = _context.StoreConfigurations.FirstOrDefault(s => s.StoreCode == "S1");
-            var loadedParsed = JObject.Parse(loaded.ConfigurationJson);
-            // CurrencyCode absent or null
-            Assert.True(loadedParsed["CurrencyCode"] == null || string.IsNullOrWhiteSpace((string)loadedParsed["CurrencyCode"]));
+            // CurrencyCode absent or null in dedicated column
+            Assert.True(string.IsNullOrWhiteSpace(loaded.CurrencyCode));
         }
 
         [Fact]

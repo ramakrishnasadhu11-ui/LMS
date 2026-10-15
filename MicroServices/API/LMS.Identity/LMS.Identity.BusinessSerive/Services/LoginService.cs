@@ -13,6 +13,7 @@ using LMS.Identity.BusinessSerive.Common;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using Newtonsoft.Json.Linq;
 using MailKit.Security;
 using MimeKit;
 using Microsoft.Extensions.Logging;
@@ -87,14 +88,22 @@ namespace LMS.Identity.BusinessSerive.Services
 
                 // Build tenant-level configuration (StoreCode = empty) and persist it together with tenant to avoid partial state.
                 // Build configuration JSON for tenant-level (StoreCode = empty). TenantName intentionally set to tenant email per API contract.
+                // Normalize currency inputs from the incoming DTO so values provided by the UI are preserved.
+                var providedCurrencyCode = tenantDto.CurrencyCode?.Trim();
+                var providedCurrencySymbol = tenantDto.CurrencySymbol?.Trim();
+                var providedCurrencyLocale = tenantDto.CurrencyLocale?.Trim();
+                int? providedCurrencyDigits = tenantDto.CurrencyDecimalDigits;
+
+                var defaultCfg = CountryCurrencyMapping.GetDefaultForCountry(tenantDto.Country);
+
                 var configurationJson = Newtonsoft.Json.JsonConvert.SerializeObject(new
                 {
                     TenantName = tenantDto.Email,
                     StoreCode = string.Empty,
-                    CurrencyCode = string.IsNullOrWhiteSpace(tenantDto.CurrencyCode) ? CountryCurrencyMapping.GetDefaultForCountry(tenantDto.Country)?.CurrencyCode : tenantDto.CurrencyCode,
-                    CurrencySymbol = string.IsNullOrWhiteSpace(tenantDto.CurrencySymbol) ? CountryCurrencyMapping.GetDefaultForCountry(tenantDto.Country)?.CurrencySymbol : tenantDto.CurrencySymbol,
-                    CurrencyLocale = string.IsNullOrWhiteSpace(tenantDto.CurrencyLocale) ? CountryCurrencyMapping.GetDefaultForCountry(tenantDto.Country)?.CurrencyLocale : tenantDto.CurrencyLocale,
-                    CurrencyDecimalDigits = tenantDto.CurrencyDecimalDigits ?? CountryCurrencyMapping.GetDefaultForCountry(tenantDto.Country)?.DecimalDigits
+                    CurrencyCode = string.IsNullOrWhiteSpace(providedCurrencyCode) ? defaultCfg?.CurrencyCode : providedCurrencyCode,
+                    CurrencySymbol = string.IsNullOrWhiteSpace(providedCurrencySymbol) ? defaultCfg?.CurrencySymbol : providedCurrencySymbol,
+                    CurrencyLocale = string.IsNullOrWhiteSpace(providedCurrencyLocale) ? defaultCfg?.CurrencyLocale : providedCurrencyLocale,
+                    CurrencyDecimalDigits = providedCurrencyDigits ?? defaultCfg?.DecimalDigits
                 });
 
                 // Add both tenant and tenant-level configuration and save in one transaction so failure leaves no partial state.
@@ -104,6 +113,10 @@ namespace LMS.Identity.BusinessSerive.Services
                     TenantId = tenantData.TenantId,
                     StoreCode = string.Empty,
                     ConfigurationJson = configurationJson,
+                    CurrencyCode = string.IsNullOrWhiteSpace(providedCurrencyCode) ? defaultCfg?.CurrencyCode : providedCurrencyCode,
+                    CurrencySymbol = string.IsNullOrWhiteSpace(providedCurrencySymbol) ? defaultCfg?.CurrencySymbol : providedCurrencySymbol,
+                    CurrencyLocale = string.IsNullOrWhiteSpace(providedCurrencyLocale) ? defaultCfg?.CurrencyLocale : providedCurrencyLocale,
+                    CurrencyDecimalDigits = providedCurrencyDigits ?? defaultCfg?.DecimalDigits,
                     CreatedDate = DateTime.UtcNow,
                     ModifiedDate = DateTime.UtcNow,
                     CreatedBy = tenantDto.Email,
@@ -129,6 +142,63 @@ namespace LMS.Identity.BusinessSerive.Services
                 var registrationMessage = registrationMailSent
                     ? IdentityValidationMessage.IDENTITY_INSERT_SUCCESS_MESSAGE
                     : "Registration completed, but email delivery failed. Please contact support to reset your password and retry email delivery.";
+
+                // Ensure tenant-level configuration StoreCode reflects an existing assigned store code
+                // Do not generate a new code here; use the first assigned store code if present.
+                // Reload the tenant store info and tenant-level configuration from the database
+                // and update the existing persisted StoreConfiguration row with the first assigned store code.
+                try
+                {
+                    var tenantStoreInfoAfter = await GetTenantStoreByTenantIdAsync(tenantid);
+                    var firstStoreCode = (tenantStoreInfoAfter?.Storecodes ?? new List<string>()).FirstOrDefault();
+                    if (!string.IsNullOrWhiteSpace(firstStoreCode))
+                    {
+                        var normalizedCode = firstStoreCode.Trim();
+
+                        // Load the persisted tenant-level configuration (StoreCode was saved as empty string at registration)
+                        var persistedCfg = await _unitOfWork.DbContext.StoreConfigurations
+                            .FirstOrDefaultAsync(x => x.TenantId == tenantid && (x.StoreCode == null || x.StoreCode == string.Empty));
+
+                        if (persistedCfg != null && string.IsNullOrWhiteSpace(persistedCfg.StoreCode))
+                        {
+                            persistedCfg.StoreCode = normalizedCode;
+
+                            // Update ConfigurationJson StoreCode property if present
+                            try
+                            {
+                                var j = JObject.Parse(persistedCfg.ConfigurationJson ?? string.Empty);
+                                j["StoreCode"] = normalizedCode;
+                                // If currency properties are present in the JSON, copy them to the dedicated columns
+                                try
+                                {
+                                    var cc = j["CurrencyCode"]?.ToString();
+                                    if (!string.IsNullOrWhiteSpace(cc)) persistedCfg.CurrencyCode = cc;
+                                    var cs = j["CurrencySymbol"]?.ToString();
+                                    if (!string.IsNullOrWhiteSpace(cs)) persistedCfg.CurrencySymbol = cs;
+                                    var cl = j["CurrencyLocale"]?.ToString();
+                                    if (!string.IsNullOrWhiteSpace(cl)) persistedCfg.CurrencyLocale = cl;
+                                    if (j["CurrencyDecimalDigits"] != null && int.TryParse(j["CurrencyDecimalDigits"].ToString(), out var digs)) persistedCfg.CurrencyDecimalDigits = digs;
+                                }
+                                catch { /* swallow secondary parse errors to avoid failing the whole update */ }
+
+                                persistedCfg.ConfigurationJson = j.ToString(Newtonsoft.Json.Formatting.None);
+                            }
+                            catch
+                            {
+                                // If parsing fails, regenerate minimal JSON with the new StoreCode while preserving TenantName when possible
+                                string tenantName = tenantDto?.Email ?? string.Empty;
+                                var cfgObj = new { TenantName = tenantName, StoreCode = normalizedCode };
+                                persistedCfg.ConfigurationJson = Newtonsoft.Json.JsonConvert.SerializeObject(cfgObj);
+                            }
+
+                            await _unitOfWork.SaveChangesAsync();
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger?.LogWarning(ex, "Failed to update tenant-level StoreConfiguration StoreCode for TenantId {TenantId}", tenantid);
+                }
 
                 return ActionSet.ActionReturnType(HttpStatusCode.Created, new IOResponse { StatusCode = "200", TenantId = tenantid, Message = registrationMessage, TenantName = tenantDto.TenantName });
             }
@@ -1143,9 +1213,33 @@ namespace LMS.Identity.BusinessSerive.Services
                 StatusCode = "200",
                 Email = tenantEmail,
                 Storecodes = new List<string> { normalizedStoreCode },
-                ConfigurationJson = config.ConfigurationJson,
+                // Prefer dedicated currency columns as authoritative at runtime; fall back to values embedded in JSON for legacy rows.
+                ConfigurationJson = BuildConfigurationJsonWithCurrencyOverrides(config),
                 Message = string.Empty
             });
+        }
+
+        // Merge dedicated currency columns into ConfigurationJson for runtime consumers.
+        private static string BuildConfigurationJsonWithCurrencyOverrides(StoreConfigurationEntity config)
+        {
+            try
+            {
+                var j = string.IsNullOrWhiteSpace(config.ConfigurationJson)
+                    ? new JObject()
+                    : JObject.Parse(config.ConfigurationJson);
+
+                if (!string.IsNullOrWhiteSpace(config.CurrencyCode)) j["CurrencyCode"] = config.CurrencyCode;
+                if (!string.IsNullOrWhiteSpace(config.CurrencySymbol)) j["CurrencySymbol"] = config.CurrencySymbol;
+                if (!string.IsNullOrWhiteSpace(config.CurrencyLocale)) j["CurrencyLocale"] = config.CurrencyLocale;
+                if (config.CurrencyDecimalDigits.HasValue) j["CurrencyDecimalDigits"] = config.CurrencyDecimalDigits.Value;
+
+                return j.ToString(Newtonsoft.Json.Formatting.None);
+            }
+            catch
+            {
+                // On parse error, fall back to raw JSON to avoid breaking API contract.
+                return config.ConfigurationJson ?? string.Empty;
+            }
         }
 
         public async Task<ActionReturnType> NewStoreConfiguration(NewStoreConfigurationDto model)
@@ -1185,17 +1279,43 @@ namespace LMS.Identity.BusinessSerive.Services
                     TenantId = tenant.TenantId,
                     StoreCode = normalizedStoreCode,
                     ConfigurationJson = model.ConfigurationJson,
+                    // Extract currency values from supplied JSON (best-effort). Missing values remain null.
+                    CurrencyCode = null,
+                    CurrencySymbol = null,
+                    CurrencyLocale = null,
+                    CurrencyDecimalDigits = null,
                     CreatedDate = utcNow,
                     CreatedBy = updatedBy,
                     ModifiedDate = utcNow,
                     ModifiedBy = updatedBy
                 };
 
+                // parse JSON for currency override
+                try
+                {
+                    var j = JObject.Parse(model.ConfigurationJson ?? string.Empty);
+                    var cc = j["CurrencyCode"]?.ToString(); if (!string.IsNullOrWhiteSpace(cc)) existing.CurrencyCode = cc;
+                    var cs = j["CurrencySymbol"]?.ToString(); if (!string.IsNullOrWhiteSpace(cs)) existing.CurrencySymbol = cs;
+                    var cl = j["CurrencyLocale"]?.ToString(); if (!string.IsNullOrWhiteSpace(cl)) existing.CurrencyLocale = cl;
+                    if (j["CurrencyDecimalDigits"] != null && int.TryParse(j["CurrencyDecimalDigits"].ToString(), out var digs)) existing.CurrencyDecimalDigits = digs;
+                }
+                catch { }
+
                 _unitOfWork.DbContext.StoreConfigurations.Add(existing);
             }
             else
             {
                 existing.ConfigurationJson = model.ConfigurationJson;
+                // update dedicated currency columns if present in the incoming JSON
+                try
+                {
+                    var j = JObject.Parse(model.ConfigurationJson ?? string.Empty);
+                    var cc = j["CurrencyCode"]?.ToString(); if (!string.IsNullOrWhiteSpace(cc)) existing.CurrencyCode = cc;
+                    var cs = j["CurrencySymbol"]?.ToString(); if (!string.IsNullOrWhiteSpace(cs)) existing.CurrencySymbol = cs;
+                    var cl = j["CurrencyLocale"]?.ToString(); if (!string.IsNullOrWhiteSpace(cl)) existing.CurrencyLocale = cl;
+                    if (j["CurrencyDecimalDigits"] != null && int.TryParse(j["CurrencyDecimalDigits"].ToString(), out var digs)) existing.CurrencyDecimalDigits = digs;
+                }
+                catch { }
                 existing.ModifiedDate = utcNow;
                 existing.ModifiedBy = updatedBy;
             }
