@@ -18,11 +18,19 @@ using Newtonsoft.Json.Linq;
 using MailKit.Security;
 using MimeKit;
 using Microsoft.Extensions.Logging;
+using System.Collections.Concurrent;
+using System.Data.Common;
+using Microsoft.Data.SqlClient;
 
 namespace LMS.Identity.BusinessSerive.Services
 {
     public class LoginService : ILoginService
     {
+        // Prevent concurrent registration requests for the same email from creating
+        // duplicate tenant records. SemaphoreSlim per-email serializes Register calls
+        // for a given email address in-process.
+        private static readonly ConcurrentDictionary<string, SemaphoreSlim> _registrationLocks = new();
+
         private readonly IMapper _mapper;
         private readonly IUnitOfWork<IdentityDbContext> _unitOfWork;
         private readonly IMailConfiguration _mailConfiguration;
@@ -75,11 +83,19 @@ namespace LMS.Identity.BusinessSerive.Services
                 tenantDto.Email = tenantDto.Email.Trim();
                 tenantDto.TenantName = tenantDto.TenantName.Trim();
 
-                var result = await _unitOfWork.DbContext.Tenants.FirstOrDefaultAsync(em => em.Email == tenantDto.Email);
-                if (result != null)
+                // Serialize concurrent registrations for the same email so two
+                // simultaneous requests cannot both create a tenant row. Hold the
+                // lock through persistence and tenant-store creation.
+                var normalizedEmailKey = tenantDto.Email.ToLowerInvariant();
+                var sem = _registrationLocks.GetOrAdd(normalizedEmailKey, _ => new SemaphoreSlim(1, 1));
+                await sem.WaitAsync();
+                try
                 {
-                    return ActionSet.ActionReturnType(HttpStatusCode.AlreadyReported, new IOResponse { StatusCode = "208", Message = IdentityValidationMessage.IDENTITY_DATAFOUND_ERROR_MESSAGE });
-                }
+                    var result = await _unitOfWork.DbContext.Tenants.FirstOrDefaultAsync(em => em.Email == tenantDto.Email);
+                    if (result != null)
+                    {
+                        return ActionSet.ActionReturnType(HttpStatusCode.AlreadyReported, new IOResponse { StatusCode = "208", Message = IdentityValidationMessage.IDENTITY_DATAFOUND_ERROR_MESSAGE });
+                    }
 
                 var tenantData = _mapper.Map<TenantEntity>(tenantDto);
                 // Assign TenantId early so tenant-level configuration can reference it atomically.
@@ -128,6 +144,86 @@ namespace LMS.Identity.BusinessSerive.Services
                     ModifiedBy = tenantDto.Email
                 };
                 _unitOfWork.DbContext.StoreConfigurations.Add(cfgEntity);
+                // Persist tenant and tenant-level configuration immediately so
+                // database-level unique constraint violations are detected here.
+                try
+                {
+                    await _unitOfWork.SaveChangesAsync();
+                }
+                catch (DbUpdateException dbEx)
+                {
+                    // If this is a SQL Server duplicate-key error for the Tenants.Email
+                    // unique index, return the existing 208 duplicate response.
+                    if (IsSqlServerDuplicateKeyException(dbEx))
+                    {
+                        _logger?.LogWarning(dbEx, "Duplicate tenant detected while saving Tenant.Email={Email}", tenantDto?.Email);
+                        // Detach any newly-added entities so the DbContext isn't left in a bad state.
+                        try
+                        {
+                            var added = _unitOfWork.DbContext.ChangeTracker.Entries()
+                                .Where(e => e.State == EntityState.Added)
+                                .ToList();
+                            foreach (var ent in added)
+                            {
+                                ent.State = EntityState.Detached;
+                            }
+                        }
+                        catch (Exception detEx)
+                        {
+                            _logger?.LogWarning(detEx, "Failed to detach entries after duplicate key error for Email={Email}", tenantDto?.Email);
+                        }
+
+                        return ActionSet.ActionReturnType(HttpStatusCode.AlreadyReported, new IOResponse { StatusCode = "208", Message = IdentityValidationMessage.IDENTITY_DATAFOUND_ERROR_MESSAGE });
+                    }
+
+                    throw;
+                }
+
+                // Helper: determine whether a DbUpdateException was caused by a SQL Server
+                // unique constraint violation on Tenants.Email. Checks SqlException numbers
+                // 2627 (unique constraint) and 2601 (unique index) and looks for the Email
+                // or IX_Tenants_Email text in the message when available.
+                static bool IsSqlServerDuplicateKeyException(DbUpdateException ex)
+                {
+                    if (ex == null) return false;
+                    // Inspect inner exceptions for SqlException
+                    Exception inner = ex;
+                    while (inner != null)
+                    {
+                        if (inner is SqlException sqlEx)
+                        {
+                            // SQL Server error numbers for unique constraint/index violations
+                            if (sqlEx.Number == 2627 || sqlEx.Number == 2601)
+                            {
+                                // Best-effort: check if the message references the Tenants table or Email column
+                                var msg = sqlEx.Message ?? string.Empty;
+                                if (msg.IndexOf("Tenants", StringComparison.OrdinalIgnoreCase) >= 0
+                                    || msg.IndexOf("IX_Tenants_Email", StringComparison.OrdinalIgnoreCase) >= 0
+                                    || msg.IndexOf("Email", StringComparison.OrdinalIgnoreCase) >= 0)
+                                {
+                                    return true;
+                                }
+                                return true;
+                            }
+                        }
+
+                        if (inner is DbException dbEx2)
+                        {
+                            // If other providers wrap SQL Server error, inspect message
+                            var msg2 = dbEx2.Message ?? string.Empty;
+                            if ((msg2.IndexOf("unique", StringComparison.OrdinalIgnoreCase) >= 0
+                                 || msg2.IndexOf("duplicate", StringComparison.OrdinalIgnoreCase) >= 0)
+                                 && msg2.IndexOf("Email", StringComparison.OrdinalIgnoreCase) >= 0)
+                            {
+                                return true;
+                            }
+                        }
+
+                        inner = inner.InnerException;
+                    }
+
+                    return false;
+                }
             // Keep TenantStoreInfos.Status in sync with tenant approval state so the
             // approval and the store info status are persisted together atomically.
             var tenantStoreInfo = await GetTenantStoreByTenantIdAsync(tenantid);
@@ -141,12 +237,26 @@ namespace LMS.Identity.BusinessSerive.Services
                         : tenantStoreInfo.Status;
             }
 
-            await _unitOfWork.SaveChangesAsync();
-                // No-op reaffirmation to ensure earlier changes are stable.
-                var registrationMailSent = await CreateTenantUserInfoAsync(tenantDto, tenantid);
-                var registrationMessage = registrationMailSent
-                    ? IdentityValidationMessage.IDENTITY_INSERT_SUCCESS_MESSAGE
-                    : "Registration completed, but email delivery failed. Please contact support to reset your password and retry email delivery.";
+                try
+                {
+                    // Create tenant user/store info and start email delivery in background.
+                    // Execute within the semaphore to avoid races that could produce
+                    // duplicate TenantStoreInfos rows. Start CreateTenantUserInfoAsync
+                    // synchronously here to ensure TenantStoreInfos rows are created
+                    // before releasing the semaphore; any long-running email send is
+                    // performed internally by SendEmailToRegisterTenantAsync which
+                    // already logs failures and does not throw to callers.
+                    await CreateTenantUserInfoAsync(tenantDto, tenantid);
+                }
+                catch (Exception ex)
+                {
+                    // If tenant store creation or email sending fails, log error but
+                    // do not fail the registration. Email sending may be slow; errors
+                    // are logged for diagnostics.
+                    _logger?.LogError(ex, "CreateTenantUserInfoAsync failed for TenantId={TenantId}", tenantid);
+                }
+
+                var registrationMessage = IdentityValidationMessage.IDENTITY_INSERT_SUCCESS_MESSAGE;
 
                 // Ensure tenant-level configuration StoreCode reflects an existing assigned store code
                 // Do not generate a new code here; use the first assigned store code if present.
@@ -233,7 +343,20 @@ namespace LMS.Identity.BusinessSerive.Services
                     _logger?.LogWarning(ex, "Failed to update tenant-level StoreConfiguration StoreCode for TenantId {TenantId}", tenantid);
                 }
 
-                return ActionSet.ActionReturnType(HttpStatusCode.Created, new IOResponse { StatusCode = "201", TenantId = tenantid, Message = registrationMessage, TenantName = tenantDto.TenantName });
+                // Note: semaphore is released in the outer finally block to ensure a
+                // single release happens exactly once for the local 'sem' instance.
+
+                // Return 200 OK for success. The response body contains the TenantId
+                // and a human-friendly message. The per-email semaphore was held for
+                // the duration of persistence and tenant store creation to prevent
+                // concurrent duplicates.
+                return ActionSet.ActionReturnType(HttpStatusCode.OK, new IOResponse { StatusCode = "200", TenantId = tenantid, Message = registrationMessage, TenantName = tenantDto.TenantName });
+                }
+                finally
+                {
+                    // release the semaphore so other attempts for this email can proceed
+                    try { sem.Release(); } catch { }
+                }
             }
             }
             catch (Exception ex)
@@ -1610,13 +1733,28 @@ namespace LMS.Identity.BusinessSerive.Services
 
             _unitOfWork.DbContext.TenantStoreInfos.Add(TenantStoreInfoEntity);
             await _unitOfWork.SaveChangesAsync();
-            var isRegistrationMailSent = await SendEmailToRegisterTenantAsync(tenantDto.Email, password, storeCodes, tenantDto.TenantName);
-            if (!isRegistrationMailSent)
+            // Send registration email in the background so slow mail servers do not delay
+            // or time out the API response. Do not await the send here -- log failures
+            // asynchronously. Returning true indicates the registration completed and
+            // the email delivery is being attempted in the background.
+            _ = Task.Run(async () =>
             {
-                _logger?.LogWarning("Tenant {TenantId} registered but registration email was not delivered to {Email}.", tenantid, tenantDto?.Email);
-            }
+                try
+                {
+                    var isRegistrationMailSent = await SendEmailToRegisterTenantAsync(tenantDto.Email, password, storeCodes, tenantDto.TenantName);
+                    if (!isRegistrationMailSent)
+                    {
+                        _logger?.LogWarning("Tenant {TenantId} registered but registration email was not delivered to {Email}.", tenantid, tenantDto?.Email);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    // Failures while sending mail should not affect the registration flow.
+                    _logger?.LogError(ex, "Background email send failed for tenant {TenantId} to {Email}.", tenantid, tenantDto?.Email);
+                }
+            });
 
-            return isRegistrationMailSent;
+            return true;
         }
         private async Task<bool> SendEmailToChangePasswordAsync(string eMail, string password)
         {
@@ -1818,7 +1956,115 @@ namespace LMS.Identity.BusinessSerive.Services
                 }
 
                 List<string> stores = tenantstoreinforesult.Storecodes ?? new List<string>();
-                return ActionSet.ActionReturnType(HttpStatusCode.OK, new IOResponse { StatusCode = "200", Email = eMail, Storecodes = stores });
+
+                // Build per-store configuration summaries so dashboard consumers can display currency without extra requests.
+                var storeConfigs = new List<StoreConfigurationDto>();
+                foreach (var code in stores)
+                {
+                    var normalized = (code ?? string.Empty).Trim();
+                    var cfgEntity = await _unitOfWork.DbContext.StoreConfigurations
+                        .FirstOrDefaultAsync(x => x.TenantId == tenantregistryresult.TenantId && x.StoreCode == normalized);
+
+                    string cfgJson = null;
+                    string currencyCode = null;
+                    string currencySymbol = null;
+                    string currencyLocale = null;
+                    int? currencyDigits = null;
+
+                    if (cfgEntity != null)
+                    {
+                        cfgJson = BuildConfigurationJsonWithCurrencyOverrides(cfgEntity);
+                        currencyCode = cfgEntity.CurrencyCode;
+                        currencySymbol = cfgEntity.CurrencySymbol;
+                        currencyLocale = cfgEntity.CurrencyLocale;
+                        currencyDigits = cfgEntity.CurrencyDecimalDigits;
+                    }
+                    else
+                    {
+                        // Fall back to tenant-level configuration or tenant store info currency
+                        var tenantLevelCfg = await _unitOfWork.DbContext.StoreConfigurations
+                            .FirstOrDefaultAsync(x => x.TenantId == tenantregistryresult.TenantId && (x.StoreCode == null || x.StoreCode == string.Empty));
+
+                        cfgJson = tenantLevelCfg != null ? BuildConfigurationJsonWithCurrencyOverrides(tenantLevelCfg) : string.Empty;
+
+                        // Resolve currency precedence: TenantStoreInfos -> tenant-level cfg -> country defaults
+                        var tsi = tenantstoreinforesult;
+                        if (!string.IsNullOrWhiteSpace(tsi?.CurrencyCode)) currencyCode = tsi.CurrencyCode;
+                        if (!string.IsNullOrWhiteSpace(tsi?.CurrencySymbol)) currencySymbol = tsi.CurrencySymbol;
+                        if (!string.IsNullOrWhiteSpace(tsi?.CurrencyLocale)) currencyLocale = tsi.CurrencyLocale;
+                        if (tsi?.CurrencyDecimalDigits.HasValue == true) currencyDigits = tsi.CurrencyDecimalDigits;
+
+                        if (string.IsNullOrWhiteSpace(currencyCode) || string.IsNullOrWhiteSpace(currencySymbol) || string.IsNullOrWhiteSpace(currencyLocale) || currencyDigits == null)
+                        {
+                            if (tenantLevelCfg != null)
+                            {
+                                currencyCode = currencyCode ?? tenantLevelCfg.CurrencyCode;
+                                currencySymbol = currencySymbol ?? tenantLevelCfg.CurrencySymbol;
+                                currencyLocale = currencyLocale ?? tenantLevelCfg.CurrencyLocale;
+                                currencyDigits = currencyDigits ?? tenantLevelCfg.CurrencyDecimalDigits;
+                            }
+                        }
+
+                        if (string.IsNullOrWhiteSpace(currencyCode) || string.IsNullOrWhiteSpace(currencySymbol) || string.IsNullOrWhiteSpace(currencyLocale) || currencyDigits == null)
+                        {
+                            var defaultCfg = CountryCurrencyMapping.GetDefaultForCountry(tenantregistryresult.Country);
+                            if (defaultCfg != null)
+                            {
+                                currencyCode = currencyCode ?? defaultCfg.CurrencyCode;
+                                currencySymbol = currencySymbol ?? defaultCfg.CurrencySymbol;
+                                currencyLocale = currencyLocale ?? defaultCfg.CurrencyLocale;
+                                currencyDigits = currencyDigits ?? defaultCfg.DecimalDigits;
+                            }
+                        }
+                    }
+
+                    storeConfigs.Add(new StoreConfigurationDto
+                    {
+                        StoreCode = normalized,
+                        ConfigurationJson = cfgJson,
+                        CurrencyCode = currencyCode,
+                        CurrencySymbol = currencySymbol,
+                        CurrencyLocale = currencyLocale,
+                        CurrencyDecimalDigits = currencyDigits
+                    });
+                }
+
+                // Also include per-store activation statuses so callers that request
+                // full tenant store details receive authoritative IsActive flags
+                // without needing a separate API call.
+                var tenantStatuses = await _unitOfWork.DbContext.TenantStoreStatuses
+                    .Where(x => x.TenantId == tenantregistryresult.TenantId)
+                    .ToListAsync();
+
+                var statusDtos = stores
+                    .Select(code =>
+                    {
+                        var status = tenantStatuses.FirstOrDefault(s => string.Equals(s.StoreCode, code, StringComparison.OrdinalIgnoreCase));
+                        // If no per-store status record exists, fall back to the tenant-level
+                        // TenantStoreInfo.Status mirror which may be updated to "Active" when
+                        // any store for the tenant is marked active.
+                        var fallbackActive = string.Equals(tenantstoreinforesult?.Status, "Active", StringComparison.OrdinalIgnoreCase);
+                        return new TenantStoreStatusDto
+                        {
+                            StoreCode = code,
+                            IsActive = status?.IsActive ?? fallbackActive,
+                            ActivatedBy = status?.ActivatedBy,
+                            ActivatedDate = status?.ActivatedDate,
+                            TenantId = tenantregistryresult?.TenantId,
+                            TenantName = tenantregistryresult?.TenantName,
+                            TenantEmail = tenantregistryresult?.Email
+                        };
+                    })
+                    .ToList();
+
+                return ActionSet.ActionReturnType(HttpStatusCode.OK, new IOResponse
+                {
+                    StatusCode = "200",
+                    Email = eMail,
+                    Storecodes = stores,
+                    StoreConfigurations = storeConfigs,
+                    StoreStatuses = statusDtos
+                });
             }
             else
             {

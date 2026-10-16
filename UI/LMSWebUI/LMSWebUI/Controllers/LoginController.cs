@@ -631,6 +631,12 @@ namespace LMSWebUI.Controllers
             try
             {
                 responseMessage = await _clientApi.SendRequestAsync<LoginIoResponse>("/RegisterTenant", tenantDto, RestSharp.Method.POST);
+                // Some API implementations may return 200 OK with a body containing a
+                // 200/201 StatusCode string or may return 201 Created. The HTTP client
+                // wrapper normalizes non-transport errors by attempting to deserialize
+                // the response body. Treat any response that contains a TenantId as
+                // success regardless of StatusCode string to avoid false negatives
+                // when the API used 201.
                 if (responseMessage != null && !string.IsNullOrEmpty(responseMessage.TenantId))
                 {
                     tenantDto.Message = responseMessage.Message;

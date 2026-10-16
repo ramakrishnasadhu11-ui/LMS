@@ -1863,7 +1863,11 @@ namespace LMSWebUI.Controllers
                         activatedBy = (x?["ActivatedBy"] ?? x?["activatedBy"])?.ToString(),
                         activatedDate = (x?["ActivatedDate"] ?? x?["activatedDate"])?.ToString(),
                         tenantName = (x?["TenantName"] ?? x?["tenantName"])?.ToString(),
-                        tenantEmail = (x?["TenantEmail"] ?? x?["tenantEmail"])?.ToString()
+                        tenantEmail = (x?["TenantEmail"] ?? x?["tenantEmail"])?.ToString(),
+                        currencyCode = (x?["CurrencyCode"] ?? x?["currencyCode"])?.ToString(),
+                        currencySymbol = (x?["CurrencySymbol"] ?? x?["currencySymbol"])?.ToString(),
+                        currencyLocale = (x?["CurrencyLocale"] ?? x?["currencyLocale"])?.ToString(),
+                        currencyDecimalDigits = x?["CurrencyDecimalDigits"] != null ? (int?)x["CurrencyDecimalDigits"].ToObject<int>() : (x?["currencyDecimalDigits"] != null ? (int?)x["currencyDecimalDigits"].ToObject<int>() : null)
                     })
                     .Where(x => !string.IsNullOrWhiteSpace(x.storeCode))
                     .ToList();
@@ -2339,7 +2343,11 @@ namespace LMSWebUI.Controllers
                 stores = stores.Select(x => new
                 {
                     storeCode = x.StoreCode,
-                    isActive = x.IsActive
+                    isActive = x.IsActive,
+                    currencyCode = x.CurrencyCode,
+                    currencySymbol = x.CurrencySymbol,
+                    currencyLocale = x.CurrencyLocale,
+                    currencyDecimalDigits = x.CurrencyDecimalDigits
                 })
             });
         }
@@ -2348,12 +2356,24 @@ namespace LMSWebUI.Controllers
         {
             public string StoreCode { get; set; }
             public bool IsActive { get; set; }
+            public string ActivatedBy { get; set; }
+            public string ActivatedDate { get; set; }
+            public string TenantName { get; set; }
+            public string TenantEmail { get; set; }
+
+            // Currency fields (may be null if not provided by API)
+            public string CurrencyCode { get; set; }
+            public string CurrencySymbol { get; set; }
+            public string CurrencyLocale { get; set; }
+            public int? CurrencyDecimalDigits { get; set; }
         }
 
         private async Task<(List<TenantStoreStatusViewModel> Stores, string ErrorMessage)> GetTenantStoreStatusesForNewStoreCreationAsync(string tenantName, string currentStoreCode)
         {
             var stores = new List<string>();
             Exception lastException = null;
+
+            JObject successResponse = null;
 
             if (!string.IsNullOrWhiteSpace(tenantName))
             {
@@ -2362,40 +2382,56 @@ namespace LMSWebUI.Controllers
                     { "eMail", tenantName }
                 };
 
-                async Task<LoginIoResponse> callLoginApiAsync(string endpoint)
-                    => await _loginApi.SendRequestAsync<LoginIoResponse>(endpoint, parameters, Method.GET);
+                // Try to load full tenant store details which may include per-store configuration
+                // (StoreConfigurations) so the UI can render currency without extra API calls.
 
-                async Task<LoginIoResponse> callMasterApiAsync(string endpoint)
-                    => await _clientApi.SendRequestAsync<LoginIoResponse>(endpoint, parameters, Method.GET);
-
-                var attempts = new Func<Task<LoginIoResponse>>[]
+                try
                 {
-                    () => callLoginApiAsync("/GetTenantStoreDetails"),
-                    () => callLoginApiAsync("/TenantprofileDetails"),
-                    () => callMasterApiAsync("/GetTenantStoreDetails"),
-                    () => callMasterApiAsync("/TenantprofileDetails")
-                };
-
-                foreach (var attempt in attempts)
-                {
+                    JObject response = null;
                     try
                     {
-                        var response = await attempt();
-                        if (response?.Storecodes != null)
+                        response = await _loginApi.SendRequestAsync<JObject>("/GetTenantStoreDetails", parameters, Method.GET);
+                    }
+                    catch
+                    {
+                        try
                         {
-                            stores.AddRange(response.Storecodes);
+                            response = await _loginApi.SendRequestAsync<JObject>("/TenantprofileDetails", parameters, Method.GET);
                         }
-
-                        if (response != null)
+                        catch
                         {
-                            break;
+                            // fallback to master api client
+                            try
+                            {
+                                response = await _clientApi.SendRequestAsync<JObject>("/GetTenantStoreDetails", parameters, Method.GET);
+                            }
+                            catch
+                            {
+                                response = await _clientApi.SendRequestAsync<JObject>("/TenantprofileDetails", parameters, Method.GET);
+                            }
                         }
                     }
-                    catch (Exception ex)
+
+                    if (response != null)
                     {
-                        lastException = ex;
+                        successResponse = response;
+                        var storecodesToken = response?["Storecodes"] ?? response?["storeCodes"] ?? response?["storecodes"];
+                        var storecodesArray = storecodesToken as JArray ?? (storecodesToken != null ? JArray.FromObject(storecodesToken) : null);
+                        if (storecodesArray != null)
+                        {
+                            foreach (var sc in storecodesArray)
+                            {
+                                var code = sc?.ToString();
+                                if (!string.IsNullOrWhiteSpace(code)) stores.Add(code);
+                            }
+                        }
                     }
                 }
+                catch (Exception ex)
+                {
+                    lastException = ex;
+                }
+                // If API returned StoreConfigurations, we'll parse them later when building the final view models
             }
 
             if (!string.IsNullOrWhiteSpace(currentStoreCode))
@@ -2416,56 +2452,136 @@ namespace LMSWebUI.Controllers
             {
                 try
                 {
-                    JObject allStatuses = null;
-
-                    try
+                    // Prefer statuses delivered as part of the tenant store details response (already fetched above)
+                    if (successResponse != null)
                     {
-                        allStatuses = await _loginApi.SendRequestAsync<JObject>("/GetAllStoreStatuses", new Dictionary<string, string>(), Method.GET);
+                        var statusesToken = successResponse?["StoreStatuses"] ?? successResponse?["storeStatuses"] ?? successResponse?["StoreStatuses"];
+                        var statusesArray = statusesToken as JArray ?? (statusesToken != null ? JArray.FromObject(statusesToken) : null);
+                        if (statusesArray != null)
+                        {
+                            foreach (var item in statusesArray)
+                            {
+                                var itemStoreCode = (item?["StoreCode"] ?? item?["storeCode"])?.ToString()?.Trim();
+                                if (string.IsNullOrWhiteSpace(itemStoreCode)) continue;
+
+                                var itemTenantName = (item?["TenantName"] ?? item?["tenantName"])?.ToString()?.Trim();
+                                var itemTenantEmail = (item?["TenantEmail"] ?? item?["tenantEmail"])?.ToString()?.Trim();
+                                var belongsToTenant = string.Equals(itemTenantName, tenantName, StringComparison.OrdinalIgnoreCase)
+                                    || string.Equals(itemTenantEmail, tenantName, StringComparison.OrdinalIgnoreCase);
+
+                                if (!belongsToTenant) continue;
+
+                                // Support multiple status representations returned by various API versions.
+                                bool isActive = false;
+                                var activeToken = item?["IsActive"] ?? item?["isActive"];
+                                if (activeToken != null)
+                                {
+                                    try
+                                    {
+                                        if (activeToken.Type == Newtonsoft.Json.Linq.JTokenType.Boolean)
+                                            isActive = activeToken.Value<bool>();
+                                        else
+                                        {
+                                            var sval = activeToken.ToString()?.Trim();
+                                            isActive = !string.IsNullOrWhiteSpace(sval) && (
+                                                string.Equals(sval, "1", StringComparison.OrdinalIgnoreCase)
+                                                || string.Equals(sval, "true", StringComparison.OrdinalIgnoreCase)
+                                                || string.Equals(sval, "yes", StringComparison.OrdinalIgnoreCase)
+                                                || string.Equals(sval, "active", StringComparison.OrdinalIgnoreCase));
+                                        }
+                                    }
+                                    catch
+                                    {
+                                        isActive = false;
+                                    }
+                                }
+                                else
+                                {
+                                    // Some endpoints may return a textual Status field (e.g. "Active"/"InActive").
+                                    var statusToken = item?["Status"] ?? item?["status"];
+                                    var s = statusToken?.ToString()?.Trim();
+                                    isActive = !string.IsNullOrWhiteSpace(s) && string.Equals(s, "Active", StringComparison.OrdinalIgnoreCase);
+                                }
+
+                                statusLookup[itemStoreCode] = isActive;
+                            }
+                        }
                     }
-                    catch (Exception ex)
+                    else
                     {
-                        lastException = ex;
-
-                        var message = ex?.InnerException?.Message ?? ex?.Message ?? string.Empty;
-                        var shouldFallbackToMaster = ex is ApiUnavailableException
-                            || message.Contains("NotFound", StringComparison.OrdinalIgnoreCase)
-                            || message.Contains("404", StringComparison.OrdinalIgnoreCase)
-                            || message.Contains("actively refused", StringComparison.OrdinalIgnoreCase)
-                            || message.Contains("No connection could be made", StringComparison.OrdinalIgnoreCase);
-
-                        if (shouldFallbackToMaster)
+                        JObject allStatuses = null;
+                        try
                         {
-                            allStatuses = await _clientApi.SendRequestAsync<JObject>("/GetAllStoreStatuses", new Dictionary<string, string>(), Method.GET);
+                            allStatuses = await _loginApi.SendRequestAsync<JObject>("/GetAllStoreStatuses", new Dictionary<string, string>(), Method.GET);
                         }
-                        else
+                        catch (Exception ex)
                         {
-                            throw;
-                        }
-                    }
+                            lastException = ex;
+                            var message = ex?.InnerException?.Message ?? ex?.Message ?? string.Empty;
+                            var shouldFallbackToMaster = ex is ApiUnavailableException
+                                || message.Contains("NotFound", StringComparison.OrdinalIgnoreCase)
+                                || message.Contains("404", StringComparison.OrdinalIgnoreCase)
+                                || message.Contains("actively refused", StringComparison.OrdinalIgnoreCase)
+                                || message.Contains("No connection could be made", StringComparison.OrdinalIgnoreCase);
 
-                    var statusesToken = allStatuses?["StoreStatuses"] ?? allStatuses?["storeStatuses"] ?? new JArray();
-                    var statusesArray = statusesToken as JArray ?? statusesToken?["$values"] as JArray ?? new JArray();
-
-                    foreach (var item in statusesArray)
-                    {
-                        var itemStoreCode = (item?["StoreCode"] ?? item?["storeCode"])?.ToString()?.Trim();
-                        if (string.IsNullOrWhiteSpace(itemStoreCode))
-                        {
-                            continue;
+                            if (shouldFallbackToMaster)
+                            {
+                                allStatuses = await _clientApi.SendRequestAsync<JObject>("/GetAllStoreStatuses", new Dictionary<string, string>(), Method.GET);
+                            }
+                            else
+                            {
+                                throw;
+                            }
                         }
 
-                        var itemTenantName = (item?["TenantName"] ?? item?["tenantName"])?.ToString()?.Trim();
-                        var itemTenantEmail = (item?["TenantEmail"] ?? item?["tenantEmail"])?.ToString()?.Trim();
-                        var belongsToTenant = string.Equals(itemTenantName, tenantName, StringComparison.OrdinalIgnoreCase)
-                            || string.Equals(itemTenantEmail, tenantName, StringComparison.OrdinalIgnoreCase);
+                        var statusesToken = allStatuses?["StoreStatuses"] ?? allStatuses?["storeStatuses"] ?? new JArray();
+                        var statusesArray = statusesToken as JArray ?? statusesToken?["$values"] as JArray ?? new JArray();
 
-                        if (!belongsToTenant)
+                        foreach (var item in statusesArray)
                         {
-                            continue;
-                        }
+                            var itemStoreCode = (item?["StoreCode"] ?? item?["storeCode"])?.ToString()?.Trim();
+                            if (string.IsNullOrWhiteSpace(itemStoreCode)) continue;
 
-                        var isActive = (bool?)(item?["IsActive"] ?? item?["isActive"]) ?? false;
-                        statusLookup[itemStoreCode] = isActive;
+                            var itemTenantName = (item?["TenantName"] ?? item?["tenantName"])?.ToString()?.Trim();
+                            var itemTenantEmail = (item?["TenantEmail"] ?? item?["tenantEmail"])?.ToString()?.Trim();
+                            var belongsToTenant = string.Equals(itemTenantName, tenantName, StringComparison.OrdinalIgnoreCase)
+                                || string.Equals(itemTenantEmail, tenantName, StringComparison.OrdinalIgnoreCase);
+
+                            if (!belongsToTenant) continue;
+
+                            // Support multiple status representations (boolean, numeric, or textual)
+                            bool isActive = false;
+                            var activeToken = item?["IsActive"] ?? item?["isActive"];
+                            if (activeToken != null)
+                            {
+                                try
+                                {
+                                    if (activeToken.Type == Newtonsoft.Json.Linq.JTokenType.Boolean)
+                                        isActive = activeToken.Value<bool>();
+                                    else
+                                    {
+                                        var sval = activeToken.ToString()?.Trim();
+                                        isActive = !string.IsNullOrWhiteSpace(sval) && (
+                                            string.Equals(sval, "1", StringComparison.OrdinalIgnoreCase)
+                                            || string.Equals(sval, "true", StringComparison.OrdinalIgnoreCase)
+                                            || string.Equals(sval, "yes", StringComparison.OrdinalIgnoreCase)
+                                            || string.Equals(sval, "active", StringComparison.OrdinalIgnoreCase));
+                                    }
+                                }
+                                catch
+                                {
+                                    isActive = false;
+                                }
+                            }
+                            else
+                            {
+                                var statusToken = item?["Status"] ?? item?["status"];
+                                var s = statusToken?.ToString()?.Trim();
+                                isActive = !string.IsNullOrWhiteSpace(s) && string.Equals(s, "Active", StringComparison.OrdinalIgnoreCase);
+                            }
+
+                            statusLookup[itemStoreCode] = isActive;
+                        }
                     }
                 }
                 catch (Exception ex)
@@ -2474,11 +2590,63 @@ namespace LMSWebUI.Controllers
                 }
             }
 
-            var storesWithStatus = normalizedStores
-                .Select(code => new TenantStoreStatusViewModel
+            // Build a lookup of per-store configuration returned by GetTenantStoreDetails (if available)
+            var cfgLookup = new Dictionary<string, (string code, string symbol, string locale, int? digits)>(StringComparer.OrdinalIgnoreCase);
+            if (successResponse != null)
+            {
+                try
                 {
-                    StoreCode = code,
-                    IsActive = statusLookup.TryGetValue(code, out var isActive) && isActive
+                    var cfgToken = successResponse?["StoreConfigurations"] ?? successResponse?["storeConfigurations"];
+                    var cfgArray = cfgToken as JArray ?? (cfgToken != null ? JArray.FromObject(cfgToken) : null);
+                    if (cfgArray != null)
+                    {
+                        foreach (var c in cfgArray)
+                        {
+                            var sc = (c?["StoreCode"] ?? c?["storeCode"])?.ToString();
+                            if (string.IsNullOrWhiteSpace(sc)) continue;
+                            var cc = (c?["CurrencyCode"] ?? c?["currencyCode"])?.ToString();
+                            var cs = (c?["CurrencySymbol"] ?? c?["currencySymbol"])?.ToString();
+                            var cl = (c?["CurrencyLocale"] ?? c?["currencyLocale"])?.ToString();
+                            int? cd = null;
+                            try { cd = c?["CurrencyDecimalDigits"] != null ? (int?)c["CurrencyDecimalDigits"].ToObject<int>() : (c?["currencyDecimalDigits"] != null ? (int?)c["currencyDecimalDigits"].ToObject<int>() : null); } catch { cd = null; }
+                            cfgLookup[sc.Trim()] = (cc, cs, cl, cd);
+                        }
+                    }
+                }
+                catch
+                {
+                    // ignore config parsing errors
+                }
+            }
+
+            var storesWithStatus = normalizedStores
+                .Select(code =>
+                {
+                    cfgLookup.TryGetValue(code, out var cfg);
+
+                    // Safe defaults
+                    var defaultCode = "INR";
+                    var defaultSymbol = "₹";
+                    var defaultLocale = "en-IN";
+                    var defaultDigits = 2;
+
+                    // UK heuristic: if store code begins with 'UK' and no explicit currency configured, treat as GBP
+                    var isUk = code != null && code.StartsWith("UK", StringComparison.OrdinalIgnoreCase);
+
+                    var currencyCode = !string.IsNullOrWhiteSpace(cfg.code) ? cfg.code : (isUk ? "GBP" : defaultCode);
+                    var currencySymbol = !string.IsNullOrWhiteSpace(cfg.symbol) ? cfg.symbol : (isUk ? "£" : defaultSymbol);
+                    var currencyLocale = !string.IsNullOrWhiteSpace(cfg.locale) ? cfg.locale : (isUk ? "en-GB" : defaultLocale);
+                    var currencyDigits = cfg.digits ?? defaultDigits;
+
+                    return new TenantStoreStatusViewModel
+                    {
+                        StoreCode = code,
+                        IsActive = statusLookup.TryGetValue(code, out var isActive) && isActive,
+                        CurrencyCode = currencyCode,
+                        CurrencySymbol = currencySymbol,
+                        CurrencyLocale = currencyLocale,
+                        CurrencyDecimalDigits = currencyDigits
+                    };
                 })
                 .ToList();
 

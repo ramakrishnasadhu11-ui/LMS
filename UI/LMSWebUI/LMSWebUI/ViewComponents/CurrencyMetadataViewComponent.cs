@@ -5,6 +5,8 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 using LMSWebUI.Services;
 using Newtonsoft.Json;
+using Microsoft.AspNetCore.Html;
+using Microsoft.AspNetCore.Mvc.ViewComponents;
 
 namespace LMSWebUI.ViewComponents
 {
@@ -38,12 +40,14 @@ namespace LMSWebUI.ViewComponents
                 var payload = new { symbol = cfg?.CurrencySymbol, locale = cfg?.CurrencyLocale, digits = cfg?.DecimalDigits, code = cfg?.CurrencyCode };
                 var json = JsonConvert.SerializeObject(payload);
                 var script = $"<script>window.__currency = {json};</script>";
-                return Content(script);
+                // Return as HtmlContent so Razor does not HTML-encode the script tag and
+                // the browser executes it instead of rendering it as text.
+                return new HtmlContentViewComponentResult(new HtmlString(script));
             }
             catch (Exception ex)
             {
                 try { _logger?.LogWarning(ex, "Currency metadata rendering failed"); } catch { }
-                return Content("<script>window.__currency = {};</script>");
+                return new HtmlContentViewComponentResult(new HtmlString("<script>window.__currency = {};</script>"));
             }
         }
     }
