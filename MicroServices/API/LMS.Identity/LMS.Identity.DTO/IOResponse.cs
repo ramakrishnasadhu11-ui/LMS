@@ -84,6 +84,11 @@ namespace LMS.Identity.DTO
         public string ConfigurationJson { get; set; }
 
         /// <summary>
+        /// Per-store configuration summary (store code plus resolved configuration and currency fields)
+        /// </summary>
+        public List<StoreConfigurationDto> StoreConfigurations { get; set; }
+
+        /// <summary>
         /// Activation state for each tenant store
         /// </summary>
         public List<TenantStoreStatusDto> StoreStatuses { get; set; }

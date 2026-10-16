@@ -174,11 +174,18 @@ namespace LMSClientFactory.Helper
             }
         }
 
+        private static string NormalizeResource(string requestUrl)
+        {
+            if (string.IsNullOrWhiteSpace(requestUrl)) return requestUrl;
+            return requestUrl.StartsWith("/") ? requestUrl.TrimStart('/') : requestUrl;
+        }
+
         public async Task<T> SendRequestAsync<T>(string requestUrl, Method method) where T : new()
         {
             try
             {
-                IRestRequest restRequest = new RestRequest(requestUrl, method)
+                var resource = NormalizeResource(requestUrl);
+                IRestRequest restRequest = new RestRequest(resource, method)
                 {
                     RequestFormat = DataFormat.Json
                 };
@@ -193,7 +200,8 @@ namespace LMSClientFactory.Helper
         {
             try
             {
-                IRestRequest restRequest = new RestRequest(requestUrl, method)
+                var resource = NormalizeResource(requestUrl);
+                IRestRequest restRequest = new RestRequest(resource, method)
                 {
                     RequestFormat = DataFormat.Json,
                     JsonSerializer = new RestSharpJsonNetSerializer()
@@ -210,7 +218,8 @@ namespace LMSClientFactory.Helper
         {
             try
             {
-                IRestRequest restRequest = new RestRequest(requestUrl, method);
+                var resource = NormalizeResource(requestUrl);
+                IRestRequest restRequest = new RestRequest(resource, method);
                 restRequest.Parameters.AddRange(parameters);
                 return await SendRequest<T>(restRequest);
             }
@@ -223,7 +232,8 @@ namespace LMSClientFactory.Helper
         {
             try
             {
-                IRestRequest restRequest = new RestRequest(requestUrl, method);
+                var resource = NormalizeResource(requestUrl);
+                IRestRequest restRequest = new RestRequest(resource, method);
                 foreach (KeyValuePair<string, string> param in queryParams)
                 {
                     restRequest.AddQueryParameter(param.Key, param.Value);
@@ -240,7 +250,8 @@ namespace LMSClientFactory.Helper
         {
             try
             {
-                IRestRequest restRequest = new RestRequest(requestUrl, method);
+                var resource = NormalizeResource(requestUrl);
+                IRestRequest restRequest = new RestRequest(resource, method);
                 foreach (KeyValuePair<string, string> param in queryParams)
                 {
                     restRequest.AddQueryParameter(param.Key, param.Value);
@@ -259,7 +270,8 @@ namespace LMSClientFactory.Helper
         {
             try
             {
-                IRestRequest restRequest = new RestRequest(requestUrl, method);
+                var resource = NormalizeResource(requestUrl);
+                IRestRequest restRequest = new RestRequest(resource, method);
                 foreach (KeyValuePair<string, string> param in queryParams)
                 {
                     restRequest.AddQueryParameter(param.Key, param.Value);
@@ -275,7 +287,8 @@ namespace LMSClientFactory.Helper
 
         public async Task<T> SendRequestForZippedAsync<T>(string requestUrl, List<KeyValuePair<string, string>> queryParams, Method method) where T : new()
         {
-            IRestRequest restRequest = new RestRequest(requestUrl, method);
+            var resource = NormalizeResource(requestUrl);
+            IRestRequest restRequest = new RestRequest(resource, method);
             foreach (KeyValuePair<string, string> param in queryParams)
             {
                 restRequest.AddQueryParameter(param.Key, param.Value);
@@ -290,7 +303,8 @@ namespace LMSClientFactory.Helper
         {
             try
             {
-                IRestRequest restRequest = new RestRequest(requestUrl, method);
+                var resource = NormalizeResource(requestUrl);
+                IRestRequest restRequest = new RestRequest(resource, method);
                 foreach (KeyValuePair<string, string> param in queryParams)
                 {
                     restRequest.AddQueryParameter(param.Key, param.Value);

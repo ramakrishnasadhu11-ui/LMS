@@ -32,6 +32,7 @@ namespace LMS.Identity.WebApi.Controllers
         /// </summary>
         /// <returns></returns>
         [HttpPost(nameof(RegisterTenant))]
+        [HttpPost("Register")]
         [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(Result<LoginIoResponse>))]
         [ProducesResponseType(StatusCodes.Status201Created, Type = typeof(Result<LoginIoResponse>))]
         [ProducesResponseType(StatusCodes.Status500InternalServerError, Type = typeof(Result<object>))]

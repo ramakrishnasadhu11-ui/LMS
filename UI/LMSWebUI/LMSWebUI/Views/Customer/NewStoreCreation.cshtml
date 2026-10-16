@@ -266,7 +266,10 @@
         }
 
         if (typeof value === "string") {
-            return value.toLowerCase() === "true";
+            var v = value.toLowerCase();
+            // Accept multiple truthy representations from API/back-end: boolean true, string "true",
+            // or legacy string values like "Active"/"InActive" that may be returned by some endpoints.
+            return v === "true" || v === "active" || v === "1" || v === "yes";
         }
 
         return !!value;
@@ -306,9 +309,16 @@
             var actionText = isActive ? "Disable" : "Enable";
             var actionClass = isActive ? " secondary" : "";
 
-            return "<li class='store-list-item'>"
+        var currencyBadge = "";
+        if (store && (store.currencySymbol || store.currencyCode)) {
+            var sym = store.currencySymbol || "";
+            var code = store.currencyCode || "";
+            currencyBadge = " <span class='store-currency' title='" + (store.currencyLocale || "") + "'>" + (sym ? sym + " " : "") + (code ? "(" + code + ")" : "") + "</span>";
+        }
+
+        return "<li class='store-list-item'>"
                 + "<div>"
-                + "<div class='store-code'>" + storeCode + "</div>"
+                + "<div class='store-code'>" + storeCode + currencyBadge + "</div>"
                 + "<div class='store-status-wrap'>" + renderStoreStatusPill(isActive) + "</div>"
                 + "</div>"
                 + "<button type='button' class='store-toggle-btn" + actionClass + " js-store-toggle-btn' data-store='" + storeCode + "' data-active='" + (isActive ? "true" : "false") + "'>"
@@ -329,12 +339,20 @@
         stores.forEach(function (item) {
             var value = "";
             var isActive = false;
+            var currencyCode = null;
+            var currencySymbol = null;
+            var currencyLocale = null;
+            var currencyDecimalDigits = null;
 
             if (typeof item === "string") {
                 value = item.trim();
             } else {
                 value = getStoreCode(item);
                 isActive = getStoreIsActive(item);
+                currencyCode = item.currencyCode || item.CurrencyCode || null;
+                currencySymbol = item.currencySymbol || item.CurrencySymbol || null;
+                currencyLocale = item.currencyLocale || item.CurrencyLocale || null;
+                currencyDecimalDigits = (typeof item.currencyDecimalDigits !== 'undefined') ? item.currencyDecimalDigits : (item.currencyDecimalDigits || null);
             }
 
             if (!value) {
@@ -343,12 +361,17 @@
 
             var key = value.toLowerCase();
             if (!lookup[key]) {
-                lookup[key] = { storeCode: value, isActive: isActive };
+                lookup[key] = { storeCode: value, isActive: isActive, currencyCode: currencyCode, currencySymbol: currencySymbol, currencyLocale: currencyLocale, currencyDecimalDigits: currencyDecimalDigits };
                 normalized.push(lookup[key]);
                 return;
             }
 
-            lookup[key].isActive = isActive;
+            // Merge: prefer explicit currency fields when available
+            lookup[key].isActive = isActive || lookup[key].isActive;
+            if (!lookup[key].currencyCode && currencyCode) lookup[key].currencyCode = currencyCode;
+            if (!lookup[key].currencySymbol && currencySymbol) lookup[key].currencySymbol = currencySymbol;
+            if (!lookup[key].currencyLocale && currencyLocale) lookup[key].currencyLocale = currencyLocale;
+            if (!lookup[key].currencyDecimalDigits && currencyDecimalDigits) lookup[key].currencyDecimalDigits = currencyDecimalDigits;
         });
 
         normalized.sort(function (a, b) {
