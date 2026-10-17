@@ -103,6 +103,116 @@ namespace LMSWebUI.Controllers
                    || string.Equals(userRole, "StoreUser", StringComparison.OrdinalIgnoreCase);
         }
 
+        private static bool ShouldFallbackApiEndpoint(Exception ex)
+        {
+            var message = ex?.InnerException?.Message ?? ex?.Message ?? string.Empty;
+            return ex is ApiUnavailableException
+                || message.Contains("NotFound", StringComparison.OrdinalIgnoreCase)
+                || message.Contains("404", StringComparison.OrdinalIgnoreCase)
+                || message.Contains("actively refused", StringComparison.OrdinalIgnoreCase)
+                || message.Contains("No connection could be made", StringComparison.OrdinalIgnoreCase)
+                || message.Contains("A root ambient transaction was completed before the nested transaction", StringComparison.OrdinalIgnoreCase)
+                || message.Contains("nested transaction", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private async Task<LoginIoResponse> TryCreateTenantStoreAsync(string tenantName, string newStoreCode)
+        {
+            var endpointCandidates = new[] { "/CreateTenantStore", "/CreateStore", "/CreateNewStore" };
+            var createRequest = new
+            {
+                TenantName = tenantName,
+                StoreCode = newStoreCode
+            };
+
+            var createRequestDictionary = new Dictionary<string, string>
+            {
+                { "TenantName", tenantName ?? string.Empty },
+                { "tenantName", tenantName ?? string.Empty },
+                { "StoreCode", newStoreCode ?? string.Empty },
+                { "storeCode", newStoreCode ?? string.Empty }
+            };
+
+            Exception lastException = null;
+
+            foreach (var endpoint in endpointCandidates)
+            {
+                try
+                {
+                    var response = await _loginApi.SendRequestAsync<LoginIoResponse>(endpoint, createRequest, Method.POST);
+                    if (response != null)
+                    {
+                        return response;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    lastException = ex;
+                    if (!ShouldFallbackApiEndpoint(ex))
+                    {
+                        throw;
+                    }
+                }
+
+                try
+                {
+                    var response = await _loginApi.SendRequestAsync<LoginIoResponse>(endpoint, createRequestDictionary, Method.POST);
+                    if (response != null)
+                    {
+                        return response;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    lastException = ex;
+                    if (!ShouldFallbackApiEndpoint(ex))
+                    {
+                        throw;
+                    }
+                }
+
+                try
+                {
+                    var response = await _clientApi.SendRequestAsync<LoginIoResponse>(endpoint, createRequest, Method.POST);
+                    if (response != null)
+                    {
+                        return response;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    lastException = ex;
+                    if (!ShouldFallbackApiEndpoint(ex))
+                    {
+                        throw;
+                    }
+                }
+
+                try
+                {
+                    var response = await _clientApi.SendRequestAsync<LoginIoResponse>(endpoint, createRequestDictionary, Method.POST);
+                    if (response != null)
+                    {
+                        return response;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    lastException = ex;
+                    if (!ShouldFallbackApiEndpoint(ex))
+                    {
+                        throw;
+                    }
+                }
+            }
+
+            if (lastException != null)
+            {
+                throw lastException;
+            }
+
+            return null;
+        }
+
         private List<string> GetAllowedStores(string currentStoreCode)
         {
             var allowedStores = (HttpContext.Session.GetString(AllowedStoresSessionKey) ?? string.Empty)
@@ -343,6 +453,7 @@ namespace LMSWebUI.Controllers
         }
 
         public CustomerController(
+            Microsoft.Extensions.Caching.Memory.IMemoryCache memoryCache,
             ICustomerApiClient clientAPI,
             ILoginApiClient loginApi,
             IStoreConfigurationService storeConfigurationService,
@@ -351,6 +462,7 @@ namespace LMSWebUI.Controllers
             ApplicationDbContext dbContext,
             ILogger<CustomerController> logger)
         {
+            _memoryCache = memoryCache;
             _clientApi = clientAPI;
             _loginApi = loginApi;
             _storeConfigurationService = storeConfigurationService;
@@ -2127,33 +2239,7 @@ namespace LMSWebUI.Controllers
 
             try
             {
-                var createRequest = new
-                {
-                    TenantName = tenantName,
-                    StoreCode = newStoreCode
-                };
-
-                LoginIoResponse response = null;
-                try
-                {
-                    response = await _loginApi.SendRequestAsync<LoginIoResponse>("/CreateTenantStore", createRequest, Method.POST);
-                }
-                catch (Exception ex)
-                {
-                    var message = ex?.InnerException?.Message ?? ex?.Message ?? string.Empty;
-                    var shouldFallbackToMaster = ex is ApiUnavailableException
-                        || message.Contains("NotFound", StringComparison.OrdinalIgnoreCase)
-                        || message.Contains("404", StringComparison.OrdinalIgnoreCase)
-                        || message.Contains("actively refused", StringComparison.OrdinalIgnoreCase)
-                        || message.Contains("No connection could be made", StringComparison.OrdinalIgnoreCase);
-
-                    if (!shouldFallbackToMaster)
-                    {
-                        throw;
-                    }
-
-                    response = await _clientApi.SendRequestAsync<LoginIoResponse>("/CreateTenantStore", createRequest, Method.POST);
-                }
+                var response = await TryCreateTenantStoreAsync(tenantName, newStoreCode);
 
                 var isSuccess = response != null && string.Equals(response.StatusCode, "200", StringComparison.OrdinalIgnoreCase);
 

@@ -7,6 +7,9 @@
         && string.Equals(currentAction, "Index", StringComparison.OrdinalIgnoreCase);
     var isMyProfilePage = string.Equals(currentController, "Login", StringComparison.OrdinalIgnoreCase)
         && string.Equals(currentAction, "TenantProfileDetails", StringComparison.OrdinalIgnoreCase);
+    var currentUserRole = Context?.Session?.GetString("UserRole") ?? string.Empty;
+    var isSuperAdminUser = string.Equals(currentUserRole, "SuperAdmin", StringComparison.OrdinalIgnoreCase);
+    var isAdminUser = string.Equals(currentUserRole, "Admin", StringComparison.OrdinalIgnoreCase);
     var isAdminCompanyHeaderOnly = Convert.ToBoolean(ViewData["AdminCompanyHeaderOnly"] ?? false);
     var showHeaderNavigation = Convert.ToBoolean(ViewData["ShowHeaderNavigation"] ?? false);
     var hideSidebar = Convert.ToBoolean(ViewData["HideSidebar"] ?? false) || isMyProfilePage;
@@ -553,6 +556,8 @@
       <a class="@(string.Equals(currentController, "Dashboard", StringComparison.OrdinalIgnoreCase) && string.Equals(currentAction, "Index", StringComparison.OrdinalIgnoreCase) ? "active" : string.Empty)" href="@Url.Action("Index", "Dashboard")">
         <i class="fa fa-dashboard" aria-hidden="true"></i><span>Dashboard</span>
       </a>
+      @if (!isSuperAdminUser && !isAdminUser)
+      {
       <a href="@Url.Action("Index", "Dashboard")#customer-search">
         <i class="fa fa-search" aria-hidden="true"></i><span>Search</span>
       </a>
@@ -565,6 +570,7 @@
       <a class="@(string.Equals(currentController, "Customer", StringComparison.OrdinalIgnoreCase) && string.Equals(currentAction, "SetupCreateOrder", StringComparison.OrdinalIgnoreCase) ? "active" : string.Empty)" href="@Url.Action("SetupCreateOrder", "Customer")">
         <i class="fa fa-plus-circle" aria-hidden="true"></i><span>Create Order</span>
       </a>
+      }
     </nav>
   }
   <!-- Left side column. contains the sidebar -->

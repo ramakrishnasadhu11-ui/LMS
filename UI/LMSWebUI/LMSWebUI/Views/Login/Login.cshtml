@@ -271,6 +271,10 @@
             border-radius: 8px;
             font-size: 13px;
             padding: 12px;
+            border: 1px solid #fecaca;
+            background: #fff1f2;
+            color: #991b1b;
+            font-weight: 600;
             display: none; /* hidden by default; JS will show */
         }
 
@@ -664,7 +668,7 @@
                     </div>
 
                     <!-- Area for inline information and error messages from API -->
-                    <div id="information" role="alert" aria-live="polite" style="display:none; padding:12px;">
+                    <div id="information" role="alert" aria-live="assertive" style="display:none; padding:12px;">
                     </div>
 
                     <form>
@@ -1026,6 +1030,16 @@
                     clearTimeout(hideTimer);
                     var style = window.getComputedStyle(infoEl);
                     if (style && style.display !== 'none' && infoEl.innerHTML.trim() !== '') {
+                        var el = $(infoEl);
+                        if (!el.hasClass('info') && !el.hasClass('error')) {
+                            el.addClass('error');
+                        }
+
+                        // Keep important/error messages visible until user action.
+                        if (el.hasClass('error')) {
+                            return;
+                        }
+
                         hideTimer = setTimeout(function () {
                             $(infoEl).fadeOut(250, function () { $(infoEl).empty().removeClass('info error'); });
                         }, 4500);
@@ -1360,6 +1374,19 @@
                             return;
                         }
 
+                        if (typeof data === 'string' && data.indexOf('inactive|') === 0)
+                        {
+                            var inactiveMessage = data.substring('inactive|'.length) || 'Your account is inactive or pending approval. Please contact the super admin.';
+                            $('#information').show();
+                            $('#information').html('<p>' + inactiveMessage + '</p>');
+                            setLoginModeHint(false, "", false);
+                            $('#LoginCheck').prop('disabled', true);
+                            $('#Store').empty();
+                            $('#Store').append($('<option></option>').val('').html('Select a Store...'));
+                            $('#storeDropdownContainer').hide();
+                            return;
+                        }
+
                         if (data && data.length > 0)
                         {
                             $('#tenantPassword').focus();
@@ -1381,6 +1408,8 @@
                         }
                         else
                         {
+                            // No tenant stores were resolved by email alone.
+                            // This can still be a valid StoreUser; let password-based login resolve it.
                             $('#information').hide();
                             $('#information').empty();
                             setLoginModeHint(true, "", false);
