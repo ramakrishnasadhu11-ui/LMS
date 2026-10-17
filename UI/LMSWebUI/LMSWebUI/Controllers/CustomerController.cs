@@ -4324,8 +4324,15 @@ namespace LMSWebUI.Controllers
                 return Json(new { success = false, message = "Order details not available. Please reload order and try again." });
             }
 
+            if (string.IsNullOrWhiteSpace(context.CustomerEmail) && !string.IsNullOrWhiteSpace(context.CustomerName))
+            {
+                var customerProfile = await ResolveCustomerByNameAsync(context.CustomerName);
+                context.CustomerEmail = customerProfile?.Email;
+            }
+
             var toEmail = string.IsNullOrWhiteSpace(email) ? (context.CustomerEmail ?? string.Empty) : email.Trim();
-            if (string.IsNullOrWhiteSpace(toEmail))
+            var isValidEmail = !string.IsNullOrWhiteSpace(toEmail) && new EmailAddressAttribute().IsValid(toEmail);
+            if (!isValidEmail)
             {
                 await LogOrderActionAuditAsync(context, "EmailBillManualSkipped", "Manual bill email skipped. Customer email missing.");
                 return Json(new { success = false, message = "Customer email is missing. Please enter email and continue." });
@@ -4653,6 +4660,7 @@ namespace LMSWebUI.Controllers
             var currencyCfg = await _currencyService.GetEffectiveCurrencyAsync(HttpContext.Session.GetString("TenantName"), HttpContext.Session.GetString("TenantStore"));
             var billLines = BuildBillLines(context, currencyCfg, _currencyService);
             var body = string.Join("\n", billLines);
+            var htmlBody = BuildBillHtml(context, currencyCfg, _currencyService);
             var pdfBytes = BuildStyledInvoicePdf(context, currencyCfg, _currencyService);
             var invoiceNo = string.IsNullOrWhiteSpace(context.InvoiceNo) ? context.OrderNo : context.InvoiceNo;
 
@@ -4669,7 +4677,8 @@ namespace LMSWebUI.Controllers
 
                     var builder = new BodyBuilder
                     {
-                        TextBody = body
+                        TextBody = body,
+                        HtmlBody = htmlBody
                     };
 
                     builder.Attachments.Add($"Invoice-{invoiceNo}.pdf", pdfBytes, MimeKit.ContentType.Parse("application/pdf"));
@@ -4809,6 +4818,130 @@ namespace LMSWebUI.Controllers
             }
 
             return lines;
+        }
+
+        private static string BuildBillHtml(OrderCompletionContextDto context, LMSWebUI.Services.CurrencyConfig currencyCfg, LMSWebUI.Services.ICurrencyService currencyService)
+        {
+            context ??= new OrderCompletionContextDto();
+            context.Items ??= new List<LaundryOrderItemDto>();
+
+            var invoiceNo = string.IsNullOrWhiteSpace(context.InvoiceNo) ? context.OrderNo : context.InvoiceNo;
+            var issueDate = context.CreatedDate == default ? DateTime.UtcNow : context.CreatedDate;
+            var tenantNameRaw = (context.TenantName ?? string.Empty).Trim();
+            var companyName = string.IsNullOrWhiteSpace(tenantNameRaw)
+                ? "Laundry Service"
+                : (tenantNameRaw.Contains("@") ? tenantNameRaw.Split('@')[0].Replace('.', ' ').Replace('_', ' ') : tenantNameRaw);
+
+            var pendingAmount = context.PendingAmount;
+            var isPaid = pendingAmount <= 0;
+            var statusText = isPaid ? "PAID IN FULL" : "BALANCE DUE";
+            var statusBg = isPaid ? "#dcfce7" : "#fee2e2";
+            var statusFg = isPaid ? "#166534" : "#991b1b";
+            var statusBd = isPaid ? "#86efac" : "#fca5a5";
+
+            string E(string value) => WebUtility.HtmlEncode(value ?? string.Empty);
+            string F(decimal value)
+                => WebUtility.HtmlEncode(currencyService != null && currencyCfg != null
+                    ? currencyService.Format(value, currencyCfg)
+                    : value.ToString("0.00", CultureInfo.InvariantCulture));
+
+            var rows = new StringBuilder();
+            if (context.Items.Count > 0)
+            {
+                foreach (var item in context.Items)
+                {
+                    var itemName = E(item?.ItemName);
+                    var tag = E(item?.TagNo);
+                    var qty = item?.Quantity > 0 ? item.Quantity : 1;
+                    var lineTotal = (item?.UnitPrice ?? 0) * qty;
+
+                    rows.Append("<tr>")
+                        .Append($"<td style='padding:8px;border-bottom:1px solid #e5e7eb;'>{itemName} {(string.IsNullOrWhiteSpace(tag) ? string.Empty : "&middot; " + tag)}</td>")
+                        .Append($"<td style='padding:8px;border-bottom:1px solid #e5e7eb;text-align:center;'>{qty}</td>")
+                        .Append($"<td style='padding:8px;border-bottom:1px solid #e5e7eb;text-align:right;'>{F(lineTotal)}</td>")
+                        .Append("</tr>");
+                }
+            }
+            else
+            {
+                rows.Append("<tr><td colspan='3' style='padding:10px;color:#6b7280;'>No item lines available.</td></tr>");
+            }
+
+            return $@"<!DOCTYPE html>
+<html>
+<head>
+  <meta charset='utf-8' />
+  <meta name='viewport' content='width=device-width,initial-scale=1' />
+</head>
+<body style='margin:0;padding:0;background:#f3f6fb;font-family:Segoe UI,Arial,sans-serif;color:#111827;'>
+  <div style='max-width:680px;margin:0 auto;padding:16px;'>
+    <div style='background:#ffffff;border:1px solid #dbe3ec;border-radius:10px;padding:18px;'>
+      <div style='display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:12px;'>
+        <div>
+          <div style='font-size:20px;font-weight:800;color:#1f4e79;'>{E(companyName)}</div>
+          <div style='font-size:12px;color:#6b7280;'>Laundry Service &middot; Store {E(context.StoreCode)}</div>
+        </div>
+        <span style='display:inline-block;padding:6px 12px;border-radius:999px;border:1px solid {statusBd};background:{statusBg};color:{statusFg};font-size:12px;font-weight:800;letter-spacing:.4px;'>{statusText}</span>
+      </div>
+
+      <div style='font-size:22px;font-weight:800;color:#0f172a;margin:2px 0 10px;'>Invoice Confirmation</div>
+      <div style='font-size:14px;color:#374151;line-height:1.5;margin-bottom:14px;'>
+        Thank you, {E(context.CustomerName)}, for choosing our laundry service. Your order has been received{(isPaid ? " and payment is complete." : ".")}
+      </div>
+
+      <table role='presentation' style='width:100%;border-collapse:collapse;font-size:13px;margin-bottom:12px;'>
+        <tr>
+          <td style='padding:6px 0;color:#6b7280;width:38%;'>Invoice No.</td><td style='padding:6px 0;font-weight:700;'>{E(invoiceNo)}</td>
+        </tr>
+        <tr>
+          <td style='padding:6px 0;color:#6b7280;'>Order No.</td><td style='padding:6px 0;font-weight:700;'>{E(context.OrderNo)}</td>
+        </tr>
+        <tr>
+          <td style='padding:6px 0;color:#6b7280;'>Customer Code</td><td style='padding:6px 0;font-weight:700;'>{E(context.CustCode)}</td>
+        </tr>
+        <tr>
+          <td style='padding:6px 0;color:#6b7280;'>Order Date (UTC)</td><td style='padding:6px 0;font-weight:700;'>{E(issueDate.ToString("dd MMM yyyy, HH:mm"))}</td>
+        </tr>
+        <tr>
+          <td style='padding:6px 0;color:#6b7280;'>Service</td><td style='padding:6px 0;font-weight:700;'>{E(context.ServiceType)}</td>
+        </tr>
+        <tr>
+          <td style='padding:6px 0;color:#6b7280;'>Order Mode</td><td style='padding:6px 0;font-weight:700;'>{E(context.OrderMode)}</td>
+        </tr>
+      </table>
+
+      <div style='font-size:14px;font-weight:700;color:#0f172a;margin:8px 0;'>Order details</div>
+      <table role='presentation' style='width:100%;border-collapse:collapse;border:1px solid #dbe3ec;border-radius:8px;overflow:hidden;font-size:13px;'>
+        <thead>
+          <tr style='background:#eef4fc;'>
+            <th style='text-align:left;padding:8px;border-bottom:1px solid #dbe3ec;'>Item / Tag</th>
+            <th style='text-align:center;padding:8px;border-bottom:1px solid #dbe3ec;width:70px;'>Qty</th>
+            <th style='text-align:right;padding:8px;border-bottom:1px solid #dbe3ec;width:120px;'>Amount</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows}
+        </tbody>
+      </table>
+
+      <table role='presentation' style='width:100%;border-collapse:collapse;font-size:13px;margin-top:12px;'>
+        <tr><td style='padding:5px 0;color:#6b7280;'>Subtotal</td><td style='padding:5px 0;text-align:right;font-weight:700;'>{F(context.OrderAmount)}</td></tr>
+        <tr><td style='padding:5px 0;color:#6b7280;'>Tax</td><td style='padding:5px 0;text-align:right;font-weight:700;'>{F(context.TaxAmount)}</td></tr>
+        <tr><td style='padding:5px 0;color:#6b7280;'>Advance utilized</td><td style='padding:5px 0;text-align:right;font-weight:700;'>{F(context.AdvanceUsed)}</td></tr>
+        <tr><td style='padding:5px 0;color:#6b7280;'>Paid now</td><td style='padding:5px 0;text-align:right;font-weight:700;'>{F(context.PaidNow)}</td></tr>
+        <tr><td style='padding:5px 0;color:#6b7280;'>Pending amount</td><td style='padding:5px 0;text-align:right;font-weight:700;'>{F(context.PendingAmount)}</td></tr>
+        <tr><td style='padding-top:8px;border-top:1px solid #dbe3ec;font-size:15px;font-weight:800;'>Net payable</td><td style='padding-top:8px;border-top:1px solid #dbe3ec;text-align:right;font-size:15px;font-weight:800;'>{F(context.NetPayable)}</td></tr>
+      </table>
+
+      <div style='margin-top:14px;font-size:13px;color:#374151;'>
+        {(isPaid ? "Payment received in full." : "Payment pending. Please settle the balance due.")}
+      </div>
+      <div style='margin-top:8px;font-size:13px;color:#374151;'>Thank you for your business!</div>
+      <div style='margin-top:2px;font-size:12px;color:#6b7280;'>Please keep this email for your records. Contact the store if you have any questions.</div>
+    </div>
+  </div>
+</body>
+</html>";
         }
 
         private static byte[] BuildStyledInvoicePdf(OrderCompletionContextDto context, LMSWebUI.Services.CurrencyConfig currencyCfg, LMSWebUI.Services.ICurrencyService currencyService)
@@ -5314,7 +5447,7 @@ namespace LMSWebUI.Controllers
         }
 
         [HttpGet]
-        public IActionResult OrderWorkflow()
+        public async Task<IActionResult> OrderWorkflow()
         {
             var tenantName = HttpContext.Session.GetString("TenantName");
             var storeCode = HttpContext.Session.GetString("TenantStore");
@@ -5341,8 +5474,22 @@ namespace LMSWebUI.Controllers
                 return RedirectToAction("Index", "Dashboard");
             }
 
+            var workflowSettings = await LoadWorkflowStatusSettingsAsync(tenantName, storeCode);
+            var activeStatuses = (workflowSettings?.Statuses ?? WorkflowStatusSettingsViewModel.GetSeedStatuses())
+                .Where(x => x != null && x.IsActive && !string.IsNullOrWhiteSpace(x.StatusName))
+                .OrderBy(x => x.SortOrder)
+                .Select(x => new
+                {
+                    name = x.StatusName?.Trim(),
+                    color = string.IsNullOrWhiteSpace(x.ColorCode) ? "#6f7a86" : x.ColorCode.Trim(),
+                    isFinal = x.IsFinal,
+                    sortOrder = x.SortOrder
+                })
+                .ToList();
+
             ViewData["WorkflowTenantName"] = tenantName;
             ViewData["WorkflowStoreCode"] = storeCode;
+            ViewData["WorkflowStatusesJson"] = JsonConvert.SerializeObject(activeStatuses);
             return View();
         }
 
@@ -5633,7 +5780,7 @@ namespace LMSWebUI.Controllers
         {
             if (string.IsNullOrWhiteSpace(status))
             {
-                return "Received";
+            return status.Trim();
             }
 
             if (string.Equals(status, "In Process", StringComparison.OrdinalIgnoreCase)
