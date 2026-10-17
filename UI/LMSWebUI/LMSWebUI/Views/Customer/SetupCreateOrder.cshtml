@@ -177,7 +177,8 @@
                     <div class="setup-toolbar">
                         <div class="setup-field">
                             <label for="customerName">Customer Name</label>
-                            @Html.TextBoxFor(m => m.CustomerName, new { id = "customerName", placeholder = "Enter customer name" })
+                            @Html.TextBoxFor(m => m.CustomerName, new { id = "customerName", placeholder = "Enter customer name", list = "customerNameSuggestions", autocomplete = "off" })
+                            <datalist id="customerNameSuggestions"></datalist>
                         </div>
                         <div class="setup-field">
                             <label for="orderLookupText">Order/Invoice No</label>
@@ -396,6 +397,15 @@
                 <div class="setup-orders">
                     <div class="order-search-row">
                         <input type="text" id="orderHistorySearch" placeholder="Search by Order No or Invoice No" value="@orderHistorySearch" />
+                        <select id="orderHistoryStatusFilter">
+                            <option value="">All Statuses</option>
+                            <option value="Received">Received</option>
+                            <option value="Processing">Processing</option>
+                            <option value="Ready">Ready</option>
+                            <option value="Delivered">Delivered</option>
+                        </select>
+                        <input type="date" id="orderHistoryFromDate" title="From date" />
+                        <input type="date" id="orderHistoryToDate" title="To date" />
                     </div>
                     <table>
                         <thead>
@@ -403,19 +413,22 @@
                                 <th>Order No</th>
                                 <th>Invoice No</th>
                                 <th>Date (UTC)</th>
+                                <th>Status</th>
                                 <th>Mode</th>
                                 <th>Service</th>
+                                <th>Items</th>
                                 <th>Total Pieces</th>
                                 <th>Amount</th>
                                 <th>Tax</th>
                                 <th>Advance Used</th>
                                 <th>Net Payable</th>
+                                <th>Pending Balance</th>
                                 <th>Payment</th>
                                 <th>Action</th>
                             </tr>
                         </thead>
                         <tbody id="orderHistoryBody">
-                            <tr><td colspan="12">No orders found.</td></tr>
+                            <tr><td colspan="15">No orders found.</td></tr>
                         </tbody>
                     </table>
                 </div>
@@ -444,6 +457,9 @@
     var cfgPickerEntriesByKey = {};
     var loadItemsRequestId = 0;
     var loadCustomerRequestId = 0;
+    var customerSuggestRequestId = 0;
+    var customerSuggestTimer = 0;
+    var knownCustomerSuggestions = [];
     var antiForgeryTokenInput = document.querySelector('#setupOrderForm input[name="__RequestVerificationToken"]');
     var antiForgeryToken = antiForgeryTokenInput ? antiForgeryTokenInput.value : "";
     var initialMode = '@Html.Raw(System.Text.Encodings.Web.JavaScriptEncoder.Default.Encode(orderMode ?? "pieces"))';
@@ -1051,9 +1067,43 @@
         var tbody = document.getElementById("orderHistoryBody");
         tbody.innerHTML = "";
 
+        function renderStateRow(message) {
+            tbody.innerHTML = "<tr><td colspan='15'>" + (message || "No orders found.") + "</td></tr>";
+        }
+
         if (!orders || !orders.length) {
-            tbody.innerHTML = "<tr><td colspan='12'>No orders found.</td></tr>";
+            renderStateRow("No orders found.");
             return;
+        }
+
+        function getItemsSummary(order) {
+            var items = order.Items || order.items || [];
+            if (!Array.isArray(items) || !items.length) {
+                try {
+                    var parsed = JSON.parse(order.OrderItemsJson || order.orderItemsJson || "[]");
+                    items = Array.isArray(parsed) ? parsed : (Array.isArray(parsed.Items) ? parsed.Items : []);
+                } catch (e) {
+                    items = [];
+                }
+            }
+
+            if (!items.length) {
+                return "-";
+            }
+
+            var parts = items.slice(0, 3).map(function (x) {
+                if (!x) return "";
+                var itemName = (x.ItemName || x.itemName || "Item").toString();
+                var qty = Number((x.Quantity ?? x.quantity ?? 1));
+                var tag = (x.TagNo || x.tagNo || "").toString().trim();
+                return itemName + " x" + (qty > 0 ? qty : 1) + (tag ? " (" + tag + ")" : "");
+            }).filter(Boolean);
+
+            if (items.length > 3) {
+                parts.push("+" + (items.length - 3) + " more");
+            }
+
+            return parts.join(", ");
         }
 
         function resolveTotalPieces(order) {
@@ -1096,15 +1146,19 @@
             var pending = Number((order.PendingAmount ?? order.pendingAmount ?? order.NetPayable ?? order.netPayable ?? 0));
             var mode = (order.PaymentMode || order.paymentMode || "Cash");
             var customerEmail = (order.CustomerEmail || order.customerEmail || "").toString();
+            var status = (order.Status || order.status || "Received").toString();
             var taxValue = resolveOrderTaxAmount(order);
             var orderMode = (order.OrderMode || order.orderMode || "pieces").toLowerCase();
             var totalPiecesInfo = resolveTotalPieces(order);
             var totalPiecesText = orderMode === "weight" ? "-" : totalPiecesInfo.text;
+            var itemsSummary = getItemsSummary(order);
+            var paymentStatus = pending <= 0 ? "Paid" : "Pending";
             var settleActionHtml = pending > 0
                 ? ("<button type='button' class='order-history-action-btn order-history-primary-btn settle-row-btn' data-order-no='" + orderNo + "' data-pending='" + pending + "' data-mode='" + mode + "'>Settle</button>")
                 : "<span class='order-history-settled'>Settled</span>";
             var actionHtml = "<div class='order-history-actions'>"
                 + settleActionHtml
+                + "<button type='button' class='order-history-action-btn history-view-order-btn' data-order-no='" + orderNo + "'>View</button>"
                 + "<button type='button' class='order-history-action-btn history-print-bill-btn' data-order-no='" + orderNo + "'>Print Bill</button>"
                 + "<button type='button' class='order-history-action-btn history-pdf-btn' data-order-no='" + orderNo + "'>PDF</button>"
                 + "<button type='button' class='order-history-action-btn history-email-btn' data-order-no='" + orderNo + "' data-email='" + customerEmail + "'>Email</button>"
@@ -1114,16 +1168,30 @@
             tr.innerHTML = "<td>" + orderNo + "</td>"
                 + "<td>" + invoiceNo + "</td>"
                 + "<td>" + createdDate.toString().replace("T", " ").substring(0, 16) + "</td>"
+                + "<td>" + status + "</td>"
                 + "<td>" + (orderMode === "weight" ? "Weight" : "Pieces") + "</td>"
                 + "<td>" + (order.ServiceType || order.serviceType || "") + "</td>"
+                + "<td>" + itemsSummary + "</td>"
                 + "<td>" + totalPiecesText + "</td>"
                 + "<td>" + formatCurrency(Number(order.OrderAmount || order.orderAmount || 0)) + "</td>"
                 + "<td>" + formatCurrency(taxValue) + "</td>"
                 + "<td>" + formatCurrency(Number(order.AdvanceUsed || order.advanceUsed || 0)) + "</td>"
                 + "<td>" + formatCurrency(pending) + "</td>"
-                + "<td>" + mode + "</td>"
+                + "<td>" + formatCurrency(pending) + "</td>"
+                + "<td>" + paymentStatus + " / " + mode + "</td>"
                 + "<td>" + actionHtml + "</td>";
             tbody.appendChild(tr);
+        });
+
+        tbody.querySelectorAll('.history-view-order-btn').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+                var targetOrderNo = (btn.getAttribute('data-order-no') || '').trim();
+                if (!targetOrderNo) {
+                    return;
+                }
+
+                window.open('@Url.Action("PrintOrderBill", "Customer")?orderNo=' + encodeURIComponent(targetOrderNo), '_blank');
+            });
         });
 
         tbody.querySelectorAll('.settle-row-btn').forEach(function (btn) {
@@ -1245,13 +1313,6 @@
                 }
 
                 var email = (btn.getAttribute('data-email') || '').trim();
-                if (!email) {
-                    email = (window.prompt('Customer email is missing. Please enter email to continue:', '') || '').trim();
-                    if (!email) {
-                        showToast('Email sending skipped. Customer email not provided.', false);
-                        return;
-                    }
-                }
 
                 var body = new URLSearchParams();
                 body.append('orderNo', targetOrderNo);
@@ -1273,11 +1334,46 @@
                 .then(function (response) { return response.json(); })
                 .then(function (data) {
                     if (!data || !data.success) {
-                        showToast((data && data.message) || 'Unable to send bill email.', false);
+                        var message = (data && data.message) || 'Unable to send bill email.';
+                        if (!email && /email is missing|enter email/i.test(message)) {
+                            email = (window.prompt('Customer email is missing. Please enter email to continue:', '') || '').trim();
+                            if (!email) {
+                                showToast('Email sending skipped. Customer email not provided.', false);
+                                return;
+                            }
+
+                            var retryBody = new URLSearchParams();
+                            retryBody.append('orderNo', targetOrderNo);
+                            retryBody.append('email', email);
+
+                            return fetch('@Url.Action("SendOrderBillEmail", "Customer")', {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
+                                    'X-Requested-With': 'XMLHttpRequest',
+                                    'RequestVerificationToken': antiForgeryToken
+                                },
+                                body: retryBody.toString()
+                            })
+                            .then(function (retryResponse) { return retryResponse.json(); })
+                            .then(function (retryData) {
+                                if (!retryData || !retryData.success) {
+                                    showToast((retryData && retryData.message) || 'Unable to send bill email.', false);
+                                    return;
+                                }
+
+                                btn.setAttribute('data-email', email);
+                                showToast(retryData.message || 'Bill emailed successfully.', true);
+                            });
+                        }
+
+                        showToast(message, false);
                         return;
                     }
 
-                    btn.setAttribute('data-email', email);
+                    if (email) {
+                        btn.setAttribute('data-email', email);
+                    }
                     showToast(data.message || 'Bill emailed successfully.', true);
                 })
                 .catch(function () {
@@ -1297,15 +1393,61 @@
         }
 
         var searchEl = document.getElementById("orderHistorySearch");
+        var statusEl = document.getElementById("orderHistoryStatusFilter");
+        var fromEl = document.getElementById("orderHistoryFromDate");
+        var toEl = document.getElementById("orderHistoryToDate");
         var term = (searchEl && searchEl.value ? searchEl.value : "").trim().toLowerCase();
+        var statusFilter = (statusEl && statusEl.value ? statusEl.value : "").trim().toLowerCase();
+        var fromDate = fromEl && fromEl.value ? new Date(fromEl.value + "T00:00:00") : null;
+        var toDate = toEl && toEl.value ? new Date(toEl.value + "T23:59:59") : null;
+
+        if (fromDate && toDate && fromDate > toDate) {
+            var tmp = fromDate;
+            fromDate = toDate;
+            toDate = tmp;
+        }
+
         if (!term) {
-            renderOrdersHistoryRows(orderHistoryCache);
+            var onlyByFilters = (orderHistoryCache || []).filter(function (order) {
+                var status = (order.Status || order.status || "").toString().trim().toLowerCase();
+                if (statusFilter && status !== statusFilter) {
+                    return false;
+                }
+
+                var createdRaw = (order.CreatedDate || order.createdDate || "").toString();
+                var createdDate = createdRaw ? new Date(createdRaw) : null;
+                if (fromDate && createdDate && createdDate < fromDate) {
+                    return false;
+                }
+                if (toDate && createdDate && createdDate > toDate) {
+                    return false;
+                }
+
+                return true;
+            });
+
+            renderOrdersHistoryRows(onlyByFilters);
             return;
         }
 
         var filtered = (orderHistoryCache || []).filter(function (order) {
             var orderNo = (order.OrderNo || order.orderNo || "").toString().toLowerCase();
             var invoiceNo = (order.InvoiceNo || order.invoiceNo || "").toString().toLowerCase();
+            var status = (order.Status || order.status || "").toString().trim().toLowerCase();
+            var createdRaw = (order.CreatedDate || order.createdDate || "").toString();
+            var createdDate = createdRaw ? new Date(createdRaw) : null;
+
+            if (statusFilter && status !== statusFilter) {
+                return false;
+            }
+
+            if (fromDate && createdDate && createdDate < fromDate) {
+                return false;
+            }
+            if (toDate && createdDate && createdDate > toDate) {
+                return false;
+            }
+
             return orderNo.indexOf(term) >= 0 || invoiceNo.indexOf(term) >= 0;
         });
 
@@ -1518,15 +1660,6 @@
                 }
 
                 var email = (ctx.customerEmail || "").trim();
-                if (!email) {
-                    email = (window.prompt('Customer email is missing. Please enter email to continue:', '') || '').trim();
-                    if (!email) {
-                        if (emailStatus) {
-                            emailStatus.textContent = 'Email sending skipped. Customer email not provided.';
-                        }
-                        return;
-                    }
-                }
 
                 var body = new URLSearchParams();
                 body.append('orderNo', ctx.orderNo || '');
@@ -1547,13 +1680,54 @@
                 .then(function (response) { return response.json(); })
                 .then(function (data) {
                     if (!data || !data.success) {
+                        var message = (data && data.message) || 'Unable to send bill email.';
+                        if (!email && /email is missing|enter email/i.test(message)) {
+                            email = (window.prompt('Customer email is missing. Please enter email to continue:', '') || '').trim();
+                            if (!email) {
+                                if (emailStatus) {
+                                    emailStatus.textContent = 'Email sending skipped. Customer email not provided.';
+                                }
+                                return;
+                            }
+
+                            var retryBody = new URLSearchParams();
+                            retryBody.append('orderNo', ctx.orderNo || '');
+                            retryBody.append('email', email);
+
+                            return fetch('@Url.Action("SendOrderBillEmail", "Customer")', {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
+                                    'X-Requested-With': 'XMLHttpRequest',
+                                    'RequestVerificationToken': antiForgeryToken
+                                },
+                                body: retryBody.toString()
+                            })
+                            .then(function (retryResponse) { return retryResponse.json(); })
+                            .then(function (retryData) {
+                                if (!retryData || !retryData.success) {
+                                    if (emailStatus) {
+                                        emailStatus.textContent = (retryData && retryData.message) || 'Unable to send bill email.';
+                                    }
+                                    return;
+                                }
+
+                                ctx.customerEmail = email;
+                                if (emailStatus) {
+                                    emailStatus.textContent = retryData.message || 'Bill emailed successfully.';
+                                }
+                            });
+                        }
+
                         if (emailStatus) {
-                            emailStatus.textContent = (data && data.message) || 'Unable to send bill email.';
+                            emailStatus.textContent = message;
                         }
                         return;
                     }
 
-                    ctx.customerEmail = email;
+                    if (email) {
+                        ctx.customerEmail = email;
+                    }
                     if (emailStatus) {
                         emailStatus.textContent = data.message || 'Bill emailed successfully.';
                     }
@@ -2138,6 +2312,8 @@
                 return;
             }
 
+            document.getElementById("orderHistoryBody").innerHTML = "<tr><td colspan='15'>Loading customer order history...</td></tr>";
+
             fetch('@Url.Action("GetCustomerOrders", "Customer")' + '?' + orderQuery.join('&'), {
                 method: 'GET',
                 credentials: 'same-origin',
@@ -2149,14 +2325,18 @@
             .then(function (response) { return parseJsonOrHandleRedirect(response, 'Unable to fetch orders.'); })
             .then(function (orderData) {
                 if (!orderData || !orderData.success) {
-                    showToast((orderData && orderData.message) || "Unable to fetch orders.", false);
+                    var msg = (orderData && orderData.message) || "Unable to fetch orders.";
+                    showToast(msg, false);
+                    document.getElementById("orderHistoryBody").innerHTML = "<tr><td colspan='15'>" + msg + "</td></tr>";
                     renderOrdersHistory([]);
                     return;
                 }
                 renderOrdersHistory(orderData.orders || []);
             })
             .catch(function (error) {
-                showToast((error && error.message) || "Unable to fetch orders.", false);
+                var msg = (error && error.message) || "Unable to fetch orders.";
+                showToast(msg, false);
+                document.getElementById("orderHistoryBody").innerHTML = "<tr><td colspan='15'>" + msg + "</td></tr>";
                 renderOrdersHistory([]);
             });
         }
@@ -2466,6 +2646,9 @@
                 addSelectedItemToOrder();
             };
             document.getElementById("orderHistorySearch")?.addEventListener("input", applyOrderHistorySearch);
+            document.getElementById("orderHistoryStatusFilter")?.addEventListener("change", applyOrderHistorySearch);
+            document.getElementById("orderHistoryFromDate")?.addEventListener("change", applyOrderHistorySearch);
+            document.getElementById("orderHistoryToDate")?.addEventListener("change", applyOrderHistorySearch);
             document.getElementById("advanceUsed").addEventListener("input", syncTotals);
             document.getElementById("paidNow").addEventListener("input", syncTotals);
             document.getElementById("weightInKg").addEventListener("input", syncTotals);
@@ -2473,6 +2656,48 @@
             document.getElementById("weightServiceType").addEventListener("change", syncTotals);
 
             var customerNameInput = document.getElementById("customerName");
+            var customerSuggestionList = document.getElementById("customerNameSuggestions");
+            function loadCustomerSuggestions() {
+                if (!customerNameInput || !customerSuggestionList) {
+                    return;
+                }
+
+                var term = (customerNameInput.value || "").trim();
+                if (term.length < 2) {
+                    customerSuggestionList.innerHTML = "";
+                    knownCustomerSuggestions = [];
+                    return;
+                }
+
+                var requestId = ++customerSuggestRequestId;
+                fetch('@Url.Action("SearchCustomers", "Customer")?searchText=' + encodeURIComponent(term), {
+                    method: 'GET',
+                    credentials: 'same-origin',
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'Accept': 'application/json'
+                    }
+                })
+                .then(function (response) { return response.json(); })
+                .then(function (list) {
+                    if (requestId !== customerSuggestRequestId) {
+                        return;
+                    }
+
+                    var names = Array.isArray(list) ? list.filter(function (x) { return !!x; }) : [];
+                    knownCustomerSuggestions = names.map(function (x) { return x.toString().trim().toLowerCase(); });
+                    customerSuggestionList.innerHTML = "";
+                    names.slice(0, 30).forEach(function (name) {
+                        var opt = document.createElement('option');
+                        opt.value = name;
+                        customerSuggestionList.appendChild(opt);
+                    });
+                })
+                .catch(function () {
+                    // Keep page responsive even if search endpoint fails.
+                });
+            }
+
             if (customerNameInput) {
                 customerNameInput.addEventListener("input", function () {
                     var selectedName = (customerNameInput.value || "").trim();
@@ -2492,12 +2717,26 @@
                     currentAdvanceBalance = 0;
                     if (selectedName) {
                         updateAvailableAdvanceDisplay(0, "Select a valid customer and click Load Customer Details.");
-                        loadOrdersForCustomer(selectedName, "");
+                        if (customerSuggestTimer) {
+                            clearTimeout(customerSuggestTimer);
+                        }
+                        customerSuggestTimer = setTimeout(loadCustomerSuggestions, 180);
                         syncTotals();
                     } else {
                         updateAvailableAdvanceDisplay(0, "Select a customer to view available advance.");
                         renderOrdersHistory([]);
                         syncTotals();
+                    }
+                });
+
+                customerNameInput.addEventListener("change", function () {
+                    var selectedName = (customerNameInput.value || "").trim();
+                    if (!selectedName) {
+                        return;
+                    }
+
+                    if (!knownCustomerSuggestions.length || knownCustomerSuggestions.indexOf(selectedName.toLowerCase()) >= 0) {
+                        loadCustomerData();
                     }
                 });
             }
