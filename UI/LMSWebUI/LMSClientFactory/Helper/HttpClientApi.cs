@@ -150,28 +150,21 @@ namespace LMSClientFactory.Helper
         /// <returns></returns>
         private string SendRequest(IRestRequest request)
         {
-            try
+            request.RequestFormat = DataFormat.Json;
+
+            IRestResponse response = _client.Execute(request);
+
+            if (response.StatusCode == HttpStatusCode.NotFound || response.StatusCode == HttpStatusCode.InternalServerError)
             {
-                request.RequestFormat = DataFormat.Json;
-
-                IRestResponse response = _client.Execute(request);
-
-                if (response.StatusCode == HttpStatusCode.NotFound || response.StatusCode == HttpStatusCode.InternalServerError)
-                {
-                    throw new Exception(response.Content);
-                }
-
-                if (response.ErrorException != null)
-                {
-                    throw response.ErrorException;
-                }
-
-                return response.Content;
+                throw new Exception(response.Content);
             }
-            catch (Exception)
+
+            if (response.ErrorException != null)
             {
-                throw;
+                throw response.ErrorException;
             }
+
+            return response.Content;
         }
 
         private static string NormalizeResource(string requestUrl)
@@ -182,117 +175,66 @@ namespace LMSClientFactory.Helper
 
         public async Task<T> SendRequestAsync<T>(string requestUrl, Method method) where T : new()
         {
-            try
+            var resource = NormalizeResource(requestUrl);
+            IRestRequest restRequest = new RestRequest(resource, method)
             {
-                var resource = NormalizeResource(requestUrl);
-                IRestRequest restRequest = new RestRequest(resource, method)
-                {
-                    RequestFormat = DataFormat.Json
-                };
-                return await SendRequest<T>(restRequest);
-            }
-            catch
-            {
-                throw;
-            }
+                RequestFormat = DataFormat.Json
+            };
+
+            return await SendRequest<T>(restRequest);
         }
         public async Task<T> SendRequestAsync<T>(string requestUrl, object model, Method method) where T : new()
         {
-            try
+            var resource = NormalizeResource(requestUrl);
+            IRestRequest restRequest = new RestRequest(resource, method)
             {
-                var resource = NormalizeResource(requestUrl);
-                IRestRequest restRequest = new RestRequest(resource, method)
-                {
-                    RequestFormat = DataFormat.Json,
-                    JsonSerializer = new RestSharpJsonNetSerializer()
-                };
-                restRequest.AddJsonBody(model);
-                return await SendRequest<T>(restRequest);
-            }
-            catch
-            {
-                throw;
-            }
+                RequestFormat = DataFormat.Json,
+                JsonSerializer = new RestSharpJsonNetSerializer()
+            };
+            restRequest.AddJsonBody(model);
+
+            return await SendRequest<T>(restRequest);
         }
         public async Task<T> SendRequestAsync<T>(string requestUrl, List<Parameter> parameters, Method method) where T : new()
         {
-            try
-            {
-                var resource = NormalizeResource(requestUrl);
-                IRestRequest restRequest = new RestRequest(resource, method);
-                restRequest.Parameters.AddRange(parameters);
-                return await SendRequest<T>(restRequest);
-            }
-            catch (Exception ex)
-            {
-                throw ex;
-            }
+            var resource = NormalizeResource(requestUrl);
+            IRestRequest restRequest = new RestRequest(resource, method);
+            restRequest.Parameters.AddRange(parameters);
+
+            return await SendRequest<T>(restRequest);
         }
         public async Task<T> SendRequestAsync<T>(string requestUrl, Dictionary<string, string> queryParams, Method method) where T : new()
         {
-            try
-            {
-                var resource = NormalizeResource(requestUrl);
-                IRestRequest restRequest = new RestRequest(resource, method);
-                foreach (KeyValuePair<string, string> param in queryParams)
-                {
-                    restRequest.AddQueryParameter(param.Key, param.Value);
-                }
+            var resource = NormalizeResource(requestUrl);
+            IRestRequest restRequest = new RestRequest(resource, method);
+            AddQueryParameters(restRequest, queryParams);
 
-                return await SendRequest<T>(restRequest);
-            }
-            catch (Exception ex)
-            {
-                throw ex;
-            }
+            return await SendRequest<T>(restRequest);
         }
         public async Task<T> SendRequestAsync<T>(string requestUrl, object model, Dictionary<string, string> queryParams, Method method) where T : new()
         {
-            try
-            {
-                var resource = NormalizeResource(requestUrl);
-                IRestRequest restRequest = new RestRequest(resource, method);
-                foreach (KeyValuePair<string, string> param in queryParams)
-                {
-                    restRequest.AddQueryParameter(param.Key, param.Value);
-                }
-                restRequest.AddJsonBody(model);
+            var resource = NormalizeResource(requestUrl);
+            IRestRequest restRequest = new RestRequest(resource, method);
+            AddQueryParameters(restRequest, queryParams);
+            restRequest.AddJsonBody(model);
 
-                return await SendRequest<T>(restRequest);
-            }
-            catch (Exception ex)
-            {
-                throw ex;
-            }
+            return await SendRequest<T>(restRequest);
         }
 
         public async Task<T> SendRequestAsync<T>(string requestUrl, List<KeyValuePair<string, string>> queryParams, Method method) where T : new()
         {
-            try
-            {
-                var resource = NormalizeResource(requestUrl);
-                IRestRequest restRequest = new RestRequest(resource, method);
-                foreach (KeyValuePair<string, string> param in queryParams)
-                {
-                    restRequest.AddQueryParameter(param.Key, param.Value);
-                }
+            var resource = NormalizeResource(requestUrl);
+            IRestRequest restRequest = new RestRequest(resource, method);
+            AddQueryParameters(restRequest, queryParams);
 
-                return await SendRequest<T>(restRequest);
-            }
-            catch (Exception ex)
-            {
-                throw ex;
-            }
+            return await SendRequest<T>(restRequest);
         }
 
         public async Task<T> SendRequestForZippedAsync<T>(string requestUrl, List<KeyValuePair<string, string>> queryParams, Method method) where T : new()
         {
             var resource = NormalizeResource(requestUrl);
             IRestRequest restRequest = new RestRequest(resource, method);
-            foreach (KeyValuePair<string, string> param in queryParams)
-            {
-                restRequest.AddQueryParameter(param.Key, param.Value);
-            }
+            AddQueryParameters(restRequest, queryParams);
 
             //string zippedData;
 
@@ -301,22 +243,24 @@ namespace LMSClientFactory.Helper
 
         public async Task<T> SendRequestAsync<T>(string requestUrl, object model, List<KeyValuePair<string, string>> queryParams, Method method) where T : new()
         {
-            try
+            var resource = NormalizeResource(requestUrl);
+            IRestRequest restRequest = new RestRequest(resource, method);
+            AddQueryParameters(restRequest, queryParams);
+            restRequest.AddJsonBody(model);
+
+            return await SendRequest<T>(restRequest);
+        }
+
+        private static void AddQueryParameters(IRestRequest request, IEnumerable<KeyValuePair<string, string>> queryParams)
+        {
+            if (queryParams == null)
             {
-                var resource = NormalizeResource(requestUrl);
-                IRestRequest restRequest = new RestRequest(resource, method);
-                foreach (KeyValuePair<string, string> param in queryParams)
-                {
-                    restRequest.AddQueryParameter(param.Key, param.Value);
-                }
-
-                restRequest.AddJsonBody(model);
-
-                return await SendRequest<T>(restRequest);
+                return;
             }
-            catch (Exception ex)
+
+            foreach (KeyValuePair<string, string> param in queryParams)
             {
-                throw ex;
+                request.AddQueryParameter(param.Key, param.Value);
             }
         }
     }

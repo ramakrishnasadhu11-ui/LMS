@@ -797,9 +797,29 @@ namespace LMSWebUI.Controllers
                 { "eMail", normalizedTenantEmail }
             };
 
+            // Guard against showing store selection for tenants that are still pending/rejected.
+            // Tenant approval data is authoritative for this flow.
+            var approvalState = await GetTenantApprovalStateAsync(normalizedTenantEmail);
+            if (approvalState.IsKnown && !approvalState.IsApproved)
+            {
+                var blockedMessage = string.Equals(approvalState.Status, "Rejected", StringComparison.OrdinalIgnoreCase)
+                    ? "Your account registration was rejected. Please contact the administrator."
+                    : "Your account is pending approval by super admin.";
+
+                return Content("inactive|" + blockedMessage);
+            }
+
             try
             {
                 var responseMessage = await _clientApi.SendRequestAsync<LoginIoResponse>("/GetTenantStoreDetails", paramsGetAllStoresByClient, RestSharp.Method.GET);
+                if (responseMessage != null && string.Equals(responseMessage.StatusCode, "403", StringComparison.OrdinalIgnoreCase))
+                {
+                    var inactiveMessage = string.IsNullOrWhiteSpace(responseMessage.Message)
+                        ? "Your account is inactive or pending approval."
+                        : responseMessage.Message;
+                    return Content("inactive|" + inactiveMessage);
+                }
+
                 if (responseMessage != null && responseMessage.StatusCode == "200")
                 {
                     // Super admins have no stores, so the caller needs the role to avoid
@@ -823,7 +843,15 @@ namespace LMSWebUI.Controllers
                 {
                     // fallback path: older identity endpoint still used in some deployments
                     var responseMessage = await _clientApi.SendRequestAsync<LoginIoResponse>("/TenantprofileDetails", paramsGetAllStoresByClient, RestSharp.Method.GET);
-                    if (responseMessage != null)
+                    if (responseMessage != null && string.Equals(responseMessage.StatusCode, "403", StringComparison.OrdinalIgnoreCase))
+                    {
+                        var inactiveMessage = string.IsNullOrWhiteSpace(responseMessage.Message)
+                            ? "Your account is inactive or pending approval."
+                            : responseMessage.Message;
+                        return Content("inactive|" + inactiveMessage);
+                    }
+
+                    if (responseMessage != null && string.Equals(responseMessage.StatusCode, "200", StringComparison.OrdinalIgnoreCase))
                     {
                         var enabledStores = await FilterEnabledStoresForTenantAsync(normalizedTenantEmail, responseMessage.Storecodes ?? new List<string>());
                         return Content(string.Join(",", enabledStores));
@@ -841,6 +869,39 @@ namespace LMSWebUI.Controllers
                     _logger.LogError(fallbackEx, "Fallback tenant store lookup failed unexpectedly.");
                     return StatusCode(StatusCodes.Status503ServiceUnavailable, "Store lookup service is unavailable. Please try again.");
                 }
+            }
+        }
+
+        private async Task<(bool IsKnown, bool IsApproved, string Status)> GetTenantApprovalStateAsync(string tenantEmail)
+        {
+            try
+            {
+                var approvalsResponse = await _clientApi.SendRequestAsync<JObject>("/GetAllTenantApprovals", new Dictionary<string, string>(), RestSharp.Method.GET);
+                var approvalsToken = approvalsResponse?["TenantApprovals"] ?? approvalsResponse?["tenantApprovals"] ?? new JArray();
+                var approvalsArray = approvalsToken as JArray ?? approvalsToken?["$values"] as JArray ?? new JArray();
+
+                var tenantApproval = approvalsArray
+                    .Select(x => new
+                    {
+                        Email = (x?["Email"] ?? x?["email"])?.ToString()?.Trim(),
+                        ApprovalStatus = (x?["ApprovalStatus"] ?? x?["approvalStatus"])?.ToString()?.Trim()
+                    })
+                    .FirstOrDefault(x => !string.IsNullOrWhiteSpace(x.Email)
+                        && string.Equals(x.Email, tenantEmail, StringComparison.OrdinalIgnoreCase));
+
+                if (tenantApproval == null)
+                {
+                    return (false, true, string.Empty);
+                }
+
+                var status = tenantApproval.ApprovalStatus ?? string.Empty;
+                var isApproved = string.Equals(status, "Approved", StringComparison.OrdinalIgnoreCase);
+                return (true, isApproved, status);
+            }
+            catch
+            {
+                // Don't block login discovery on transient approval-endpoint failures.
+                return (false, true, string.Empty);
             }
         }
 
