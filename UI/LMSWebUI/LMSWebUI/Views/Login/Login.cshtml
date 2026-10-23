@@ -268,27 +268,88 @@
 
         #information {
             margin-bottom: 12px;
-            border-radius: 8px;
-            font-size: 13px;
-            padding: 12px;
-            border: 1px solid #fecaca;
-            background: #fff1f2;
-            color: #991b1b;
+            display: none;
+        }
+
+        .login-card #information.els-message-stack {
+            display: grid;
+            gap: 10px;
+        }
+
+        .login-card #information .els-message-card {
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+            padding: 12px 14px;
+            border-radius: 12px;
+            border: 1px solid #d9e2ec;
+            background: #ffffff;
+            box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08);
+        }
+
+        .login-card #information .els-message-icon {
+            width: 32px;
+            height: 32px;
+            border-radius: 999px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+            font-weight: 700;
+            flex: 0 0 auto;
+        }
+
+        .login-card #information .els-message-body {
+            flex: 1 1 auto;
+        }
+
+        .login-card #information .els-message-label {
+            display: block;
+            margin-bottom: 2px;
+            font-size: 12px;
+            font-weight: 800;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+        }
+
+        .login-card #information .els-message-text {
+            margin: 0;
+            font-size: 14px;
+            line-height: 1.35;
+            color: #0f172a;
             font-weight: 600;
-            display: none; /* hidden by default; JS will show */
         }
 
-        #information.info {
-            border: 1px solid #bfdbfe;
-            background: #eff6ff;
-            color: #1e3a8a;
+        .login-card #information .els-message-close {
+            appearance: none;
+            border: 0;
+            background: transparent;
+            color: #64748b;
+            font-size: 20px;
+            line-height: 1;
+            padding: 0;
+            cursor: pointer;
+            flex: 0 0 auto;
         }
 
-        #information.error {
-            border: 1px solid #fecaca;
-            background: #fff1f2;
-            color: #991b1b;
-        }
+        .login-card #information .els-message-success { border-color: #a7f3d0; }
+        .login-card #information .els-message-success .els-message-icon { background: #ecfdf5; color: #059669; }
+        .login-card #information .els-message-success .els-message-label { color: #059669; }
+
+        .login-card #information .els-message-warning { border-color: #fde68a; }
+        .login-card #information .els-message-warning .els-message-icon { background: #fffbeb; color: #d97706; }
+        .login-card #information .els-message-warning .els-message-label { color: #d97706; }
+
+        .login-card #information .els-message-danger,
+        .login-card #information .els-message-error { border-color: #fecaca; }
+        .login-card #information .els-message-danger .els-message-icon,
+        .login-card #information .els-message-error .els-message-icon { background: #fef2f2; color: #dc2626; }
+        .login-card #information .els-message-danger .els-message-label,
+        .login-card #information .els-message-error .els-message-label { color: #dc2626; }
+
+        .login-card #information .els-message-info { border-color: #bfdbfe; }
+        .login-card #information .els-message-info .els-message-icon { background: #eff6ff; color: #2563eb; }
+        .login-card #information .els-message-info .els-message-label { color: #2563eb; }
 
         .login-card .page-links {
             display: flex;
@@ -668,7 +729,7 @@
                     </div>
 
                     <!-- Area for inline information and error messages from API -->
-                    <div id="information" role="alert" aria-live="assertive" style="display:none; padding:12px;">
+                    <div id="information" role="alert" aria-live="assertive" class="els-message-stack" style="display:none;">
                     </div>
 
                     <form>
@@ -1008,15 +1069,29 @@
             try {
                 var el = $('#information');
                 if (!el || el.length === 0) return;
-                type = (type || 'info');
+                type = (type || 'warning').toLowerCase();
+                var mappedType = (type === 'success' || type === 'warning' || type === 'info') ? type : 'danger';
+                var label = mappedType === 'success' ? 'Success'
+                    : mappedType === 'warning' ? 'Warning'
+                        : mappedType === 'info' ? 'Info' : 'Error';
+                var icon = mappedType === 'success' ? '✓'
+                    : mappedType === 'warning' ? '⚠'
+                        : mappedType === 'info' ? 'i' : '⨯';
+
                 el.stop(true, true);
-                el.removeClass('info error').addClass(type);
-                el.html('<p>' + message + '</p>');
+                el.removeClass('info error');
+                el.html("<div class='els-message-card els-message-" + mappedType + "'>"
+                    + "<span class='els-message-icon' aria-hidden='true'>" + icon + "</span>"
+                    + "<div class='els-message-body'><span class='els-message-label'>" + label + "</span><p class='els-message-text'>" + message + "</p></div>"
+                    + "<button type='button' class='els-message-close' aria-label='Dismiss message' onclick='$(\"#information\").hide().empty()'>&times;</button>"
+                    + "</div>");
                 el.show();
                 var t = typeof timeoutMs === 'number' ? timeoutMs : 4500;
-                setTimeout(function () {
-                    el.fadeOut(250, function () { el.empty().removeClass('info error'); });
-                }, t);
+                if (mappedType === 'info' || mappedType === 'success') {
+                    setTimeout(function () {
+                        el.fadeOut(250, function () { el.empty().removeClass('info error'); });
+                    }, t);
+                }
             } catch (e) { /* ignore */ }
         }
 
@@ -1031,12 +1106,16 @@
                     var style = window.getComputedStyle(infoEl);
                     if (style && style.display !== 'none' && infoEl.innerHTML.trim() !== '') {
                         var el = $(infoEl);
-                        if (!el.hasClass('info') && !el.hasClass('error')) {
-                            el.addClass('error');
+                        if (el.find('.els-message-card').length === 0) {
+                            var fallbackText = el.text().trim();
+                            if (fallbackText.length > 0) {
+                                showInfo(fallbackText, 'danger');
+                                return;
+                            }
                         }
 
-                        // Keep important/error messages visible until user action.
-                        if (el.hasClass('error')) {
+                        var isPersistent = el.find('.els-message-warning, .els-message-danger, .els-message-error').length > 0;
+                        if (isPersistent) {
                             return;
                         }
 
@@ -1081,16 +1160,14 @@
                                          success: function (data) {
                                         setForgotPasswordProcessing(false);
                                         $("#forgotpassword").hide();
-                                             $('#information').show();
                                              $('#ForgotPassword').hide();
-                                             $('#information').html("<p>" + data + "</p>");
+                                             showInfo(data, 'success');
                                              $('body').removeClass('modal-open');
                                              $('.modal-backdrop').remove();
                                     },
                                     error: function () {
                                         setForgotPasswordProcessing(false);
-                                        $('#information').show();
-                                        $('#information').html("<p>Unable to process reset password request. Please try again.</p>");
+                                        showInfo('Unable to process reset password request. Please try again.', 'danger');
                                     }
                                 })
 
@@ -1164,8 +1241,7 @@
                                     data: model,
                                          success: function (data) {
                                         $("#ChangePassword").hide();
-                                        $('#information').show();
-                                             $('#information').html("<p>" + data + "</p>");
+                                        showInfo(data, 'success');
                                              $('body').removeClass('modal-open');
                                              $('.modal-backdrop').remove();
 
@@ -1193,8 +1269,7 @@
 
             if (!email || email.trim().length === 0 || !password || password.trim().length === 0)
             {
-                $('#information').show();
-                $('#information').html("<p>Please enter email and password.</p>");
+                showInfo('Please enter email and password.', 'warning');
                 return;
             }
 
@@ -1208,8 +1283,7 @@
                 data: { email: email, password: password },
                 success: function (resolveData) {
                     if (!resolveData || !resolveData.success) {
-                        $('#information').show();
-                        $('#information').html("<p>" + ((resolveData && resolveData.message) || "Login failed. Please check your email/password.") + "</p>");
+                        showInfo(((resolveData && resolveData.message) || 'Login failed. Please check your email/password.'), 'danger');
                         return;
                     }
 
@@ -1234,8 +1308,7 @@
                     } else {
                         setLoginModeHint(false, "", false);
                         if (!storeForLogin || storeForLogin.trim().length === 0) {
-                            $('#information').show();
-                            $('#information').html("<p>Please select a store before login.</p>");
+                            showInfo('Please select a store before login.', 'warning');
                             return;
                         }
                     }
@@ -1261,17 +1334,14 @@
                                 $("#ChangePassword").modal("show");
                             }
                             else if (data === "storeRequired") {
-                                $('#information').show();
-                                $('#information').html("<p>Store mapping not found for this user.</p>");
+                                showInfo('Store mapping not found for this user.', 'warning');
                             }
                             else if (data === "serviceUnavailable") {
-                                $('#information').show();
-                                $('#information').html("<p>The login service is unavailable. Please try again shortly.</p>");
+                                showInfo('The login service is unavailable. Please try again shortly.', 'danger');
                             }
                             else if (typeof data === "string" && data.indexOf("notApproved|") === 0) {
                                 var blockedMessage = data.substring("notApproved|".length);
-                                $('#information').show();
-                                $('#information').text(blockedMessage);
+                                showInfo(blockedMessage, 'warning');
                             }
                             else {
                                 var message = "Login failed. Please check your email/password.";
@@ -1282,8 +1352,7 @@
                                         message = data.message;
                                     }
                                 } catch (e) { }
-                                $('#information').show();
-                                $('#information').html("<p>" + message + "</p>");
+                                showInfo(message, 'danger');
                             }
                         },
                         error: function (jqXHR) {
@@ -1301,8 +1370,7 @@
                                     }
                                 }
                             } catch (e) { }
-                            $('#information').show();
-                            $('#information').html("<p>" + msg + "</p>");
+                            showInfo(msg, 'danger');
                         }
                     });
                 },
@@ -1320,8 +1388,7 @@
                             }
                         }
                     } catch (e) { }
-                    $('#information').show();
-                    $('#information').html('<p>' + msg + '</p>');
+                    showInfo(msg, 'danger');
                 }
             });
         });
@@ -1377,8 +1444,7 @@
                         if (typeof data === 'string' && data.indexOf('inactive|') === 0)
                         {
                             var inactiveMessage = data.substring('inactive|'.length) || 'Your account is inactive or pending approval. Please contact the super admin.';
-                            $('#information').show();
-                            $('#information').html('<p>' + inactiveMessage + '</p>');
+                            showInfo(inactiveMessage, 'warning');
                             setLoginModeHint(false, "", false);
                             $('#LoginCheck').prop('disabled', true);
                             $('#Store').empty();

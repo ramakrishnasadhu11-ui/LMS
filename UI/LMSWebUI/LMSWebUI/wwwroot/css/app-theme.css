@@ -576,3 +576,126 @@ ul#cnet ul li > a:hover {
 ul#cnet li:hover > a {
     text-decoration: none;
 }
+
+/* Unified in-app message cards */
+.els-message-stack {
+    margin: 12px 0 16px;
+    display: grid;
+    gap: 10px;
+}
+
+.els-message-card {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 12px 14px;
+    border-radius: 12px;
+    border: 1px solid var(--els-border);
+    background: #ffffff;
+    box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08);
+}
+
+.els-message-icon {
+    width: 32px;
+    height: 32px;
+    border-radius: 999px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+    font-weight: 700;
+    flex: 0 0 auto;
+}
+
+.els-message-body {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.els-message-label {
+    display: block;
+    margin-bottom: 2px;
+    font-size: 12px;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.els-message-text {
+    margin: 0;
+    font-size: 14px;
+    line-height: 1.35;
+    color: #0f172a;
+    font-weight: 600;
+}
+
+.els-message-close {
+    appearance: none;
+    border: 0;
+    background: transparent;
+    color: #64748b;
+    font-size: 20px;
+    line-height: 1;
+    padding: 0;
+    cursor: pointer;
+    flex: 0 0 auto;
+}
+
+.els-message-close:hover {
+    color: #334155;
+}
+
+.els-message-success {
+    border-color: #a7f3d0;
+}
+
+.els-message-success .els-message-icon {
+    background: #ecfdf5;
+    color: #059669;
+}
+
+.els-message-success .els-message-label {
+    color: #059669;
+}
+
+.els-message-warning {
+    border-color: #fde68a;
+}
+
+.els-message-warning .els-message-icon {
+    background: #fffbeb;
+    color: #d97706;
+}
+
+.els-message-warning .els-message-label {
+    color: #d97706;
+}
+
+.els-message-danger,
+.els-message-error {
+    border-color: #fecaca;
+}
+
+.els-message-danger .els-message-icon,
+.els-message-error .els-message-icon {
+    background: #fef2f2;
+    color: #dc2626;
+}
+
+.els-message-danger .els-message-label,
+.els-message-error .els-message-label {
+    color: #dc2626;
+}
+
+.els-message-info {
+    border-color: #bfdbfe;
+}
+
+.els-message-info .els-message-icon {
+    background: #eff6ff;
+    color: #2563eb;
+}
+
+.els-message-info .els-message-label {
+    color: #2563eb;
+}

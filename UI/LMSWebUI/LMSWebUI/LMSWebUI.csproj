@@ -52,4 +52,16 @@
     <ProjectReference Include="..\LMSClientFactory\LMSClientFactory.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Content Include="wwwroot\bower_components\bootstrap\**\*">
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </Content>
+    <Content Include="wwwroot\bower_components\font-awesome\**\*">
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </Content>
+    <Content Include="wwwroot\bower_components\Ionicons\**\*">
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </Content>
+  </ItemGroup>
+
 </Project>
