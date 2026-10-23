@@ -44,6 +44,11 @@
         : $"{resolvedBusinessName} profile avatar";
     var currentPathAndQuery = $"{Context?.Request?.Path}{Context?.Request?.QueryString}";
     var myProfileUrl = Url.Action("TenantProfileDetails", "Login", new { returnUrl = currentPathAndQuery });
+    var appDocumentTitle = "Excel Laundry Services | Laundry Management";
+    var pageTitle = Convert.ToString(ViewData["Title"] ?? string.Empty)?.Trim();
+    var fullDocumentTitle = string.IsNullOrWhiteSpace(pageTitle)
+        ? appDocumentTitle
+        : $"{pageTitle} | {appDocumentTitle}";
 
     if (!string.IsNullOrWhiteSpace(memberSinceRaw))
     {
@@ -62,7 +67,7 @@
 <head>
   <meta charset="utf-8">
   <meta http-equiv="X-UA-Compatible" content="IE=edge">
-  <title>ELS</title>
+  <title>@fullDocumentTitle</title>
   <!-- Tell the browser to be responsive to screen width -->
   <meta content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" name="viewport">
   <link rel="stylesheet" href="~/bower_components/bootstrap/dist/css/bootstrap.min.css">
@@ -489,7 +494,7 @@
       <!-- mini logo for sidebar mini 50x50 pixels -->
       <span class="logo-mini"><b>E<b>L<b>S</b></b></span>
       <!-- logo for regular state and mobile devices -->
-      <span class="logo-lg">Excel<b>Laundry<b>Services</b></b></span>
+      <span class="logo-lg">Excel Laundry Services — Laundry Management Software</span>
     </a>
     }
     <!-- Header Navbar -->
