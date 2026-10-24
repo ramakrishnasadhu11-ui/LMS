@@ -7,20 +7,32 @@ using AutoMapper;
 using LMS.Identity.DTO;
 using System;
 using System.Threading.Tasks;
+using System.Threading;
 using LMS.Identity.Utilities;
 using System.Net;
 using LMS.Identity.BusinessSerive.Common;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using Newtonsoft.Json.Linq;
 using MailKit.Security;
 using MimeKit;
 using Microsoft.Extensions.Logging;
+using System.Collections.Concurrent;
+using System.Data.Common;
+using Microsoft.Data.SqlClient;
+using Microsoft.EntityFrameworkCore.Storage;
+using System.Transactions;
 
 namespace LMS.Identity.BusinessSerive.Services
 {
     public class LoginService : ILoginService
     {
+        // Prevent concurrent registration requests for the same email from creating
+        // duplicate tenant records. SemaphoreSlim per-email serializes Register calls
+        // for a given email address in-process.
+        private static readonly ConcurrentDictionary<string, SemaphoreSlim> _registrationLocks = new();
+
         private readonly IMapper _mapper;
         private readonly IUnitOfWork<IdentityDbContext> _unitOfWork;
         private readonly IMailConfiguration _mailConfiguration;
@@ -48,19 +60,47 @@ namespace LMS.Identity.BusinessSerive.Services
 
         public async Task<ActionReturnType> Register(TenantDto tenantDto)
         {
-            if (tenantDto == null)
+            try
             {
-                return ActionSet.ActionReturnType(HttpStatusCode.NoContent, new IOResponse { StatusCode = "204", TenantId = "", Message = IdentityValidationMessage.IDENTITY_DATANOTFOUND_ERROR_MESSAGE });
-            }
-            else if (tenantDto != null)
-            {
-                var result = await _unitOfWork.DbContext.Tenants.FirstOrDefaultAsync(em => em.Email == tenantDto.Email);
-                if (result != null)
+                _logger?.LogInformation("Register called for Email={Email}, TenantName={TenantName}, NoOfStores={NoOfStores}", tenantDto?.Email, tenantDto?.TenantName, tenantDto?.NoOfStores);
+
+                if (tenantDto == null)
                 {
-                    return ActionSet.ActionReturnType(HttpStatusCode.AlreadyReported, new IOResponse { StatusCode = "208", Message = IdentityValidationMessage.IDENTITY_DATAFOUND_ERROR_MESSAGE });
+                    return ActionSet.ActionReturnType(HttpStatusCode.NoContent, new IOResponse { StatusCode = "204", TenantId = "", Message = IdentityValidationMessage.IDENTITY_DATANOTFOUND_ERROR_MESSAGE });
+                }
+                else if (tenantDto != null)
+                {
+                if (string.IsNullOrWhiteSpace(tenantDto.Email)
+                    || string.IsNullOrWhiteSpace(tenantDto.TenantName)
+                    || tenantDto.NoOfStores <= 0)
+                {
+                    return ActionSet.ActionReturnType(HttpStatusCode.BadRequest, new IOResponse
+                    {
+                        StatusCode = "400",
+                        TenantId = string.Empty,
+                        Message = "Tenant name, email, and number of stores are required."
+                    });
                 }
 
+                tenantDto.Email = tenantDto.Email.Trim();
+                tenantDto.TenantName = tenantDto.TenantName.Trim();
+
+                // Serialize concurrent registrations for the same email so two
+                // simultaneous requests cannot both create a tenant row. Hold the
+                // lock through persistence and tenant-store creation.
+                var normalizedEmailKey = tenantDto.Email.ToLowerInvariant();
+                var sem = _registrationLocks.GetOrAdd(normalizedEmailKey, _ => new SemaphoreSlim(1, 1));
+                await sem.WaitAsync();
+                try
+                {
+                    var result = await _unitOfWork.DbContext.Tenants.FirstOrDefaultAsync(em => em.Email == tenantDto.Email);
+                    if (result != null)
+                    {
+                        return ActionSet.ActionReturnType(HttpStatusCode.AlreadyReported, new IOResponse { StatusCode = "208", Message = IdentityValidationMessage.IDENTITY_DATAFOUND_ERROR_MESSAGE });
+                    }
+
                 var tenantData = _mapper.Map<TenantEntity>(tenantDto);
+                // Assign TenantId early so tenant-level configuration can reference it atomically.
                 var guid = Guid.NewGuid();
                 var tenantid = Convert.ToString(guid);
                 tenantData.TenantId = tenantid;
@@ -68,12 +108,265 @@ namespace LMS.Identity.BusinessSerive.Services
                 tenantData.CreatedDate = DateTime.UtcNow;
                 // New tenants stay pending until a super admin approves them.
                 tenantData.ApprovalStatus = TenantApprovalStatus.Pending;
+
+                // Build tenant-level configuration (StoreCode = empty) and persist it together with tenant to avoid partial state.
+                // Build configuration JSON for tenant-level (StoreCode = empty). TenantName intentionally set to tenant email per API contract.
+                // Normalize currency inputs from the incoming DTO so values provided by the UI are preserved.
+                var providedCurrencyCode = tenantDto.CurrencyCode?.Trim();
+                var providedCurrencySymbol = tenantDto.CurrencySymbol?.Trim();
+                var providedCurrencyLocale = tenantDto.CurrencyLocale?.Trim();
+                int? providedCurrencyDigits = tenantDto.CurrencyDecimalDigits;
+
+                var defaultCfg = CountryCurrencyMapping.GetDefaultForCountry(tenantDto.Country);
+
+                var configurationJson = Newtonsoft.Json.JsonConvert.SerializeObject(new
+                {
+                    TenantName = tenantDto.Email,
+                    StoreCode = string.Empty,
+                    CurrencyCode = string.IsNullOrWhiteSpace(providedCurrencyCode) ? defaultCfg?.CurrencyCode : providedCurrencyCode,
+                    CurrencySymbol = string.IsNullOrWhiteSpace(providedCurrencySymbol) ? defaultCfg?.CurrencySymbol : providedCurrencySymbol,
+                    CurrencyLocale = string.IsNullOrWhiteSpace(providedCurrencyLocale) ? defaultCfg?.CurrencyLocale : providedCurrencyLocale,
+                    CurrencyDecimalDigits = providedCurrencyDigits ?? defaultCfg?.DecimalDigits
+                });
+
+                // Add both tenant and tenant-level configuration and save in one transaction so failure leaves no partial state.
                 _unitOfWork.DbContext.Tenants.Add(tenantData);
-                await _unitOfWork.SaveChangesAsync();
-                // No-op reaffirmation to ensure earlier changes are stable.
-                await CreateTenantUserInfoAsync(tenantDto, tenantid);
-                return ActionSet.ActionReturnType(HttpStatusCode.Created, new IOResponse { StatusCode = "200", TenantId = tenantid, Message = IdentityValidationMessage.IDENTITY_INSERT_SUCCESS_MESSAGE, TenantName = tenantDto.TenantName });
+                var cfgEntity = new LMS.Identity.DTO.Entities.StoreConfigurationEntity
+                {
+                    TenantId = tenantData.TenantId,
+                    StoreCode = string.Empty,
+                    ConfigurationJson = configurationJson,
+                    CurrencyCode = string.IsNullOrWhiteSpace(providedCurrencyCode) ? defaultCfg?.CurrencyCode : providedCurrencyCode,
+                    CurrencySymbol = string.IsNullOrWhiteSpace(providedCurrencySymbol) ? defaultCfg?.CurrencySymbol : providedCurrencySymbol,
+                    CurrencyLocale = string.IsNullOrWhiteSpace(providedCurrencyLocale) ? defaultCfg?.CurrencyLocale : providedCurrencyLocale,
+                    CurrencyDecimalDigits = providedCurrencyDigits ?? defaultCfg?.DecimalDigits,
+                    CreatedDate = DateTime.UtcNow,
+                    ModifiedDate = DateTime.UtcNow,
+                    CreatedBy = tenantDto.Email,
+                    ModifiedBy = tenantDto.Email
+                };
+                _unitOfWork.DbContext.StoreConfigurations.Add(cfgEntity);
+                // Persist tenant and tenant-level configuration immediately so
+                // database-level unique constraint violations are detected here.
+                try
+                {
+                    await _unitOfWork.SaveChangesAsync();
+                }
+                catch (DbUpdateException dbEx)
+                {
+                    // If this is a SQL Server duplicate-key error for the Tenants.Email
+                    // unique index, return the existing 208 duplicate response.
+                    if (IsSqlServerDuplicateKeyException(dbEx))
+                    {
+                        _logger?.LogWarning(dbEx, "Duplicate tenant detected while saving Tenant.Email={Email}", tenantDto?.Email);
+                        // Detach any newly-added entities so the DbContext isn't left in a bad state.
+                        try
+                        {
+                            var added = _unitOfWork.DbContext.ChangeTracker.Entries()
+                                .Where(e => e.State == EntityState.Added)
+                                .ToList();
+                            foreach (var ent in added)
+                            {
+                                ent.State = EntityState.Detached;
+                            }
+                        }
+                        catch (Exception detEx)
+                        {
+                            _logger?.LogWarning(detEx, "Failed to detach entries after duplicate key error for Email={Email}", tenantDto?.Email);
+                        }
+
+                        return ActionSet.ActionReturnType(HttpStatusCode.AlreadyReported, new IOResponse { StatusCode = "208", Message = IdentityValidationMessage.IDENTITY_DATAFOUND_ERROR_MESSAGE });
+                    }
+
+                    throw;
+                }
+
+                // Helper: determine whether a DbUpdateException was caused by a SQL Server
+                // unique constraint violation on Tenants.Email. Checks SqlException numbers
+                // 2627 (unique constraint) and 2601 (unique index) and looks for the Email
+                // or IX_Tenants_Email text in the message when available.
+                static bool IsSqlServerDuplicateKeyException(DbUpdateException ex)
+                {
+                    if (ex == null) return false;
+                    // Inspect inner exceptions for SqlException
+                    Exception inner = ex;
+                    while (inner != null)
+                    {
+                        if (inner is SqlException sqlEx)
+                        {
+                            // SQL Server error numbers for unique constraint/index violations
+                            if (sqlEx.Number == 2627 || sqlEx.Number == 2601)
+                            {
+                                // Best-effort: check if the message references the Tenants table or Email column
+                                var msg = sqlEx.Message ?? string.Empty;
+                                if (msg.IndexOf("Tenants", StringComparison.OrdinalIgnoreCase) >= 0
+                                    || msg.IndexOf("IX_Tenants_Email", StringComparison.OrdinalIgnoreCase) >= 0
+                                    || msg.IndexOf("Email", StringComparison.OrdinalIgnoreCase) >= 0)
+                                {
+                                    return true;
+                                }
+                                return true;
+                            }
+                        }
+
+                        if (inner is DbException dbEx2)
+                        {
+                            // If other providers wrap SQL Server error, inspect message
+                            var msg2 = dbEx2.Message ?? string.Empty;
+                            if ((msg2.IndexOf("unique", StringComparison.OrdinalIgnoreCase) >= 0
+                                 || msg2.IndexOf("duplicate", StringComparison.OrdinalIgnoreCase) >= 0)
+                                 && msg2.IndexOf("Email", StringComparison.OrdinalIgnoreCase) >= 0)
+                            {
+                                return true;
+                            }
+                        }
+
+                        inner = inner.InnerException;
+                    }
+
+                    return false;
+                }
+            // Keep TenantStoreInfos.Status in sync with tenant approval state so the
+            // approval and the store info status are persisted together atomically.
+            var tenantStoreInfo = await GetTenantStoreByTenantIdAsync(tenantid);
+            if (tenantStoreInfo != null)
+            {
+                // New tenant starts as Pending; only Approved tenants are Active.
+                tenantStoreInfo.Status = tenantData.ApprovalStatus == TenantApprovalStatus.Approved
+                    ? "Active"
+                    : tenantData.ApprovalStatus == TenantApprovalStatus.Rejected
+                        ? "InActive"
+                        : tenantStoreInfo.Status;
             }
+
+                try
+                {
+                    // Create tenant user/store info and start email delivery in background.
+                    // Execute within the semaphore to avoid races that could produce
+                    // duplicate TenantStoreInfos rows. Start CreateTenantUserInfoAsync
+                    // synchronously here to ensure TenantStoreInfos rows are created
+                    // before releasing the semaphore; any long-running email send is
+                    // performed internally by SendEmailToRegisterTenantAsync which
+                    // already logs failures and does not throw to callers.
+                    await CreateTenantUserInfoAsync(tenantDto, tenantid);
+                }
+                catch (Exception ex)
+                {
+                    // If tenant store creation or email sending fails, log error but
+                    // do not fail the registration. Email sending may be slow; errors
+                    // are logged for diagnostics.
+                    _logger?.LogError(ex, "CreateTenantUserInfoAsync failed for TenantId={TenantId}", tenantid);
+                }
+
+                var registrationMessage = IdentityValidationMessage.IDENTITY_INSERT_SUCCESS_MESSAGE;
+
+                // Ensure tenant-level configuration StoreCode reflects an existing assigned store code
+                // Do not generate a new code here; use the first assigned store code if present.
+                // Reload the tenant store info and tenant-level configuration from the database
+                // and update the existing persisted StoreConfiguration row with the first assigned store code.
+                try
+                {
+                    _logger?.LogInformation("Fetching TenantStoreInfo for TenantId={TenantId}", tenantid);
+                    // Check DB connectivity first to fail fast and produce useful logs
+                    try
+                    {
+                        var canConnect = await _unitOfWork.DbContext.Database.CanConnectAsync();
+                        _logger?.LogInformation("Database connectivity: {CanConnect}", canConnect);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger?.LogWarning(ex, "Database connectivity check failed before fetching TenantStoreInfo for TenantId={TenantId}", tenantid);
+                    }
+
+                    // Use a short cancellation timeout to avoid hanging indefinitely while debugging
+                    TenantStoreInfoEntity tenantStoreInfoAfter = null;
+                    try
+                    {
+                        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+                        tenantStoreInfoAfter = await _unitOfWork.DbContext.TenantStoreInfos
+                            .AsNoTracking()
+                            .FirstOrDefaultAsync(tsi => tsi.TenantId == tenantid, cts.Token);
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        _logger?.LogWarning("Timeout while fetching TenantStoreInfo for TenantId={TenantId}", tenantid);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger?.LogError(ex, "Error fetching TenantStoreInfo for TenantId={TenantId}", tenantid);
+                    }
+                    var firstStoreCode = (tenantStoreInfoAfter?.Storecodes ?? new List<string>()).FirstOrDefault();
+                    if (!string.IsNullOrWhiteSpace(firstStoreCode))
+                    {
+                        var normalizedCode = firstStoreCode.Trim();
+
+                        // Load the persisted tenant-level configuration (StoreCode was saved as empty string at registration)
+                        var persistedCfg = await _unitOfWork.DbContext.StoreConfigurations
+                            .FirstOrDefaultAsync(x => x.TenantId == tenantid && (x.StoreCode == null || x.StoreCode == string.Empty));
+
+                        if (persistedCfg != null && string.IsNullOrWhiteSpace(persistedCfg.StoreCode))
+                        {
+                            persistedCfg.StoreCode = normalizedCode;
+
+                            // Update ConfigurationJson StoreCode property if present
+                            try
+                            {
+                                var j = JObject.Parse(persistedCfg.ConfigurationJson ?? string.Empty);
+                                j["StoreCode"] = normalizedCode;
+                                // If currency properties are present in the JSON, copy them to the dedicated columns
+                                try
+                                {
+                                    var cc = j["CurrencyCode"]?.ToString();
+                                    if (!string.IsNullOrWhiteSpace(cc)) persistedCfg.CurrencyCode = cc;
+                                    var cs = j["CurrencySymbol"]?.ToString();
+                                    if (!string.IsNullOrWhiteSpace(cs)) persistedCfg.CurrencySymbol = cs;
+                                    var cl = j["CurrencyLocale"]?.ToString();
+                                    if (!string.IsNullOrWhiteSpace(cl)) persistedCfg.CurrencyLocale = cl;
+                                    if (j["CurrencyDecimalDigits"] != null && int.TryParse(j["CurrencyDecimalDigits"].ToString(), out var digs)) persistedCfg.CurrencyDecimalDigits = digs;
+                                }
+                                catch { /* swallow secondary parse errors to avoid failing the whole update */ }
+
+                                persistedCfg.ConfigurationJson = j.ToString(Newtonsoft.Json.Formatting.None);
+                            }
+                            catch
+                            {
+                                // If parsing fails, regenerate minimal JSON with the new StoreCode while preserving TenantName when possible
+                                string tenantName = tenantDto?.Email ?? string.Empty;
+                                var cfgObj = new { TenantName = tenantName, StoreCode = normalizedCode };
+                                persistedCfg.ConfigurationJson = Newtonsoft.Json.JsonConvert.SerializeObject(cfgObj);
+                            }
+
+                            await _unitOfWork.SaveChangesAsync();
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger?.LogWarning(ex, "Failed to update tenant-level StoreConfiguration StoreCode for TenantId {TenantId}", tenantid);
+                }
+
+                // Note: semaphore is released in the outer finally block to ensure a
+                // single release happens exactly once for the local 'sem' instance.
+
+                // Return 200 OK for success. The response body contains the TenantId
+                // and a human-friendly message. The per-email semaphore was held for
+                // the duration of persistence and tenant store creation to prevent
+                // concurrent duplicates.
+                return ActionSet.ActionReturnType(HttpStatusCode.OK, new IOResponse { StatusCode = "200", TenantId = tenantid, Message = registrationMessage, TenantName = tenantDto.TenantName });
+                }
+                finally
+                {
+                    // release the semaphore so other attempts for this email can proceed
+                    try { sem.Release(); } catch { }
+                }
+            }
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogError(ex, "Unhandled exception in Register for Email={Email}", tenantDto?.Email);
+                return ActionSet.ActionReturnType(HttpStatusCode.InternalServerError, new IOResponse { StatusCode = "500", TenantId = "", Message = IdentityValidationMessage.IDENTITY_INSERT_ERROR_MESSAGE });
+            }
+            // Fallback return to satisfy all control-flow paths. In practice the catch above returns for exceptions.
             return ActionSet.ActionReturnType(HttpStatusCode.InternalServerError, new IOResponse { StatusCode = "500", TenantId = "", Message = IdentityValidationMessage.IDENTITY_INSERT_ERROR_MESSAGE });
         }
         private const string StorePendingActivationMessage = "Store is pending activation by super admin.";
@@ -428,7 +721,14 @@ namespace LMS.Identity.BusinessSerive.Services
         {
             try
             {
-                return await CreateTenantStoreCore(tenantEmail, storeCode);
+                // Some callers execute inside ambient TransactionScope.
+                // Suppress it here so this API flow controls its own transaction boundaries.
+                using (var suppressedScope = new TransactionScope(TransactionScopeOption.Suppress, TransactionScopeAsyncFlowOption.Enabled))
+                {
+                    var result = await CreateTenantStoreCore(tenantEmail, storeCode);
+                    suppressedScope.Complete();
+                    return result;
+                }
             }
             catch (Exception ex)
             {
@@ -486,7 +786,6 @@ namespace LMS.Identity.BusinessSerive.Services
                     Storecodes = existingStoreCodes
                 });
             }
-
             existingStoreCodes.Add(normalizedStoreCode);
             tenantStoreInfo.Storecodes = existingStoreCodes;
 
@@ -504,7 +803,108 @@ namespace LMS.Identity.BusinessSerive.Services
                 });
             }
 
-            await _unitOfWork.SaveChangesAsync();
+            try
+            {
+                // Resolve currency: priority -> tenantStoreInfo columns -> tenant-level config -> country defaults
+                string currencyCode = null;
+                string currencySymbol = null;
+                string currencyLocale = null;
+                int? currencyDigits = null;
+
+                if (!string.IsNullOrWhiteSpace(tenantStoreInfo?.CurrencyCode)) currencyCode = tenantStoreInfo.CurrencyCode;
+                if (!string.IsNullOrWhiteSpace(tenantStoreInfo?.CurrencySymbol)) currencySymbol = tenantStoreInfo.CurrencySymbol;
+                if (!string.IsNullOrWhiteSpace(tenantStoreInfo?.CurrencyLocale)) currencyLocale = tenantStoreInfo.CurrencyLocale;
+                if (tenantStoreInfo?.CurrencyDecimalDigits.HasValue == true) currencyDigits = tenantStoreInfo.CurrencyDecimalDigits;
+
+                var tenantLevelCfg = await _unitOfWork.DbContext.StoreConfigurations
+                    .FirstOrDefaultAsync(x => x.TenantId == tenant.TenantId && (x.StoreCode == null || x.StoreCode == string.Empty));
+
+                if (tenantLevelCfg != null)
+                {
+                    currencyCode = currencyCode ?? tenantLevelCfg.CurrencyCode;
+                    currencySymbol = currencySymbol ?? tenantLevelCfg.CurrencySymbol;
+                    currencyLocale = currencyLocale ?? tenantLevelCfg.CurrencyLocale;
+                    currencyDigits = currencyDigits ?? tenantLevelCfg.CurrencyDecimalDigits;
+                }
+
+                    if (string.IsNullOrWhiteSpace(currencyCode) || string.IsNullOrWhiteSpace(currencySymbol) || string.IsNullOrWhiteSpace(currencyLocale) || currencyDigits == null)
+                    {
+                        var defaultCfg = CountryCurrencyMapping.GetDefaultForCountry(tenant.Country);
+                        if (defaultCfg != null)
+                        {
+                            currencyCode = currencyCode ?? defaultCfg.CurrencyCode;
+                            currencySymbol = currencySymbol ?? defaultCfg.CurrencySymbol;
+                            currencyLocale = currencyLocale ?? defaultCfg.CurrencyLocale;
+                            currencyDigits = currencyDigits ?? defaultCfg.DecimalDigits;
+                        }
+                    }
+
+                    // Persist resolved currency to tenant store info so it is available for future store creations
+                    if (tenantStoreInfo != null)
+                    {
+                        tenantStoreInfo.CurrencyCode = currencyCode;
+                        tenantStoreInfo.CurrencySymbol = currencySymbol;
+                        tenantStoreInfo.CurrencyLocale = currencyLocale;
+                        tenantStoreInfo.CurrencyDecimalDigits = currencyDigits;
+                    }
+
+                // Ensure store configuration exists for the new store and contains comprehensive JSON
+                var existingCfg = await _unitOfWork.DbContext.StoreConfigurations
+                    .FirstOrDefaultAsync(x => x.TenantId == tenant.TenantId && x.StoreCode == normalizedStoreCode);
+
+                if (existingCfg == null)
+                {
+                    string configurationJson = tenantLevelCfg?.ConfigurationJson ?? Newtonsoft.Json.JsonConvert.SerializeObject(new { TenantName = tenant.Email, StoreCode = normalizedStoreCode });
+
+                    try
+                    {
+                        var j = JObject.Parse(configurationJson ?? string.Empty);
+                        j["TenantName"] = tenant.Email;
+                        j["StoreCode"] = normalizedStoreCode;
+                        if (!string.IsNullOrWhiteSpace(currencyCode)) j["CurrencyCode"] = currencyCode;
+                        if (!string.IsNullOrWhiteSpace(currencySymbol)) j["CurrencySymbol"] = currencySymbol;
+                        if (!string.IsNullOrWhiteSpace(currencyLocale)) j["CurrencyLocale"] = currencyLocale;
+                        if (currencyDigits.HasValue) j["CurrencyDecimalDigits"] = currencyDigits.Value;
+                        configurationJson = j.ToString(Newtonsoft.Json.Formatting.None);
+                    }
+                    catch
+                    {
+                        configurationJson = Newtonsoft.Json.JsonConvert.SerializeObject(new
+                        {
+                            TenantName = tenant.Email,
+                            StoreCode = normalizedStoreCode,
+                            CurrencyCode = currencyCode,
+                            CurrencySymbol = currencySymbol,
+                            CurrencyLocale = currencyLocale,
+                            CurrencyDecimalDigits = currencyDigits
+                        });
+                    }
+
+                    var cfgEntity = new StoreConfigurationEntity
+                    {
+                        TenantId = tenant.TenantId,
+                        StoreCode = normalizedStoreCode,
+                        ConfigurationJson = configurationJson,
+                        CurrencyCode = string.IsNullOrWhiteSpace(currencyCode) ? null : currencyCode,
+                        CurrencySymbol = string.IsNullOrWhiteSpace(currencySymbol) ? null : currencySymbol,
+                        CurrencyLocale = string.IsNullOrWhiteSpace(currencyLocale) ? null : currencyLocale,
+                        CurrencyDecimalDigits = currencyDigits,
+                        CreatedDate = DateTime.UtcNow,
+                        CreatedBy = tenant.Email,
+                        ModifiedDate = DateTime.UtcNow,
+                        ModifiedBy = tenant.Email
+                    };
+
+                    _unitOfWork.DbContext.StoreConfigurations.Add(cfgEntity);
+                }
+
+                await _unitOfWork.SaveChangesAsync();
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogError(ex, "Failed while creating store {StoreCode} for TenantId {TenantId}", normalizedStoreCode, tenant.TenantId);
+                throw;
+            }
 
             return ActionSet.ActionReturnType(HttpStatusCode.OK, new IOResponse
             {
@@ -588,10 +988,17 @@ namespace LMS.Identity.BusinessSerive.Services
                     var status = statuses.FirstOrDefault(s => s.TenantId == tenant.TenantId
                         && string.Equals(s.StoreCode, code, StringComparison.OrdinalIgnoreCase));
 
+                    var tenantIsApproved = TenantApprovalStatus.IsApproved(tenant.ApprovalStatus);
+                    var storeInfoStatus = (storeInfo?.Status ?? string.Empty).Trim();
+                    var storeInfoIsActive = string.Equals(storeInfoStatus, "Active", StringComparison.OrdinalIgnoreCase)
+                        || string.Equals(storeInfoStatus, "Approved", StringComparison.OrdinalIgnoreCase);
+
+                    var effectiveIsActive = tenantIsApproved && (status?.IsActive ?? storeInfoIsActive);
+
                     result.Add(new TenantStoreStatusDto
                     {
                         StoreCode = code,
-                        IsActive = status == null || status.IsActive,
+                        IsActive = effectiveIsActive,
                         ActivatedBy = status?.ActivatedBy,
                         ActivatedDate = status?.ActivatedDate,
                         TenantId = tenant.TenantId,
@@ -855,6 +1262,15 @@ namespace LMS.Identity.BusinessSerive.Services
             tenant.ApprovalDate = DateTime.UtcNow;
             tenant.ModifiedDate = DateTime.UtcNow;
 
+            // Also update the legacy TenantStoreInfos.Status to reflect approval state
+            // so UI and authentication checks (which read TenantStoreInfos.Status) see the
+            // correct active/inactive value. Do not modify other fields.
+            var tenantStoreInfo = await GetTenantStoreByTenantIdAsync(tenant.TenantId);
+            if (tenantStoreInfo != null)
+            {
+                tenantStoreInfo.Status = isApprove ? "Active" : (isReject ? "InActive" : tenantStoreInfo.Status);
+            }
+
             await _unitOfWork.SaveChangesAsync();
 
             var message = isApprove
@@ -895,6 +1311,7 @@ namespace LMS.Identity.BusinessSerive.Services
             var tenantStore = await GetTenantStoreByTenantIdAsync(tenant.TenantId);
             var storeCode = model.StoreCode.Trim();
             var normalizedEmail = model.Email.Trim();
+            var normalizedEmailLower = normalizedEmail.ToLower();
             if (tenantStore == null || tenantStore.Storecodes == null || !tenantStore.Storecodes.Any(s => string.Equals(s, storeCode, StringComparison.OrdinalIgnoreCase)))
             {
                 return ActionSet.ActionReturnType(HttpStatusCode.BadRequest, new IOResponse
@@ -904,13 +1321,14 @@ namespace LMS.Identity.BusinessSerive.Services
                 });
             }
 
-            var existing = await _unitOfWork.DbContext.StoreUsers.FirstOrDefaultAsync(x => x.TenantId == tenant.TenantId && x.StoreCode == storeCode && x.Email == normalizedEmail);
+            var existing = await _unitOfWork.DbContext.StoreUsers
+                .FirstOrDefaultAsync(x => x.Email != null && x.Email.ToLower() == normalizedEmailLower);
             if (existing != null)
             {
                 return ActionSet.ActionReturnType(HttpStatusCode.Conflict, new IOResponse
                 {
                     StatusCode = "409",
-                    Message = "Store user already exists for this store."
+                    Message = "Store user email already exists. Please use a different email."
                 });
             }
 
@@ -1037,12 +1455,13 @@ namespace LMS.Identity.BusinessSerive.Services
 
         public async Task<ActionReturnType> GetStoreConfiguration(string tenantEmail, string storeCode)
         {
-            if (string.IsNullOrWhiteSpace(tenantEmail) || string.IsNullOrWhiteSpace(storeCode))
+            // tenantEmail is required; storeCode may be empty string to indicate tenant-level configuration
+            if (string.IsNullOrWhiteSpace(tenantEmail) || storeCode == null)
             {
                 return ActionSet.ActionReturnType(HttpStatusCode.BadRequest, new IOResponse
                 {
                     StatusCode = "400",
-                    Message = "Tenant email and store code are required."
+                    Message = "Tenant email is required. Store code may be empty for tenant-level configuration."
                 });
             }
 
@@ -1075,19 +1494,44 @@ namespace LMS.Identity.BusinessSerive.Services
                 StatusCode = "200",
                 Email = tenantEmail,
                 Storecodes = new List<string> { normalizedStoreCode },
-                ConfigurationJson = config.ConfigurationJson,
+                // Prefer dedicated currency columns as authoritative at runtime; fall back to values embedded in JSON for legacy rows.
+                ConfigurationJson = BuildConfigurationJsonWithCurrencyOverrides(config),
                 Message = string.Empty
             });
         }
 
+        // Merge dedicated currency columns into ConfigurationJson for runtime consumers.
+        private static string BuildConfigurationJsonWithCurrencyOverrides(StoreConfigurationEntity config)
+        {
+            try
+            {
+                var j = string.IsNullOrWhiteSpace(config.ConfigurationJson)
+                    ? new JObject()
+                    : JObject.Parse(config.ConfigurationJson);
+
+                if (!string.IsNullOrWhiteSpace(config.CurrencyCode)) j["CurrencyCode"] = config.CurrencyCode;
+                if (!string.IsNullOrWhiteSpace(config.CurrencySymbol)) j["CurrencySymbol"] = config.CurrencySymbol;
+                if (!string.IsNullOrWhiteSpace(config.CurrencyLocale)) j["CurrencyLocale"] = config.CurrencyLocale;
+                if (config.CurrencyDecimalDigits.HasValue) j["CurrencyDecimalDigits"] = config.CurrencyDecimalDigits.Value;
+
+                return j.ToString(Newtonsoft.Json.Formatting.None);
+            }
+            catch
+            {
+                // On parse error, fall back to raw JSON to avoid breaking API contract.
+                return config.ConfigurationJson ?? string.Empty;
+            }
+        }
+
         public async Task<ActionReturnType> NewStoreConfiguration(NewStoreConfigurationDto model)
         {
-            if (model == null || string.IsNullOrWhiteSpace(model.TenantEmail) || string.IsNullOrWhiteSpace(model.StoreCode) || string.IsNullOrWhiteSpace(model.ConfigurationJson))
+            // Allow storeCode to be empty string for tenant-level configuration; require tenant email and configuration JSON
+            if (model == null || string.IsNullOrWhiteSpace(model.TenantEmail) || model.StoreCode == null || string.IsNullOrWhiteSpace(model.ConfigurationJson))
             {
                 return ActionSet.ActionReturnType(HttpStatusCode.BadRequest, new IOResponse
                 {
                     StatusCode = "400",
-                    Message = "Tenant email, store code and configuration are required."
+                    Message = "Tenant email and configuration are required. Store code may be empty for tenant-level configuration."
                 });
             }
 
@@ -1116,17 +1560,43 @@ namespace LMS.Identity.BusinessSerive.Services
                     TenantId = tenant.TenantId,
                     StoreCode = normalizedStoreCode,
                     ConfigurationJson = model.ConfigurationJson,
+                    // Extract currency values from supplied JSON (best-effort). Missing values remain null.
+                    CurrencyCode = null,
+                    CurrencySymbol = null,
+                    CurrencyLocale = null,
+                    CurrencyDecimalDigits = null,
                     CreatedDate = utcNow,
                     CreatedBy = updatedBy,
                     ModifiedDate = utcNow,
                     ModifiedBy = updatedBy
                 };
 
+                // parse JSON for currency override
+                try
+                {
+                    var j = JObject.Parse(model.ConfigurationJson ?? string.Empty);
+                    var cc = j["CurrencyCode"]?.ToString(); if (!string.IsNullOrWhiteSpace(cc)) existing.CurrencyCode = cc;
+                    var cs = j["CurrencySymbol"]?.ToString(); if (!string.IsNullOrWhiteSpace(cs)) existing.CurrencySymbol = cs;
+                    var cl = j["CurrencyLocale"]?.ToString(); if (!string.IsNullOrWhiteSpace(cl)) existing.CurrencyLocale = cl;
+                    if (j["CurrencyDecimalDigits"] != null && int.TryParse(j["CurrencyDecimalDigits"].ToString(), out var digs)) existing.CurrencyDecimalDigits = digs;
+                }
+                catch { }
+
                 _unitOfWork.DbContext.StoreConfigurations.Add(existing);
             }
             else
             {
                 existing.ConfigurationJson = model.ConfigurationJson;
+                // update dedicated currency columns if present in the incoming JSON
+                try
+                {
+                    var j = JObject.Parse(model.ConfigurationJson ?? string.Empty);
+                    var cc = j["CurrencyCode"]?.ToString(); if (!string.IsNullOrWhiteSpace(cc)) existing.CurrencyCode = cc;
+                    var cs = j["CurrencySymbol"]?.ToString(); if (!string.IsNullOrWhiteSpace(cs)) existing.CurrencySymbol = cs;
+                    var cl = j["CurrencyLocale"]?.ToString(); if (!string.IsNullOrWhiteSpace(cl)) existing.CurrencyLocale = cl;
+                    if (j["CurrencyDecimalDigits"] != null && int.TryParse(j["CurrencyDecimalDigits"].ToString(), out var digs)) existing.CurrencyDecimalDigits = digs;
+                }
+                catch { }
                 existing.ModifiedDate = utcNow;
                 existing.ModifiedBy = updatedBy;
             }
@@ -1183,7 +1653,7 @@ namespace LMS.Identity.BusinessSerive.Services
                 if (tenantregistryresult == null)
                     return ActionSet.ActionReturnType(HttpStatusCode.NotFound, new IOResponse { StatusCode = "404", Email = eMail, Message = IdentityValidationMessage.IDENTITY_DATANOTFOUND_EMAIL_MESSAGE });
                 else
-                    return ActionSet.ActionReturnType(HttpStatusCode.OK, new IOResponse { StatusCode = "200", Address = tenantregistryresult.Address, Country = tenantregistryresult.Country, PhoneNumber = tenantregistryresult.PhoneNumber, Email = eMail, TenantName = tenantregistryresult.TenantName, Message = IdentityValidationMessage.IDENTITY_DATAFOUND_EMAIL_MESSAGE });
+                    return ActionSet.ActionReturnType(HttpStatusCode.OK, new IOResponse { StatusCode = "200", Address = tenantregistryresult.Address, Country = tenantregistryresult.Country, PhoneNumber = tenantregistryresult.PhoneNumber, Email = eMail, TenantName = tenantregistryresult.TenantName, CreatedDate = tenantregistryresult.CreatedDate, Message = IdentityValidationMessage.IDENTITY_DATAFOUND_EMAIL_MESSAGE });
             }
             return ActionSet.ActionReturnType(HttpStatusCode.InternalServerError, new IOResponse { StatusCode = "500", Email = "", Message = IdentityValidationMessage.IDENTITY_LOGINTENANT_ERROR_MESSAGE });
         }
@@ -1251,7 +1721,7 @@ namespace LMS.Identity.BusinessSerive.Services
             TenantStoreInfoEntity TenantStoreInfoEntity = new TenantStoreInfoEntity();
             TenantStoreInfoEntity.TenantId = tenantid;
             TenantStoreInfoEntity.Name = tenantDto.TenantName;
-            TenantStoreInfoEntity.Status = "ÏnActive";
+            TenantStoreInfoEntity.Status = "InActive";
             TenantStoreInfoEntity.IsPasswordChanged = false;
             TenantStoreInfoEntity.Password = PasswordHasher.Hash(password);
             List<string> storeCodes = new List<string>();
@@ -1261,9 +1731,41 @@ namespace LMS.Identity.BusinessSerive.Services
                 storeCodes.Add(code);
             }
             TenantStoreInfoEntity.Storecodes = storeCodes;
+            // Resolve tenant-level currency defaults from incoming DTO or fall back to country mapping
+            var providedCurrencyCode = tenantDto.CurrencyCode?.Trim();
+            var providedCurrencySymbol = tenantDto.CurrencySymbol?.Trim();
+            var providedCurrencyLocale = tenantDto.CurrencyLocale?.Trim();
+            int? providedCurrencyDigits = tenantDto.CurrencyDecimalDigits;
+
+            var defaultCfg = CountryCurrencyMapping.GetDefaultForCountry(tenantDto.Country);
+            TenantStoreInfoEntity.CurrencyCode = string.IsNullOrWhiteSpace(providedCurrencyCode) ? defaultCfg?.CurrencyCode : providedCurrencyCode;
+            TenantStoreInfoEntity.CurrencySymbol = string.IsNullOrWhiteSpace(providedCurrencySymbol) ? defaultCfg?.CurrencySymbol : providedCurrencySymbol;
+            TenantStoreInfoEntity.CurrencyLocale = string.IsNullOrWhiteSpace(providedCurrencyLocale) ? defaultCfg?.CurrencyLocale : providedCurrencyLocale;
+            TenantStoreInfoEntity.CurrencyDecimalDigits = providedCurrencyDigits ?? defaultCfg?.DecimalDigits;
+
             _unitOfWork.DbContext.TenantStoreInfos.Add(TenantStoreInfoEntity);
             await _unitOfWork.SaveChangesAsync();
-            await SendEmailToRegisterTenantAsync(tenantDto.Email, password, storeCodes, tenantDto.TenantName);
+            // Send registration email in the background so slow mail servers do not delay
+            // or time out the API response. Do not await the send here -- log failures
+            // asynchronously. Returning true indicates the registration completed and
+            // the email delivery is being attempted in the background.
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    var isRegistrationMailSent = await SendEmailToRegisterTenantAsync(tenantDto.Email, password, storeCodes, tenantDto.TenantName);
+                    if (!isRegistrationMailSent)
+                    {
+                        _logger?.LogWarning("Tenant {TenantId} registered but registration email was not delivered to {Email}.", tenantid, tenantDto?.Email);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    // Failures while sending mail should not affect the registration flow.
+                    _logger?.LogError(ex, "Background email send failed for tenant {TenantId} to {Email}.", tenantid, tenantDto?.Email);
+                }
+            });
+
             return true;
         }
         private async Task<bool> SendEmailToChangePasswordAsync(string eMail, string password)
@@ -1345,10 +1847,9 @@ namespace LMS.Identity.BusinessSerive.Services
             }
             catch (Exception ex)
             {
-                // For tenant registration we want visibility into mail failures.
+                // Mail delivery failure should not break tenant registration.
                 _logger?.LogError(ex, "Failed to send tenant registration email to {Email}. StoreCodes: {StoreCodes}", eMail, string.Join(",", storeCodes ?? new List<string>()));
-                // Rethrow so the caller / pipeline can observe the failure during diagnostics.
-                throw;
+                return false;
             }
         }
         public async Task SendMail(string eMail, string successFile, string subject, string body)
@@ -1420,6 +1921,19 @@ namespace LMS.Identity.BusinessSerive.Services
                 var tenantregistryresult = await GetTenantByEmailAsync(eMail);
                 if (tenantregistryresult == null)
                     return ActionSet.ActionReturnType(HttpStatusCode.OK, new IOResponse { StatusCode = "200", Email = eMail, Message = IdentityValidationMessage.IDENTITY_DATANOTFOUND_EMAIL_MESSAGE, Storecodes = new List<string>() });
+
+                if (!TenantApprovalStatus.IsApproved(tenantregistryresult.ApprovalStatus))
+                {
+                    var isRejected = string.Equals(tenantregistryresult.ApprovalStatus, TenantApprovalStatus.Rejected, StringComparison.OrdinalIgnoreCase);
+                    return ActionSet.ActionReturnType(HttpStatusCode.Forbidden, new IOResponse
+                    {
+                        StatusCode = "403",
+                        Email = eMail,
+                        Message = isRejected ? TenantRejectedMessage : TenantPendingApprovalMessage,
+                        Storecodes = new List<string>()
+                    });
+                }
+
                 string tenantId = tenantregistryresult.TenantId;
                 var tenantstoreinforesult = await GetTenantStoreByTenantIdAsync(tenantId);
                 if (tenantstoreinforesult == null)
@@ -1436,7 +1950,7 @@ namespace LMS.Identity.BusinessSerive.Services
                     {
                         TenantId = tenantId,
                         Name = tenantregistryresult.TenantName,
-                        Status = "ÏnActive",
+                        Status = "InActive",
                         IsPasswordChanged = false,
                         Password = string.Empty,
                         Storecodes = generatedStores
@@ -1444,10 +1958,153 @@ namespace LMS.Identity.BusinessSerive.Services
 
                     _unitOfWork.DbContext.TenantStoreInfos.Add(tenantstoreinforesult);
             await _unitOfWork.SaveChangesAsync();
+
+            // Ensure the TenantStoreInfos.Status column reflects the current activation state
+            try
+            {
+                var tsi = await GetTenantStoreByTenantIdAsync(tenantId);
+                if (tsi != null)
+                {
+                    // Determine whether any store for this tenant is marked active in TenantStoreStatuses
+                    var anyActive = await _unitOfWork.DbContext.TenantStoreStatuses
+                        .AnyAsync(s => s.TenantId == tenantId && s.IsActive);
+
+                    tsi.Status = anyActive ? "Active" : "InActive";
+                    // Save status change to TenantStoreInfos
+                    await _unitOfWork.SaveChangesAsync();
+                }
+            }
+            catch
+            {
+                // ignore failures updating mirror status to avoid breaking activation flow
+            }
+                }
+
+                var storeInfoStatus = (tenantstoreinforesult?.Status ?? string.Empty).Trim();
+                var storeInfoIsActive = string.Equals(storeInfoStatus, "Active", StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(storeInfoStatus, "Approved", StringComparison.OrdinalIgnoreCase);
+
+                if (!storeInfoIsActive)
+                {
+                    return ActionSet.ActionReturnType(HttpStatusCode.Forbidden, new IOResponse
+                    {
+                        StatusCode = "403",
+                        Email = eMail,
+                        Message = StorePendingActivationMessage,
+                        Storecodes = new List<string>()
+                    });
                 }
 
                 List<string> stores = tenantstoreinforesult.Storecodes ?? new List<string>();
-                return ActionSet.ActionReturnType(HttpStatusCode.OK, new IOResponse { StatusCode = "200", Email = eMail, Storecodes = stores });
+
+                // Build per-store configuration summaries so dashboard consumers can display currency without extra requests.
+                var storeConfigs = new List<StoreConfigurationDto>();
+                foreach (var code in stores)
+                {
+                    var normalized = (code ?? string.Empty).Trim();
+                    var cfgEntity = await _unitOfWork.DbContext.StoreConfigurations
+                        .FirstOrDefaultAsync(x => x.TenantId == tenantregistryresult.TenantId && x.StoreCode == normalized);
+
+                    string cfgJson = null;
+                    string currencyCode = null;
+                    string currencySymbol = null;
+                    string currencyLocale = null;
+                    int? currencyDigits = null;
+
+                    if (cfgEntity != null)
+                    {
+                        cfgJson = BuildConfigurationJsonWithCurrencyOverrides(cfgEntity);
+                        currencyCode = cfgEntity.CurrencyCode;
+                        currencySymbol = cfgEntity.CurrencySymbol;
+                        currencyLocale = cfgEntity.CurrencyLocale;
+                        currencyDigits = cfgEntity.CurrencyDecimalDigits;
+                    }
+                    else
+                    {
+                        // Fall back to tenant-level configuration or tenant store info currency
+                        var tenantLevelCfg = await _unitOfWork.DbContext.StoreConfigurations
+                            .FirstOrDefaultAsync(x => x.TenantId == tenantregistryresult.TenantId && (x.StoreCode == null || x.StoreCode == string.Empty));
+
+                        cfgJson = tenantLevelCfg != null ? BuildConfigurationJsonWithCurrencyOverrides(tenantLevelCfg) : string.Empty;
+
+                        // Resolve currency precedence: TenantStoreInfos -> tenant-level cfg -> country defaults
+                        var tsi = tenantstoreinforesult;
+                        if (!string.IsNullOrWhiteSpace(tsi?.CurrencyCode)) currencyCode = tsi.CurrencyCode;
+                        if (!string.IsNullOrWhiteSpace(tsi?.CurrencySymbol)) currencySymbol = tsi.CurrencySymbol;
+                        if (!string.IsNullOrWhiteSpace(tsi?.CurrencyLocale)) currencyLocale = tsi.CurrencyLocale;
+                        if (tsi?.CurrencyDecimalDigits.HasValue == true) currencyDigits = tsi.CurrencyDecimalDigits;
+
+                        if (string.IsNullOrWhiteSpace(currencyCode) || string.IsNullOrWhiteSpace(currencySymbol) || string.IsNullOrWhiteSpace(currencyLocale) || currencyDigits == null)
+                        {
+                            if (tenantLevelCfg != null)
+                            {
+                                currencyCode = currencyCode ?? tenantLevelCfg.CurrencyCode;
+                                currencySymbol = currencySymbol ?? tenantLevelCfg.CurrencySymbol;
+                                currencyLocale = currencyLocale ?? tenantLevelCfg.CurrencyLocale;
+                                currencyDigits = currencyDigits ?? tenantLevelCfg.CurrencyDecimalDigits;
+                            }
+                        }
+
+                        if (string.IsNullOrWhiteSpace(currencyCode) || string.IsNullOrWhiteSpace(currencySymbol) || string.IsNullOrWhiteSpace(currencyLocale) || currencyDigits == null)
+                        {
+                            var defaultCfg = CountryCurrencyMapping.GetDefaultForCountry(tenantregistryresult.Country);
+                            if (defaultCfg != null)
+                            {
+                                currencyCode = currencyCode ?? defaultCfg.CurrencyCode;
+                                currencySymbol = currencySymbol ?? defaultCfg.CurrencySymbol;
+                                currencyLocale = currencyLocale ?? defaultCfg.CurrencyLocale;
+                                currencyDigits = currencyDigits ?? defaultCfg.DecimalDigits;
+                            }
+                        }
+                    }
+
+                    storeConfigs.Add(new StoreConfigurationDto
+                    {
+                        StoreCode = normalized,
+                        ConfigurationJson = cfgJson,
+                        CurrencyCode = currencyCode,
+                        CurrencySymbol = currencySymbol,
+                        CurrencyLocale = currencyLocale,
+                        CurrencyDecimalDigits = currencyDigits
+                    });
+                }
+
+                // Also include per-store activation statuses so callers that request
+                // full tenant store details receive authoritative IsActive flags
+                // without needing a separate API call.
+                var tenantStatuses = await _unitOfWork.DbContext.TenantStoreStatuses
+                    .Where(x => x.TenantId == tenantregistryresult.TenantId)
+                    .ToListAsync();
+
+                var statusDtos = stores
+                    .Select(code =>
+                    {
+                        var status = tenantStatuses.FirstOrDefault(s => string.Equals(s.StoreCode, code, StringComparison.OrdinalIgnoreCase));
+                        // If no per-store status record exists, fall back to the tenant-level
+                        // TenantStoreInfo.Status mirror which may be updated to "Active" when
+                        // any store for the tenant is marked active.
+                        var fallbackActive = string.Equals(tenantstoreinforesult?.Status, "Active", StringComparison.OrdinalIgnoreCase);
+                        return new TenantStoreStatusDto
+                        {
+                            StoreCode = code,
+                            IsActive = status?.IsActive ?? fallbackActive,
+                            ActivatedBy = status?.ActivatedBy,
+                            ActivatedDate = status?.ActivatedDate,
+                            TenantId = tenantregistryresult?.TenantId,
+                            TenantName = tenantregistryresult?.TenantName,
+                            TenantEmail = tenantregistryresult?.Email
+                        };
+                    })
+                    .ToList();
+
+                return ActionSet.ActionReturnType(HttpStatusCode.OK, new IOResponse
+                {
+                    StatusCode = "200",
+                    Email = eMail,
+                    Storecodes = stores,
+                    StoreConfigurations = storeConfigs,
+                    StoreStatuses = statusDtos
+                });
             }
             else
             {

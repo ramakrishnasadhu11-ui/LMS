@@ -64,6 +64,11 @@ namespace LMS.Identity.DTO
          public string Country {get;set;}
 
         /// <summary>
+        /// Tenant membership start date
+        /// </summary>
+        public DateTime? CreatedDate { get; set; }
+
+        /// <summary>
         /// UserRole
         /// </summary>
         public string UserRole { get; set; }
@@ -77,6 +82,11 @@ namespace LMS.Identity.DTO
         /// Store configuration payload
         /// </summary>
         public string ConfigurationJson { get; set; }
+
+        /// <summary>
+        /// Per-store configuration summary (store code plus resolved configuration and currency fields)
+        /// </summary>
+        public List<StoreConfigurationDto> StoreConfigurations { get; set; }
 
         /// <summary>
         /// Activation state for each tenant store

@@ -77,5 +77,22 @@ namespace LMSWebUI.Models.Admin
         [Display(Name = "Notes")]
         [StringLength(300, ErrorMessage = "Notes cannot exceed 300 characters.")]
         public string Notes { get; set; }
+
+        // Currency configuration (optional). Stored as part of the store/tenant configuration JSON.
+        // If not provided, the application will fall back to legacy defaults.
+        [Display(Name = "Currency Code")]
+        [StringLength(8, ErrorMessage = "Currency code cannot exceed 8 characters.")]
+        public string CurrencyCode { get; set; }
+
+        [Display(Name = "Currency Symbol")]
+        [StringLength(8, ErrorMessage = "Currency symbol cannot exceed 8 characters.")]
+        public string CurrencySymbol { get; set; }
+
+        [Display(Name = "Currency Locale")]
+        [StringLength(32, ErrorMessage = "Locale cannot exceed 32 characters.")]
+        public string CurrencyLocale { get; set; }
+
+        [Display(Name = "Currency Decimal Digits")]
+        public int? CurrencyDecimalDigits { get; set; }
     }
 }

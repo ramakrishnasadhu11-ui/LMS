@@ -223,6 +223,14 @@
 
 <script type="text/javascript">
     document.addEventListener("DOMContentLoaded", function () {
+        var hasValidationErrors = document.querySelector(".validation-summary-errors li, .field-validation-error:not(:empty)") !== null;
+        if (!window.location.search && !hasValidationErrors) {
+            var preferencesForm = document.querySelector("form");
+            if (preferencesForm) {
+                preferencesForm.reset();
+            }
+        }
+
         if (!window.customerPreferencesToastMessage) {
             return;
         }

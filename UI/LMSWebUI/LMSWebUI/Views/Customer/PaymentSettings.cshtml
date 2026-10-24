@@ -217,6 +217,15 @@
 
 <script type="text/javascript">
     document.addEventListener("DOMContentLoaded", function () {
+        var hasValidationErrors = document.querySelector(".validation-summary-errors li, .field-validation-error:not(:empty)") !== null;
+
+        if (!window.location.search && !hasValidationErrors) {
+            var paymentSettingsForm = document.querySelector("form");
+            if (paymentSettingsForm) {
+                paymentSettingsForm.reset();
+            }
+        }
+
         var defaultModeSelect = document.getElementById("defaultPaymentMode");
         var modeToggles = Array.prototype.slice.call(document.querySelectorAll(".payment-mode-toggle"));
         var allowCredit = document.getElementById("allowCredit");

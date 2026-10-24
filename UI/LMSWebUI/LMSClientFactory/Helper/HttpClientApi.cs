@@ -34,20 +34,34 @@ namespace LMSClientFactory.Helper
             request.RequestFormat = DataFormat.Json;
             request.JsonSerializer = new RestSharpJsonNetSerializer();
 
-            var response = await _client.ExecuteTaskAsync<T>(request);
+            IRestResponse response;
+            try
+            {
+                response = await _client.ExecuteTaskAsync(request);
+            }
+            catch (Exception ex) when (ex is JsonException || ex is System.Xml.XmlException)
+            {
+                throw new ApiUnavailableException("The API returned an invalid response format.", ex);
+            }
 
             // RestSharp reports ResponseStatus.Error for any non-success status code, so a
             // status code of 0 is used to detect a genuine transport failure. Otherwise a
             // meaningful response such as 403 (not approved) would be hidden behind a
             // misleading "service unavailable" message.
-            var hasHttpResponse = response.StatusCode != 0;
+            var hasHttpResponse = response != null && response.StatusCode != 0;
 
             if (!hasHttpResponse
+                && response != null
                 && (response.ResponseStatus == ResponseStatus.Error || response.ResponseStatus == ResponseStatus.TimedOut))
             {
                 throw new ApiUnavailableException(
                     response.ErrorMessage ?? "The API could not be reached.",
                     response.ErrorException);
+            }
+
+            if (response == null)
+            {
+                throw new ApiUnavailableException("The API could not be reached.");
             }
 
             if (response.StatusCode == HttpStatusCode.InternalServerError || response.StatusCode == HttpStatusCode.GatewayTimeout)
@@ -74,11 +88,6 @@ namespace LMSClientFactory.Helper
 
             if (typeof(T) == typeof(JObject))
             {
-                if (response.Data is JObject responseObject && responseObject.HasValues)
-                {
-                    return response.Data;
-                }
-
                 if (!string.IsNullOrWhiteSpace(response.Content))
                 {
                     try
@@ -97,30 +106,6 @@ namespace LMSClientFactory.Helper
 
             if (!string.IsNullOrWhiteSpace(response.Content))
             {
-                var shouldTryContent = (object)response.Data == null;
-
-                if (!shouldTryContent && response.Data is string rawString)
-                {
-                    shouldTryContent = string.IsNullOrWhiteSpace(rawString);
-                }
-                else if (!shouldTryContent && response.Data is JObject rawObject)
-                {
-                    shouldTryContent = !rawObject.HasValues;
-                }
-                else if (!shouldTryContent && response.Data is JArray rawArray)
-                {
-                    shouldTryContent = rawArray.Count == 0;
-                }
-                else if (!shouldTryContent && response.Data is System.Collections.ICollection rawCollection)
-                {
-                    shouldTryContent = rawCollection.Count == 0;
-                }
-
-                if (!shouldTryContent)
-                {
-                    return response.Data;
-                }
-
                 try
                 {
                     if (typeof(T) == typeof(string))
@@ -156,7 +141,7 @@ namespace LMSClientFactory.Helper
                 }
             }
 
-            return response.Data;
+            return default;
         }
         /// <summary>
         /// With Out Async Call
@@ -165,136 +150,91 @@ namespace LMSClientFactory.Helper
         /// <returns></returns>
         private string SendRequest(IRestRequest request)
         {
-            try
+            request.RequestFormat = DataFormat.Json;
+
+            IRestResponse response = _client.Execute(request);
+
+            if (response.StatusCode == HttpStatusCode.NotFound || response.StatusCode == HttpStatusCode.InternalServerError)
             {
-                request.RequestFormat = DataFormat.Json;
-
-                IRestResponse response = _client.Execute(request);
-
-                if (response.StatusCode == HttpStatusCode.NotFound || response.StatusCode == HttpStatusCode.InternalServerError)
-                {
-                    throw new Exception(response.Content);
-                }
-
-                if (response.ErrorException != null)
-                {
-                    throw response.ErrorException;
-                }
-
-                return response.Content;
+                throw new Exception(response.Content);
             }
-            catch (Exception)
+
+            if (response.ErrorException != null)
             {
-                throw;
+                throw response.ErrorException;
             }
+
+            return response.Content;
+        }
+
+        private static string NormalizeResource(string requestUrl)
+        {
+            if (string.IsNullOrWhiteSpace(requestUrl)) return requestUrl;
+            return requestUrl.StartsWith("/") ? requestUrl.TrimStart('/') : requestUrl;
         }
 
         public async Task<T> SendRequestAsync<T>(string requestUrl, Method method) where T : new()
         {
-            try
+            var resource = NormalizeResource(requestUrl);
+            IRestRequest restRequest = new RestRequest(resource, method)
             {
-                IRestRequest restRequest = new RestRequest(requestUrl, method)
-                {
-                    RequestFormat = DataFormat.Json
-                };
-                return await SendRequest<T>(restRequest);
-            }
-            catch
-            {
-                throw;
-            }
+                RequestFormat = DataFormat.Json
+            };
+
+            return await SendRequest<T>(restRequest);
         }
         public async Task<T> SendRequestAsync<T>(string requestUrl, object model, Method method) where T : new()
         {
-            try
+            var resource = NormalizeResource(requestUrl);
+            IRestRequest restRequest = new RestRequest(resource, method)
             {
-                IRestRequest restRequest = new RestRequest(requestUrl, method)
-                {
-                    RequestFormat = DataFormat.Json,
-                    JsonSerializer = new RestSharpJsonNetSerializer()
-                };
-                restRequest.AddJsonBody(model);
-                return await SendRequest<T>(restRequest);
-            }
-            catch
-            {
-                throw;
-            }
+                RequestFormat = DataFormat.Json,
+                JsonSerializer = new RestSharpJsonNetSerializer()
+            };
+            restRequest.AddJsonBody(model);
+
+            return await SendRequest<T>(restRequest);
         }
         public async Task<T> SendRequestAsync<T>(string requestUrl, List<Parameter> parameters, Method method) where T : new()
         {
-            try
-            {
-                IRestRequest restRequest = new RestRequest(requestUrl, method);
-                restRequest.Parameters.AddRange(parameters);
-                return await SendRequest<T>(restRequest);
-            }
-            catch (Exception ex)
-            {
-                throw ex;
-            }
+            var resource = NormalizeResource(requestUrl);
+            IRestRequest restRequest = new RestRequest(resource, method);
+            restRequest.Parameters.AddRange(parameters);
+
+            return await SendRequest<T>(restRequest);
         }
         public async Task<T> SendRequestAsync<T>(string requestUrl, Dictionary<string, string> queryParams, Method method) where T : new()
         {
-            try
-            {
-                IRestRequest restRequest = new RestRequest(requestUrl, method);
-                foreach (KeyValuePair<string, string> param in queryParams)
-                {
-                    restRequest.AddQueryParameter(param.Key, param.Value);
-                }
+            var resource = NormalizeResource(requestUrl);
+            IRestRequest restRequest = new RestRequest(resource, method);
+            AddQueryParameters(restRequest, queryParams);
 
-                return await SendRequest<T>(restRequest);
-            }
-            catch (Exception ex)
-            {
-                throw ex;
-            }
+            return await SendRequest<T>(restRequest);
         }
         public async Task<T> SendRequestAsync<T>(string requestUrl, object model, Dictionary<string, string> queryParams, Method method) where T : new()
         {
-            try
-            {
-                IRestRequest restRequest = new RestRequest(requestUrl, method);
-                foreach (KeyValuePair<string, string> param in queryParams)
-                {
-                    restRequest.AddQueryParameter(param.Key, param.Value);
-                }
-                restRequest.AddJsonBody(model);
+            var resource = NormalizeResource(requestUrl);
+            IRestRequest restRequest = new RestRequest(resource, method);
+            AddQueryParameters(restRequest, queryParams);
+            restRequest.AddJsonBody(model);
 
-                return await SendRequest<T>(restRequest);
-            }
-            catch (Exception ex)
-            {
-                throw ex;
-            }
+            return await SendRequest<T>(restRequest);
         }
 
         public async Task<T> SendRequestAsync<T>(string requestUrl, List<KeyValuePair<string, string>> queryParams, Method method) where T : new()
         {
-            try
-            {
-                IRestRequest restRequest = new RestRequest(requestUrl, method);
-                foreach (KeyValuePair<string, string> param in queryParams)
-                {
-                    restRequest.AddQueryParameter(param.Key, param.Value);
-                }
+            var resource = NormalizeResource(requestUrl);
+            IRestRequest restRequest = new RestRequest(resource, method);
+            AddQueryParameters(restRequest, queryParams);
 
-                return await SendRequest<T>(restRequest);
-            }
-            catch (Exception ex)
-            {
-                throw ex;
-            }
+            return await SendRequest<T>(restRequest);
         }
 
         public async Task<T> SendRequestForZippedAsync<T>(string requestUrl, List<KeyValuePair<string, string>> queryParams, Method method) where T : new()
         {
-            IRestRequest restRequest = new RestRequest(requestUrl, method);
-            foreach (KeyValuePair<string, string> param in queryParams)
-            {
-                restRequest.AddQueryParameter(param.Key, param.Value);
-            }
+            var resource = NormalizeResource(requestUrl);
+            IRestRequest restRequest = new RestRequest(resource, method);
+            AddQueryParameters(restRequest, queryParams);
 
             //string zippedData;
 
@@ -303,21 +243,24 @@ namespace LMSClientFactory.Helper
 
         public async Task<T> SendRequestAsync<T>(string requestUrl, object model, List<KeyValuePair<string, string>> queryParams, Method method) where T : new()
         {
-            try
+            var resource = NormalizeResource(requestUrl);
+            IRestRequest restRequest = new RestRequest(resource, method);
+            AddQueryParameters(restRequest, queryParams);
+            restRequest.AddJsonBody(model);
+
+            return await SendRequest<T>(restRequest);
+        }
+
+        private static void AddQueryParameters(IRestRequest request, IEnumerable<KeyValuePair<string, string>> queryParams)
+        {
+            if (queryParams == null)
             {
-                IRestRequest restRequest = new RestRequest(requestUrl, method);
-                foreach (KeyValuePair<string, string> param in queryParams)
-                {
-                    restRequest.AddQueryParameter(param.Key, param.Value);
-                }
-
-                restRequest.AddJsonBody(model);
-
-                return await SendRequest<T>(restRequest);
+                return;
             }
-            catch (Exception ex)
+
+            foreach (KeyValuePair<string, string> param in queryParams)
             {
-                throw ex;
+                request.AddQueryParameter(param.Key, param.Value);
             }
         }
     }

@@ -421,6 +421,39 @@ textarea.maintain-text {
      <div class="customer-box">
      <div class="customer-title">@pageTitle</div>
      <div class="customer-body">
+         
+<!-- NEW: Existing Orders section -->
+<section id="existingCustomerOrders"
+         style="display:none; margin:20px 0;">
+
+    <h3>Existing Orders</h3>
+
+    <div id="customerOrdersMessage"
+         role="status"
+         style="margin-bottom:10px;">
+    </div>
+
+    <div style="overflow-x:auto;">
+        <table class="table table-bordered table-striped">
+            <thead>
+                <tr>
+                    <th>Order No.</th>
+                    <th>Invoice No.</th>
+                    <th>Created Date</th>
+                    <th>Service</th>
+                    <th>Pieces</th>
+                    <th>Total Amount</th>
+                    <th>Paid Amount</th>
+                    <th>Pending Amount</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody id="customerOrdersBody"></tbody>
+        </table>
+    </div>
+
+</section>
+  
      @if (hideButton)
      {
          <div class="update-search-panel">
@@ -803,10 +836,93 @@ textarea.maintain-text {
                      showToast(message, false);
                      setDisabled("custdelete", false);
                  });
-
+                    
                  return false;
              }
 
+             function loadExistingCustomerOrders() {
+    var panel = document.getElementById("existingCustomerOrders");
+    var message = document.getElementById("customerOrdersMessage");
+    var tbody = document.getElementById("customerOrdersBody");
+
+    if (!panel || !message || !tbody) return;
+
+    var customerName = (getValue("name") || "").trim();
+    var customerCode = (getValue("customerCodeHidden") || "").trim();
+
+    if (!customerName && !customerCode) return;
+
+    panel.style.display = "block";
+    message.textContent = "Loading orders...";
+    tbody.replaceChildren();
+
+    resolveCustomerCode(function (resolvedCode) {
+        fetch('@Url.Action("GetSelectedCustomerOrders", "Customer")', {
+            method: "GET",
+            headers: {
+                "X-Requested-With": "XMLHttpRequest"
+            }
+        })
+        .then(function (response) {
+            if (!response.ok) {
+                throw new Error("Unable to load orders");
+            }
+            return response.json();
+        })
+        .then(function (data) {
+            tbody.replaceChildren();
+
+            if (!data || data.success !== true) {
+                message.textContent =
+                    (data && data.message) || "Unable to load orders.";
+                return;
+            }
+
+            var orders = Array.isArray(data.orders)
+                ? data.orders : [];
+
+            if (orders.length === 0) {
+                message.textContent =
+                    "No existing orders found for this customer.";
+                return;
+            }
+
+            message.textContent = "Orders found: " + orders.length;
+
+            orders.forEach(function (order) {
+                var row = document.createElement("tr");
+
+                [
+                    order.OrderNo || order.OrderNumber || order.OrderCode,
+                    order.InvoiceNo || order.InvoiceNumber,
+                    order.CreatedDate || order.OrderDate,
+                    order.ServiceName || order.Service,
+                    order.Pieces || order.PieceCount,
+                    order.NetPayable || order.TotalAmount,
+                    order.PaidAmount || order.AdvanceUsed,
+                    order.PendingAmount || order.BalanceAmount,
+                    order.Status || order.OrderStatus
+                ].forEach(function (value) {
+                    var cell = document.createElement("td");
+                    cell.textContent =
+                        value === undefined || value === null || value === ""
+                            ? "—"
+                            : String(value);
+                    row.appendChild(cell);
+                });
+
+                tbody.appendChild(row);
+            });
+        })
+        .catch(function () {
+            message.textContent =
+                "Unable to load customer orders. Please try again.";
+        });
+    }, function (errorMessage) {
+        message.textContent =
+            errorMessage || "Please select a customer first.";
+    });
+}
              function handleCustomerUpdateClick(e) {
                  if (e) {
                      e.preventDefault();
@@ -1001,6 +1117,17 @@ textarea.maintain-text {
              window.resetCustomerFormToCreateMode = resetCustomerFormToCreateMode;
 
              document.addEventListener("DOMContentLoaded", function () {
+                var shouldClearCreateFieldsOnFreshLoad = !window.location.search
+                    && !window.location.hash
+                    && '@(actionMode == "create" ? "true" : "false")' === "true"
+                    && !window.customerSaveToastMessage
+                    && !window.updateModeToastMessage
+                    && !window.updateSearchToastMessage;
+
+                if (shouldClearCreateFieldsOnFreshLoad) {
+                    resetCustomerFormToCreateMode();
+                }
+
                 // Apply customer preferences driven UI adjustments
                 try {
                     var prefsJson = @Html.Raw(ViewData["CustomerPreferences"] ?? "null");
@@ -1188,6 +1315,11 @@ textarea.maintain-text {
                          window.triggerAddNewCustomerFromButton();
                      });
                  }
+
+
+                 // NEW: Load existing orders for the selected customer
+                  //  loadExistingCustomerOrders();
+
              });
          })();
     </script>

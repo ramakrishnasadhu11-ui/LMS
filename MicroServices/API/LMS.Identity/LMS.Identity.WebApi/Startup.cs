@@ -125,14 +125,7 @@ namespace LMS.Identity.WebApi
             app.UseSwagger();
             app.UseSwaggerUI(c =>
             {
-                if (env.IsDevelopment())
-                {
-                    c.SwaggerEndpoint("/swagger/v1/swagger.json", "LMS Identity API v1");
-                }
-                else
-                {
-                    c.SwaggerEndpoint(Configuration["VirtualDirectory"] + "/swagger/v1/swagger.json", "LMS Identity API v1");
-                }
+                c.SwaggerEndpoint("/swagger/v1/swagger.json", "LMS Identity API v1");
             });
             app.UseEndpoints(endpoints => endpoints.MapControllers());
         }

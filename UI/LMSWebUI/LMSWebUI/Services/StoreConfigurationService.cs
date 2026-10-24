@@ -5,6 +5,7 @@ using System.Diagnostics;
 using System.Threading.Tasks;
 using LMSWebUI.Models;
 using LMSWebUI.Models.Admin;
+using Microsoft.Extensions.Caching.Memory;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using RestSharp;
@@ -14,10 +15,12 @@ namespace LMSWebUI.Services
     public class StoreConfigurationService : IStoreConfigurationService
     {
         private readonly ILoginApiClient _loginApi;
+        private readonly Microsoft.Extensions.Caching.Memory.IMemoryCache _cache;
 
-        public StoreConfigurationService(ILoginApiClient loginApi)
+        public StoreConfigurationService(ILoginApiClient loginApi, Microsoft.Extensions.Caching.Memory.IMemoryCache cache)
         {
             _loginApi = loginApi;
+            _cache = cache;
         }
 
         public async Task<StoreConfigurationViewModel> LoadAsync(string tenantName, string storeCode)
@@ -87,6 +90,43 @@ namespace LMSWebUI.Services
                     : response.Message);
             }
 
+            // Invalidate currency cache for this tenant/store so changes take effect immediately
+            try
+            {
+                if (_cache != null && model != null)
+                {
+                    var tenant = model.TenantName ?? string.Empty;
+                    var store = model.StoreCode ?? string.Empty;
+
+                    // Bump tenant version token so all store keys that include tenant version become stale.
+                    try
+                    {
+                        var versionKey = CurrencyCacheKeys.TenantVersionKey(tenant);
+                        var newVer = Guid.NewGuid().ToString("N");
+                        _cache.Set(versionKey, newVer, TimeSpan.FromMinutes(60));
+                    }
+                    catch
+                    {
+                        // ignore
+                    }
+
+                    // Also remove the specific store key to ensure immediate update for explicit store overrides
+                    try
+                    {
+                        var specificKey = CurrencyCacheKeys.CurrencyKey(_cache, tenant, store);
+                        _cache.Remove(specificKey);
+                    }
+                    catch
+                    {
+                        // ignore
+                    }
+                }
+            }
+            catch
+            {
+                // ignore cache eviction failures
+            }
+
             return (true, response?.Message);
         }
 
@@ -110,6 +150,10 @@ namespace LMSWebUI.Services
             model.ClosingTime = model.ClosingTime?.Trim();
             model.WeeklyOffDay = model.WeeklyOffDay?.Trim();
             model.Notes = model.Notes?.Trim();
+            model.CurrencyCode = model.CurrencyCode?.Trim();
+            model.CurrencySymbol = model.CurrencySymbol?.Trim();
+            model.CurrencyLocale = model.CurrencyLocale?.Trim();
+            // CurrencyDecimalDigits intentionally not modified here to preserve explicit null vs zero
 
             return model;
         }
@@ -119,6 +163,17 @@ namespace LMSWebUI.Services
             if (model == null)
             {
                 return false;
+            }
+
+            // Consider currency fields as part of "has data" because a saved configuration may only contain
+            // currency overrides. Tests and production expect a store record that specifies currency to be
+            // treated as an existing record.
+            if (!string.IsNullOrWhiteSpace(model.CurrencyCode)
+                || !string.IsNullOrWhiteSpace(model.CurrencySymbol)
+                || !string.IsNullOrWhiteSpace(model.CurrencyLocale)
+                || model.CurrencyDecimalDigits != null)
+            {
+                return true;
             }
 
             return !string.IsNullOrWhiteSpace(model.ContactPerson)
@@ -146,6 +201,15 @@ namespace LMSWebUI.Services
                 WeeklyOffDay = "Sunday",
                 OpeningTime = "09:00",
                 ClosingTime = "21:00"
+                ,
+                // Do not populate currency defaults here. Leaving currency fields null
+                // ensures LoadAsync returns a model that is not treated as an existing
+                // saved configuration. Currency resolution will then try tenant-level
+                // configuration before falling back to the legacy INR default.
+                CurrencyCode = null,
+                CurrencySymbol = null,
+                CurrencyLocale = null,
+                CurrencyDecimalDigits = null
             };
         }
 
@@ -163,6 +227,9 @@ namespace LMSWebUI.Services
             model.WeeklyOffDay = GetDefaultIfMissing(model.WeeklyOffDay, "Sunday");
             model.OpeningTime = NormalizeTimeOrDefault(model.OpeningTime, "09:00");
             model.ClosingTime = NormalizeTimeOrDefault(model.ClosingTime, "21:00");
+
+            // Do not assign currency defaults here. If the stored configuration omitted currency fields,
+            // leave them null so the currency resolution logic can fall back to tenant-level settings.
 
             return model;
         }
@@ -348,7 +415,12 @@ namespace LMSWebUI.Services
                 OpeningTime = obj["OpeningTime"]?.ToString() ?? obj["openingTime"]?.ToString() ?? obj["OpenTime"]?.ToString(),
                 ClosingTime = obj["ClosingTime"]?.ToString() ?? obj["closingTime"]?.ToString() ?? obj["CloseTime"]?.ToString(),
                 WeeklyOffDay = obj["WeeklyOffDay"]?.ToString() ?? obj["weeklyOffDay"]?.ToString() ?? obj["WeeklyOff"]?.ToString(),
-                Notes = obj["Notes"]?.ToString() ?? obj["notes"]?.ToString() ?? obj["Description"]?.ToString()
+                Notes = obj["Notes"]?.ToString() ?? obj["notes"]?.ToString() ?? obj["Description"]?.ToString(),
+                // Also support direct model JSON that may include currency fields at top-level
+                CurrencyCode = obj["CurrencyCode"]?.ToString() ?? obj["currencyCode"]?.ToString(),
+                CurrencySymbol = obj["CurrencySymbol"]?.ToString() ?? obj["currencySymbol"]?.ToString(),
+                CurrencyLocale = obj["CurrencyLocale"]?.ToString() ?? obj["currencyLocale"]?.ToString(),
+                CurrencyDecimalDigits = obj["CurrencyDecimalDigits"] != null ? (int?)obj["CurrencyDecimalDigits"].ToObject<int>() : (obj["currencyDecimalDigits"] != null ? (int?)obj["currencyDecimalDigits"].ToObject<int>() : null)
             };
         }
 

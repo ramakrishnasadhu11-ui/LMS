@@ -1,4 +1,5 @@
 @model LMSWebUI.Models.Customer.OrderCompletionContextDto
+@using LMSWebUI.Helpers
 @{
     Layout = null;
     var autoPrint = Convert.ToBoolean(ViewData["AutoPrint"] ?? false);
@@ -12,6 +13,9 @@
     var paidNow = (Model?.PaidNow ?? 0);
     var pendingAmount = (Model?.PendingAmount ?? Model?.NetPayable ?? 0);
     var totalDue = (Model?.NetPayable ?? 0);
+    var isPaid = pendingAmount <= 0;
+    var paymentBadgeText = isPaid ? "PAID" : "BALANCE DUE";
+    var paymentBadgeClass = isPaid ? "paid" : "due";
     var tenantNameRaw = (Model?.TenantName ?? string.Empty).Trim();
     var companyName = string.IsNullOrWhiteSpace(tenantNameRaw)
         ? "YOUR COMPANY NAME"
@@ -40,7 +44,7 @@
         }
 
         .invoice-wrap {
-            width: 900px;
+            width: 794px;
             max-width: calc(100% - 24px);
             margin: 18px auto;
             background: #fff;
@@ -69,6 +73,31 @@
             padding-bottom: 12px;
             margin-bottom: 16px;
         }
+
+        .brand-strip {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+            border: 1px solid var(--inv-border);
+            background: #f8fbff;
+            border-radius: 8px;
+            padding: 8px 10px;
+        }
+
+        .brand-name { font-size: 15px; font-weight: 800; color: var(--inv-primary); }
+        .brand-store { font-size: 12px; color: var(--inv-muted); }
+
+        .status-badge {
+            font-size: 12px;
+            font-weight: 800;
+            letter-spacing: .5px;
+            border-radius: 999px;
+            padding: 5px 10px;
+            border: 1px solid transparent;
+        }
+        .status-badge.paid { color: #166534; background: #dcfce7; border-color: #86efac; }
+        .status-badge.due { color: #991b1b; background: #fee2e2; border-color: #fca5a5; }
 
         .invoice-title {
             margin: 0;
@@ -166,6 +195,8 @@
 
         .items-table tbody tr:nth-child(even) { background: #fbfdff; }
         .items-table .num { text-align: right; }
+        .items-table .center { text-align: center; }
+        .items-table .tag-col { font-family: Consolas, monospace; font-size: 12px; }
 
         .summary-wrap {
             margin-top: 16px;
@@ -216,9 +247,17 @@
             font-weight: 700;
         }
 
+        .footer-sub {
+            margin-top: 4px;
+            text-align: center;
+            color: var(--inv-muted);
+            font-size: 11px;
+        }
+
         @@media print {
             .noprint { display: none; }
             body { background: #fff; }
+            @@page { size: A4; margin: 10mm; }
             .invoice-wrap {
                 margin: 0;
                 width: auto;
@@ -226,8 +265,9 @@
                 box-shadow: none;
                 border-radius: 0;
                 border: none;
-                padding: 10px 12px;
+                padding: 0;
             }
+            .tag, .meta-card, .summary-box, .payment-info, .items-table { break-inside: avoid; }
         }
     </style>
 </head>
@@ -239,13 +279,20 @@
             <div class="noprint" style="font-size:12px; color:#475467; margin-bottom:8px;">Use destination <b>Save as PDF</b> in the print dialog to download this invoice with the same layout.</div>
         }
 
+        <div class="brand-strip">
+            <div>
+                <div class="brand-name">@companyName</div>
+                <div class="brand-store">Store: @Model?.StoreCode</div>
+            </div>
+            <span class="status-badge @paymentBadgeClass">@paymentBadgeText</span>
+        </div>
+
         <div class="topbar">
             <h1 class="invoice-title">INVOICE</h1>
             <div class="company-block">
-                <span class="name">@companyName</span>
-                Store: @Model?.StoreCode<br />
                 Invoice No: @invoiceNo<br />
-                Order No: @Model?.OrderNo
+                Order No: @Model?.OrderNo<br />
+                Date: @issueDate.ToString("dd/MM/yyyy")
             </div>
         </div>
 
@@ -281,7 +328,9 @@
         <table class="items-table">
             <thead>
                 <tr>
-                    <th>Description</th>
+                    <th style="width:6%;">#</th>
+                    <th>Garment Item</th>
+                    <th style="width:23%;">Tag ID</th>
                     <th class="num">Price</th>
                     <th class="num">QTY</th>
                     <th class="num">Total</th>
@@ -290,20 +339,24 @@
             <tbody>
                 @if (Model?.Items != null && Model.Items.Count > 0)
                 {
+                    var rowNo = 0;
                     foreach (var item in Model.Items)
                     {
+                        rowNo++;
                         var lineTotal = item.UnitPrice * item.Quantity;
                         <tr>
-                            <td>@item.ItemName @(string.IsNullOrWhiteSpace(item.TagNo) ? string.Empty : $"(Tag: {item.TagNo})")</td>
-                            <td class="num">@item.UnitPrice.ToString("0.00")</td>
+                            <td class="center">@rowNo</td>
+                            <td>@item.ItemName</td>
+                            <td class="tag-col">@(string.IsNullOrWhiteSpace(item.TagNo) ? "-" : item.TagNo)</td>
+                            <td class="num">@await ((IHtmlHelper)Html).FormatCurrencyAsync(item.UnitPrice)</td>
                             <td class="num">@item.Quantity</td>
-                            <td class="num">@lineTotal.ToString("0.00")</td>
+                            <td class="num">@await ((IHtmlHelper)Html).FormatCurrencyAsync(lineTotal)</td>
                         </tr>
                     }
                 }
                 else
                 {
-                    <tr><td colspan="4">No line items available.</td></tr>
+                    <tr><td colspan="6">No line items available.</td></tr>
                 }
             </tbody>
         </table>
@@ -312,38 +365,39 @@
             <div class="summary-box">
                 <div class="summary-row">
                     <span>Subtotal</span>
-                    <span>@subTotal.ToString("0.00")</span>
+                    <span>@await ((IHtmlHelper)Html).FormatCurrencyAsync(subTotal)</span>
                 </div>
                 <div class="summary-row">
                     <span>Tax</span>
-                    <span>@tax.ToString("0.00")</span>
+                    <span>@await ((IHtmlHelper)Html).FormatCurrencyAsync(tax)</span>
                 </div>
                 <div class="summary-row">
                     <span>Advance Utilized (-)</span>
-                    <span>@advanceUsed.ToString("0.00")</span>
+                    <span>@await ((IHtmlHelper)Html).FormatCurrencyAsync(advanceUsed)</span>
                 </div>
                 <div class="summary-row">
                     <span>Paid Now (-)</span>
-                    <span>@paidNow.ToString("0.00")</span>
+                    <span>@await ((IHtmlHelper)Html).FormatCurrencyAsync(paidNow)</span>
                 </div>
                 <div class="summary-row">
                     <span>Pending Amount</span>
-                    <span>@pendingAmount.ToString("0.00")</span>
+                    <span>@await ((IHtmlHelper)Html).FormatCurrencyAsync(pendingAmount)</span>
                 </div>
                 <div class="summary-row total">
-                    <span>Total Due</span>
-                    <span>@totalDue.ToString("0.00")</span>
+                    <span>Total Payable</span>
+                    <span>@await ((IHtmlHelper)Html).FormatCurrencyAsync(totalDue)</span>
                 </div>
             </div>
         </div>
 
         <div class="payment-info">
-            <span class="label">Payment Information:</span> @Model?.OrderMode / @Model?.ServiceType / Mode: @Model?.PaymentMode / Advance Used: @advanceUsed.ToString("0.00") / Paid Now: @paidNow.ToString("0.00") / Pending: @pendingAmount.ToString("0.00")
+            <span class="label">Payment Information:</span> @Model?.OrderMode / @Model?.ServiceType / Mode: @Model?.PaymentMode / Advance Used: @await ((IHtmlHelper)Html).FormatCurrencyAsync(advanceUsed) / Paid Now: @await ((IHtmlHelper)Html).FormatCurrencyAsync(paidNow) / Pending: @await ((IHtmlHelper)Html).FormatCurrencyAsync(pendingAmount)
         </div>
 
         <div class="footer-note">
             Thank you for your business!
         </div>
+        <div class="footer-sub">This is a system-generated invoice for laundry service processing.</div>
     </div>
 
     @if (autoPrint)

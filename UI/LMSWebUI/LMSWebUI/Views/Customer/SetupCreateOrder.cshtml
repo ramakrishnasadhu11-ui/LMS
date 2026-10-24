@@ -1,4 +1,5 @@
 @model LMSWebUI.Models.Customer.LaundryOrderDto
+@using LMSWebUI.Helpers
 @{
     ViewData["Title"] = "Admin Setup - Create Laundry Order";
     Layout = "~/Views/Shared/_HeaderMenuItemsLayout.cshtml";
@@ -87,6 +88,23 @@
 .order-history-action-btn:hover { filter:brightness(0.98); }
 .order-history-primary-btn { border-color:#238554; background:linear-gradient(180deg, #2ea66a 0%, #238554 100%); color:#fff; }
 .order-history-settled { color:#2f8f46; font-weight:700; font-size:12px; margin-right:2px; }
+.available-advance-banner {
+    border: 1px solid var(--els-border);
+    border-radius: 8px;
+    background: #f8fbff;
+    padding: 10px 12px;
+    margin-bottom: 12px;
+}
+.available-advance-text {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--els-text);
+}
+.available-advance-status {
+    margin-top: 4px;
+    font-size: 12px;
+    color: #8a5b00;
+}
 .toast-message { position: fixed; right: 24px; top: 80px; z-index: 9999; min-width: 260px; max-width: 380px; padding: 12px 16px; border-radius: 8px; color: #fff; box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25); font-weight: 600; display: none; }
 .toast-message.success { background: #2f8f46; }
 .toast-message.error { background: #b63838; }
@@ -145,6 +163,7 @@
         <div class="setup-body">
             @using (Html.BeginForm("SetupCreateOrder", "Customer", FormMethod.Post, new { id = "setupOrderForm", novalidate = "novalidate" }))
             {
+                @Html.AntiForgeryToken()
                 @Html.HiddenFor(m => m.CustCode, new { id = "custCode" })
                 @Html.HiddenFor(m => m.ServiceType, new { id = "serviceType" })
                 @Html.HiddenFor(m => m.OrderAmount, new { id = "orderAmount" })
@@ -158,7 +177,8 @@
                     <div class="setup-toolbar">
                         <div class="setup-field">
                             <label for="customerName">Customer Name</label>
-                            @Html.TextBoxFor(m => m.CustomerName, new { id = "customerName", placeholder = "Enter customer name" })
+                            @Html.TextBoxFor(m => m.CustomerName, new { id = "customerName", placeholder = "Enter customer name", list = "customerNameSuggestions", autocomplete = "off" })
+                            <datalist id="customerNameSuggestions"></datalist>
                         </div>
                         <div class="setup-field">
                             <label for="orderLookupText">Order/Invoice No</label>
@@ -187,6 +207,11 @@
                         <div class="setup-field" style="align-self:end;">
                             <button type="button" class="setup-btn tertiary" id="loadOrderDataBtn" style="margin-bottom:0;">Load Customer Details</button>
                         </div>
+                    </div>
+
+                    <div class="available-advance-banner" id="availableAdvanceBanner">
+                    <div class="available-advance-text" id="availableAdvanceBalanceText">Available Advance Balance: <span id="availableAdvanceValue">@await Html.FormatCurrencyAsync(0m)</span></div>
+                        <div class="available-advance-status" id="availableAdvanceStatus" style="display:none;"></div>
                     </div>
 
                     <div id="postOrderActions" class="side-block" style="display:none; margin-bottom:10px;">
@@ -313,7 +338,7 @@
                                     <input type="number" id="ratePerKg" name="RatePerKg" min="0.01" step="0.01" value="@(Model?.RatePerKg ?? 0)" @((isAdminUser) ? "" : "disabled=\"disabled\"") />
                                 </div>
                             </div>
-                            <div class="stat-chip" style="margin-top:8px;"><span>Weight Amount</span><b id="weightAmountDisplay">0.00</b></div>
+                                <div class="stat-chip" style="margin-top:8px;"><span>Weight Amount</span><b id="weightAmountDisplay">@await ((IHtmlHelper)Html).FormatCurrencyAsync(0m)</b></div>
                         </div>
 
                         <div class="right-pane">
@@ -321,7 +346,7 @@
                                 <div class="side-title">Selected Item</div>
                                 <div class="stat-chip"><span>Name</span><b id="selectedItemName">-</b></div>
                                 <input type="text" id="manualItemName" placeholder="Enter item name" style="display:none; margin:6px 0; padding:6px; width:100%;" />
-                                <div class="stat-chip"><span>Unit Price</span><b id="selectedItemPrice">0.00</b></div>
+                                <div class="stat-chip"><span>Unit Price</span><b id="selectedItemPrice">@await ((IHtmlHelper)Html).FormatCurrencyAsync(0m)</b></div>
                                 <input type="number" id="manualUnitPrice" min="0" step="0.01" value="0.00" style="display:none; margin:6px 0; padding:6px; width:100%;" />
                                 <div class="qty-row">
                                     <button class="qty-btn" type="button" id="qtyMinus">-</button>
@@ -339,18 +364,18 @@
                             </div>
 
                             <div class="side-block">
-                                <div class="stat-chip"><span>Advance Balance</span><b id="advBalance">0.00</b></div>
-                                <div class="stat-chip"><span>Advance Utilized</span><b id="advUsedDisplay">0.00</b></div>
-                                <div class="stat-chip"><span>Advance Remaining</span><b id="advRemainingDisplay">0.00</b></div>
-                                <div class="stat-chip"><span>Order Amount</span><b id="orderAmountDisplay">0.00</b></div>
+                                <div class="stat-chip"><span>Advance Balance</span><b id="advBalance">@await ((IHtmlHelper)Html).FormatCurrencyAsync(0m)</b></div>
+                                <div class="stat-chip"><span>Advance Utilized</span><b id="advUsedDisplay">@await ((IHtmlHelper)Html).FormatCurrencyAsync(0m)</b></div>
+                                <div class="stat-chip"><span>Advance Remaining</span><b id="advRemainingDisplay">@await ((IHtmlHelper)Html).FormatCurrencyAsync(0m)</b></div>
+                                <div class="stat-chip"><span>Order Amount</span><b id="orderAmountDisplay">@await ((IHtmlHelper)Html).FormatCurrencyAsync(0m)</b></div>
                                 @if (taxEnabled)
                                 {
-                                    <div class="stat-chip"><span>Sub Total</span><b id="subTotalDisplay">0.00</b></div>
-                                    <div class="stat-chip"><span>CGST @((gstPercent / 2).ToString("0.##"))%</span><b id="cgstDisplay">0.00</b></div>
-                                    <div class="stat-chip"><span>SGST @((gstPercent / 2).ToString("0.##"))%</span><b id="sgstDisplay">0.00</b></div>
-                                    <div class="stat-chip"><span>Total (incl. GST)</span><b id="totalAmountDisplay">0.00</b></div>
+                                    <div class="stat-chip"><span>Sub Total</span><b id="subTotalDisplay">@await ((IHtmlHelper)Html).FormatCurrencyAsync(0m)</b></div>
+                                    <div class="stat-chip"><span>CGST @((gstPercent / 2).ToString("0.##"))%</span><b id="cgstDisplay">@await ((IHtmlHelper)Html).FormatCurrencyAsync(0m)</b></div>
+                                    <div class="stat-chip"><span>SGST @((gstPercent / 2).ToString("0.##"))%</span><b id="sgstDisplay">@await ((IHtmlHelper)Html).FormatCurrencyAsync(0m)</b></div>
+                                    <div class="stat-chip"><span>Total (incl. GST)</span><b id="totalAmountDisplay">@await ((IHtmlHelper)Html).FormatCurrencyAsync(0m)</b></div>
                                 }
-                                <div class="stat-chip"><span>Net Before Payment</span><b id="netPayableDisplay">0.00</b></div>
+                                <div class="stat-chip"><span>Net Before Payment</span><b id="netPayableDisplay">@await ((IHtmlHelper)Html).FormatCurrencyAsync(0m)</b></div>
                                 <div class="stat-chip"><span>Paid Now</span><b id="paidNowDisplay">0.00</b></div>
                                 <div class="stat-chip"><span>Pending Amount</span><b id="pendingAmountDisplay">0.00</b></div>
                             </div>
@@ -372,6 +397,15 @@
                 <div class="setup-orders">
                     <div class="order-search-row">
                         <input type="text" id="orderHistorySearch" placeholder="Search by Order No or Invoice No" value="@orderHistorySearch" />
+                        <select id="orderHistoryStatusFilter">
+                            <option value="">All Statuses</option>
+                            <option value="Received">Received</option>
+                            <option value="Processing">Processing</option>
+                            <option value="Ready">Ready</option>
+                            <option value="Delivered">Delivered</option>
+                        </select>
+                        <input type="date" id="orderHistoryFromDate" title="From date" />
+                        <input type="date" id="orderHistoryToDate" title="To date" />
                     </div>
                     <table>
                         <thead>
@@ -379,19 +413,22 @@
                                 <th>Order No</th>
                                 <th>Invoice No</th>
                                 <th>Date (UTC)</th>
+                                <th>Status</th>
                                 <th>Mode</th>
                                 <th>Service</th>
+                                <th>Items</th>
                                 <th>Total Pieces</th>
                                 <th>Amount</th>
                                 <th>Tax</th>
                                 <th>Advance Used</th>
                                 <th>Net Payable</th>
+                                <th>Pending Balance</th>
                                 <th>Payment</th>
                                 <th>Action</th>
                             </tr>
                         </thead>
                         <tbody id="orderHistoryBody">
-                            <tr><td colspan="12">No orders found.</td></tr>
+                            <tr><td colspan="15">No orders found.</td></tr>
                         </tbody>
                     </table>
                 </div>
@@ -419,6 +456,12 @@
     var orderHistoryCache = [];
     var cfgPickerEntriesByKey = {};
     var loadItemsRequestId = 0;
+    var loadCustomerRequestId = 0;
+    var customerSuggestRequestId = 0;
+    var customerSuggestTimer = 0;
+    var knownCustomerSuggestions = [];
+    var antiForgeryTokenInput = document.querySelector('#setupOrderForm input[name="__RequestVerificationToken"]');
+    var antiForgeryToken = antiForgeryTokenInput ? antiForgeryTokenInput.value : "";
     var initialMode = '@Html.Raw(System.Text.Encodings.Web.JavaScriptEncoder.Default.Encode(orderMode ?? "pieces"))';
     var currentOrderMode = (initialMode || "pieces").toLowerCase() === "weight" ? "weight" : "pieces";
 
@@ -471,6 +514,33 @@
         toast.style.display = "block";
         if (window.__setupOrderToastTimer) clearTimeout(window.__setupOrderToastTimer);
         window.__setupOrderToastTimer = setTimeout(function () { toast.style.display = "none"; }, 3200);
+    }
+
+    function updateAvailableAdvanceDisplay(balance, statusMessage) {
+        var normalizedBalance = parseAmount(balance);
+        var balanceLabel = document.getElementById("availableAdvanceBalanceText");
+        var statusLabel = document.getElementById("availableAdvanceStatus");
+        var advBalanceEl = document.getElementById("advBalance");
+
+        if (advBalanceEl) {
+            advBalanceEl.textContent = formatCurrency(normalizedBalance);
+        }
+
+        if (balanceLabel) {
+            try {
+                document.getElementById("availableAdvanceValue").textContent = formatCurrency(normalizedBalance);
+            } catch (e) {
+                balanceLabel.textContent = "Available Advance Balance: " + formatCurrency(normalizedBalance);
+            }
+        }
+
+        if (!statusLabel) {
+            return;
+        }
+
+        var message = (statusMessage || "").trim();
+        statusLabel.textContent = message;
+        statusLabel.style.display = message ? "block" : "none";
     }
 
     function parseAmount(value) {
@@ -575,7 +645,7 @@
         var breakup = computeTaxBreakup(orderAmount);
         var advanceInput = document.getElementById("advanceUsed");
         var advanceUsed = parseAmount(advanceInput ? advanceInput.value : 0);
-
+        // preserve numeric input.value assignments (keep toFixed for form values)
         if (advanceUsed > currentAdvanceBalance) {
             advanceUsed = currentAdvanceBalance;
             if (advanceInput) {
@@ -599,12 +669,14 @@
             paidNow = netBeforePayment;
             if (paidNowInput) {
                 paidNowInput.value = netBeforePayment.toFixed(2);
+                // Preserve numeric formatting for form input (use toFixed on hidden/display fields)
             }
         } else {
             if (paidNow > netBeforePayment) {
                 paidNow = netBeforePayment;
                 if (paidNowInput) {
                     paidNowInput.value = netBeforePayment.toFixed(2);
+                    // Preserve numeric formatting for form input (use toFixed on hidden/display fields)
                 }
             }
         }
@@ -619,12 +691,12 @@
             remainingAdvance = 0;
         }
 
-        document.getElementById("orderAmountDisplay").textContent = orderAmount.toFixed(2);
-        document.getElementById("netPayableDisplay").textContent = netBeforePayment.toFixed(2);
-        document.getElementById("paidNowDisplay").textContent = paidNow.toFixed(2);
-        document.getElementById("pendingAmountDisplay").textContent = pendingAmount.toFixed(2);
-        document.getElementById("advUsedDisplay").textContent = advanceUsed.toFixed(2);
-        document.getElementById("advRemainingDisplay").textContent = remainingAdvance.toFixed(2);
+        document.getElementById("orderAmountDisplay").textContent = formatCurrency(orderAmount);
+        document.getElementById("netPayableDisplay").textContent = formatCurrency(netBeforePayment);
+        document.getElementById("paidNowDisplay").textContent = formatCurrency(paidNow);
+        document.getElementById("pendingAmountDisplay").textContent = formatCurrency(pendingAmount);
+        document.getElementById("advUsedDisplay").textContent = formatCurrency(advanceUsed);
+        document.getElementById("advRemainingDisplay").textContent = formatCurrency(remainingAdvance);
         document.getElementById("orderAmount").value = orderAmount.toFixed(2);
         document.getElementById("netPayableInput").value = pendingAmount.toFixed(2);
         document.getElementById("pendingAmountInput").value = pendingAmount.toFixed(2);
@@ -632,15 +704,15 @@
 
         var subTotalEl = document.getElementById("subTotalDisplay");
         if (subTotalEl) {
-            subTotalEl.textContent = breakup.subTotal.toFixed(2);
-            document.getElementById("cgstDisplay").textContent = breakup.cgst.toFixed(2);
-            document.getElementById("sgstDisplay").textContent = breakup.sgst.toFixed(2);
-            document.getElementById("totalAmountDisplay").textContent = breakup.total.toFixed(2);
+            subTotalEl.textContent = formatCurrency(breakup.subTotal);
+            document.getElementById("cgstDisplay").textContent = formatCurrency(breakup.cgst);
+            document.getElementById("sgstDisplay").textContent = formatCurrency(breakup.sgst);
+            document.getElementById("totalAmountDisplay").textContent = formatCurrency(breakup.total);
         }
 
         if (currentOrderMode === "weight") {
             document.getElementById("serviceType").value = document.getElementById("weightServiceType").value || "Wash & Fold";
-            document.getElementById("weightAmountDisplay").textContent = orderAmount.toFixed(2);
+            document.getElementById("weightAmountDisplay").textContent = formatCurrency(orderAmount);
         } else {
             document.getElementById("serviceType").value = selectedService;
             var weightAmountEl = document.getElementById("weightAmountDisplay");
@@ -845,12 +917,12 @@
             items = fallback;
         }
 
-        items.forEach(function (item) {
+            items.forEach(function (item) {
             var card = document.createElement("div");
             card.className = "item-card" + (selectedItem && selectedItem.name === item.name ? " active" : "");
             card.innerHTML = "<div class='item-icon'>" + item.icon + "</div>"
                 + "<div class='item-name'>" + item.name + "</div>"
-                + "<div class='item-price'>" + item.price.toFixed(2) + "</div>";
+                + "<div class='item-price'>" + formatCurrency(item.price) + "</div>";
             card.onclick = function () {
                 selectedItem = { service: selectedService, category: selectedCategory, name: item.name, price: item.price, icon: item.icon };
                 renderCatalogGrid();
@@ -874,13 +946,13 @@
             if (manualNameEl) manualNameEl.style.display = 'none';
             if (manualPriceEl) manualPriceEl.style.display = 'none';
             nameEl.textContent = selectedItem.name;
-            priceEl.textContent = selectedItem.price.toFixed(2);
+            priceEl.textContent = formatCurrency(selectedItem.price);
         } else {
             if (manualNameEl) manualNameEl.style.display = 'block';
             if (manualPriceEl) manualPriceEl.style.display = 'block';
             nameEl.textContent = (manualNameEl && manualNameEl.value) ? manualNameEl.value : "-";
             var manualPrice = manualPriceEl ? parseAmount(manualPriceEl.value) : 0;
-            priceEl.textContent = (manualPrice > 0 ? manualPrice : 0).toFixed(2);
+            priceEl.textContent = formatCurrency(manualPrice > 0 ? manualPrice : 0);
         }
     }
 
@@ -903,7 +975,7 @@
             row.className = "order-line";
             row.innerHTML = "<span>" + line.name + "</span>"
                 + "<span>x" + line.qty + "</span>"
-                + "<span>" + (line.qty * line.price).toFixed(2) + "</span>"
+                + "<span>" + formatCurrency(line.qty * line.price) + "</span>"
                 + "<button type='button' class='remove-line' data-idx='" + index + "'>×</button>";
             container.appendChild(row);
         });
@@ -931,11 +1003,11 @@
             var rate = parseAmount(document.getElementById("ratePerKg").value);
             if (weight <= 0 || rate <= 0) return "";
             var service = document.getElementById("weightServiceType").value || "Wash & Fold";
-            return "Weight Order: " + service + " | " + weight.toFixed(3) + " Kg x " + rate.toFixed(2);
+        return "Weight Order: " + service + " | " + weight.toFixed(3) + " Kg x " + formatCurrency(rate);
         }
 
         if (!orderLines.length) return "";
-        return orderLines.map(function (line) { return line.name + " x" + line.qty + " at " + line.price.toFixed(2); }).join(" | ");
+        return orderLines.map(function (line) { return line.name + " x" + line.qty + " at " + formatCurrency(line.price); }).join(" | ");
     }
 
     function getNormalizedSelectedQty() {
@@ -995,30 +1067,76 @@
         var tbody = document.getElementById("orderHistoryBody");
         tbody.innerHTML = "";
 
+        function renderStateRow(message) {
+            tbody.innerHTML = "<tr><td colspan='15'>" + (message || "No orders found.") + "</td></tr>";
+        }
+
         if (!orders || !orders.length) {
-            tbody.innerHTML = "<tr><td colspan='12'>No orders found.</td></tr>";
+            renderStateRow("No orders found.");
             return;
         }
 
-        function resolveTotalPieces(order) {
-            var explicitPieces = Number(order.TotalPieces ?? order.totalPieces ?? 0);
-            if (!Number.isNaN(explicitPieces) && explicitPieces > 0) {
-                return Math.floor(explicitPieces);
-            }
-
+        function getItemsSummary(order) {
             var items = order.Items || order.items || [];
-            if (Array.isArray(items) && items.length) {
-                var qtyFromItems = items.reduce(function (sum, x) {
-                    var q = Number((x && (x.Quantity ?? x.quantity)) || 0);
-                    return sum + (!Number.isNaN(q) && q > 0 ? q : 0);
-                }, 0);
-
-                if (qtyFromItems > 0) {
-                    return qtyFromItems;
+            if (!Array.isArray(items) || !items.length) {
+                try {
+                    var parsed = JSON.parse(order.OrderItemsJson || order.orderItemsJson || "[]");
+                    items = Array.isArray(parsed) ? parsed : (Array.isArray(parsed.Items) ? parsed.Items : []);
+                } catch (e) {
+                    items = [];
                 }
             }
 
-            return 0;
+            if (!items.length) {
+                return "-";
+            }
+
+            var parts = items.slice(0, 3).map(function (x) {
+                if (!x) return "";
+                var itemName = (x.ItemName || x.itemName || "Item").toString();
+                var qty = Number((x.Quantity ?? x.quantity ?? 1));
+                var tag = (x.TagNo || x.tagNo || "").toString().trim();
+                return itemName + " x" + (qty > 0 ? qty : 1) + (tag ? " (" + tag + ")" : "");
+            }).filter(Boolean);
+
+            if (items.length > 3) {
+                parts.push("+" + (items.length - 3) + " more");
+            }
+
+            return parts.join(", ");
+        }
+
+        function resolveTotalPieces(order) {
+            var explicitPiecesRaw = Number(order.TotalPieces ?? order.totalPieces ?? 0);
+            var explicitPieces = (!Number.isNaN(explicitPiecesRaw) && explicitPiecesRaw > 0)
+                ? Math.floor(explicitPiecesRaw)
+                : 0;
+
+            var items = order.Items || order.items || [];
+            var qtyFromItems = 0;
+            if (Array.isArray(items) && items.length) {
+                qtyFromItems = items.reduce(function (sum, x) {
+                    var q = Number((x && (x.Quantity ?? x.quantity)) || 0);
+                    return sum + (!Number.isNaN(q) && q > 0 ? q : 0);
+                }, 0);
+            }
+
+            if (qtyFromItems > 0) {
+                if (explicitPieces > 0 && explicitPieces !== qtyFromItems) {
+                    return {
+                        value: qtyFromItems,
+                        text: String(qtyFromItems) + " (saved:" + String(explicitPieces) + ")"
+                    };
+                }
+
+                return { value: qtyFromItems, text: String(qtyFromItems) };
+            }
+
+            if (explicitPieces > 0) {
+                return { value: explicitPieces, text: String(explicitPieces) };
+            }
+
+            return { value: 0, text: "0" };
         }
 
         orders.forEach(function (order) {
@@ -1028,15 +1146,19 @@
             var pending = Number((order.PendingAmount ?? order.pendingAmount ?? order.NetPayable ?? order.netPayable ?? 0));
             var mode = (order.PaymentMode || order.paymentMode || "Cash");
             var customerEmail = (order.CustomerEmail || order.customerEmail || "").toString();
+            var status = (order.Status || order.status || "Received").toString();
             var taxValue = resolveOrderTaxAmount(order);
             var orderMode = (order.OrderMode || order.orderMode || "pieces").toLowerCase();
-            var totalPieces = resolveTotalPieces(order);
-            var totalPiecesText = orderMode === "weight" ? "-" : String(totalPieces);
+            var totalPiecesInfo = resolveTotalPieces(order);
+            var totalPiecesText = orderMode === "weight" ? "-" : totalPiecesInfo.text;
+            var itemsSummary = getItemsSummary(order);
+            var paymentStatus = pending <= 0 ? "Paid" : "Pending";
             var settleActionHtml = pending > 0
-                ? ("<button type='button' class='order-history-action-btn order-history-primary-btn settle-row-btn' data-order-no='" + orderNo + "' data-pending='" + pending.toFixed(2) + "' data-mode='" + mode + "'>Settle</button>")
+                ? ("<button type='button' class='order-history-action-btn order-history-primary-btn settle-row-btn' data-order-no='" + orderNo + "' data-pending='" + pending + "' data-mode='" + mode + "'>Settle</button>")
                 : "<span class='order-history-settled'>Settled</span>";
             var actionHtml = "<div class='order-history-actions'>"
                 + settleActionHtml
+                + "<button type='button' class='order-history-action-btn history-view-order-btn' data-order-no='" + orderNo + "'>View</button>"
                 + "<button type='button' class='order-history-action-btn history-print-bill-btn' data-order-no='" + orderNo + "'>Print Bill</button>"
                 + "<button type='button' class='order-history-action-btn history-pdf-btn' data-order-no='" + orderNo + "'>PDF</button>"
                 + "<button type='button' class='order-history-action-btn history-email-btn' data-order-no='" + orderNo + "' data-email='" + customerEmail + "'>Email</button>"
@@ -1046,16 +1168,30 @@
             tr.innerHTML = "<td>" + orderNo + "</td>"
                 + "<td>" + invoiceNo + "</td>"
                 + "<td>" + createdDate.toString().replace("T", " ").substring(0, 16) + "</td>"
+                + "<td>" + status + "</td>"
                 + "<td>" + (orderMode === "weight" ? "Weight" : "Pieces") + "</td>"
                 + "<td>" + (order.ServiceType || order.serviceType || "") + "</td>"
+                + "<td>" + itemsSummary + "</td>"
                 + "<td>" + totalPiecesText + "</td>"
-                + "<td>" + Number(order.OrderAmount || order.orderAmount || 0).toFixed(2) + "</td>"
-                + "<td>" + taxValue.toFixed(2) + "</td>"
-                + "<td>" + Number(order.AdvanceUsed || order.advanceUsed || 0).toFixed(2) + "</td>"
-                + "<td>" + pending.toFixed(2) + "</td>"
-                + "<td>" + mode + "</td>"
+                + "<td>" + formatCurrency(Number(order.OrderAmount || order.orderAmount || 0)) + "</td>"
+                + "<td>" + formatCurrency(taxValue) + "</td>"
+                + "<td>" + formatCurrency(Number(order.AdvanceUsed || order.advanceUsed || 0)) + "</td>"
+                + "<td>" + formatCurrency(pending) + "</td>"
+                + "<td>" + formatCurrency(pending) + "</td>"
+                + "<td>" + paymentStatus + " / " + mode + "</td>"
                 + "<td>" + actionHtml + "</td>";
             tbody.appendChild(tr);
+        });
+
+        tbody.querySelectorAll('.history-view-order-btn').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+                var targetOrderNo = (btn.getAttribute('data-order-no') || '').trim();
+                if (!targetOrderNo) {
+                    return;
+                }
+
+                window.open('@Url.Action("PrintOrderBill", "Customer")?orderNo=' + encodeURIComponent(targetOrderNo), '_blank');
+            });
         });
 
         tbody.querySelectorAll('.settle-row-btn').forEach(function (btn) {
@@ -1069,7 +1205,7 @@
                     return;
                 }
 
-                var amountText = window.prompt('Enter settle amount for order ' + targetOrderNo + ' (max ' + pendingValue.toFixed(2) + '):', pendingValue.toFixed(2));
+                var amountText = window.prompt("Enter settle amount for order " + targetOrderNo + " (max " + formatCurrency(pendingValue) + "): ", pendingValue.toFixed(2));
                 if (amountText === null) {
                     return;
                 }
@@ -1082,7 +1218,7 @@
 
                 var body = new URLSearchParams();
                 body.append('orderNo', targetOrderNo);
-                body.append('paidAmount', paidAmount.toFixed(2));
+                body.append('paidAmount', paidAmount);
                 body.append('paymentMode', paymentModeValue);
                 body.append('notes', 'Settled from order history row');
 
@@ -1093,7 +1229,8 @@
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
-                        'X-Requested-With': 'XMLHttpRequest'
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'RequestVerificationToken': antiForgeryToken
                     },
                     body: body.toString()
                 })
@@ -1176,13 +1313,6 @@
                 }
 
                 var email = (btn.getAttribute('data-email') || '').trim();
-                if (!email) {
-                    email = (window.prompt('Customer email is missing. Please enter email to continue:', '') || '').trim();
-                    if (!email) {
-                        showToast('Email sending skipped. Customer email not provided.', false);
-                        return;
-                    }
-                }
 
                 var body = new URLSearchParams();
                 body.append('orderNo', targetOrderNo);
@@ -1196,18 +1326,54 @@
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
-                        'X-Requested-With': 'XMLHttpRequest'
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'RequestVerificationToken': antiForgeryToken
                     },
                     body: body.toString()
                 })
                 .then(function (response) { return response.json(); })
                 .then(function (data) {
                     if (!data || !data.success) {
-                        showToast((data && data.message) || 'Unable to send bill email.', false);
+                        var message = (data && data.message) || 'Unable to send bill email.';
+                        if (!email && /email is missing|enter email/i.test(message)) {
+                            email = (window.prompt('Customer email is missing. Please enter email to continue:', '') || '').trim();
+                            if (!email) {
+                                showToast('Email sending skipped. Customer email not provided.', false);
+                                return;
+                            }
+
+                            var retryBody = new URLSearchParams();
+                            retryBody.append('orderNo', targetOrderNo);
+                            retryBody.append('email', email);
+
+                            return fetch('@Url.Action("SendOrderBillEmail", "Customer")', {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
+                                    'X-Requested-With': 'XMLHttpRequest',
+                                    'RequestVerificationToken': antiForgeryToken
+                                },
+                                body: retryBody.toString()
+                            })
+                            .then(function (retryResponse) { return retryResponse.json(); })
+                            .then(function (retryData) {
+                                if (!retryData || !retryData.success) {
+                                    showToast((retryData && retryData.message) || 'Unable to send bill email.', false);
+                                    return;
+                                }
+
+                                btn.setAttribute('data-email', email);
+                                showToast(retryData.message || 'Bill emailed successfully.', true);
+                            });
+                        }
+
+                        showToast(message, false);
                         return;
                     }
 
-                    btn.setAttribute('data-email', email);
+                    if (email) {
+                        btn.setAttribute('data-email', email);
+                    }
                     showToast(data.message || 'Bill emailed successfully.', true);
                 })
                 .catch(function () {
@@ -1227,15 +1393,61 @@
         }
 
         var searchEl = document.getElementById("orderHistorySearch");
+        var statusEl = document.getElementById("orderHistoryStatusFilter");
+        var fromEl = document.getElementById("orderHistoryFromDate");
+        var toEl = document.getElementById("orderHistoryToDate");
         var term = (searchEl && searchEl.value ? searchEl.value : "").trim().toLowerCase();
+        var statusFilter = (statusEl && statusEl.value ? statusEl.value : "").trim().toLowerCase();
+        var fromDate = fromEl && fromEl.value ? new Date(fromEl.value + "T00:00:00") : null;
+        var toDate = toEl && toEl.value ? new Date(toEl.value + "T23:59:59") : null;
+
+        if (fromDate && toDate && fromDate > toDate) {
+            var tmp = fromDate;
+            fromDate = toDate;
+            toDate = tmp;
+        }
+
         if (!term) {
-            renderOrdersHistoryRows(orderHistoryCache);
+            var onlyByFilters = (orderHistoryCache || []).filter(function (order) {
+                var status = (order.Status || order.status || "").toString().trim().toLowerCase();
+                if (statusFilter && status !== statusFilter) {
+                    return false;
+                }
+
+                var createdRaw = (order.CreatedDate || order.createdDate || "").toString();
+                var createdDate = createdRaw ? new Date(createdRaw) : null;
+                if (fromDate && createdDate && createdDate < fromDate) {
+                    return false;
+                }
+                if (toDate && createdDate && createdDate > toDate) {
+                    return false;
+                }
+
+                return true;
+            });
+
+            renderOrdersHistoryRows(onlyByFilters);
             return;
         }
 
         var filtered = (orderHistoryCache || []).filter(function (order) {
             var orderNo = (order.OrderNo || order.orderNo || "").toString().toLowerCase();
             var invoiceNo = (order.InvoiceNo || order.invoiceNo || "").toString().toLowerCase();
+            var status = (order.Status || order.status || "").toString().trim().toLowerCase();
+            var createdRaw = (order.CreatedDate || order.createdDate || "").toString();
+            var createdDate = createdRaw ? new Date(createdRaw) : null;
+
+            if (statusFilter && status !== statusFilter) {
+                return false;
+            }
+
+            if (fromDate && createdDate && createdDate < fromDate) {
+                return false;
+            }
+            if (toDate && createdDate && createdDate > toDate) {
+                return false;
+            }
+
             return orderNo.indexOf(term) >= 0 || invoiceNo.indexOf(term) >= 0;
         });
 
@@ -1282,7 +1494,7 @@
         if (info) {
             var infoText = "Order " + orderNo + " created. Invoice " + invoiceNo + ".";
             if (pendingAmount > 0) {
-                infoText += " Pending: " + pendingAmount.toFixed(2);
+                infoText += " Pending: " + formatCurrency(pendingAmount);
             }
             info.textContent = infoText;
         }
@@ -1294,8 +1506,8 @@
         if (settleBlock && settleAmountInput && settleBtn) {
             if (pendingAmount > 0) {
                 settleBlock.style.display = "block";
-                settleAmountInput.value = pendingAmount.toFixed(2);
-                settleAmountInput.max = pendingAmount.toFixed(2);
+                    settleAmountInput.value = pendingAmount.toFixed(2);
+                    settleAmountInput.max = pendingAmount.toFixed(2); // keep numeric toFixed for form validation
             } else {
                 settleBlock.style.display = "none";
             }
@@ -1307,7 +1519,7 @@
                 }
 
                 var amountText = window.prompt(
-                    "Enter settle amount for order " + (ctx.orderNo || "") + " (max " + pendingAmount.toFixed(2) + "): ",
+                    "Enter settle amount for order " + (ctx.orderNo || "") + " (max " + formatCurrency(pendingAmount) + "): ",
                     defaultAmount.toFixed(2)
                 );
 
@@ -1326,13 +1538,13 @@
                     return;
                 }
 
-                settleAmountInput.value = amount.toFixed(2);
+                    settleAmountInput.value = amount.toFixed(2);
 
-                var body = new URLSearchParams();
-                body.append('orderNo', ctx.orderNo || '');
-                body.append('paidAmount', amount.toFixed(2));
-                body.append('paymentMode', settleModeInput ? (settleModeInput.value || 'Cash') : 'Cash');
-                body.append('notes', 'Settled from setup order screen');
+                    var body = new URLSearchParams();
+                    body.append('orderNo', ctx.orderNo || '');
+                    body.append('paidAmount', amount);
+                    body.append('paymentMode', settleModeInput ? (settleModeInput.value || 'Cash') : 'Cash');
+                    body.append('notes', 'Settled from setup order screen');
 
                 settleBtn.disabled = true;
                 settleBtn.textContent = 'Settling...';
@@ -1341,7 +1553,8 @@
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
-                        'X-Requested-With': 'XMLHttpRequest'
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'RequestVerificationToken': antiForgeryToken
                     },
                     body: body.toString()
                 })
@@ -1393,14 +1606,14 @@
 
                     if (pendingAmount > 0) {
                         settleAmountInput.value = pendingAmount.toFixed(2);
-                        settleAmountInput.max = pendingAmount.toFixed(2);
+                        settleAmountInput.max = pendingAmount.toFixed(2); // keep numeric toFixed for form validation
                     } else {
                         settleBlock.style.display = 'none';
                     }
 
                     if (info) {
                         info.textContent = "Order " + orderNo + " created. Invoice " + invoiceNo + "."
-                            + (pendingAmount > 0 ? (" Pending: " + pendingAmount.toFixed(2)) : " Payment settled.");
+                            + (pendingAmount > 0 ? (" Pending: " + formatCurrency(pendingAmount)) : " Payment settled.");
                     }
                 })
                 .catch(function () {
@@ -1447,15 +1660,6 @@
                 }
 
                 var email = (ctx.customerEmail || "").trim();
-                if (!email) {
-                    email = (window.prompt('Customer email is missing. Please enter email to continue:', '') || '').trim();
-                    if (!email) {
-                        if (emailStatus) {
-                            emailStatus.textContent = 'Email sending skipped. Customer email not provided.';
-                        }
-                        return;
-                    }
-                }
 
                 var body = new URLSearchParams();
                 body.append('orderNo', ctx.orderNo || '');
@@ -1468,20 +1672,62 @@
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
-                        'X-Requested-With': 'XMLHttpRequest'
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'RequestVerificationToken': antiForgeryToken
                     },
                     body: body.toString()
                 })
                 .then(function (response) { return response.json(); })
                 .then(function (data) {
                     if (!data || !data.success) {
+                        var message = (data && data.message) || 'Unable to send bill email.';
+                        if (!email && /email is missing|enter email/i.test(message)) {
+                            email = (window.prompt('Customer email is missing. Please enter email to continue:', '') || '').trim();
+                            if (!email) {
+                                if (emailStatus) {
+                                    emailStatus.textContent = 'Email sending skipped. Customer email not provided.';
+                                }
+                                return;
+                            }
+
+                            var retryBody = new URLSearchParams();
+                            retryBody.append('orderNo', ctx.orderNo || '');
+                            retryBody.append('email', email);
+
+                            return fetch('@Url.Action("SendOrderBillEmail", "Customer")', {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
+                                    'X-Requested-With': 'XMLHttpRequest',
+                                    'RequestVerificationToken': antiForgeryToken
+                                },
+                                body: retryBody.toString()
+                            })
+                            .then(function (retryResponse) { return retryResponse.json(); })
+                            .then(function (retryData) {
+                                if (!retryData || !retryData.success) {
+                                    if (emailStatus) {
+                                        emailStatus.textContent = (retryData && retryData.message) || 'Unable to send bill email.';
+                                    }
+                                    return;
+                                }
+
+                                ctx.customerEmail = email;
+                                if (emailStatus) {
+                                    emailStatus.textContent = retryData.message || 'Bill emailed successfully.';
+                                }
+                            });
+                        }
+
                         if (emailStatus) {
-                            emailStatus.textContent = (data && data.message) || 'Unable to send bill email.';
+                            emailStatus.textContent = message;
                         }
                         return;
                     }
 
-                    ctx.customerEmail = email;
+                    if (email) {
+                        ctx.customerEmail = email;
+                    }
                     if (emailStatus) {
                         emailStatus.textContent = data.message || 'Bill emailed successfully.';
                     }
@@ -1504,6 +1750,10 @@
         var includeInactive = !!(document.getElementById("showInactiveItemsChk") && document.getElementById("showInactiveItemsChk").checked);
         if (typeof includeInactiveOverride === "boolean") {
             includeInactive = includeInactiveOverride;
+            var inactiveToggleEl = document.getElementById("showInactiveItemsChk");
+            if (inactiveToggleEl) {
+                inactiveToggleEl.checked = includeInactive;
+            }
         }
 
         var itemsUrl = '@Url.Action("GetLaundryItemPrices", "Customer")'
@@ -1529,26 +1779,30 @@
 
             if (!data || !data.success) {
                 configuredItems = [];
+                refreshCategoryOptionsForSelectedService();
+                updateConfigItemSuggestions();
                 renderAllTabsAndCatalog();
+                var message = (data && data.message) || "Unable to load laundry item prices.";
+                showToast(message, false);
                 return;
             }
 
             configuredItems = data.items || [];
 
+            refreshCategoryOptionsForSelectedService();
             updateConfigItemSuggestions();
             renderAllTabsAndCatalog();
         })
-        .catch(function () {
+        .catch(function (error) {
             if (requestId !== loadItemsRequestId) {
                 return;
             }
 
             configuredItems = [];
+            refreshCategoryOptionsForSelectedService();
             updateConfigItemSuggestions();
             renderAllTabsAndCatalog();
-            if (showModeToast) {
-                showToast("Unable to load items for selected filter.", false);
-            }
+            showToast((error && error.message) || "Unable to load items for selected filter.", false);
         });
     }
 
@@ -1587,6 +1841,112 @@
         }
     }
 
+    function refreshCategoryOptionsForSelectedService() {
+        var serviceTypeEl = document.getElementById("cfgServiceType");
+        var categoryEl = document.getElementById("cfgCategory");
+
+        if (!serviceTypeEl || !categoryEl) {
+            return;
+        }
+
+        var selectedService = (serviceTypeEl.value || "").trim().toLowerCase();
+        var previousCategory = (categoryEl.value || "").trim();
+        var includeInactive = !!(document.getElementById("showInactiveItemsChk") && document.getElementById("showInactiveItemsChk").checked);
+        var categories = [];
+        var seen = {};
+
+        if (!includeInactive) {
+            (masterItems || []).forEach(function (item) {
+                if (!(item.IsActive ?? item.isActive ?? true)) {
+                    return;
+                }
+
+                var itemService = (item.ServiceType || item.serviceType || "").trim().toLowerCase();
+                var itemCategory = (item.Category || item.category || "").trim();
+                if (!itemCategory) {
+                    return;
+                }
+
+                if (selectedService && itemService !== selectedService) {
+                    return;
+                }
+
+                var key = itemCategory.toLowerCase();
+                if (seen[key]) {
+                    return;
+                }
+
+                seen[key] = true;
+                categories.push(itemCategory);
+            });
+        }
+
+        (configuredItems || []).forEach(function (item) {
+            var itemService = (item.ServiceType || item.serviceType || "").trim().toLowerCase();
+            var itemCategory = (item.Category || item.category || "").trim();
+            if (!itemCategory) {
+                return;
+            }
+
+            if (selectedService && itemService !== selectedService) {
+                return;
+            }
+
+            var isActive = !!(item.IsActive ?? item.isActive ?? true);
+            if (includeInactive !== !isActive) {
+                return;
+            }
+
+            var key = itemCategory.toLowerCase();
+            if (seen[key]) {
+                return;
+            }
+
+            seen[key] = true;
+            categories.push(itemCategory);
+        });
+
+        categories.sort(function (a, b) { return a.localeCompare(b); });
+
+        categoryEl.innerHTML = "";
+
+        var firstOption = document.createElement("option");
+        firstOption.value = "";
+        firstOption.textContent = categories.length ? "Select category" : "No categories configured";
+        categoryEl.appendChild(firstOption);
+
+        categories.forEach(function (category) {
+            var option = document.createElement("option");
+            option.value = category;
+            option.textContent = category;
+            categoryEl.appendChild(option);
+        });
+
+        if (previousCategory && categories.some(function (x) { return x.toLowerCase() === previousCategory.toLowerCase(); })) {
+            categoryEl.value = categories.find(function (x) { return x.toLowerCase() === previousCategory.toLowerCase(); }) || "";
+        } else {
+            categoryEl.value = "";
+        }
+    }
+
+    function resetConfigItemSelection() {
+        var itemNameEl = document.getElementById("cfgItemName");
+        var unitPriceEl = document.getElementById("cfgUnitPrice");
+        var pickerEl = document.getElementById("cfgItemPicker");
+
+        if (itemNameEl) {
+            itemNameEl.value = "";
+        }
+
+        if (unitPriceEl) {
+            unitPriceEl.value = "";
+        }
+
+        if (pickerEl) {
+            pickerEl.value = "";
+        }
+    }
+
     function loadStoreMasters() {
         var url = '@Url.Action("GetStoreMasters", "Customer")?includeInactive=false&_ts=' + Date.now();
 
@@ -1604,17 +1964,16 @@
         })
         .then(function (data) {
             var serviceTypes = (data && data.success) ? (data.serviceTypes || data.ServiceTypes || []) : [];
-            var categories = (data && data.success) ? (data.categories || data.Categories || []) : [];
             masterItems = (data && data.success) ? (data.items || data.Items || []) : [];
 
             fillMasterSelect("cfgServiceType", serviceTypes, "Select service type", "No service types configured");
-            fillMasterSelect("cfgCategory", categories, "Select category", "No categories configured");
+            refreshCategoryOptionsForSelectedService();
             updateConfigItemSuggestions();
         })
         .catch(function () {
             masterItems = [];
             fillMasterSelect("cfgServiceType", [], "Select service type", "No service types configured");
-            fillMasterSelect("cfgCategory", [], "Select category", "No categories configured");
+            refreshCategoryOptionsForSelectedService();
         });
     }
 
@@ -1641,34 +2000,7 @@
         var entriesByName = {};
         cfgPickerEntriesByKey = {};
 
-        // Items defined in Service & Item Master for the selected service + category.
-        // These are the only names that may be priced, so they drive the picker.
-        if (scopeSelected) {
-            masterItems.forEach(function (item) {
-                var itemService = (item.ServiceType || item.serviceType || "").trim();
-                var itemCategory = (item.Category || item.category || "").trim();
-                var itemName = (item.ItemName || item.itemName || "").trim();
-                if (!itemName || !(item.IsActive ?? item.isActive ?? true)) {
-                    return;
-                }
-
-                if (itemService.toLowerCase() !== serviceTypeLower || itemCategory.toLowerCase() !== categoryLower) {
-                    return;
-                }
-
-                entriesByName[itemName.toLowerCase()] = {
-                    service: itemService,
-                    category: itemCategory,
-                    name: itemName,
-                    price: 0,
-                    isActive: true,
-                    hasPrice: false
-                };
-            });
-        }
-
-        // Merge the configured price rows for the same scope so existing prices show up
-        // and any legacy priced item that is missing from the master is still selectable.
+        // Build suggestions strictly from configured price rows in this scope.
         // Skipped entirely until a scope is chosen, otherwise rows from different
         // service/category combinations would collapse onto the same item name.
         if (scopeSelected) {
@@ -1718,7 +2050,7 @@
             var opt = document.createElement("option");
             opt.value = entry.name;
             opt.label = entry.price > 0
-                ? (entry.name + " (" + entry.price.toFixed(2) + ", " + statusLabel + ")")
+                ? (entry.name + " (" + formatCurrency(entry.price) + ", " + statusLabel + ")")
                 : (entry.name + " (" + statusLabel + ")");
             datalist.appendChild(opt);
 
@@ -1727,7 +2059,7 @@
                 selectOpt.value = entry.pickerKey;
                 selectOpt.textContent = entry.name
                     + " - " + statusLabel
-                    + (entry.price > 0 ? (", " + entry.price.toFixed(2)) : "");
+                    + (entry.price > 0 ? (", " + formatCurrency(entry.price)) : "");
                 picker.appendChild(selectOpt);
                 cfgPickerEntriesByKey[entry.pickerKey] = entry;
             }
@@ -1739,11 +2071,11 @@
         } else if (!Object.keys(entriesByName).length) {
             hintText = includeInactive
                 ? ("No inactive items for " + serviceType + " / " + category + ".")
-                : ("No items found for " + serviceType + " / " + category + ". Add them in Service & Item Master first.");
+                : ("No active priced items found for " + serviceType + " / " + category + ".");
         } else {
             hintText = includeInactive
                 ? ("Showing inactive items for " + serviceType + " / " + category + ".")
-                : ("Showing items for " + serviceType + " / " + category + ". \"No price set\" items still need a price.");
+                : ("Showing active priced items for " + serviceType + " / " + category + ".");
         }
 
         var hintEl = document.getElementById("cfgItemNameHint");
@@ -1912,6 +2244,8 @@
             return;
         }
 
+        var requestId = ++loadCustomerRequestId;
+
         function parseJsonOrHandleRedirect(response, fallbackMessage) {
             if (!response) {
                 throw new Error(fallbackMessage);
@@ -1954,7 +2288,15 @@
 
         var customerName = (document.getElementById("customerName").value || "").trim();
         var customerCode = (document.getElementById("custCode").value || "").trim();
-        if (!customerName && !customerCode) { showToast("Please enter customer name.", false); return; }
+        var requestedCustomerName = customerName;
+        var requestedCustomerCode = customerCode;
+        if (!customerName && !customerCode) {
+            updateAvailableAdvanceDisplay(0, "Select a customer to view available advance.");
+            showToast("Please enter customer name.", false);
+            return;
+        }
+
+        updateAvailableAdvanceDisplay(0, "Loading latest advance balance...");
 
         function loadOrdersForCustomer(nameValue, codeValue) {
             var orderQuery = [];
@@ -1970,6 +2312,8 @@
                 return;
             }
 
+            document.getElementById("orderHistoryBody").innerHTML = "<tr><td colspan='15'>Loading customer order history...</td></tr>";
+
             fetch('@Url.Action("GetCustomerOrders", "Customer")' + '?' + orderQuery.join('&'), {
                 method: 'GET',
                 credentials: 'same-origin',
@@ -1981,14 +2325,18 @@
             .then(function (response) { return parseJsonOrHandleRedirect(response, 'Unable to fetch orders.'); })
             .then(function (orderData) {
                 if (!orderData || !orderData.success) {
-                    showToast((orderData && orderData.message) || "Unable to fetch orders.", false);
+                    var msg = (orderData && orderData.message) || "Unable to fetch orders.";
+                    showToast(msg, false);
+                    document.getElementById("orderHistoryBody").innerHTML = "<tr><td colspan='15'>" + msg + "</td></tr>";
                     renderOrdersHistory([]);
                     return;
                 }
                 renderOrdersHistory(orderData.orders || []);
             })
             .catch(function (error) {
-                showToast((error && error.message) || "Unable to fetch orders.", false);
+                var msg = (error && error.message) || "Unable to fetch orders.";
+                showToast(msg, false);
+                document.getElementById("orderHistoryBody").innerHTML = "<tr><td colspan='15'>" + msg + "</td></tr>";
                 renderOrdersHistory([]);
             });
         }
@@ -2011,10 +2359,20 @@
         })
         .then(function (response) { return parseJsonOrHandleRedirect(response, 'Unable to fetch customer advances.'); })
         .then(function (advanceData) {
+            if (requestId !== loadCustomerRequestId) {
+                return;
+            }
+
+            var currentName = (document.getElementById("customerName").value || "").trim();
+            var currentCode = (document.getElementById("custCode").value || "").trim();
+            if (currentName !== requestedCustomerName || currentCode !== requestedCustomerCode) {
+                return;
+            }
+
             if (!advanceData || !advanceData.success) {
                 showToast((advanceData && advanceData.message) || "Unable to fetch customer advances. Continuing with 0 advance balance.", false);
                 currentAdvanceBalance = 0;
-                document.getElementById("advBalance").textContent = "0.00";
+                updateAvailableAdvanceDisplay(0, (advanceData && advanceData.message) || "Unable to retrieve latest advance balance.");
                 if (customerCode) {
                     document.getElementById("custCode").value = customerCode;
                     document.getElementById("customerCodeDisplay").value = customerCode;
@@ -2025,7 +2383,7 @@
             }
 
             currentAdvanceBalance = Number(advanceData.balance || 0);
-            document.getElementById("advBalance").textContent = currentAdvanceBalance.toFixed(2);
+            updateAvailableAdvanceDisplay(currentAdvanceBalance, "");
             document.getElementById("custCode").value = advanceData.customerCode || "";
             document.getElementById("customerCodeDisplay").value = advanceData.customerCode || "";
 
@@ -2035,9 +2393,19 @@
             syncTotals();
         })
         .catch(function (error) {
+            if (requestId !== loadCustomerRequestId) {
+                return;
+            }
+
+            var currentName = (document.getElementById("customerName").value || "").trim();
+            var currentCode = (document.getElementById("custCode").value || "").trim();
+            if (currentName !== requestedCustomerName || currentCode !== requestedCustomerCode) {
+                return;
+            }
+
             showToast((error && error.message) || "Unable to fetch customer advances. Continuing with 0 advance balance.", false);
             currentAdvanceBalance = 0;
-            document.getElementById("advBalance").textContent = "0.00";
+            updateAvailableAdvanceDisplay(0, "Unable to retrieve latest advance balance.");
             loadOrdersForCustomer(customerName, customerCode);
             syncTotals();
         });
@@ -2072,6 +2440,11 @@
         })
         .then(function (items) {
             listEl.innerHTML = "";
+            if (items && typeof items === 'object' && !Array.isArray(items) && items.success === false) {
+                showToast(items.message || "Unable to load order suggestions.", false);
+                return;
+            }
+
             (Array.isArray(items) ? items : []).forEach(function (value) {
                 if (!value) {
                     return;
@@ -2196,6 +2569,22 @@
             showToast(window.setupOrderToastMessage, true);
         }
 
+        var hasValidationErrors = document.querySelector(".validation-summary-errors li, .field-validation-error:not(:empty)") !== null;
+        var shouldClearFreshEntryFields = !setupOnly
+            && !window.location.search
+            && !window.location.hash
+            && !window.setupOrderToastMessage
+            && !hasValidationErrors;
+
+        if (shouldClearFreshEntryFields) {
+            ["customerName", "orderLookupText", "customerCodeDisplay", "custCode", "advanceUsed", "paidNow", "orderHistorySearch"].forEach(function (id) {
+                var element = document.getElementById(id);
+                if (element) {
+                    element.value = "";
+                }
+            });
+        }
+
         setupPostOrderActions();
 
         renderSelectedItemPane();
@@ -2206,7 +2595,14 @@
         if (!setupOnly) {
             document.getElementById("modePiecesBtn").onclick = function (e) { e.preventDefault(); setOrderMode("pieces"); };
             document.getElementById("modeWeightBtn").onclick = function (e) { e.preventDefault(); setOrderMode("weight"); };
-            document.getElementById("loadOrderDataBtn").onclick = function (e) { e.preventDefault(); loadCustomerData(); };
+            document.getElementById("loadOrderDataBtn").onclick = function (e) {
+                e.preventDefault();
+                var customerName = (document.getElementById("customerName").value || "").trim();
+                if (!customerName) {
+                    updateAvailableAdvanceDisplay(0, "Select a customer to view available advance.");
+                }
+                loadCustomerData();
+            };
             document.getElementById("findOrderRefBtn").onclick = function (e) { e.preventDefault(); findOrderReferenceAndLoadCustomer(); };
             document.getElementById("orderLookupText")?.addEventListener("input", loadOrderReferenceSuggestions);
             document.getElementById("orderLookupText")?.addEventListener("keydown", function (e) {
@@ -2250,11 +2646,100 @@
                 addSelectedItemToOrder();
             };
             document.getElementById("orderHistorySearch")?.addEventListener("input", applyOrderHistorySearch);
+            document.getElementById("orderHistoryStatusFilter")?.addEventListener("change", applyOrderHistorySearch);
+            document.getElementById("orderHistoryFromDate")?.addEventListener("change", applyOrderHistorySearch);
+            document.getElementById("orderHistoryToDate")?.addEventListener("change", applyOrderHistorySearch);
             document.getElementById("advanceUsed").addEventListener("input", syncTotals);
             document.getElementById("paidNow").addEventListener("input", syncTotals);
             document.getElementById("weightInKg").addEventListener("input", syncTotals);
             document.getElementById("ratePerKg").addEventListener("input", syncTotals);
             document.getElementById("weightServiceType").addEventListener("change", syncTotals);
+
+            var customerNameInput = document.getElementById("customerName");
+            var customerSuggestionList = document.getElementById("customerNameSuggestions");
+            function loadCustomerSuggestions() {
+                if (!customerNameInput || !customerSuggestionList) {
+                    return;
+                }
+
+                var term = (customerNameInput.value || "").trim();
+                if (term.length < 2) {
+                    customerSuggestionList.innerHTML = "";
+                    knownCustomerSuggestions = [];
+                    return;
+                }
+
+                var requestId = ++customerSuggestRequestId;
+                fetch('@Url.Action("SearchCustomers", "Customer")?searchText=' + encodeURIComponent(term), {
+                    method: 'GET',
+                    credentials: 'same-origin',
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'Accept': 'application/json'
+                    }
+                })
+                .then(function (response) { return response.json(); })
+                .then(function (list) {
+                    if (requestId !== customerSuggestRequestId) {
+                        return;
+                    }
+
+                    var names = Array.isArray(list) ? list.filter(function (x) { return !!x; }) : [];
+                    knownCustomerSuggestions = names.map(function (x) { return x.toString().trim().toLowerCase(); });
+                    customerSuggestionList.innerHTML = "";
+                    names.slice(0, 30).forEach(function (name) {
+                        var opt = document.createElement('option');
+                        opt.value = name;
+                        customerSuggestionList.appendChild(opt);
+                    });
+                })
+                .catch(function () {
+                    // Keep page responsive even if search endpoint fails.
+                });
+            }
+
+            if (customerNameInput) {
+                customerNameInput.addEventListener("input", function () {
+                    var selectedName = (customerNameInput.value || "").trim();
+                    var custCodeEl = document.getElementById("custCode");
+                    var custCodeDisplayEl = document.getElementById("customerCodeDisplay");
+
+                    loadCustomerRequestId++;
+
+                    if (custCodeEl) {
+                        custCodeEl.value = "";
+                    }
+
+                    if (custCodeDisplayEl) {
+                        custCodeDisplayEl.value = "";
+                    }
+
+                    currentAdvanceBalance = 0;
+                    if (selectedName) {
+                        updateAvailableAdvanceDisplay(0, "Select a valid customer and click Load Customer Details.");
+                        if (customerSuggestTimer) {
+                            clearTimeout(customerSuggestTimer);
+                        }
+                        customerSuggestTimer = setTimeout(loadCustomerSuggestions, 180);
+                        syncTotals();
+                    } else {
+                        updateAvailableAdvanceDisplay(0, "Select a customer to view available advance.");
+                        renderOrdersHistory([]);
+                        syncTotals();
+                    }
+                });
+
+                customerNameInput.addEventListener("change", function () {
+                    var selectedName = (customerNameInput.value || "").trim();
+                    if (!selectedName) {
+                        return;
+                    }
+
+                    if (!knownCustomerSuggestions.length || knownCustomerSuggestions.indexOf(selectedName.toLowerCase()) >= 0) {
+                        loadCustomerData();
+                    }
+                });
+            }
 
             var form = document.getElementById("setupOrderForm");
             form.addEventListener("submit", function (e) {
@@ -2339,7 +2824,10 @@
 
             var hasCustomer = document.getElementById("customerName") && document.getElementById("customerName").value;
             if (hasCustomer) {
+                updateAvailableAdvanceDisplay(0, "Loading latest advance balance...");
                 loadCustomerData();
+            } else {
+                updateAvailableAdvanceDisplay(0, "Select a customer to view available advance.");
             }
         }
 
@@ -2347,10 +2835,13 @@
         document.getElementById("removePriceConfigBtn")?.addEventListener("click", function (e) { e.preventDefault(); removeConfiguredItemPrice(); });
         document.getElementById("restorePriceConfigBtn")?.addEventListener("click", function (e) { e.preventDefault(); restoreConfiguredItemPrice(); });
         document.getElementById("cfgServiceType")?.addEventListener("change", function () {
+            refreshCategoryOptionsForSelectedService();
+            resetConfigItemSelection();
             updateConfigItemSuggestions();
             applySuggestedPrice();
         });
         document.getElementById("cfgCategory")?.addEventListener("change", function () {
+            resetConfigItemSelection();
             updateConfigItemSuggestions();
             applySuggestedPrice();
         });

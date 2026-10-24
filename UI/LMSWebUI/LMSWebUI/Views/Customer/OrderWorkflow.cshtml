@@ -3,6 +3,7 @@
     Layout = "~/Views/Shared/_HeaderMenuItemsLayout.cshtml";
     var tenantName = Convert.ToString(ViewData["WorkflowTenantName"] ?? "-");
     var storeCode = Convert.ToString(ViewData["WorkflowStoreCode"] ?? "-");
+    var workflowStatusesJson = Convert.ToString(ViewData["WorkflowStatusesJson"] ?? "[]");
 }
 
 <style>
@@ -43,6 +44,122 @@
         grid-template-columns: repeat(5, minmax(120px, 1fr));
         gap: 10px;
         margin-bottom: 12px;
+    }
+
+    .wf-priority-strip {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(140px, 1fr));
+        gap: 10px;
+        margin-bottom: 12px;
+    }
+
+    .wf-priority-card {
+        border: 1px solid var(--els-border);
+        border-radius: 8px;
+        padding: 10px;
+        background: var(--els-background);
+    }
+
+    .wf-priority-label {
+        font-size: 11px;
+        color: #64748b;
+        margin-bottom: 2px;
+    }
+
+    .wf-priority-value {
+        font-size: 18px;
+        font-weight: 700;
+        color: var(--els-text);
+    }
+
+    .wf-priority-card.alert .wf-priority-value {
+        color: #b63838;
+    }
+
+    .wf-priority-card.warn .wf-priority-value {
+        color: #8a5a00;
+    }
+
+    .wf-priority-card.success .wf-priority-value {
+        color: #2f8f46;
+    }
+
+    .wf-priority-insight {
+        margin: -4px 0 12px;
+        font-size: 12px;
+        color: #475467;
+    }
+
+    .wf-owner-strip {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(160px, 1fr));
+        gap: 10px;
+        margin-bottom: 12px;
+    }
+
+    .wf-owner-card {
+        border: 1px solid var(--els-border);
+        border-radius: 8px;
+        padding: 10px;
+        background: var(--els-background);
+    }
+
+    .wf-owner-label {
+        font-size: 11px;
+        color: #64748b;
+        margin-bottom: 3px;
+    }
+
+    .wf-owner-value {
+        font-size: 17px;
+        font-weight: 700;
+        color: var(--els-text);
+    }
+
+    .wf-owner-value.alert { color: #b63838; }
+    .wf-owner-value.success { color: #2f8f46; }
+
+    .wf-toolbar {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        align-items: center;
+        margin-bottom: 10px;
+        padding: 8px;
+        border: 1px solid var(--els-border);
+        border-radius: 8px;
+        background: var(--els-background);
+    }
+
+    .wf-tool-btn {
+        border: 1px solid var(--els-border);
+        border-radius: 999px;
+        padding: 5px 12px;
+        background: #fff;
+        font-size: 12px;
+        color: #334155;
+        cursor: pointer;
+    }
+
+    .wf-tool-btn:hover { background: var(--els-accent); }
+
+    .wf-tool-btn.active {
+        background: var(--els-primary);
+        border-color: var(--els-primary);
+        color: #fff;
+    }
+
+    .wf-tool-spacer {
+        flex: 1;
+        min-width: 20px;
+    }
+
+    .wf-aging-tag {
+        display: inline-block;
+        margin-top: 2px;
+        font-size: 10px;
+        color: #9a6700;
+        font-weight: 700;
     }
 
     .wf-counter-card {
@@ -105,6 +222,18 @@
 
     .wf-grid tbody tr:nth-child(even) td {
         background: #fcfdff;
+    }
+
+    .wf-grid tbody tr.wf-row-attention td {
+        background: #fff8e1 !important;
+    }
+
+    .wf-grid tbody tr.wf-row-payment td {
+        background: #fdeeee !important;
+    }
+
+    .wf-grid tbody tr.wf-row-stale td {
+        background: #fef3c7 !important;
     }
 
     .wf-status-pill {
@@ -178,6 +307,7 @@
 </style>
 
 <section class="wf-page">
+    @Html.AntiForgeryToken()
     <div class="wf-shell">
         <div class="wf-title">
             Store Order Workflow
@@ -189,15 +319,61 @@
 
             <div id="wfCounters" class="wf-counters"></div>
 
+            <div id="wfPriorityStrip" class="wf-priority-strip">
+                <div class="wf-priority-card alert">
+                    <div class="wf-priority-label">Ready to deliver</div>
+                    <div id="wfPriorityReady" class="wf-priority-value">0</div>
+                </div>
+                <div class="wf-priority-card warn">
+                    <div class="wf-priority-label">Need processing</div>
+                    <div id="wfPriorityOpen" class="wf-priority-value">0</div>
+                </div>
+                <div class="wf-priority-card alert">
+                    <div class="wf-priority-label">Pending payment</div>
+                    <div id="wfPriorityPayment" class="wf-priority-value">0</div>
+                </div>
+                <div class="wf-priority-card success">
+                    <div class="wf-priority-label">Older than 24h</div>
+                    <div id="wfPriorityStale" class="wf-priority-value">0</div>
+                </div>
+            </div>
+
+            <div id="wfPriorityInsight" class="wf-priority-insight">Focus now: Review ready and overdue orders first.</div>
+
+            <div id="wfOwnerStrip" class="wf-owner-strip">
+                <div class="wf-owner-card">
+                    <div class="wf-owner-label">Gross Revenue (View)</div>
+                    <div id="wfOwnerGross" class="wf-owner-value">₹0.00</div>
+                </div>
+                <div class="wf-owner-card">
+                    <div class="wf-owner-label">Collected (View)</div>
+                    <div id="wfOwnerCollected" class="wf-owner-value success">₹0.00</div>
+                </div>
+                <div class="wf-owner-card">
+                    <div class="wf-owner-label">Pending Collection</div>
+                    <div id="wfOwnerPending" class="wf-owner-value alert">₹0.00</div>
+                </div>
+                <div class="wf-owner-card">
+                    <div class="wf-owner-label">SLA Health (&lt; 24h)</div>
+                    <div id="wfOwnerSla" class="wf-owner-value">100%</div>
+                </div>
+            </div>
+
+            <div id="wfToolbar" class="wf-toolbar">
+                <button type="button" class="wf-tool-btn active" data-focus="all">All</button>
+                <button type="button" class="wf-tool-btn" data-focus="ready">Ready</button>
+                <button type="button" class="wf-tool-btn" data-focus="open">Need Processing</button>
+                <button type="button" class="wf-tool-btn" data-focus="payment">Pending Payment</button>
+                <button type="button" class="wf-tool-btn" data-focus="stale">Older 24h</button>
+                <div class="wf-tool-spacer"></div>
+                <button type="button" class="wf-tool-btn" id="wfClearSearchBtn">Clear Search</button>
+            </div>
+
             <div class="wf-filters">
                 <select id="wfStatusFilter" class="form-control">
                     <option value="">All statuses</option>
-                    <option value="Received">Received</option>
-                    <option value="Processing">Processing</option>
-                    <option value="Ready">Ready</option>
-                    <option value="Delivered">Delivered</option>
                 </select>
-                <input type="text" id="wfSearchText" class="form-control" placeholder="Search by Order No / Invoice No / Customer / Customer Code" />
+                <input type="text" id="wfSearchText" class="form-control" placeholder="Search by Order No / Invoice No / Customer / Customer Code" autocomplete="off" />
                 <button type="button" id="wfRefreshBtn" class="btn btn-primary">Refresh</button>
             </div>
 
@@ -228,7 +404,33 @@
 
 <script>
 (function () {
+    var configuredWorkflowStatuses = @Html.Raw(workflowStatusesJson);
+    if (typeof configuredWorkflowStatuses === "string") {
+        try {
+            configuredWorkflowStatuses = JSON.parse(configuredWorkflowStatuses);
+        } catch (_) {
+            configuredWorkflowStatuses = [];
+        }
+    }
+
+    function wfConfiguredStatusList() {
+        if (Array.isArray(configuredWorkflowStatuses)) {
+            return configuredWorkflowStatuses;
+        }
+
+        if (configuredWorkflowStatuses && Array.isArray(configuredWorkflowStatuses.statuses)) {
+            return configuredWorkflowStatuses.statuses;
+        }
+
+        if (configuredWorkflowStatuses && Array.isArray(configuredWorkflowStatuses.Statuses)) {
+            return configuredWorkflowStatuses.Statuses;
+        }
+
+        return [];
+    }
+
     function wfById(id) { return document.getElementById(id); }
+    var wfFocusMode = "all";
     function wfEsc(v) {
         return String(v || "")
             .replace(/&/g, "&amp;")
@@ -255,11 +457,14 @@
             "<div class='wf-counter-card'><div class='wf-counter-label'>Completed</div><div class='wf-counter-value'>" + n(c.delivered) + "</div></div>";
     }
     function wfReq(url, method, body, ok, fail) {
+        var antiForgeryInput = document.querySelector('input[name="__RequestVerificationToken"]');
+        var antiForgeryToken = antiForgeryInput ? antiForgeryInput.value : "";
         var xhr = new XMLHttpRequest();
         xhr.open(method, url, true);
         xhr.setRequestHeader("X-Requested-With", "XMLHttpRequest");
         if (method === "POST") {
             xhr.setRequestHeader("Content-Type", "application/x-www-form-urlencoded; charset=UTF-8");
+            xhr.setRequestHeader("RequestVerificationToken", antiForgeryToken);
         }
         xhr.onreadystatechange = function () {
             if (xhr.readyState !== 4) return;
@@ -282,17 +487,179 @@
     function wfStatusClass(status) {
         var s = String(status || "").toLowerCase();
         if (s === "received") return "wf-status-received";
-        if (s === "processing") return "wf-status-processing";
-        if (s === "ready") return "wf-status-ready";
+        if (s === "processing" || s === "in process") return "wf-status-processing";
+        if (s === "ready" || s === "ready for delivery") return "wf-status-ready";
         if (s === "delivered") return "wf-status-delivered";
-        return "wf-status-received";
+        if (s === "cancelled") return "wf-status-delivered";
+        return "wf-status-processing";
+    }
+    function wfStatusKey(status) {
+        var s = String(status || "").trim().toLowerCase();
+        var compact = s.replace(/[^a-z0-9]/g, "");
+        if (!s) return "";
+        if (compact === "inprocess" || compact === "processing") return "processing";
+        if (compact === "readyfordelivery" || compact === "ready") return "ready";
+        if (compact === "completed" || compact === "delivered") return "delivered";
+        if (compact === "cancelled" || compact === "canceled") return "cancelled";
+        if (compact === "received") return "received";
+        return compact;
+    }
+    function wfFindConfiguredStatus(status) {
+        var list = wfConfiguredStatusList();
+        var current = wfStatusKey(status);
+        for (var i = 0; i < list.length; i++) {
+            var item = list[i] || {};
+            var name = wfStatusKey(item.name || item.statusName || item.StatusName || "");
+            if (name && name === current) {
+                return item;
+            }
+        }
+        return null;
+    }
+    function wfNormalizeHexColor(value) {
+        var v = String(value || "").trim();
+        if (!v) return "";
+        if (v.charAt(0) !== "#") v = "#" + v;
+        if (/^#[0-9a-fA-F]{3}$/.test(v)) {
+            return "#" + v.charAt(1) + v.charAt(1) + v.charAt(2) + v.charAt(2) + v.charAt(3) + v.charAt(3);
+        }
+        if (!/^#[0-9a-fA-F]{6}$/.test(v)) {
+            return "";
+        }
+        return v;
+    }
+    function wfStatusStyleAttr(status) {
+        var configured = wfFindConfiguredStatus(status);
+        if (!configured) {
+            return "";
+        }
+
+        var hex = wfNormalizeHexColor(configured.color || configured.colorCode || configured.ColorCode);
+        if (!hex) {
+            return "";
+        }
+
+        var r = parseInt(hex.substr(1, 2), 16);
+        var g = parseInt(hex.substr(3, 2), 16);
+        var b = parseInt(hex.substr(5, 2), 16);
+        var luminance = (0.299 * r + 0.587 * g + 0.114 * b);
+        var textColor = luminance >= 160 ? "#111827" : "#ffffff";
+        return " style='background:" + hex + ";color:" + textColor + ";border:1px solid " + hex + ";text-shadow:none'";
+    }
+    function wfApplyConfiguredStatusTheme() {
+        var list = wfConfiguredStatusList();
+        if (!list.length) {
+            return;
+        }
+
+        var styles = [];
+        for (var i = 0; i < list.length; i++) {
+            var item = list[i] || {};
+            var key = wfStatusKey(item.name || item.statusName || item.StatusName || "");
+            var hex = wfNormalizeHexColor(item.color || item.colorCode || item.ColorCode);
+            if (!key || !hex) {
+                continue;
+            }
+
+            var r = parseInt(hex.substr(1, 2), 16);
+            var g = parseInt(hex.substr(3, 2), 16);
+            var b = parseInt(hex.substr(5, 2), 16);
+            var luminance = (0.299 * r + 0.587 * g + 0.114 * b);
+            var textColor = luminance >= 160 ? "#111827" : "#ffffff";
+            var background = hex;
+
+            if (key === "received" || key === "processing" || key === "ready" || key === "delivered" || key === "cancelled") {
+                var className = key === "cancelled" ? "wf-status-delivered" : ("wf-status-" + key);
+                styles.push("." + className + "{background:" + background + " !important;color:" + textColor + " !important;border:1px solid " + hex + " !important;text-shadow:none !important;}");
+            }
+        }
+
+        if (!styles.length) {
+            return;
+        }
+
+        var existing = document.getElementById("wfDynamicStatusColors");
+        if (!existing) {
+            existing = document.createElement("style");
+            existing.id = "wfDynamicStatusColors";
+            document.head.appendChild(existing);
+        }
+        existing.textContent = styles.join("\n");
     }
     function wfNext(status) {
-        var s = String(status || "").toLowerCase();
-        if (s === "received") return "Processing";
-        if (s === "processing") return "Ready";
-        if (s === "ready") return "Delivered";
-        return "";
+        var list = wfConfiguredStatusList();
+        var currentKey = wfStatusKey(status);
+        if (!list.length) {
+            if (currentKey === "received") return "Processing";
+            if (currentKey === "processing") return "Ready";
+            if (currentKey === "ready") return "Delivered";
+            return "";
+        }
+
+        if (currentKey === "delivered" || currentKey === "cancelled") {
+            return "";
+        }
+
+        for (var i = 0; i < list.length; i++) {
+            var item = list[i] || {};
+            var name = wfStatusKey(item.name || item.statusName || item.StatusName || "");
+            if (name === currentKey) {
+                var isFinal = !!item.isFinal;
+                if (isFinal || i >= list.length - 1) {
+                    return "";
+                }
+
+                for (var j = i + 1; j < list.length; j++) {
+                    var nextItem = list[j] || {};
+                    var nextName = String(nextItem.name || nextItem.statusName || nextItem.StatusName || "").trim();
+                    var nextKey = wfStatusKey(nextName);
+                    if (!nextName || nextKey === "cancelled") {
+                        continue;
+                    }
+
+                    return nextName;
+                }
+
+                return "";
+            }
+        }
+
+        return list.length
+            ? String(list[0].name || list[0].statusName || list[0].StatusName || "")
+            : "";
+    }
+
+    function populateWorkflowStatusFilterOptions() {
+        var statusEl = wfById("wfStatusFilter");
+        if (!statusEl) {
+            return;
+        }
+
+        var selected = (statusEl.value || "").trim();
+        var options = ["<option value=''>All statuses</option>"];
+        var list = wfConfiguredStatusList();
+
+        if (list.length) {
+            for (var i = 0; i < list.length; i++) {
+                var item = list[i] || {};
+                var name = String(item.name || item.statusName || item.StatusName || "").trim();
+                if (!name) {
+                    continue;
+                }
+
+                options.push("<option value='" + wfEsc(name) + "'>" + wfEsc(name) + "</option>");
+            }
+        } else {
+            options.push("<option value='Received'>Received</option>");
+            options.push("<option value='Processing'>Processing</option>");
+            options.push("<option value='Ready'>Ready</option>");
+            options.push("<option value='Delivered'>Delivered</option>");
+        }
+
+        statusEl.innerHTML = options.join("");
+        if (selected) {
+            statusEl.value = selected;
+        }
     }
     function wfNum(v) { v = Number(v); return isNaN(v) ? 0 : v; }
     function wfPieces(o) {
@@ -317,6 +684,128 @@
             }
         }
         return parts.join("&");
+    }
+    function wfHoursSince(dateValue) {
+        var dt = new Date(dateValue || "");
+        if (isNaN(dt.getTime())) return 0;
+        return (new Date().getTime() - dt.getTime()) / 3600000;
+    }
+    function wfUpdatePriorityStrip(stats) {
+        stats = stats || {};
+        var ready = wfById("wfPriorityReady");
+        var open = wfById("wfPriorityOpen");
+        var payment = wfById("wfPriorityPayment");
+        var stale = wfById("wfPriorityStale");
+        var insight = wfById("wfPriorityInsight");
+
+        if (ready) ready.textContent = String(wfNum(stats.ready));
+        if (open) open.textContent = String(wfNum(stats.open));
+        if (payment) payment.textContent = String(wfNum(stats.payment));
+        if (stale) stale.textContent = String(wfNum(stats.stale));
+
+        if (insight) {
+            if (wfNum(stats.ready) > 0) {
+                insight.textContent = "Focus now: " + wfNum(stats.ready) + " ready order(s) are waiting for delivery.";
+            } else if (wfNum(stats.stale) > 0) {
+                insight.textContent = "Focus now: " + wfNum(stats.stale) + " order(s) are older than 24h.";
+            } else if (wfNum(stats.payment) > 0) {
+                insight.textContent = "Focus now: collect payment on " + wfNum(stats.payment) + " pending order(s).";
+            } else {
+                insight.textContent = "Focus now: Review ready and overdue orders first.";
+            }
+        }
+    }
+    function wfFormatAmount(value) {
+        try {
+            return formatCurrency(wfNum(value));
+        } catch (_) {
+            return wfNum(value).toFixed(2);
+        }
+    }
+    function wfSetText(id, text) {
+        var el = wfById(id);
+        if (el) {
+            el.textContent = text;
+        }
+    }
+    function wfSyncToolbarState() {
+        var btns = document.querySelectorAll("#wfToolbar .wf-tool-btn[data-focus]");
+        for (var i = 0; i < btns.length; i++) {
+            var mode = (btns[i].getAttribute("data-focus") || "all").toLowerCase();
+            if (mode === wfFocusMode) {
+                btns[i].classList.add("active");
+            } else {
+                btns[i].classList.remove("active");
+            }
+        }
+    }
+    function wfFilterByFocus(orders) {
+        var mode = (wfFocusMode || "all").toLowerCase();
+        if (mode === "all") return orders;
+
+        return (orders || []).filter(function (item) {
+            var status = String((item && (item.Status || item.status)) || "").toLowerCase();
+            var pendingAmount = wfNum(item && (item.PendingAmount || item.pendingAmount || item.NetPayable || item.netPayable || 0));
+            var ageHours = wfHoursSince(item && (item.CreatedDate || item.createdDate || ""));
+            if (mode === "ready") return status === "ready" || status === "ready for delivery";
+            if (mode === "open") return status === "received" || status === "processing" || status === "in process";
+            if (mode === "payment") return pendingAmount > 0;
+            if (mode === "stale") return ageHours >= 24 && status !== "delivered" && status !== "cancelled";
+            return true;
+        });
+    }
+    function wfUpdateOwnerSummary(orders, priorityStats) {
+        orders = orders || [];
+        priorityStats = priorityStats || {};
+
+        var totalAmount = 0;
+        var totalPending = 0;
+        var activeOrders = 0;
+        for (var i = 0; i < orders.length; i++) {
+            var o = orders[i] || {};
+            var status = String((o.Status || o.status) || "").toLowerCase();
+            var amount = wfNum(o.OrderAmount || o.orderAmount || 0);
+            var pending = wfNum(o.PendingAmount || o.pendingAmount || o.NetPayable || o.netPayable || 0);
+            totalAmount += amount;
+            totalPending += pending;
+            if (status !== "delivered" && status !== "cancelled") {
+                activeOrders += 1;
+            }
+        }
+
+        var collected = Math.max(totalAmount - totalPending, 0);
+        var stale = wfNum(priorityStats.stale);
+        var slaHealth = activeOrders > 0 ? Math.max(0, ((activeOrders - stale) / activeOrders) * 100) : 100;
+
+        wfSetText("wfOwnerGross", wfFormatAmount(totalAmount));
+        wfSetText("wfOwnerCollected", wfFormatAmount(collected));
+        wfSetText("wfOwnerPending", wfFormatAmount(totalPending));
+        wfSetText("wfOwnerSla", slaHealth.toFixed(0) + "%");
+    }
+    function wfBindToolbarActions() {
+        var btns = document.querySelectorAll("#wfToolbar .wf-tool-btn[data-focus]");
+        for (var i = 0; i < btns.length; i++) {
+            (function (btn) {
+                btn.onclick = function () {
+                    wfFocusMode = ((btn.getAttribute("data-focus") || "all") + "").toLowerCase();
+                    wfSyncToolbarState();
+                    wfLoad();
+                };
+            })(btns[i]);
+        }
+
+        var clearBtn = wfById("wfClearSearchBtn");
+        if (clearBtn) {
+            clearBtn.onclick = function () {
+                var searchEl = wfById("wfSearchText");
+                var statusEl = wfById("wfStatusFilter");
+                if (searchEl) searchEl.value = "";
+                if (statusEl) statusEl.value = "";
+                wfFocusMode = "all";
+                wfSyncToolbarState();
+                wfLoad();
+            };
+        }
     }
     function wfBindActions() {
         var i, btns;
@@ -345,7 +834,7 @@
                     var mode = (btn.getAttribute("data-mode") || "Cash").trim() || "Cash";
                     if (!orderNo || pendingValue <= 0) return;
 
-                    var amountText = window.prompt("Enter settle amount for order " + orderNo + " (max " + pendingValue.toFixed(2) + "):", pendingValue.toFixed(2));
+                    var amountText = window.prompt("Enter settle amount for order " + orderNo + " (max " + formatCurrency(pendingValue) + "):", pendingValue.toFixed(2));
                     if (amountText === null) {
                         return;
                     }
@@ -362,7 +851,7 @@
 
                     wfReq('@Url.Action("SettleOrderPendingPayment", "Customer")', "POST", wfBody({
                         orderNo: orderNo,
-                        paidAmount: paidAmount.toFixed(2),
+                        paidAmount: paidAmount,
                         paymentMode: mode,
                         notes: "Settled from Store Order Workflow"
                     }), function (data) {
@@ -428,21 +917,37 @@
                     }
 
                     var email = (btn.getAttribute("data-email") || "").trim();
-                    if (!email) {
-                        email = (window.prompt("Customer email is missing. Please enter email to continue:", "") || "").trim();
-                        if (!email) {
-                            window.alert("Email sending skipped. Customer email not provided.");
-                            return;
-                        }
-                    }
 
                     wfReq('@Url.Action("SendOrderBillEmail", "Customer")', "POST", wfBody({ orderNo: orderNo, email: email }), function (data) {
                         if (!data || !data.success) {
-                            window.alert((data && data.message) || "Unable to send bill email.");
+                            var message = (data && data.message) || "Unable to send bill email.";
+                            if (!email && /email is missing|enter email/i.test(message)) {
+                                email = (window.prompt("Customer email is missing. Please enter email to continue:", "") || "").trim();
+                                if (!email) {
+                                    window.alert("Email sending skipped. Customer email not provided.");
+                                    return;
+                                }
+
+                                return wfReq('@Url.Action("SendOrderBillEmail", "Customer")', "POST", wfBody({ orderNo: orderNo, email: email }), function (retryData) {
+                                    if (!retryData || !retryData.success) {
+                                        window.alert((retryData && retryData.message) || "Unable to send bill email.");
+                                        return;
+                                    }
+
+                                    btn.setAttribute("data-email", email);
+                                    window.alert(retryData.message || "Bill emailed successfully.");
+                                }, function (m) {
+                                    window.alert("Unable to send bill email. " + (m || ""));
+                                });
+                            }
+
+                            window.alert(message);
                             return;
                         }
 
-                        btn.setAttribute("data-email", email);
+                        if (email) {
+                            btn.setAttribute("data-email", email);
+                        }
                         window.alert(data.message || "Bill emailed successfully.");
                     }, function (m) {
                         window.alert("Unable to send bill email. " + (m || ""));
@@ -471,6 +976,10 @@
             var amount = wfNum(o.OrderAmount || o.orderAmount || 0);
             var pcs = mode === "weight" ? "-" : String(wfPieces(o));
             var target = wfNext(status);
+            var statusStyle = "";
+            if (typeof wfStatusStyleAttr === "function") {
+                statusStyle = wfStatusStyleAttr(status);
+            }
             var customerEmail = wfEsc(o.CustomerEmail || o.customerEmail || "");
             var actions = "<div class='wf-actions'>";
             if (target) {
@@ -488,16 +997,31 @@
                 + "<button type='button' class='btn btn-xs wf-quick-btn wf-download-pdf-btn' data-order='" + ordNo + "'>PDF</button>"
                 + "<button type='button' class='btn btn-xs wf-quick-btn wf-email-bill-btn' data-order='" + ordNo + "' data-email='" + customerEmail + "'>Email Bill</button>"
                 + "</div>";
-            html += "<tr>"
+            var normalizedStatus = String(status || "").toLowerCase();
+            var ageHours = wfHoursSince(o.CreatedDate || o.createdDate || "");
+            var agingTag = "";
+            if (ageHours >= 24 && normalizedStatus !== "delivered" && normalizedStatus !== "cancelled") {
+                agingTag = "<div class='wf-aging-tag'>Aging: " + Math.floor(ageHours) + "h</div>";
+            }
+            var rowClass = "";
+            if (pending > 0) {
+                rowClass = "wf-row-payment";
+            } else if (normalizedStatus === "ready" || normalizedStatus === "ready for delivery") {
+                rowClass = "wf-row-attention";
+            } else if (ageHours >= 24 && normalizedStatus !== "delivered" && normalizedStatus !== "cancelled") {
+                rowClass = "wf-row-stale";
+            }
+
+            html += "<tr class='" + rowClass + "'>"
                 + "<td>" + ordNo + "</td>"
                 + "<td>" + invNo + "</td>"
                 + "<td>" + customer + "</td>"
-                + "<td>" + created + "</td>"
-                + "<td><span class='wf-status-pill " + wfStatusClass(status) + "'>" + wfEsc(status) + "</span></td>"
+                + "<td>" + created + agingTag + "</td>"
+                + "<td><span class='wf-status-pill " + wfStatusClass(status) + "'" + statusStyle + ">" + wfEsc(status) + "</span></td>"
                 + "<td><span class='wf-mode-pill'>" + (mode === "weight" ? "Weight" : "Pieces") + "</span></td>"
                 + "<td style='text-align:right; font-weight:600; color:#1f4e79;'>" + wfEsc(pcs) + "</td>"
-                + "<td style='text-align:right;'>" + amount.toFixed(2) + "</td>"
-                + "<td class='" + (pending > 0 ? "wf-pending-red" : "wf-pending-green") + "' style='text-align:right; font-weight:700;'>" + pending.toFixed(2) + "</td>"
+                + "<td style='text-align:right;'>" + formatCurrency(amount) + "</td>"
+                + "<td class='" + (pending > 0 ? "wf-pending-red" : "wf-pending-green") + "' style='text-align:right; font-weight:700;'>" + formatCurrency(pending) + "</td>"
                 + "<td>" + actions + "</td>"
                 + "</tr>";
         }
@@ -517,23 +1041,38 @@
         wfReq(url, "GET", null, function (data) {
             if (!data || !data.success) {
                 wfCounters({});
+                wfUpdatePriorityStrip({});
                 wfState((data && data.message) || "Unable to load workflow orders.");
                 return;
             }
             var orders = data.orders || [];
             var c = { total: orders.length, received: 0, processing: 0, ready: 0, delivered: 0 };
+            var p = { ready: 0, open: 0, payment: 0, stale: 0 };
             var i;
             for (i = 0; i < orders.length; i++) {
-                var s = String((orders[i] && (orders[i].Status || orders[i].status)) || "").toLowerCase();
+                var item = orders[i] || {};
+                var s = String((item.Status || item.status) || "").toLowerCase();
+                var pendingAmount = wfNum(item.PendingAmount || item.pendingAmount || item.NetPayable || item.netPayable || 0);
+                var ageHours = wfHoursSince(item.CreatedDate || item.createdDate || "");
                 if (s === "received") c.received++;
-                else if (s === "processing") c.processing++;
-                else if (s === "ready") c.ready++;
+                else if (s === "processing" || s === "in process") c.processing++;
+                else if (s === "ready" || s === "ready for delivery") c.ready++;
                 else if (s === "delivered") c.delivered++;
+
+                if (s === "ready" || s === "ready for delivery") p.ready++;
+                if (s === "received" || s === "processing" || s === "in process") p.open++;
+                if (pendingAmount > 0) p.payment++;
+                if (ageHours >= 24 && s !== "delivered" && s !== "cancelled") p.stale++;
             }
             wfCounters(c);
-            wfRenderRows(orders);
+            wfUpdatePriorityStrip(p);
+            wfUpdateOwnerSummary(orders, p);
+            wfSyncToolbarState();
+            wfRenderRows(wfFilterByFocus(orders));
         }, function (m) {
             wfCounters({});
+            wfUpdatePriorityStrip({});
+            wfUpdateOwnerSummary([], {});
             wfState("Unable to load workflow orders. " + (m || ""));
         });
     }
@@ -546,11 +1085,41 @@
         return false;
     };
     try {
+        wfApplyConfiguredStatusTheme();
+        populateWorkflowStatusFilterOptions();
+
         var refreshBtn = wfById("wfRefreshBtn");
         if (refreshBtn) refreshBtn.onclick = wfLoad;
         var statusFilter = wfById("wfStatusFilter");
         if (statusFilter) statusFilter.onchange = wfLoad;
         var searchInput = wfById("wfSearchText");
+        var initialQueryStatus = "";
+        var initialQuerySearch = "";
+
+        try {
+            initialQueryStatus = getQueryParam("status") || "";
+            initialQuerySearch = getQueryParam("searchText") || "";
+        } catch (e) {
+            initialQueryStatus = "";
+            initialQuerySearch = "";
+        }
+
+        if (!window.location.search && !window.location.hash) {
+            if (statusFilter) {
+                statusFilter.value = "";
+            }
+            if (searchInput) {
+                searchInput.value = "";
+            }
+        } else {
+            if (statusFilter && initialQueryStatus) {
+                statusFilter.value = initialQueryStatus;
+            }
+            if (searchInput && initialQuerySearch) {
+                searchInput.value = initialQuerySearch;
+            }
+        }
+
         if (searchInput) {
             searchInput.onkeydown = function (e) {
                 e = e || window.event;
@@ -563,6 +1132,8 @@
                 return true;
             };
         }
+        wfBindToolbarActions();
+        wfSyncToolbarState();
         wfLoad();
     } catch (e) {
         wfState("Workflow script error: " + (e && e.message ? e.message : e));
@@ -658,12 +1229,15 @@
     }
 
     function requestJson(url, method, body, onSuccess, onError) {
+        var antiForgeryInput = document.querySelector('input[name="__RequestVerificationToken"]');
+        var antiForgeryToken = antiForgeryInput ? antiForgeryInput.value : "";
         var xhr = new XMLHttpRequest();
         xhr.open(method, url, true);
         xhr.setRequestHeader("X-Requested-With", "XMLHttpRequest");
 
         if (method === "POST") {
             xhr.setRequestHeader("Content-Type", "application/x-www-form-urlencoded; charset=UTF-8");
+            xhr.setRequestHeader("RequestVerificationToken", antiForgeryToken);
         }
 
         xhr.onreadystatechange = function () {
@@ -797,8 +1371,8 @@
                 + "<td><span class='wf-status-pill " + statusClass + "'>" + esc(status) + "</span></td>"
                 + "<td><span class='wf-mode-pill'>" + (orderMode === "weight" ? "Weight" : "Pieces") + "</span></td>"
                 + "<td style='text-align:right; font-weight:600; color:#1f4e79;">" + totalPiecesText + "</td>"
-                + "<td style='text-align:right;'>" + Number(o.OrderAmount || o.orderAmount || 0).toFixed(2) + "</td>"
-                + "<td class='" + pendingClass + "' style='text-align:right; font-weight:700;'>" + pendingAmount.toFixed(2) + "</td>"
+                + "<td style='text-align:right;'>" + formatCurrency(Number(o.OrderAmount || o.orderAmount || 0)) + "</td>"
+                + "<td class='" + pendingClass + "' style='text-align:right; font-weight:700;'>" + formatCurrency(pendingAmount) + "</td>"
                 + "<td>" + actionHtml + "</td>";
             body.appendChild(tr);
         });
@@ -843,7 +1417,7 @@
                     return;
                 }
 
-                var amountText = window.prompt("Enter settle amount for order " + orderNo + " (max " + pendingValue.toFixed(2) + "):", pendingValue.toFixed(2));
+                var amountText = window.prompt("Enter settle amount for order " + orderNo + " (max " + formatCurrency(pendingValue) + "):", pendingValue.toFixed(2));
                 if (amountText === null) {
                     return;
                 }
@@ -859,7 +1433,7 @@
 
                 var body = toFormBody({
                     orderNo: orderNo,
-                    paidAmount: paidAmount.toFixed(2),
+                    paidAmount: paidAmount,
                     paymentMode: "Cash",
                     notes: "Settled from Store Order Workflow"
                 });

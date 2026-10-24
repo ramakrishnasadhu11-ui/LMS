@@ -109,7 +109,7 @@
         }
 
         var html = "<table class='store-status-table'>"
-            + "<thead><tr><th>Tenant</th><th>Store Code</th><th>Status</th><th>Activated By</th><th>Activated On</th><th>Action</th></tr></thead><tbody>";
+            + "<thead><tr><th>Tenant</th><th>Store Code</th><th>Currency</th><th>Status</th><th>Activated By</th><th>Activated On</th><th>Action</th></tr></thead><tbody>";
 
         stores.forEach(function (s) {
             var activeLabel = s.isActive
@@ -119,6 +119,7 @@
             html += "<tr>"
                 + "<td>" + (s.tenantName || s.tenantEmail || "-") + "</td>"
                 + "<td>" + s.storeCode + "</td>"
+                + "<td>" + ((s.currencySymbol ? (s.currencySymbol + ' ') : '') + (s.currencyCode ? '(' + s.currencyCode + ')' : '-')) + "</td>"
                 + "<td>" + activeLabel + "</td>"
                 + "<td>" + (s.activatedBy || "-") + "</td>"
                 + "<td>" + (s.activatedDate ? new Date(s.activatedDate).toLocaleString() : "-") + "</td>"

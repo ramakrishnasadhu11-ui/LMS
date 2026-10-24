@@ -4,11 +4,44 @@
 <head>
     <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ELS Register</title>
+    <title>Register | Excel Laundry Services | Laundry Management</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/4.1.1/css/bootstrap.min.css">
     <link rel="stylesheet" type="text/css" href="~/css/custom.css">
     <link rel="stylesheet" type="text/css" href="~/css/app-theme.css">
     <link href="https://fonts.googleapis.com/css?family=Poppins:100,300,400,500,600,700&display=swap" rel="stylesheet">
+    <style>
+        .form-content.register .register-form .register-field {
+            margin-bottom: 12px;
+        }
+
+        .form-content.register .register-form .register-field .form-control {
+            margin-bottom: 0;
+        }
+
+        .form-content.register .register-form .register-field .text-danger {
+            display: block;
+            position: static;
+            margin-top: 6px;
+            margin-bottom: 0;
+            font-size: 12px;
+            line-height: 1.35;
+            white-space: normal;
+            word-break: break-word;
+        }
+
+        .form-content.register .register-form .register-field .field-validation-valid {
+            display: none;
+        }
+
+        .form-content.register .register-form .register-field .field-validation-error {
+            display: block;
+        }
+
+        .form-content.register .register-form .validation-summary-errors,
+        .form-content.register .register-form .validation-summary-valid {
+            margin-top: 10px;
+        }
+    </style>
 </head>
 <body>
     <script>
@@ -80,17 +113,53 @@
                         <div class="page-links">
                             <a href="@Url.Action("Login", "Login")">Login</a> <a class="active" href="@Url.Action("Register", "Login")">Register</a>
                         </div>
-                        @using (Html.BeginForm("Register", "Login", FormMethod.Post, new { @class = "form" }))
+                        @using (Html.BeginForm("Register", "Login", FormMethod.Post, new { @class = "form register-form" }))
                         {
-                                @Html.TextBoxFor(m => m.FamilyName, new { @placeholder = "First Name", @class = "form-control", required = "required" })
-                                @Html.TextBoxFor(m => m.MiddleName, new { @placeholder = "Last Name", @class = "form-control", required = "required" })
-                                @Html.TextBoxFor(m => m.TenantName, new { @placeholder = "Company Name", @class = "form-control", required = "required" })
-                                @Html.TextBoxFor(m => m.Email, new { @placeholder = "E-mail Address", @class = "form-control", required = "required" })
-                                @Html.TextBoxFor(m => m.PhoneNumber, new { @placeholder = "Phone Number", @class = "form-control", required = "required" })
-                                @Html.TextBoxFor(m => m.NoOfStores, new { @placeholder = "Number of Stores", @class = "form-control", required = "required" })
-                                <button id="submit" type="submit" class="ibtn" disabled="@(disablebtn ? "disabled" : null)">Register</button>
+                                <div class="register-field">
+                                    @Html.TextBoxFor(m => m.FamilyName, new { @placeholder = "First Name", @class = "form-control" })
+                                    @Html.ValidationMessageFor(m => m.FamilyName, null, new { @class = "text-danger" })
+                                </div>
+                                <div class="register-field">
+                                    @Html.TextBoxFor(m => m.MiddleName, new { @placeholder = "Last Name", @class = "form-control" })
+                                    @Html.ValidationMessageFor(m => m.MiddleName, null, new { @class = "text-danger" })
+                                </div>
+                                <div class="register-field">
+                                    @Html.TextBoxFor(m => m.TenantName, new { @placeholder = "Company Name", @class = "form-control" })
+                                    @Html.ValidationMessageFor(m => m.TenantName, null, new { @class = "text-danger" })
+                                </div>
+                                <div class="register-field">
+                                    @Html.TextBoxFor(m => m.Email, new { @placeholder = "E-mail Address", @class = "form-control" })
+                                    @Html.ValidationMessageFor(m => m.Email, null, new { @class = "text-danger" })
+                                </div>
+                                <div class="register-field">
+                                    @Html.TextBoxFor(m => m.PhoneNumber, new { @placeholder = "Phone Number", @class = "form-control" })
+                                    @Html.ValidationMessageFor(m => m.PhoneNumber, null, new { @class = "text-danger" })
+                                </div>
+                                <div class="register-field">
+                                    @Html.TextBoxFor(m => m.NoOfStores, new { @placeholder = "Number of Stores", @class = "form-control" })
+                                    @Html.ValidationMessageFor(m => m.NoOfStores, null, new { @class = "text-danger" })
+                                </div>
+                                <div class="register-field">
+                                    @Html.DropDownListFor(m => m.Country, new Microsoft.AspNetCore.Mvc.Rendering.SelectList(LMSWebUI.Services.CountryCurrencyMapping.GetMappings().Keys), "Select Country", new { @class = "form-control", id = "countrySelect" })
+                                    @Html.ValidationMessageFor(m => m.Country, null, new { @class = "text-danger" })
+                                </div>
+                                <div class="register-field">
+                                    @Html.TextBoxFor(m => m.CurrencyCode, new { @placeholder = "Currency Code (e.g. INR)", @class = "form-control", id = "currencyCode" })
+                                    @Html.ValidationMessageFor(m => m.CurrencyCode, null, new { @class = "text-danger" })
+                                </div>
+                                <div class="register-field">
+                                    @Html.TextBoxFor(m => m.CurrencySymbol, new { @placeholder = "Currency Symbol", @class = "form-control", id = "currencySymbol" })
+                                </div>
+                                <div class="register-field">
+                                    @Html.TextBoxFor(m => m.CurrencyLocale, new { @placeholder = "Currency Locale (e.g. en-IN)", @class = "form-control", id = "currencyLocale" })
+                                </div>
+                                <div class="register-field">
+                                    @Html.TextBoxFor(m => m.CurrencyDecimalDigits, new { @placeholder = "Decimal Digits (e.g. 2)", @class = "form-control", id = "currencyDigits", type = "number", min = "0", max = "6" })
+                                </div>
+                                <button id="registerBtn" type="submit" class="ibtn" disabled="@(disablebtn ? "disabled" : null)">Register</button>
                                 <p>Already have an account?  <a href="@Url.Action("Login", "Login")">Login</a></p>
                         }
+                        @Html.ValidationSummary(excludePropertyErrors: true, message: "", htmlAttributes: new { @class = "text-danger" })
 
                     </div>
                 </div>
@@ -100,15 +169,50 @@
      <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.4.1/jquery.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.16.0/umd/popper.min.js"></script>
     <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.4.1/js/bootstrap.min.js"></script>
+    @await Html.PartialAsync("_ValidationScriptsPartial")
     <script type='text/javascript'>
         syncThemeButtonText();
+        var shouldClearRegisterInputs = @((ViewData.ModelState.IsValid && string.IsNullOrWhiteSpace(Model?.Message)) ? "true" : "false");
+
+        // Embed country->currency mappings for the registration page. This is a suggestion only;
+        // administrators may override the suggested currency before submitting.
+        var countryCurrencyMap = @Html.Raw(Newtonsoft.Json.JsonConvert.SerializeObject(LMSWebUI.Services.CountryCurrencyMapping.GetMappings()));
 
         $(function ()
         {
-         $("input[type=submit]").click({
-         $('input[type=submit]').attr('disabled', 'disabled');
-    });
-});
+            // Suggest currency when country selection changes. Do not infer country automatically.
+            $('#countrySelect').on('change', function () {
+                try {
+                    var selected = $(this).val();
+                    if (selected && countryCurrencyMap && countryCurrencyMap[selected]) {
+                        var cfg = countryCurrencyMap[selected];
+                        $('#currencyCode').val(cfg.CurrencyCode || '');
+                        $('#currencySymbol').val(cfg.CurrencySymbol || '');
+                        $('#currencyLocale').val(cfg.CurrencyLocale || '');
+                        $('#currencyDigits').val(cfg.DecimalDigits != null ? cfg.DecimalDigits : '');
+                    }
+                    else {
+                        // no suggestion available - clear fields to allow manual input
+                        $('#currencyCode').val('');
+                        $('#currencySymbol').val('');
+                        $('#currencyLocale').val('');
+                        $('#currencyDigits').val('');
+                    }
+                } catch (e) {
+                    // no-op
+                }
+            });
+
+            if (shouldClearRegisterInputs) {
+                var registerPageInputs = $('input').not(':button, :submit, :reset, [type=hidden], [type=checkbox], [type=radio]');
+                registerPageInputs.val('');
+                $('input[type=checkbox], input[type=radio]').prop('checked', false);
+            }
+
+            $("input[type=submit]").on('click', function () {
+                $(this).attr('disabled', 'disabled');
+            });
+        });
     </script>
 </body>
 </html>

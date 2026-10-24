@@ -233,6 +233,15 @@
 
 <script type="text/javascript">
     (function () {
+        var hasValidationErrors = document.querySelector(".validation-summary-errors li, .field-validation-error:not(:empty)") !== null;
+
+        if (!window.location.search && !hasValidationErrors) {
+            var tagSettingsForm = document.querySelector("form");
+            if (tagSettingsForm) {
+                tagSettingsForm.reset();
+            }
+        }
+
         var toast = document.getElementById('tagSettingsToast');
         if (toast && window.tagSettingsToastMessage) {
             toast.textContent = window.tagSettingsToastMessage;

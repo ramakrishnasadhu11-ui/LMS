@@ -1,0 +1,26 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+	<TargetFramework>net8.0</TargetFramework>
+	<IsPackable>false</IsPackable>
+	<LangVersion>12.0</LangVersion>
+	<!-- Ensure resolved package assemblies are copied to the test output so the testhost can find runtime dependencies -->
+	<CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
+  </PropertyGroup>
+  <ItemGroup>
+	<ProjectReference Include="..\LMS.Identity.BusinessSerive\LMS.Identity.BusinessSerive.csproj" />
+	<ProjectReference Include="..\LMS.Core.Repository\LMS.Core.Repository.csproj" />
+	<ProjectReference Include="..\LMS.Identity.DTO\LMS.Identity.DTO.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+	<PackageReference Include="xunit" Version="2.5.3" />
+	<PackageReference Include="xunit.runner.visualstudio" Version="2.8.0">
+	  <PrivateAssets>all</PrivateAssets>
+	  <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+	</PackageReference>
+	<PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.7.0" />
+	<PackageReference Include="Microsoft.EntityFrameworkCore.InMemory" Version="8.0.0" />
+	<PackageReference Include="AutoMapper" Version="8.0.0" />
+	<PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="8.0.1" />
+	<PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
+  </ItemGroup>
+</Project>

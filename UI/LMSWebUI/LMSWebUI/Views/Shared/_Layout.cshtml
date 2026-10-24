@@ -1,16 +1,73 @@
-﻿@model LMSWebUI.Models.DashBoard.TenantInfoDto 
+﻿@using Microsoft.AspNetCore.Http
+@using System.Globalization
 @{
-    var hideSidebar = Convert.ToBoolean(ViewData["HideSidebar"] ?? false);
+    var currentController = ViewContext.RouteData.Values["controller"]?.ToString();
+    var currentAction = ViewContext.RouteData.Values["action"]?.ToString();
+    var isDashboardIndexPage = string.Equals(currentController, "Dashboard", StringComparison.OrdinalIgnoreCase)
+        && string.Equals(currentAction, "Index", StringComparison.OrdinalIgnoreCase);
+    var isMyProfilePage = string.Equals(currentController, "Login", StringComparison.OrdinalIgnoreCase)
+        && string.Equals(currentAction, "TenantProfileDetails", StringComparison.OrdinalIgnoreCase);
+    var currentUserRole = Context?.Session?.GetString("UserRole") ?? string.Empty;
+    var isSuperAdminUser = string.Equals(currentUserRole, "SuperAdmin", StringComparison.OrdinalIgnoreCase);
+    var isAdminUser = string.Equals(currentUserRole, "Admin", StringComparison.OrdinalIgnoreCase);
+    var isAdminCompanyHeaderOnly = Convert.ToBoolean(ViewData["AdminCompanyHeaderOnly"] ?? false);
+    var showHeaderNavigation = Convert.ToBoolean(ViewData["ShowHeaderNavigation"] ?? false);
+    var hideSidebar = Convert.ToBoolean(ViewData["HideSidebar"] ?? false) || isMyProfilePage;
     var bodyCss = hideSidebar
-        ? "hold-transition skin-blue sidebar-mini sidebar-collapse"
+        ? "hold-transition skin-blue sidebar-mini sidebar-collapse no-sidebar-page"
         : "hold-transition skin-blue sidebar-mini";
+    if (isDashboardIndexPage)
+    {
+        bodyCss += " fixed dashboard-fixed-header";
+    }
+    if (isAdminCompanyHeaderOnly)
+    {
+        bodyCss += " admin-company-header-only";
+    }
+    var memberSinceRaw = Context?.Session?.GetString("TenantMemberSince");
+    var memberSinceText = "Member since -";
+    var businessNameRaw = Context?.Session?.GetString("TenantBusinessName");
+    var fallbackBusinessName = "LMS";
+    var resolvedBusinessName = string.IsNullOrWhiteSpace(businessNameRaw)
+        ? fallbackBusinessName
+        : businessNameRaw.Trim();
+    var profileImageUrl = Context?.Session?.GetString("TenantProfileImageUrl");
+    var tenantStoreRaw = Context?.Session?.GetString("TenantStore");
+    var defaultProfileImageUrl = Url.Content("~/dist/img/noimage.png");
+    var resolvedProfileImageUrl = string.IsNullOrWhiteSpace(profileImageUrl)
+        ? defaultProfileImageUrl
+        : (profileImageUrl.Trim().StartsWith("~/", StringComparison.Ordinal)
+            ? Url.Content(profileImageUrl.Trim())
+            : profileImageUrl.Trim());
+    var profileImageAlt = string.IsNullOrWhiteSpace(resolvedBusinessName)
+        ? "Profile avatar"
+        : $"{resolvedBusinessName} profile avatar";
+    var currentPathAndQuery = $"{Context?.Request?.Path}{Context?.Request?.QueryString}";
+    var myProfileUrl = Url.Action("TenantProfileDetails", "Login", new { returnUrl = currentPathAndQuery });
+    var appDocumentTitle = "Excel Laundry Services | Laundry Management";
+    var pageTitle = Convert.ToString(ViewData["Title"] ?? string.Empty)?.Trim();
+    var fullDocumentTitle = string.IsNullOrWhiteSpace(pageTitle)
+        ? appDocumentTitle
+        : $"{pageTitle} | {appDocumentTitle}";
+
+    if (!string.IsNullOrWhiteSpace(memberSinceRaw))
+    {
+        if (DateTimeOffset.TryParse(memberSinceRaw, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var parsedMemberSinceOffset))
+        {
+            memberSinceText = $"Member since {parsedMemberSinceOffset.Year}";
+        }
+        else if (DateTime.TryParse(memberSinceRaw, CultureInfo.InvariantCulture, DateTimeStyles.None, out var parsedMemberSince))
+        {
+            memberSinceText = $"Member since {parsedMemberSince.Year}";
+        }
+    }
 }
 <!DOCTYPE html>
 <html>
 <head>
   <meta charset="utf-8">
   <meta http-equiv="X-UA-Compatible" content="IE=edge">
-  <title>ELS</title>
+  <title>@fullDocumentTitle</title>
   <!-- Tell the browser to be responsive to screen width -->
   <meta content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" name="viewport">
   <link rel="stylesheet" href="~/bower_components/bootstrap/dist/css/bootstrap.min.css">
@@ -31,6 +88,60 @@
 
     .navbar-nav > .user-menu {
       position: relative;
+    }
+
+    .admin-company-header-only .main-header .navbar {
+      margin-left: 0 !important;
+      min-height: 58px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: linear-gradient(90deg, var(--els-primary) 0%, var(--els-primary-dark) 100%);
+      padding: 0 16px;
+    }
+
+    .admin-company-header-only .main-header .sidebar-toggle,
+    .admin-company-header-only .main-header .navbar-custom-menu,
+    .admin-company-header-only .main-header .logo {
+      display: none !important;
+    }
+
+    .admin-company-header-only .header-business-name {
+      margin: 0;
+      max-width: min(92vw, 760px);
+      padding: 8px 14px;
+      border-radius: 999px;
+      border: 1px solid rgba(255, 255, 255, 0.38);
+      background: rgba(255, 255, 255, 0.12);
+      color: #ffffff;
+      font-size: 14px;
+      font-weight: 700;
+    }
+
+    .header-business-name {
+      display: inline-flex;
+      align-items: center;
+      max-width: clamp(180px, 28vw, 420px);
+      margin: 14px 8px 0;
+      padding: 6px 10px;
+      border-radius: 8px;
+      border: 1px solid rgba(255, 255, 255, 0.28);
+      color: #ffffff;
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 0.2px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      background: rgba(255, 255, 255, 0.1);
+    }
+
+    @@media (max-width: 767px) {
+      .header-business-name {
+        max-width: 150px;
+        margin-top: 12px;
+        font-size: 12px;
+      }
     }
 
     .navbar-nav > .user-menu > .dropdown-toggle {
@@ -75,6 +186,27 @@
       padding: 18px 12px 14px;
       background: linear-gradient(135deg, var(--els-primary) 0%, var(--els-primary-dark) 100%);
       color: #fff;
+      text-align: center;
+    }
+
+    .user-menu .user-header .profile-avatar-wrap {
+      width: 78px;
+      height: 78px;
+      margin: 0 auto;
+      border-radius: 50%;
+      border: 2px solid rgba(255, 255, 255, 0.7);
+      background: rgba(255, 255, 255, 0.18);
+      padding: 3px;
+      box-shadow: 0 8px 20px rgba(2, 6, 23, 0.28);
+      overflow: hidden;
+    }
+
+    .user-menu .user-header .profile-avatar-wrap img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      border-radius: 50%;
+      display: block;
     }
 
     .user-menu .user-header p {
@@ -84,8 +216,24 @@
       color: #fff;
     }
 
+    .user-menu .user-header .profile-name {
+      display: block;
+      font-size: 15px;
+      font-weight: 700;
+      letter-spacing: 0.2px;
+    }
+
+    .user-menu .user-header .profile-meta {
+      display: block;
+      font-size: 12px;
+      font-weight: 600;
+      opacity: 0.95;
+    }
+
     .user-menu .user-header p small {
       color: rgba(255, 255, 255, 0.88);
+      display: block;
+      margin-top: 2px;
     }
 
     .user-menu .dropdown-menu .user-footer {
@@ -144,6 +292,119 @@
       filter: brightness(0.96);
     }
 
+    .app-header-navigation {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px clamp(12px, 2vw, 24px);
+      background: #ffffff;
+      border-bottom: 1px solid #dbe3ee;
+      box-shadow: 0 2px 5px rgba(15, 23, 42, 0.04);
+      overflow-x: auto;
+      white-space: nowrap;
+      position: relative;
+      z-index: 1020;
+    }
+
+    .app-header-navigation a {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      min-height: 38px;
+      padding: 8px 13px;
+      border: 1px solid transparent;
+      border-radius: 8px;
+      color: #334155;
+      font-weight: 600;
+      text-decoration: none;
+      transition: background-color 0.15s ease, color 0.15s ease;
+    }
+
+    .app-header-navigation a:hover,
+    .app-header-navigation a:focus {
+      color: var(--els-primary-dark, #174ea6);
+      background: #eff6ff;
+      text-decoration: none;
+      outline: none;
+    }
+
+    .app-header-navigation a.active {
+      color: var(--els-primary-dark, #174ea6);
+      background: #eaf2ff;
+      border-color: #cfe0ff;
+    }
+
+    .app-header-navigation a i {
+      width: 16px;
+      text-align: center;
+    }
+
+    @@media (max-width: 600px) {
+      .app-header-navigation {
+        gap: 4px;
+        padding: 7px 8px;
+      }
+
+      .app-header-navigation a {
+        padding: 8px 10px;
+        font-size: 13px;
+      }
+    }
+
+    .no-sidebar-page .main-header .navbar {
+      margin-left: 0 !important;
+    }
+
+    .no-sidebar-page .main-header .logo {
+      width: 0;
+      padding: 0;
+      overflow: hidden;
+      border: 0;
+    }
+
+    .no-sidebar-page .main-header .sidebar-toggle {
+      display: none;
+    }
+
+    .no-sidebar-page .content-wrapper,
+    .no-sidebar-page .main-footer,
+    .no-sidebar-page .main-header .navbar {
+      margin-left: 0 !important;
+    }
+
+    .dashboard-fixed-header .content-wrapper,
+    .dashboard-fixed-header .main-footer,
+    .dashboard-fixed-header .right-side {
+      padding-top: 58px;
+    }
+
+    .dashboard-fixed-header .main-header {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      z-index: 1030;
+    }
+
+    .dashboard-fixed-header .main-header .navbar {
+      margin-left: 0 !important;
+    }
+
+    .dashboard-fixed-header .navbar-nav > .user-menu > .dropdown-menu,
+    .dashboard-fixed-header .navbar-nav > .user-menu.open > .dropdown-menu {
+      position: absolute;
+      left: auto;
+      right: 0;
+    }
+
+    @@media (max-width: 767px) {
+      .dashboard-fixed-header .content-wrapper,
+      .dashboard-fixed-header .main-footer,
+      .dashboard-fixed-header .right-side {
+        padding-top: 108px;
+      }
+    }
+
     @@media (max-width: 768px) {
       .user-menu .dropdown-menu {
         width: 92vw;
@@ -167,34 +428,87 @@
           }
       })();
   </script>
+    @{
+        // Currency metadata is rendered asynchronously via a ViewComponent to avoid blocking
+        // the layout with synchronous service calls. Default client-side fallbacks are used
+        // inside the script below so Razor does not attempt to evaluate server variables.
+    }
+
+    <script type="text/javascript">
+        // window.__currency: authoritative client-side metadata for formatting monetary values
+        // Start with safe client-side defaults (no server-side interpolation here) so
+        // Razor does not attempt to evaluate server variables in the script body.
+        window.__currency = {
+            code: 'INR',
+            symbol: '₹',
+            locale: 'en-IN',
+            decimalDigits: 2
+        };
+
+        // Shared client-side currency formatter used across pages. Uses Intl.NumberFormat when possible
+        // and falls back to symbol + fixed decimal formatting. Does not infer currency from client locale.
+        function formatCurrency(value) {
+            try {
+                var meta = window.__currency || { code: 'INR', symbol: '₹', locale: 'en-IN', decimalDigits: 2 };
+                var digits = Number.isFinite(Number(meta.decimalDigits)) ? Number(meta.decimalDigits) : 2;
+                var num = Number(value);
+                if (!isFinite(num)) return '';
+
+                // Prefer Intl.NumberFormat when currency code and locale are available
+                try {
+                    var nf = new Intl.NumberFormat(meta.locale || undefined, { style: 'currency', currency: meta.code || undefined, minimumFractionDigits: digits, maximumFractionDigits: digits });
+                    var formatted = nf.format(num);
+
+                    // If the resolved symbol differs and Intl did not include it (rare), prefix with configured symbol
+                    if (meta.symbol && formatted.indexOf(meta.symbol) === -1) {
+                        return meta.symbol + ' ' + num.toFixed(digits);
+                    }
+
+                    return formatted;
+                } catch (e) {
+                    return (meta.symbol || '') + ' ' + num.toFixed(digits);
+                }
+            } catch (e) {
+                return '';
+            }
+        }
+    </script>
   <!-- jQuery 3 -->
-  <script src="~/bower_components/jquery/dist/jquery.min.js"></script>
+  <script src="~/lib/jquery/dist/jquery.min.js"></script>
   <!--Load the AJAX API-->
   <script type="text/javascript" src="https://www.gstatic.com/charts/loader.js"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/Dropify/0.2.2/css/dropify.min.css">
   <!-- Google Font -->
   <link rel="stylesheet"
         href="https://fonts.googleapis.com/css?family=Source+Sans+Pro:300,400,600,700,300italic,400italic,600italic">
-  <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.4.1/jquery.min.js"></script>
-  <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.11.1/jquery.min.js"></script>
 </head>
 <body class="@bodyCss">
+@await Component.InvokeAsync("CurrencyMetadata")
 <div class="wrapper">
   <!-- Main Header -->
   <header class="main-header">
+    @if (!isAdminCompanyHeaderOnly)
+    {
     <!-- Logo -->
     <a href="index2.html" class="logo">
       <!-- mini logo for sidebar mini 50x50 pixels -->
       <span class="logo-mini"><b>E<b>L<b>S</b></b></span>
       <!-- logo for regular state and mobile devices -->
-      <span class="logo-lg">Excel<b>Laundry<b>Services</b></b></span>
+      <span class="logo-lg">Excel Laundry Services — Laundry Management Software</span>
     </a>
+    }
     <!-- Header Navbar -->
     <nav class="navbar navbar-static-top" role="navigation">
+      @if (!isAdminCompanyHeaderOnly)
+      {
       <!-- Sidebar toggle button-->
       <a href="#" class="sidebar-toggle" data-toggle="push-menu" role="button">
         <span class="sr-only">Main Menu</span>
       </a>
+      }
+      <span class="header-business-name" title="@resolvedBusinessName">@resolvedBusinessName</span>
+      @if (!isAdminCompanyHeaderOnly)
+      {
       <!-- Navbar Right Menu -->
       <div class="navbar-custom-menu">
         <ul class="nav navbar-nav">
@@ -206,38 +520,65 @@
             <!-- Menu Toggle Button -->
             <a href="#" class="dropdown-toggle" data-toggle="dropdown">
               <!-- The user image in the navbar-->
-              <img src="~/dist/img/user2-160x160.jpg" class="user-image" alt="User Image">
+              <img src="@resolvedProfileImageUrl" class="user-image" alt="@profileImageAlt" data-default-avatar="@defaultProfileImageUrl" loading="lazy" onerror="window.handleProfileImageFallback ? window.handleProfileImageFallback(this) : (this.onerror=null,this.src=this.getAttribute('data-default-avatar'))">
               <!-- hidden-xs hides the username on small devices so only the image appears. -->
-              <span class="hidden-xs">@Model.TenantName</span>
+              <span class="hidden-xs" title="@resolvedBusinessName">@resolvedBusinessName</span>
             </a>
             <ul class="dropdown-menu">
               <!-- The user image in the menu -->
               <li class="user-header">
-                <img src="~/dist/img/user2-160x160.jpg" class="img-circle" alt="User Image">
+                <div class="profile-avatar-wrap">
+                  <img src="@resolvedProfileImageUrl" class="img-circle" alt="@profileImageAlt" data-default-avatar="@defaultProfileImageUrl" loading="lazy" onerror="window.handleProfileImageFallback ? window.handleProfileImageFallback(this) : (this.onerror=null,this.src=this.getAttribute('data-default-avatar'))">
+                </div>
                 <p>
-                  @Model.TenantName - @Model.TenantStore
-                  <small>Member since Nov. 2000</small>
+                  <span class="profile-name" title="@resolvedBusinessName">@resolvedBusinessName</span>
+                  <span class="profile-meta">@(string.IsNullOrWhiteSpace(tenantStoreRaw) ? "Organization details unavailable" : $"{tenantStoreRaw} Store")</span>
+                  <small>@memberSinceText</small>
                 </p>
               </li>
               <!-- Menu Body -->
               <li class="user-body">
-                <a class="tenant-menu-action profile" href="@Url.Action("TenantProfileDetailsAsync", "Login", new { tenantEmail = Model.TenantName })">My Profile</a>
+                <a class="tenant-menu-action profile" href="@myProfileUrl">My Profile</a>
                 <a class="tenant-menu-action signout" href="@Url.Action("Logout", "Login")">Sign out</a>
               </li>
               <!-- Menu Footer-->
               <li class="user-footer">
                 @*<div class="pull-left">
-                  <a href="javascript:void(0);" class="Detail" onclick="showProfile(this)" id=@Model.TenantName  data-id="@Model.TenantName">Profile</a> 
+                  <a href="javascript:void(0);" class="Detail" onclick="showProfile(this)">Profile</a> 
                 </div>*@
-                <div style="font-size:12px;color:#64748b;">Use Sign out to securely end session</div>
+                <div style="font-size:12px;color:#64748b;">Use sign out to securely end your session.</div>
               </li>
             </ul>
           </li>
         </ul>
       </div>
+      }
     </nav>
   </header>
-  <!-- Left side column. contains the logo and sidebar -->
+  @if (showHeaderNavigation)
+  {
+    <nav class="app-header-navigation" aria-label="Application navigation">
+      <a class="@(string.Equals(currentController, "Dashboard", StringComparison.OrdinalIgnoreCase) && string.Equals(currentAction, "Index", StringComparison.OrdinalIgnoreCase) ? "active" : string.Empty)" href="@Url.Action("Index", "Dashboard")">
+        <i class="fa fa-dashboard" aria-hidden="true"></i><span>Dashboard</span>
+      </a>
+      @if (!isSuperAdminUser && !isAdminUser)
+      {
+      <a href="@Url.Action("Index", "Dashboard")#customer-search">
+        <i class="fa fa-search" aria-hidden="true"></i><span>Search</span>
+      </a>
+      <a class="@(string.Equals(currentController, "Customer", StringComparison.OrdinalIgnoreCase) && string.Equals(currentAction, "Index", StringComparison.OrdinalIgnoreCase) ? "active" : string.Empty)" href="@Url.Action("Index", "Customer")">
+        <i class="fa fa-users" aria-hidden="true"></i><span>Customers</span>
+      </a>
+      <a class="@(string.Equals(currentController, "Customer", StringComparison.OrdinalIgnoreCase) && string.Equals(currentAction, "CustomerAdvances", StringComparison.OrdinalIgnoreCase) ? "active" : string.Empty)" href="@Url.Action("CustomerAdvances", "Customer")">
+        <i class="fa fa-money" aria-hidden="true"></i><span>Advance</span>
+      </a>
+      <a class="@(string.Equals(currentController, "Customer", StringComparison.OrdinalIgnoreCase) && string.Equals(currentAction, "SetupCreateOrder", StringComparison.OrdinalIgnoreCase) ? "active" : string.Empty)" href="@Url.Action("SetupCreateOrder", "Customer")">
+        <i class="fa fa-plus-circle" aria-hidden="true"></i><span>Create Order</span>
+      </a>
+      }
+    </nav>
+  }
+  <!-- Left side column. contains the sidebar -->
   @if (!hideSidebar)
   {
   <aside class="main-sidebar">
@@ -246,10 +587,10 @@
       <!-- Sidebar user panel (optional) -->
       <div class="user-panel">
         <div class="pull-left image">
-          <img src="~/dist/img/user2-160x160.jpg" class="img-circle" alt="User Image">
+          <img src="@resolvedProfileImageUrl" class="img-circle" alt="@profileImageAlt" data-default-avatar="@defaultProfileImageUrl" loading="lazy" onerror="window.handleProfileImageFallback ? window.handleProfileImageFallback(this) : (this.onerror=null,this.src=this.getAttribute('data-default-avatar'))">
         </div>
         <div class="pull-left info">
-          <p>@Model.TenantName</p>
+          <p title="@resolvedBusinessName">@resolvedBusinessName</p>
           <!-- Status -->
           <a href="#"><i class="fa fa-circle text-success"></i> Online</a>
         </div>
@@ -289,9 +630,6 @@
 <script src="~/bower_components/bootstrap/dist/js/bootstrap.min.js"></script>
 <!-- AdminLTE App -->
 <script src="~/dist/js/adminlte.min.js"></script>
-<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.4.1/jquery.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.16.0/umd/popper.min.js"></script>
-<script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.4.1/js/bootstrap.min.js"></script>
   
     <script>
     //function showProfile(e)
@@ -346,6 +684,103 @@
     }
 
     syncThemeButtonText();
+
+    function handleProfileImageFallback(img) {
+      if (!img) {
+        return;
+      }
+
+      var defaultAvatar = img.getAttribute('data-default-avatar');
+      if (!defaultAvatar) {
+        return;
+      }
+
+      var currentSrc = (img.getAttribute('src') || '').trim();
+      var normalizedCurrentSrc = currentSrc.replace(/\/$/, '');
+      var normalizedDefaultSrc = defaultAvatar.replace(/\/$/, '');
+      if (normalizedCurrentSrc === normalizedDefaultSrc) {
+        return;
+      }
+
+      img.onerror = null;
+      img.setAttribute('src', defaultAvatar);
+    }
+
+    (function setupDashboardProfileDropdownAnchor() {
+      var body = document.body;
+      if (!body || !body.classList.contains('dashboard-fixed-header') || typeof window.jQuery === 'undefined') {
+        return;
+      }
+
+      var userMenu = document.querySelector('.navbar-nav > .user-menu');
+      if (!userMenu) {
+        return;
+      }
+
+      var toggle = userMenu.querySelector('.dropdown-toggle');
+      var dropdownMenu = userMenu.querySelector('.dropdown-menu');
+      if (!toggle || !dropdownMenu) {
+        return;
+      }
+
+      var isTracking = false;
+
+      function alignProfileDropdown() {
+        if (!userMenu.classList.contains('open')) {
+          return;
+        }
+
+        var triggerRect = toggle.getBoundingClientRect();
+        var menuWidth = dropdownMenu.offsetWidth || 280;
+        var top = Math.round(triggerRect.bottom + 8);
+        var left = Math.round(triggerRect.right - menuWidth);
+
+        dropdownMenu.style.position = 'fixed';
+        dropdownMenu.style.top = top + 'px';
+        dropdownMenu.style.left = left + 'px';
+        dropdownMenu.style.right = 'auto';
+      }
+
+      function resetProfileDropdown() {
+        dropdownMenu.style.position = '';
+        dropdownMenu.style.top = '';
+        dropdownMenu.style.left = '';
+        dropdownMenu.style.right = '';
+      }
+
+      function startTracking() {
+        if (isTracking) {
+          return;
+        }
+
+        isTracking = true;
+        window.addEventListener('scroll', alignProfileDropdown, { passive: true });
+        window.addEventListener('resize', alignProfileDropdown);
+        document.addEventListener('scroll', alignProfileDropdown, true);
+      }
+
+      function stopTracking() {
+        if (!isTracking) {
+          return;
+        }
+
+        isTracking = false;
+        window.removeEventListener('scroll', alignProfileDropdown);
+        window.removeEventListener('resize', alignProfileDropdown);
+        document.removeEventListener('scroll', alignProfileDropdown, true);
+      }
+
+      jQuery(userMenu).on('shown.bs.dropdown', function () {
+        alignProfileDropdown();
+        startTracking();
+      });
+
+      jQuery(userMenu).on('hidden.bs.dropdown', function () {
+        stopTracking();
+        resetProfileDropdown();
+      });
+    })();
     </script>
+    @RenderSection("Scripts", required: false)
 </body>
 </html>

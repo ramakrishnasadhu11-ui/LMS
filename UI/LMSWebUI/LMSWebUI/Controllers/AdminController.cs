@@ -36,8 +36,8 @@ namespace LMSWebUI.Controllers
                 var masterUrl = config?["Services:Master:BaseUrl"]?.TrimEnd('/') + "/admin/migrate";
 
                 var client = httpFactory?.CreateClient("migrationClient");
-                var identityResult = new { success = true, message = "skipped" };
-                var masterResult = new { success = true, message = "skipped" };
+                var identityResult = new { success = true, message = "Skipped." };
+                var masterResult = new { success = true, message = "Skipped." };
 
                 if (!string.IsNullOrWhiteSpace(identityUrl) && client != null)
                 {

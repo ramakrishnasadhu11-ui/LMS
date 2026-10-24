@@ -3,11 +3,48 @@
 {
     var returnmessage = TempData["UserMessage"];
     var message = JsonConvert.DeserializeObject<LMSWebUI.Models.MessageDto>(returnmessage.ToString());
+    var css = (message?.CssClassName ?? string.Empty).ToLowerInvariant();
 
-    <div class="container">
-        <div class="alert @message.CssClassName alert-dismissible fade show" id="alertstatus">
-            <button type="button" class="close" data-dismiss="alert">&times;</button>
-            <strong>@message.Title</strong> @message.DisplayMessage
+    var messageType = "info";
+    if (css.Contains("success"))
+    {
+        messageType = "success";
+    }
+    else if (css.Contains("warning"))
+    {
+        messageType = "warning";
+    }
+    else if (css.Contains("danger") || css.Contains("error"))
+    {
+        messageType = "danger";
+    }
+
+    var label = !string.IsNullOrWhiteSpace(message?.Title)
+        ? message.Title.Trim()
+        : (messageType == "success"
+            ? "Success"
+            : messageType == "warning"
+                ? "Warning"
+                : messageType == "danger"
+                    ? "Error"
+                    : "Info");
+
+    var icon = messageType == "success"
+        ? "✓"
+        : messageType == "warning"
+            ? "⚠"
+            : messageType == "danger"
+                ? "⨯"
+                : "i";
+
+    <div class="container els-message-stack" id="alertstatus" role="status" aria-live="polite">
+        <div class="els-message-card els-message-@messageType">
+            <span class="els-message-icon" aria-hidden="true">@icon</span>
+            <div class="els-message-body">
+                <span class="els-message-label">@label</span>
+                <p class="els-message-text">@message?.DisplayMessage</p>
+            </div>
+            <button type="button" class="els-message-close" aria-label="Dismiss message" onclick="this.closest('.els-message-stack').style.display='none'">&times;</button>
         </div>
     </div>
 }

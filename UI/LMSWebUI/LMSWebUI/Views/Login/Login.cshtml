@@ -4,95 +4,371 @@
 <head>
     <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ELS Login</title>
+    <title>Excel Laundry Services | Laundry Management</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/4.1.1/css/bootstrap.min.css">
     <link rel="stylesheet" type="text/css" href="~/css/custom.css">
     <link rel="stylesheet" type="text/css" href="~/css/app-theme.css">
     <link href="https://fonts.googleapis.com/css?family=Poppins:100,300,400,500,600,700&display=swap" rel="stylesheet">
     <style>
-        html, body {
-            height: 100%;
-            overflow: hidden;
+        html,
+        body {
+            min-height: 100%;
+            margin: 0;
+            font-family: "Poppins", sans-serif;
+            background: #f4f7fc;
+            color: #0f172a;
         }
 
-        .form-body {
-            height: 100vh;
-            min-height: 0;
-        }
-
-        .form-body > .row {
-            height: 100vh;
-            min-height: 0;
-        }
-
-        .form-holder,
-        .form-holder .form-content {
-            height: 100vh;
-            min-height: 0;
-        }
-
-        .form-content {
+        .login-shell {
+            min-height: 100dvh;
+            box-sizing: border-box;
+            padding: clamp(10px, 2vh, 24px) clamp(10px, 1.8vw, 24px);
             display: flex;
             align-items: center;
             justify-content: center;
-            padding: 16px;
-            overflow: auto;
+            background: radial-gradient(circle at 0% 0%, rgba(37, 99, 235, 0.12), transparent 42%), linear-gradient(165deg, #f5f8ff 0%, #edf3fc 100%);
         }
 
-        .form-content .form-items {
-            max-height: calc(100vh - 32px);
-            overflow-y: auto;
+        .login-shell,
+        .login-shell * {
+            box-sizing: border-box;
+        }
+
+        .login-grid {
+            width: min(1180px, 100%);
+            max-width: 100%;
+            box-sizing: border-box;
+            border-radius: 18px;
+            overflow: hidden;
+            display: grid;
+            grid-template-columns: minmax(380px, 1fr) minmax(360px, 460px);
+            border: 1px solid rgba(15, 23, 42, 0.08);
+            box-shadow: 0 24px 70px rgba(15, 23, 42, 0.14);
+            background: #ffffff;
+        }
+@@media (min-width: 901px) {
+    .login-grid {
+        /* Let the grid fill the wrapper but scroll internally if needed. */
+        max-height: 100%;
+        overflow: auto;
+        box-sizing: border-box;
+    }
+}
+
+        .brand-panel {
+            background: linear-gradient(170deg, #0b1b4d 0%, #132f77 52%, #19409b 100%);
+            color: #e8f0ff;
+            padding: clamp(24px, 4vh, 44px) clamp(24px, 3vw, 48px);
+            display: flex;
+            flex-direction: column;
+            gap: clamp(10px, 1.6vh, 18px);
+        }
+
+        .brand-logo-link {
+            display: inline-flex;
+            align-items: center;
+        }
+
+        .brand-logo {
+            width: 146px;
+            max-width: 100%;
+            height: auto;
+        }
+
+        .brand-eyebrow {
+            margin: 12px 0 0;
+            font-size: 11px;
+            letter-spacing: 0.16em;
+            font-weight: 600;
+            color: rgba(226, 234, 255, 0.88);
+        }
+
+        .brand-headline {
+            margin: 0;
+            font-size: clamp(30px, 3.1vw, 42px);
+            line-height: 1.14;
+            font-weight: 600;
+            color: #ffffff;
+        }
+
+        .brand-message {
+            margin: 0;
+            max-width: 560px;
+            font-size: 15px;
+            line-height: 1.75;
+            color: rgba(232, 240, 255, 0.92);
+        }
+
+        .brand-benefits {
+            margin: 2px 0;
+            padding: 0;
+            list-style: none;
+            display: grid;
+            gap: 10px;
+        }
+
+        .brand-benefits li {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 14px;
+            font-weight: 500;
+            color: rgba(236, 243, 255, 0.96);
+        }
+
+        .benefit-line {
+            width: 22px;
+            height: 1px;
+            background: rgba(236, 243, 255, 0.75);
+            flex: 0 0 auto;
+        }
+
+        .brand-growth {
+            margin: 4px 0 0;
+            font-size: 14px;
+            line-height: 1.7;
+            color: rgba(222, 234, 255, 0.9);
+        }
+
+        .brand-tagline {
+            margin: 0;
+            font-size: 13px;
+            color: rgba(244, 248, 255, 0.94);
+        }
+
+        .brand-visual {
+            margin-top: auto;
+            max-height: clamp(120px, 22vh, 220px);
+            border-radius: 12px;
+            overflow: hidden;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            box-shadow: 0 18px 34px rgba(8, 17, 43, 0.34);
+            background: rgba(255, 255, 255, 0.08);
+        }
+
+        .brand-visual img {
+            width: 100%;
+            height: 100%;
+            display: block;
+            object-fit: cover;
+        }
+
+        .login-panel {
+            background: #f8fbff;
+            /* reduce padding to make right panel more compact on desktop while
+               keeping responsive spacing on small screens */
+            padding: clamp(12px, 2.5vh, 28px) clamp(12px, 1.6vw, 20px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
         }
 
         .login-card {
-            width: 380px;
-            max-width: 100%;
-            padding: 24px 26px;
+            width: min(400px, 100%);
+            /* slightly smaller padding to reduce card height */
+            padding: clamp(12px, 2vh, 20px) clamp(12px, 1.6vw, 20px);
             border-radius: 14px;
-            background: var(--els-surface);
-            border: 1px solid var(--els-border);
-            box-shadow: 0 18px 45px rgba(15, 23, 42, 0.12);
+            background: #ffffff;
+            border: 1px solid #d8e3f3;
+            box-shadow: 0 14px 36px rgba(15, 23, 42, 0.11);
+        }
+
+        .login-card-logo {
+            width: 148px;
+            max-width: 100%;
+            height: auto;
+            margin-bottom: 8px;
         }
 
         .login-card-head {
             display: flex;
             align-items: flex-start;
             justify-content: space-between;
-            gap: 12px;
-            margin-bottom: 14px;
+            gap: 16px;
+            margin-bottom: 8px;
+        }
+
+        .theme-toggle-btn {
+            border: 1px solid #c6d8f4;
+            background: #f2f7ff;
+            color: #0f2d75;
+            border-radius: 8px;
+            padding: 6px 10px;
+            margin: 0;
+            font-size: 11px;
+            font-weight: 600;
+            letter-spacing: 0.02em;
+            cursor: pointer;
+            white-space: nowrap;
+        }
+
+        @@media (max-height: 840px) and (min-width: 901px) {
+            .brand-panel {
+                padding: 22px 26px;
+                gap: 10px;
+            }
+
+            .brand-headline {
+                font-size: 31px;
+            }
+
+            .brand-message {
+                font-size: 14px;
+                line-height: 1.55;
+            }
+
+            .brand-benefits {
+                gap: 7px;
+            }
+
+            .brand-growth {
+                font-size: 13px;
+                line-height: 1.5;
+            }
+
+            .brand-visual {
+                display: none;
+            }
+
+            .login-panel {
+                padding: 20px 16px;
+            }
+
+            .login-card-logo {
+                width: 136px;
+                margin-bottom: 10px;
+            }
+
+            .login-title {
+                font-size: 24px;
+            }
+
+            .login-subtitle {
+                margin-top: 4px;
+            }
+        }
+
+        .theme-toggle-btn:hover {
+            background: #e6f0ff;
         }
 
         .login-title {
-            font-size: 20px;
-            font-weight: 600;
-            color: var(--els-text);
             margin: 0;
+            font-size: 26px;
+            line-height: 1.2;
+            font-weight: 600;
+            color: #0f172a;
         }
 
         .login-subtitle {
-            font-size: 13px;
-            color: var(--els-text-muted, #64748b);
-            margin: 4px 0 0;
+            margin: 7px 0 0;
+            font-size: 14px;
+            color: #475569;
         }
+
+        #information {
+            margin-bottom: 12px;
+            display: none;
+        }
+
+        .login-card #information.els-message-stack {
+            display: grid;
+            gap: 10px;
+        }
+
+        .login-card #information .els-message-card {
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+            padding: 12px 14px;
+            border-radius: 12px;
+            border: 1px solid #d9e2ec;
+            background: #ffffff;
+            box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08);
+        }
+
+        .login-card #information .els-message-icon {
+            width: 32px;
+            height: 32px;
+            border-radius: 999px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+            font-weight: 700;
+            flex: 0 0 auto;
+        }
+
+        .login-card #information .els-message-body {
+            flex: 1 1 auto;
+        }
+
+        .login-card #information .els-message-label {
+            display: block;
+            margin-bottom: 2px;
+            font-size: 12px;
+            font-weight: 800;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+        }
+
+        .login-card #information .els-message-text {
+            margin: 0;
+            font-size: 14px;
+            line-height: 1.35;
+            color: #0f172a;
+            font-weight: 600;
+        }
+
+        .login-card #information .els-message-close {
+            appearance: none;
+            border: 0;
+            background: transparent;
+            color: #64748b;
+            font-size: 20px;
+            line-height: 1;
+            padding: 0;
+            cursor: pointer;
+            flex: 0 0 auto;
+        }
+
+        .login-card #information .els-message-success { border-color: #a7f3d0; }
+        .login-card #information .els-message-success .els-message-icon { background: #ecfdf5; color: #059669; }
+        .login-card #information .els-message-success .els-message-label { color: #059669; }
+
+        .login-card #information .els-message-warning { border-color: #fde68a; }
+        .login-card #information .els-message-warning .els-message-icon { background: #fffbeb; color: #d97706; }
+        .login-card #information .els-message-warning .els-message-label { color: #d97706; }
+
+        .login-card #information .els-message-danger,
+        .login-card #information .els-message-error { border-color: #fecaca; }
+        .login-card #information .els-message-danger .els-message-icon,
+        .login-card #information .els-message-error .els-message-icon { background: #fef2f2; color: #dc2626; }
+        .login-card #information .els-message-danger .els-message-label,
+        .login-card #information .els-message-error .els-message-label { color: #dc2626; }
+
+        .login-card #information .els-message-info { border-color: #bfdbfe; }
+        .login-card #information .els-message-info .els-message-icon { background: #eff6ff; color: #2563eb; }
+        .login-card #information .els-message-info .els-message-label { color: #2563eb; }
 
         .login-card .page-links {
             display: flex;
             gap: 20px;
-            border-bottom: 1px solid var(--els-border);
+            border-bottom: 1px solid #dde6f3;
             margin-bottom: 16px;
         }
 
         .login-card .page-links a {
             position: relative;
-            padding-bottom: 8px;
+            padding-bottom: 6px;
             font-size: 14px;
             font-weight: 600;
-            color: var(--els-text-muted, #64748b);
+            color: #64748b;
             text-decoration: none;
         }
 
         .login-card .page-links a.active {
-            color: var(--els-primary-dark);
+            color: #1d4ed8;
         }
 
         .login-card .page-links a.active::after {
@@ -102,16 +378,15 @@
             right: 0;
             bottom: -1px;
             height: 2px;
-            background: var(--els-primary);
+            background: #2563eb;
             border-radius: 2px;
         }
-        /* Plain, no-color active tab: keep it simple (no background, no shadow) */
+
         .login-card .page-links a.professional-active {
             color: inherit !important;
             background: transparent !important;
-            /* add a small top border as a subtle, neutral indicator */
             padding: 6px 0 0 !important;
-            border-top: 3px solid #9CA3AF; /* neutral gray, avoid green/blue */
+            border-top: 3px solid #9ca3af;
             border-radius: 0 !important;
             display: inline-block;
             box-shadow: none !important;
@@ -119,42 +394,44 @@
             font-weight: 700;
             box-sizing: border-box;
         }
+
         .login-card .page-links a.professional-active::after {
             display: none;
         }
 
         .login-field {
-            margin-bottom: 12px;
+            margin-bottom: 8px;
         }
 
         .login-label {
             display: block;
-            font-size: 12px;
+            font-size: 11px;
             font-weight: 600;
-            letter-spacing: 0.2px;
+            letter-spacing: 0.09em;
             text-transform: uppercase;
-            color: var(--els-text-muted, #64748b);
-            margin-bottom: 5px;
+            color: #64748b;
+            margin-bottom: 6px;
         }
 
         .login-card .form-control,
         .login-card select {
             width: 100%;
-            height: 42px;
-            padding: 0 12px;
-            border: 1px solid var(--els-border);
+            min-height: 40px;
+            padding: 8px 10px;
+            border: 1px solid #cdd9eb;
             border-radius: 8px;
-            background: var(--els-background);
-            color: var(--els-text);
+            background: #ffffff;
+            color: #0f172a;
             font-size: 14px;
             box-shadow: none;
+            transition: border-color 0.2s ease, box-shadow 0.2s ease;
         }
 
         .login-card .form-control:focus,
         .login-card select:focus {
             outline: none;
-            border-color: var(--els-primary);
-            box-shadow: 0 0 0 3px color-mix(in srgb, var(--els-primary) 20%, transparent);
+            border-color: #2563eb;
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.2);
         }
 
         .login-password-wrap {
@@ -162,7 +439,7 @@
         }
 
         .login-password-wrap .form-control {
-            padding-right: 60px;
+            padding-right: 66px;
         }
 
         .login-password-toggle {
@@ -172,48 +449,58 @@
             transform: translateY(-50%);
             border: none;
             background: transparent;
-            color: var(--els-primary-dark);
-            font-size: 12px;
+            color: #1e3a8a;
+            font-size: 11px;
             font-weight: 700;
+            letter-spacing: 0.03em;
             cursor: pointer;
             padding: 4px 6px;
         }
 
         .login-hint {
             font-size: 12px;
-            color: var(--els-text-muted, #64748b);
+            color: #64748b;
             margin-top: 6px;
+            line-height: 1.45;
         }
 
         .login-card .form-button {
             display: flex;
             flex-direction: column;
-            gap: 10px;
+            gap: 8px;
             align-items: stretch;
-            margin-top: 16px;
+            margin-top: 12px;
         }
 
         .login-card .form-button .ibtn {
             width: 100%;
-            height: 44px;
+            min-height: 42px;
             border: none;
             border-radius: 8px;
-            background: linear-gradient(180deg, var(--els-primary-light) 0%, var(--els-primary) 100%);
-            color: #fff;
+            background: linear-gradient(180deg, #2563eb 0%, #1d4ed8 100%);
+            color: #ffffff;
             font-size: 15px;
             font-weight: 600;
             cursor: pointer;
+            transition: transform 0.14s ease, box-shadow 0.2s ease, filter 0.2s ease;
         }
 
         .login-card .form-button .ibtn:hover {
-            filter: brightness(0.96);
+            filter: brightness(0.97);
+            box-shadow: 0 8px 18px rgba(37, 99, 235, 0.24);
+        }
+
+        .login-card .form-button .ibtn:disabled {
+            opacity: 0.7;
+            cursor: not-allowed;
+            box-shadow: none;
         }
 
         .login-card .form-button a {
             text-align: center;
             font-size: 13px;
             font-weight: 600;
-            color: var(--els-primary-dark);
+            color: #1d4ed8;
             text-decoration: none;
         }
 
@@ -221,42 +508,167 @@
             text-decoration: underline;
         }
 
+        .modal-validation-message {
+            display: block;
+            margin-top: 6px;
+            color: #dc2626;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
         .login-card .other-links {
             margin-top: 16px;
             padding-top: 12px;
-            border-top: 1px solid var(--els-border);
+            border-top: 1px solid #e3ebf7;
             text-align: center;
             font-size: 12px;
-            color: var(--els-text-muted, #64748b);
+            color: #64748b;
         }
 
         .login-card button:focus-visible,
         .login-card a:focus-visible,
         .login-card .form-control:focus-visible,
-        .login-card select:focus-visible {
-            outline: 2px solid var(--els-primary);
+        .login-card select:focus-visible,
+        .theme-toggle-btn:focus-visible {
+            outline: 2px solid #2563eb;
             outline-offset: 2px;
         }
 
-        @@media (max-height: 760px) {
-            .login-card {
-                padding: 18px 22px;
+        @@media (max-width: 1100px) {
+            .login-shell {
+                padding: 16px;
             }
 
-            .login-card-head {
-                margin-bottom: 10px;
+            .brand-panel {
+                padding: 32px;
+                gap: 14px;
             }
 
-            .login-subtitle {
+            .brand-headline {
+                font-size: clamp(26px, 2.8vw, 34px);
+            }
+
+            .login-panel {
+                padding: 28px 24px;
+            }
+        }
+
+        @@media (max-width: 900px) {
+            .login-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .brand-panel {
+                padding: 24px 24px 18px;
+            }
+
+            .brand-headline {
+                font-size: 28px;
+            }
+
+            .brand-message {
+                font-size: 14px;
+                line-height: 1.6;
+            }
+
+            .brand-visual {
+                margin-top: 6px;
+                max-height: 180px;
+            }
+
+            .brand-visual img {
+                height: 180px;
+                object-fit: cover;
+            }
+
+            .login-panel {
+                padding: 20px;
+            }
+        }
+
+        @@media (max-width: 640px) {
+            .login-shell {
+                padding: 10px;
+            }
+
+            .login-grid {
+                border-radius: 14px;
+            }
+
+            .brand-panel {
+                padding: 18px 16px 14px;
+                gap: 10px;
+            }
+
+            .brand-logo {
+                width: 116px;
+            }
+
+            .brand-eyebrow {
+                font-size: 10px;
+                letter-spacing: 0.13em;
+            }
+
+            .brand-headline {
+                font-size: 24px;
+            }
+
+            .brand-message,
+            .brand-benefits,
+            .brand-tagline {
                 display: none;
+            }
+
+            .brand-growth {
+                margin: 0;
+                font-size: 13px;
+                line-height: 1.5;
+            }
+
+            .brand-visual {
+                display: none;
+            }
+
+            .login-panel {
+                padding: 14px;
+            }
+
+            .login-card {
+                padding: 20px 16px;
+                border-radius: 12px;
+            }
+
+            .login-card-logo {
+                width: 128px;
+            }
+
+            .login-title {
+                font-size: 22px;
+            }
+
+            .theme-toggle-btn {
+                font-size: 10px;
+                padding: 5px 8px;
+            }
+        }
+
+        @@media (max-height: 760px) {
+            .login-shell {
+                padding-top: 12px;
+                padding-bottom: 12px;
+            }
+
+            .login-panel {
+                padding-top: 18px;
+                padding-bottom: 18px;
+            }
+
+            .login-card {
+                padding: 22px;
             }
 
             .login-card .other-links {
                 display: none;
-            }
-
-            .login-field {
-                margin-bottom: 10px;
             }
         }
     </style>
@@ -276,74 +688,93 @@
             }
         })();
     </script>
-    <div class="form-body">
-        <div class="website-logo">
-            <a href="index.html">
-                <div class="logo">
-                    <img class="logo-size" src="~/Images/els-white.png" alt="">
-                </div>
-            </a>
-        </div>
-        <div class="row">
-            <div class="img-holder">
-                <div class="bg"></div>
-                <div class="info-holder">
+    <div class="login-shell">
+        <div class="login-grid">
+            <aside class="brand-panel" aria-label="LMS value proposition">
+                <a class="brand-logo-link" href="@Url.Action("Login", "Login")" aria-label="LMS login">
+                    <img class="brand-logo" src="~/Images/els-white.png" alt="LMS">
+                </a>
+                <p class="brand-eyebrow">CLOUD-BASED LAUNDRY MANAGEMENT</p>
+                <h1 class="brand-headline">Elevate Your Laundry Business.</h1>
+                <p class="brand-message">Manage orders, streamline daily operations, and deliver an exceptional customer experience with one intelligent platform built for modern laundry and dry-cleaning businesses.</p>
+
+                <ul class="brand-benefits" aria-label="Platform benefits">
+                    <li><span class="benefit-line" aria-hidden="true"></span>Seamless Order Management</li>
+                    <li><span class="benefit-line" aria-hidden="true"></span>Smarter Business Operations</li>
+                    <li><span class="benefit-line" aria-hidden="true"></span>Exceptional Customer Experience</li>
+                </ul>
+
+                <p class="brand-growth">Deliver premium service. Build customer loyalty. Unlock new growth opportunities.</p>
+                <p class="brand-tagline"><strong>Built for better service. Designed for business growth.</strong></p>
+
+                <div class="brand-visual" aria-hidden="true">
                     <img src="~/Images/loginimage.png" alt="">
                 </div>
-            </div>
-            <div class="form-holder">
-                <div class="form-content">
-                    <div class="form-items login-card">
-                        <div class="login-card-head">
-                            <div>
-                                <img class="logo-size" src="~/Images/els-blue-web.png" alt="ELS" style="width: 150px;">
-                                <h1 class="login-title" style="margin-top:14px;">Sign in to your account</h1>
-                                <p class="login-subtitle">Manage your dry cleaning and laundry operations.</p>
+            </aside>
+
+            <main class="login-panel">
+                <div class="login-card">
+                    <div class="login-card-head">
+                        <div>
+                            <img class="login-card-logo" src="~/Images/els-blue-web.png" alt="LMS">
+                            <h2 class="login-title">Excel Laundry Services</h2>
+                            <p class="login-subtitle">Sign in to manage your business.</p>
+                        </div>
+                        <button id="themeToggleLogin" type="button" class="theme-toggle-btn" onclick="toggleTheme()">Dark Theme</button>
+                    </div>
+
+                    <div class="page-links">
+                        <a id="loginTab" class="active" href="@Url.Action("Login", "Login")">Login</a>
+                        <a id="registerTab" href="@Url.Action("Register", "Login")">Register</a>
+                    </div>
+
+                    <!-- Area for inline information and error messages from API -->
+                    <div id="information" role="alert" aria-live="assertive" class="els-message-stack" style="display:none;">
+                    </div>
+
+                    <form>
+                        <div class="login-field">
+                            <label class="login-label" for="tenantEmail">Email address</label>
+                            @Html.TextBoxFor(m => m.Email, new { @placeholder = "name@company.com", @class = "form-control", required = "required", id = "tenantEmail", autocomplete = "username", autocapitalize = "none", spellcheck = "false" })
+                        </div>
+                        <div class="login-field">
+                            <label class="login-label" for="tenantPassword">Password</label>
+                            <div class="login-password-wrap">
+                                @Html.TextBoxFor(m => m.Password, new { @placeholder = "Enter your password", @class = "form-control", required = "required", id = "tenantPassword", @type = "password", autocomplete = "current-password" })
+                                <button type="button" class="login-password-toggle" id="togglePassword" data-password-target="tenantPassword" aria-controls="tenantPassword" aria-label="Show password">SHOW</button>
                             </div>
-                            <button id="themeToggleLogin" type="button" class="theme-toggle-btn" onclick="toggleTheme()">Dark Theme</button>
                         </div>
-                        <div id="information" class="alert alert-success" role="alert"><strong>Well done!</strong><span class="glyphi glyphicon glyphicon-exclamation-sign"></span>@Model.Message</div>
-                        <div class="page-links">
-                            <a id="loginTab" class="active" href="@Url.Action("Login", "Login")">Login</a>
-                            <a id="registerTab" href="@Url.Action("Register", "Login")">Register</a>
+                        <div class="login-field" id="storeDropdownContainer">
+                            <label class="login-label" for="Store">Store</label>
+                            @Html.DropDownListFor(x => x.StoreCode, new List<SelectListItem> { }, "Select a Store...", new { id = "Store" })
                         </div>
-                        @*@using (Html.BeginForm("CheckIsPasswordChangedByclient", "Login", FormMethod.Post, new { @class = "form" }))
-                        {*@
-                            <form>
-                                <div class="login-field">
-                                    <label class="login-label" for="tenantEmail">Email address</label>
-                                    @Html.TextBoxFor(m => m.Email, new { @placeholder = "name@company.com", @class = "form-control", required = "required", id = "tenantEmail", autocomplete = "username" })
-                                </div>
-                                <div class="login-field">
-                                    <label class="login-label" for="tenantPassword">Password</label>
-                                    <div class="login-password-wrap">
-                                        @Html.TextBoxFor(m => m.Password, new { @placeholder = "Enter your password", @class = "form-control", required = "required", id = "tenantPassword", @type = "password", autocomplete = "current-password" })
-                                        <button type="button" class="login-password-toggle" id="togglePassword" data-password-target="tenantPassword" aria-controls="tenantPassword" aria-label="Show password">SHOW</button>
-                                    </div>
-                                </div>
-                                <div class="login-field" id="storeDropdownContainer">
-                                    <label class="login-label" for="Store">Store</label>
-                                    @Html.DropDownListFor(x => x.StoreCode, new List<SelectListItem> { }, "Select a Store...", new { id = "Store" })
-                                </div>
-                                <div id="storeUserHint" class="login-hint">
-                                    Tenant/Admin login: select a store. Store-user login: store is auto-detected.
-                                </div>
-                                <div id="storeUserModeBadge" style="display:none; margin-top:8px;">
-                                    <span id="storeUserModeBadgeText" style="display:inline-block; padding:4px 10px; border-radius:999px; font-size:11px; font-weight:700; letter-spacing:.2px; background:color-mix(in srgb, var(--els-accent) 45%, #ffffff); color:var(--els-primary-dark); border:1px solid var(--els-primary-light);">
-                                        Store User Mode
-                                    </span>
-                                </div>
-                                <div class="form-button">
-                                    <button id="LoginCheck" onclick="LoginValidate();" type="button" class="ibtn">Sign In</button> <a href="#" data-toggle="modal" data-target="#ForgotPassword">Change password?</a>
-                                </div>
-                            </form>
-                        @*}*@
-                        <div class="other-links">
-                            <span><i>The best way to manage your Dry cleaning and Laundry business</i></span>
+                        <div id="storeUserHint" class="login-hint">
+                            Tenant/Admin login: select a store. Store-user login: store is auto-detected.
                         </div>
+                        <div id="storeUserModeBadge" style="display:none; margin-top:8px;">
+                            <span id="storeUserModeBadgeText" style="display:inline-block; padding:4px 10px; border-radius:999px; font-size:11px; font-weight:700; letter-spacing:.2px; background:color-mix(in srgb, var(--els-accent) 45%, #ffffff); color:var(--els-primary-dark); border:1px solid var(--els-primary-light);">
+                                Store User Mode
+                            </span>
+                        </div>
+                        <div class="form-button">
+                            <button id="LoginCheck" type="button" class="ibtn">Sign In</button>
+                            <a href="javascript:void(0);" data-toggle="modal" data-target="#ChangePassword">Change Password</a>
+                            <a href="javascript:void(0);" data-toggle="modal" data-target="#ForgotPassword">Forgot Your Password?</a>
+                        </div>
+
+                        @if (TempData["RegistrationServiceUnavailable"] != null)
+                        {
+                            <div id="registrationServiceAlert" class="alert alert-danger" role="alert" style="margin-top:12px;">
+                                @TempData["RegistrationServiceUnavailable"]
+                            </div>
+                        }
+                    </form>
+
+                    <div class="other-links">
+                        <span><i>The best way to manage your Dry cleaning and Laundry business</i></span>
                     </div>
                 </div>
-            </div>
+            </main>
         </div>
     </div>
     <!-- popup Forgot Your Password html -->
@@ -359,7 +790,8 @@
                 <!-- Modal body -->
                 <div class="modal-body">
                     <div class="form-group">
-                        @Html.TextBoxFor(m => m.Email, new { @placeholder = "E-Mail", @class = "form-control", required = "required", id = "tenantforgotpasswordEmail" })
+                        @Html.TextBoxFor(m => m.Email, new { @placeholder = "E-Mail", @class = "form-control", required = "required", id = "tenantforgotpasswordEmail", autocomplete = "email", autocapitalize = "none", spellcheck = "false" })
+                        <span id="forgotPasswordEmailValidation" class="modal-validation-message" style="display:none;"></span>
                     </div>
                 </div>
                 <!-- Modal footer -->
@@ -388,15 +820,23 @@
                 <div class="modal-body">
                     <lable id="lblOTPInformation"></lable>
                     <div class="form-group">
-                        @Html.TextBoxFor(m => m.Email, new { @placeholder = "E-Mail", @class = "form-control", required = "required", id = "tenantEmail" })
+                        @Html.TextBoxFor(m => m.Email, new { @placeholder = "E-Mail", @class = "form-control", required = "required", id = "changePasswordEmail", autocomplete = "email", autocapitalize = "none", spellcheck = "false" })
+                        <span id="changePasswordEmailValidation" class="modal-validation-message" style="display:none;"></span>
                         <div class="login-password-wrap">
-                            @Html.TextBoxFor(m => m.NewPassword, new { @placeholder = "New password", @class = "form-control", required = "required", id = "newPassword", @type = "password" })
-                            <button type="button" class="login-password-toggle" data-password-target="newPassword" aria-controls="newPassword" aria-label="Show new password">SHOW</button>
-                        </div>
-                        <div class="login-password-wrap">
-                            @Html.TextBoxFor(m => m.OldPassword, new { @placeholder = "Old password", @class = "form-control", required = "required", id = "oldPassword", @type = "password" })
+                            @Html.TextBoxFor(m => m.OldPassword, new { @placeholder = "Current password", @class = "form-control", required = "required", id = "oldPassword", @type = "password", autocomplete = "current-password" })
                             <button type="button" class="login-password-toggle" data-password-target="oldPassword" aria-controls="oldPassword" aria-label="Show current password">SHOW</button>
                         </div>
+                        <span id="oldPasswordValidation" class="modal-validation-message" style="display:none;"></span>
+                        <div class="login-password-wrap">
+                            @Html.TextBoxFor(m => m.NewPassword, new { @placeholder = "New password", @class = "form-control", required = "required", id = "newPassword", @type = "password", autocomplete = "new-password" })
+                            <button type="button" class="login-password-toggle" data-password-target="newPassword" aria-controls="newPassword" aria-label="Show new password">SHOW</button>
+                        </div>
+                        <span id="newPasswordValidation" class="modal-validation-message" style="display:none;"></span>
+                        <div class="login-password-wrap">
+                            <input id="confirmNewPassword" type="password" class="form-control" placeholder="Confirm new password" autocomplete="new-password" />
+                            <button type="button" class="login-password-toggle" data-password-target="confirmNewPassword" aria-controls="confirmNewPassword" aria-label="Show confirm new password">SHOW</button>
+                        </div>
+                        <span id="confirmNewPasswordValidation" class="modal-validation-message" style="display:none;"></span>
                     </div>
                 </div>
                 <!-- Modal footer -->
@@ -494,9 +934,48 @@
             progress.hide();
         }
 
+        function isValidEmailAddress(email) {
+            var emailPattern = /^[^\s\x40]+\x40[^\s\x40]+\.[^\s\x40]+$/;
+            return emailPattern.test(email);
+        }
+
+        function clearValidationMessage(selector) {
+            $(selector).text('').hide();
+        }
+
+        function setValidationMessage(selector, message) {
+            $(selector).text(message).show();
+        }
+
+        function resetForgotPasswordModalState() {
+            $('#tenantforgotpasswordEmail').val('');
+            clearValidationMessage('#forgotPasswordEmailValidation');
+            setForgotPasswordProcessing(false);
+            $('#forgotpassword').show();
+        }
+
+        function resetChangePasswordModalState(clearEmail) {
+            if (clearEmail) {
+                $('#changePasswordEmail').val('');
+            }
+            $('#oldPassword').val('');
+            $('#newPassword').val('');
+            $('#confirmNewPassword').val('');
+            clearValidationMessage('#changePasswordEmailValidation');
+            clearValidationMessage('#oldPasswordValidation');
+            clearValidationMessage('#newPasswordValidation');
+            clearValidationMessage('#confirmNewPasswordValidation');
+        }
+
         $(document).ready(function ()
         {
             $('#information').hide();
+
+            if (!window.location.search) {
+                var loginPageInputs = $('input').not(':button, :submit, :reset, [type=hidden], [type=checkbox], [type=radio]');
+                loginPageInputs.val('');
+                $('input[type=checkbox], input[type=radio]').prop('checked', false);
+            }
 
             let storeLookupTimer;
             $('#tenantEmail').on('input', function () {
@@ -517,7 +996,8 @@
                 field.attr('type', isPassword ? 'text' : 'password');
                 $(this).text(isPassword ? 'HIDE' : 'SHOW');
                 var fieldName = field.attr('id') === 'newPassword' ? 'new password'
-                    : field.attr('id') === 'oldPassword' ? 'current password' : 'password';
+                    : field.attr('id') === 'oldPassword' ? 'current password'
+                    : field.attr('id') === 'confirmNewPassword' ? 'confirm new password' : 'password';
                 $(this).attr('aria-label', (isPassword ? 'Hide ' : 'Show ') + fieldName);
             });
 
@@ -528,16 +1008,148 @@
                 }
             });
 
+            $('#tenantforgotpasswordEmail').on('input', function () {
+                clearValidationMessage('#forgotPasswordEmailValidation');
+            });
+
+            $('#changePasswordEmail, #oldPassword, #newPassword, #confirmNewPassword').on('input', function () {
+                clearValidationMessage('#changePasswordEmailValidation');
+                clearValidationMessage('#oldPasswordValidation');
+                clearValidationMessage('#newPasswordValidation');
+                clearValidationMessage('#confirmNewPasswordValidation');
+            });
+
+            $('#tenantforgotpasswordEmail').on('keydown', function (e) {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    $('#forgotpassword').click();
+                }
+            });
+
+            $('#changePasswordEmail, #oldPassword, #newPassword, #confirmNewPassword').on('keydown', function (e) {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    $('#changepassword').click();
+                }
+            });
+
+            $('#ForgotPassword').on('shown.bs.modal', function () {
+                resetForgotPasswordModalState();
+            });
+
+            $('#ForgotPassword').on('hidden.bs.modal', function () {
+                resetForgotPasswordModalState();
+            });
+
+            $('#ChangePassword').on('shown.bs.modal', function () {
+                resetChangePasswordModalState(false);
+            });
+
+            $('#ChangePassword').on('hidden.bs.modal', function () {
+                resetChangePasswordModalState(false);
+                $('#lblOTPInformation').empty();
+            });
+
+            $('a[data-target="#ForgotPassword"]').on('click', function () {
+                resetForgotPasswordModalState();
+            });
+
+            $('a[data-target="#ChangePassword"]').on('click', function () {
+                $('#lblOTPInformation').empty();
+                $('#changePasswordEmail').val(($('#tenantEmail').val() || '').trim());
+                resetChangePasswordModalState(false);
+            });
+
             syncThemeButtonText();
+
         });
+
+        // Helper to show information/toast messages with auto-hide
+        function showInfo(message, type, timeoutMs) {
+            try {
+                var el = $('#information');
+                if (!el || el.length === 0) return;
+                type = (type || 'warning').toLowerCase();
+                var mappedType = (type === 'success' || type === 'warning' || type === 'info') ? type : 'danger';
+                var label = mappedType === 'success' ? 'Success'
+                    : mappedType === 'warning' ? 'Warning'
+                        : mappedType === 'info' ? 'Info' : 'Error';
+                var icon = mappedType === 'success' ? '✓'
+                    : mappedType === 'warning' ? '⚠'
+                        : mappedType === 'info' ? 'i' : '⨯';
+
+                el.stop(true, true);
+                el.removeClass('info error');
+                el.html("<div class='els-message-card els-message-" + mappedType + "'>"
+                    + "<span class='els-message-icon' aria-hidden='true'>" + icon + "</span>"
+                    + "<div class='els-message-body'><span class='els-message-label'>" + label + "</span><p class='els-message-text'>" + message + "</p></div>"
+                    + "<button type='button' class='els-message-close' aria-label='Dismiss message' onclick='$(\"#information\").hide().empty()'>&times;</button>"
+                    + "</div>");
+                el.show();
+                var t = typeof timeoutMs === 'number' ? timeoutMs : 4500;
+                if (mappedType === 'info' || mappedType === 'success') {
+                    setTimeout(function () {
+                        el.fadeOut(250, function () { el.empty().removeClass('info error'); });
+                    }, t);
+                }
+            } catch (e) { /* ignore */ }
+        }
+
+        // MutationObserver fallback: if any code shows #information directly, auto-hide it
+        (function () {
+            try {
+                var infoEl = document.getElementById('information');
+                if (!infoEl) return;
+                var hideTimer = null;
+                function scheduleHide() {
+                    clearTimeout(hideTimer);
+                    var style = window.getComputedStyle(infoEl);
+                    if (style && style.display !== 'none' && infoEl.innerHTML.trim() !== '') {
+                        var el = $(infoEl);
+                        if (el.find('.els-message-card').length === 0) {
+                            var fallbackText = el.text().trim();
+                            if (fallbackText.length > 0) {
+                                showInfo(fallbackText, 'danger');
+                                return;
+                            }
+                        }
+
+                        var isPersistent = el.find('.els-message-warning, .els-message-danger, .els-message-error').length > 0;
+                        if (isPersistent) {
+                            return;
+                        }
+
+                        hideTimer = setTimeout(function () {
+                            $(infoEl).fadeOut(250, function () { $(infoEl).empty().removeClass('info error'); });
+                        }, 4500);
+                    }
+                }
+                var mo = new MutationObserver(function () { scheduleHide(); });
+                mo.observe(infoEl, { attributes: true, attributeFilter: ['style', 'class'], childList: true, subtree: true });
+            } catch (e) { /* ignore */ }
+        })();
 
         var tenantStoresRequest = null;
         var loginStoresRequest = null;
         $("#forgotpassword").click(function (e) {
             e.preventDefault();
+            clearValidationMessage('#forgotPasswordEmailValidation');
+
+            var forgotPasswordEmailInput = $("#tenantforgotpasswordEmail").get(0);
+            var forgotPasswordEmail = forgotPasswordEmailInput ? forgotPasswordEmailInput.value.trim() : '';
+            if (!forgotPasswordEmail) {
+                setValidationMessage('#forgotPasswordEmailValidation', 'Email address is required.');
+                return;
+            }
+
+            if (!isValidEmailAddress(forgotPasswordEmail)) {
+                setValidationMessage('#forgotPasswordEmailValidation', 'Please enter a valid email address.');
+                return;
+            }
+
             var model =
             {
-                'Email': $("#tenantforgotpasswordEmail").get(0).value,
+                'Email': forgotPasswordEmail,
             }
             setForgotPasswordProcessing(true);
                                  $.ajax
@@ -548,28 +1160,79 @@
                                          success: function (data) {
                                         setForgotPasswordProcessing(false);
                                         $("#forgotpassword").hide();
-                                             $('#information').show();
                                              $('#ForgotPassword').hide();
-                                             $('#information').html("<p>" + data + "</p>");
+                                             showInfo(data, 'success');
                                              $('body').removeClass('modal-open');
                                              $('.modal-backdrop').remove();
                                     },
                                     error: function () {
                                         setForgotPasswordProcessing(false);
-                                        $('#information').show();
-                                        $('#information').html("<p>Unable to process reset password request. Please try again.</p>");
+                                        showInfo('Unable to process reset password request. Please try again.', 'danger');
                                     }
                                 })
 
         });
       
 
-        $("#changepassword").click(function () {
+        $("#changepassword").click(function (e) {
+            e.preventDefault();
+            clearValidationMessage('#changePasswordEmailValidation');
+            clearValidationMessage('#oldPasswordValidation');
+            clearValidationMessage('#newPasswordValidation');
+            clearValidationMessage('#confirmNewPasswordValidation');
+
+            var changePasswordEmailInput = $("#changePasswordEmail").get(0);
+            var oldPasswordInput = $("#oldPassword").get(0);
+            var newPasswordInput = $("#newPassword").get(0);
+            var confirmNewPasswordInput = $("#confirmNewPassword").get(0);
+
+            var changePasswordEmail = changePasswordEmailInput ? changePasswordEmailInput.value.trim() : '';
+            var oldPassword = oldPasswordInput ? oldPasswordInput.value : '';
+            var newPassword = newPasswordInput ? newPasswordInput.value : '';
+            var confirmNewPassword = confirmNewPasswordInput ? confirmNewPasswordInput.value : '';
+
+            var hasValidationErrors = false;
+            if (!changePasswordEmail) {
+                setValidationMessage('#changePasswordEmailValidation', 'Email address is required.');
+                hasValidationErrors = true;
+            } else if (!isValidEmailAddress(changePasswordEmail)) {
+                setValidationMessage('#changePasswordEmailValidation', 'Please enter a valid email address.');
+                hasValidationErrors = true;
+            }
+
+            if (!oldPassword) {
+                setValidationMessage('#oldPasswordValidation', 'Current password is required.');
+                hasValidationErrors = true;
+            }
+
+            if (!newPassword) {
+                setValidationMessage('#newPasswordValidation', 'New password is required.');
+                hasValidationErrors = true;
+            }
+
+            if (!confirmNewPassword) {
+                setValidationMessage('#confirmNewPasswordValidation', 'Confirm new password is required.');
+                hasValidationErrors = true;
+            } else if (newPassword && confirmNewPassword !== newPassword) {
+                setValidationMessage('#confirmNewPasswordValidation', 'Confirm new password must match new password.');
+                hasValidationErrors = true;
+            }
+
+            if (oldPassword && newPassword && oldPassword === newPassword) {
+                setValidationMessage('#newPasswordValidation', 'New password must be different from current password.');
+                hasValidationErrors = true;
+            }
+
+            if (hasValidationErrors) {
+                return;
+            }
+
             var model =
             {
-                'Email': $("#tenantEmail").get(0).value,
-                'NewPassword': $("#newPassword").get(0).value,
-                'OldPassword': $("#oldPassword").get(0).value,
+                'Email': changePasswordEmail,
+                'NewPassword': newPassword,
+                'OldPassword': oldPassword,
+                'ConfirmNewPassword': confirmNewPassword,
             }
                                  $.ajax
                                 ({
@@ -578,8 +1241,7 @@
                                     data: model,
                                          success: function (data) {
                                         $("#ChangePassword").hide();
-                                        $('#information').show();
-                                             $('#information').html("<p>" + data + "</p>");
+                                        showInfo(data, 'success');
                                              $('body').removeClass('modal-open');
                                              $('.modal-backdrop').remove();
 
@@ -607,8 +1269,7 @@
 
             if (!email || email.trim().length === 0 || !password || password.trim().length === 0)
             {
-                $('#information').show();
-                $('#information').html("<p>Please enter email and password.</p>");
+                showInfo('Please enter email and password.', 'warning');
                 return;
             }
 
@@ -622,8 +1283,7 @@
                 data: { email: email, password: password },
                 success: function (resolveData) {
                     if (!resolveData || !resolveData.success) {
-                        $('#information').show();
-                        $('#information').html("<p>" + ((resolveData && resolveData.message) || "Login failed. Please check your email/password.") + "</p>");
+                        showInfo(((resolveData && resolveData.message) || 'Login failed. Please check your email/password.'), 'danger');
                         return;
                     }
 
@@ -643,14 +1303,12 @@
                             setLoginModeHint(true, storeForLogin, false);
                         }
                     } else if (isSuperAdmin) {
-                        // Super admins are global accounts with no store of their own.
                         setLoginModeHint(false, "", true);
                         storeForLogin = "";
                     } else {
                         setLoginModeHint(false, "", false);
                         if (!storeForLogin || storeForLogin.trim().length === 0) {
-                            $('#information').show();
-                            $('#information').html("<p>Please select a store before login.</p>");
+                            showInfo('Please select a store before login.', 'warning');
                             return;
                         }
                     }
@@ -667,46 +1325,70 @@
                         url: '@Url.Action("Login", "Login")',
                         data: model,
                         success: function (data) {
-                            if (data === "success")
-                            {
+                            if (data === "success") {
                                 window.location.href = newUrl;
                             }
-                            else if (data === "requirePasswordChange")
-                            {
+                            else if (data === "requirePasswordChange") {
                                 $('#lblOTPInformation').html("<p>An One Time Password(OTP) has been sent to: <br>" + email + "</p>");
+                                $('#changePasswordEmail').val(email);
                                 $("#ChangePassword").modal("show");
                             }
-                            else if (data === "storeRequired")
-                            {
-                                $('#information').show();
-                                $('#information').html("<p>Store mapping not found for this user.</p>");
+                            else if (data === "storeRequired") {
+                                showInfo('Store mapping not found for this user.', 'warning');
                             }
-                            else if (data === "serviceUnavailable")
-                            {
-                                $('#information').show();
-                                $('#information').html("<p>The login service is unavailable. Please try again shortly.</p>");
+                            else if (data === "serviceUnavailable") {
+                                showInfo('The login service is unavailable. Please try again shortly.', 'danger');
                             }
-                            else if (typeof data === "string" && data.indexOf("notApproved|") === 0)
-                            {
+                            else if (typeof data === "string" && data.indexOf("notApproved|") === 0) {
                                 var blockedMessage = data.substring("notApproved|".length);
-                                $('#information').show();
-                                $('#information').text(blockedMessage);
+                                showInfo(blockedMessage, 'warning');
                             }
-                            else
-                            {
-                                $('#information').show();
-                                $('#information').html("<p>Login failed. Please check your email/password.</p>");
+                            else {
+                                var message = "Login failed. Please check your email/password.";
+                                try {
+                                    if (data && typeof data === 'string') {
+                                        message = data;
+                                    } else if (data && data.message) {
+                                        message = data.message;
+                                    }
+                                } catch (e) { }
+                                showInfo(message, 'danger');
                             }
                         },
-                        error: function () {
-                            $('#information').show();
-                            $('#information').html("<p>Login failed. Please check your email/password.</p>");
+                        error: function (jqXHR) {
+                            var msg = "Login failed. Please check your email/password.";
+                            try {
+                                if (jqXHR && jqXHR.responseJSON && jqXHR.responseJSON.message) {
+                                    msg = jqXHR.responseJSON.message;
+                                } else if (jqXHR && jqXHR.responseText) {
+                                    try {
+                                        var parsed = JSON.parse(jqXHR.responseText);
+                                        if (parsed && parsed.message) msg = parsed.message;
+                                        else msg = jqXHR.responseText;
+                                    } catch (e) {
+                                        msg = jqXHR.responseText;
+                                    }
+                                }
+                            } catch (e) { }
+                            showInfo(msg, 'danger');
                         }
                     });
                 },
-                error: function () {
-                    $('#information').show();
-                    $('#information').html("<p>Login failed. Please check your email/password.</p>");
+                error: function (jqXHR, textStatus, errorThrown) {
+                    var msg = "Login failed. Please check your email/password.";
+                    try {
+                        if (jqXHR && jqXHR.responseJSON && jqXHR.responseJSON.message) {
+                            msg = jqXHR.responseJSON.message;
+                        } else if (jqXHR && jqXHR.responseText) {
+                            try {
+                                var parsed = JSON.parse(jqXHR.responseText);
+                                if (parsed && parsed.message) msg = parsed.message; else msg = jqXHR.responseText;
+                            } catch (e) {
+                                msg = jqXHR.responseText;
+                            }
+                        }
+                    } catch (e) { }
+                    showInfo(msg, 'danger');
                 }
             });
         });
@@ -759,6 +1441,18 @@
                             return;
                         }
 
+                        if (typeof data === 'string' && data.indexOf('inactive|') === 0)
+                        {
+                            var inactiveMessage = data.substring('inactive|'.length) || 'Your account is inactive or pending approval. Please contact the super admin.';
+                            showInfo(inactiveMessage, 'warning');
+                            setLoginModeHint(false, "", false);
+                            $('#LoginCheck').prop('disabled', true);
+                            $('#Store').empty();
+                            $('#Store').append($('<option></option>').val('').html('Select a Store...'));
+                            $('#storeDropdownContainer').hide();
+                            return;
+                        }
+
                         if (data && data.length > 0)
                         {
                             $('#tenantPassword').focus();
@@ -780,16 +1474,26 @@
                         }
                         else
                         {
+                            // No tenant stores were resolved by email alone.
+                            // This can still be a valid StoreUser; let password-based login resolve it.
                             $('#information').hide();
                             $('#information').empty();
                             setLoginModeHint(true, "", false);
                             $('#LoginCheck').prop('disabled', false);
                         }
                     },
-                    error: function () {
+                    error: function (xhr) {
+                        var mySelect = $('#Store');
+                        mySelect.empty();
+                        mySelect.append($('<option></option>').val('').html('Select a Store...'));
+                        $('#LoginCheck').prop('disabled', true);
+                        setLoginModeHint(false, "", false);
+
+                        var message = (xhr && xhr.responseText) ? xhr.responseText : 'Error occurred while processing your request.';
+
                         BootstrapDialog.show({
                             title: 'Warning Alert',
-                            message: 'Error occurred while processing your request.',
+                            message: message,
                             buttons: [{
                                 label: 'OK',
                                 cssClass: 'btn btn-success btn-middle',

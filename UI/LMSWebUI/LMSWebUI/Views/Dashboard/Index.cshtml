@@ -1,4 +1,5 @@
 ﻿@model LMSWebUI.Models.DashBoard.TenantInfoDto
+@inject LMSWebUI.Services.ICurrencyService CurrencyService
 @{
     Layout = "~/Views/Shared/_Layout.cshtml";
     var isAdminUser = Convert.ToBoolean(ViewData["IsAdminUser"] ?? false);
@@ -15,6 +16,22 @@
     {
         return string.Equals(currentController, controllerName, StringComparison.OrdinalIgnoreCase)
                && string.Equals(currentAction, actionName, StringComparison.OrdinalIgnoreCase);
+    }
+    // Resolve effective currency for this tenant/store so client-side scripts can format consistently.
+    var _currencyJson = "{}";
+    try
+    {
+        var _currency = await CurrencyService.GetEffectiveCurrencyAsync(tenantName, tenantStore);
+        _currencyJson = Newtonsoft.Json.JsonConvert.SerializeObject(new {
+            symbol = _currency?.CurrencySymbol,
+            locale = _currency?.CurrencyLocale,
+            digits = _currency?.DecimalDigits,
+            code = _currency?.CurrencyCode
+        });
+    }
+    catch
+    {
+        // swallow - client will use legacy hardcoded formatting if needed
     }
 }
 <style>
@@ -59,11 +76,47 @@
         display: flex;
         flex-wrap: wrap;
         gap: 16px;
+        align-items: center;
+    }
+
+    .search-option {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        border: 1px solid var(--els-border);
+        border-radius: 999px;
+        padding: 8px 12px;
+        background: var(--els-surface);
+        cursor: pointer;
+        transition: all .2s ease;
+    }
+
+    .search-option.active {
+        border-color: var(--els-primary);
+        background: rgba(48, 96, 189, 0.12);
+        color: var(--els-primary-dark);
+    }
+
+    .search-option input[type="radio"] {
+        margin: 0;
     }
 
     .search-mode label {
-        margin: 0 0 0 6px;
+        margin: 0;
         font-weight: 500;
+        cursor: pointer;
+    }
+
+    .search-hint {
+        margin-top: 6px;
+        font-size: 12px;
+        color: var(--els-text-muted, #64748b);
+    }
+
+    .search-input-wrap.active {
+        outline: 2px solid rgba(48, 96, 189, 0.2);
+        outline-offset: 2px;
+        border-radius: 6px;
     }
 
     .search-input-wrap {
@@ -89,6 +142,60 @@
         color: var(--els-danger);
         font-size: 13px;
         font-weight: 600;
+    }
+
+    .customer-orders-panel {
+        margin-top: 12px;
+        border: 1px solid var(--els-border);
+        border-radius: 8px;
+        background: var(--els-surface);
+        overflow: hidden;
+    }
+
+    .customer-orders-header {
+        padding: 10px 12px;
+        border-bottom: 1px solid var(--els-border);
+        background: #f8fbff;
+        font-size: 13px;
+        font-weight: 600;
+        color: #1f2937;
+    }
+
+    .customer-orders-wrap {
+        overflow-x: auto;
+    }
+
+    .customer-orders-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 12px;
+    }
+
+    .customer-orders-table th,
+    .customer-orders-table td {
+        border-bottom: 1px solid var(--els-border);
+        padding: 8px;
+        text-align: left;
+        vertical-align: top;
+    }
+
+    .customer-orders-table th {
+        background: rgba(48, 96, 189, 0.12);
+        font-weight: 700;
+        white-space: nowrap;
+    }
+
+    .customer-orders-table td.num,
+    .customer-orders-table th.num {
+        text-align: right;
+        white-space: nowrap;
+    }
+
+    .customer-orders-state {
+        color: #64748b;
+        text-align: center;
+        font-weight: 600;
+        padding: 16px !important;
     }
 
     .autocomplete-items {
@@ -118,6 +225,244 @@
     .dashboard-actions {
         display: flex;
         gap: 12px;
+        flex-wrap: wrap;
+    }
+
+    .store-action-board,
+    .owner-summary-board {
+        margin-top: 12px;
+        border: 1px solid var(--els-border);
+        border-radius: 10px;
+        background: var(--els-surface);
+        overflow: hidden;
+    }
+
+    .store-board-header {
+        padding: 10px 12px;
+        font-size: 13px;
+        font-weight: 700;
+        color: var(--els-primary-dark);
+        border-bottom: 1px solid var(--els-border);
+        background: rgba(48, 96, 189, 0.1);
+    }
+
+    .store-action-grid,
+    .owner-summary-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        gap: 10px;
+        padding: 12px;
+    }
+
+    .store-action-card {
+        border: 1px solid var(--els-border);
+        border-radius: 8px;
+        padding: 10px;
+        text-decoration: none;
+        color: inherit;
+        background: var(--els-background);
+    }
+
+    .store-action-card:hover {
+        border-color: var(--els-primary-light);
+        background: var(--els-accent);
+    }
+
+    .store-action-title {
+        font-size: 12px;
+        color: #64748b;
+        margin-bottom: 4px;
+    }
+
+    .store-action-value {
+        font-size: 20px;
+        font-weight: 700;
+        color: var(--els-primary-dark);
+        line-height: 1.1;
+    }
+
+    .store-action-note {
+        font-size: 11px;
+        color: #6b7280;
+        margin-top: 4px;
+    }
+
+    .store-action-card.alert .store-action-value {
+        color: #b63838;
+    }
+
+    .store-action-card.success .store-action-value {
+        color: #2f8f46;
+    }
+
+    .owner-summary-item {
+        border: 1px solid var(--els-border);
+        border-radius: 8px;
+        padding: 10px;
+        background: var(--els-background);
+    }
+
+    .owner-summary-label {
+        display: block;
+        font-size: 12px;
+        color: #64748b;
+        margin-bottom: 4px;
+    }
+
+    .owner-summary-value {
+        font-size: 16px;
+        font-weight: 700;
+        color: var(--els-text);
+    }
+
+    @@media (max-width: 768px) {
+        .search-mode {
+            flex-wrap: nowrap;
+            overflow-x: auto;
+            gap: 12px;
+            padding-bottom: 4px;
+        }
+
+        .search-mode > div {
+            flex: 0 0 auto;
+            white-space: nowrap;
+        }
+
+        #searchradio .input-group,
+        #searchInvoiceradio .input-group {
+            display: flex;
+            flex-wrap: nowrap;
+        }
+
+        #searchCustomers,
+        #searchInvoiceText {
+            min-width: 0;
+        }
+    }
+
+    .customer-workbench {
+        margin-top: 12px;
+        border: 1px solid var(--els-border);
+        border-radius: 8px;
+        padding: 12px;
+        background: #f8fbff;
+        display: grid;
+        gap: 10px;
+    }
+
+    .customer-workbench-meta {
+        font-size: 13px;
+        color: #334155;
+        font-weight: 600;
+    }
+
+    .customer-workbench .btn[disabled] {
+        opacity: 0.65;
+        cursor: not-allowed;
+    }
+
+    .customer-history-filters {
+        margin-top: 10px;
+        border: 1px solid var(--els-border);
+        border-radius: 8px;
+        padding: 10px;
+        background: #f8fbff;
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+        gap: 8px;
+        align-items: end;
+    }
+
+    .customer-history-filters .form-control,
+    .customer-history-filters .btn {
+        height: 36px;
+    }
+
+    .customer-history-filters .filter-actions {
+        display: flex;
+        gap: 8px;
+    }
+
+    .customer-history-quick-filters {
+        grid-column: 1 / -1;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+
+    .customer-history-chip {
+        border: 1px solid var(--els-border);
+        border-radius: 999px;
+        background: var(--els-surface);
+        color: var(--els-primary-dark);
+        font-size: 12px;
+        font-weight: 600;
+        padding: 6px 10px;
+        line-height: 1;
+    }
+
+    .customer-history-chip:hover,
+    .customer-history-chip:focus {
+        border-color: var(--els-primary);
+        background: rgba(48, 96, 189, 0.12);
+    }
+
+    .customer-history-chip.active {
+        border-color: var(--els-primary);
+        background: var(--els-primary);
+        color: #fff;
+    }
+
+    .customer-order-link {
+        font-weight: 700;
+        color: var(--els-primary-dark);
+    }
+
+    .customer-order-link:hover,
+    .customer-order-link:focus {
+        color: var(--els-primary);
+        text-decoration: underline;
+    }
+
+    .invoice-preview-panel {
+        margin-top: 12px;
+        border: 1px solid var(--els-border);
+        border-radius: 8px;
+        background: #f8fbff;
+        overflow: hidden;
+    }
+
+    .invoice-preview-header {
+        padding: 10px 12px;
+        border-bottom: 1px solid var(--els-border);
+        background: rgba(48, 96, 189, 0.12);
+        font-size: 13px;
+        font-weight: 700;
+        color: var(--els-primary-dark);
+    }
+
+    .invoice-preview-body {
+        padding: 12px;
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        gap: 8px 12px;
+    }
+
+    .invoice-preview-item {
+        font-size: 12px;
+        color: #334155;
+    }
+
+    .invoice-preview-item b {
+        color: #0f172a;
+    }
+
+    .invoice-preview-actions {
+        padding: 10px 12px;
+        border-top: 1px solid var(--els-border);
+        background: var(--els-surface);
+        display: flex;
+        gap: 8px;
         flex-wrap: wrap;
     }
 
@@ -545,6 +890,77 @@
         color: #64748b;
     }
 
+    .admin-ebj-suite {
+        margin: 12px 0;
+        border: 1px solid var(--els-border);
+        border-radius: 8px;
+        background: var(--els-background);
+        padding: 10px;
+    }
+
+    .admin-ebj-suite-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        margin-bottom: 10px;
+    }
+
+    .admin-ebj-suite-title {
+        margin: 0;
+        font-size: 14px;
+        font-weight: 700;
+        color: var(--els-text);
+    }
+
+    .admin-ebj-suite-subtitle {
+        margin: 2px 0 0;
+        font-size: 12px;
+        color: #64748b;
+    }
+
+    .admin-report-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+
+    .admin-sla-grid {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(120px, 1fr));
+        gap: 10px;
+    }
+
+    .admin-sla-card {
+        border: 1px solid var(--els-border);
+        border-radius: 8px;
+        background: var(--els-surface);
+        padding: 8px;
+    }
+
+    .admin-sla-label {
+        display: block;
+        font-size: 11px;
+        color: #64748b;
+        margin-bottom: 2px;
+    }
+
+    .admin-sla-value {
+        font-size: 18px;
+        font-weight: 700;
+        color: var(--els-text);
+    }
+
+    .admin-sla-value.alert { color: #b63838; }
+    .admin-sla-value.warn { color: #8a5a00; }
+    .admin-sla-value.success { color: #2f8f46; }
+
+    .admin-ebj-summary {
+        margin-top: 8px;
+        font-size: 12px;
+        color: #475467;
+    }
+
     .admin-insights-sections-grid {
         display: grid;
         grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -617,6 +1033,10 @@
             grid-template-columns: 1fr;
         }
 
+        .admin-sla-grid {
+            grid-template-columns: repeat(2, minmax(120px, 1fr));
+        }
+
     }
 
 </style>
@@ -674,12 +1094,60 @@
                     </div>
                 </div>
 
+                <div class="store-action-board" id="storeImmediateActions">
+                    <div class="store-board-header">Immediate Actions for Store User</div>
+                    <div class="store-action-grid">
+                        <a class="store-action-card alert" href="@Url.Action("OrderWorkflow", "Customer")?status=Ready">
+                            <div class="store-action-title">Ready for delivery</div>
+                            <div class="store-action-value" id="actReadyCount">--</div>
+                            <div class="store-action-note">Deliver now and close open pickups</div>
+                        </a>
+                        <a class="store-action-card alert" href="@Url.Action("OrderWorkflow", "Customer")?status=Received">
+                            <div class="store-action-title">Pending processing</div>
+                            <div class="store-action-value" id="actPendingCount">--</div>
+                            <div class="store-action-note">Move quickly to avoid delays</div>
+                        </a>
+                        <a class="store-action-card" href="@Url.Action("OrderWorkflow", "Customer")?status=&searchText=" id="actUnpaidLink">
+                            <div class="store-action-title">Pending payment cases</div>
+                            <div class="store-action-value" id="actPendingPaymentCount">--</div>
+                            <div class="store-action-note">Collect dues and settle orders</div>
+                        </a>
+                        <a class="store-action-card success" href="@Url.Action("SetupCreateOrder", "Customer")">
+                            <div class="store-action-title">Create new order</div>
+                            <div class="store-action-value">+</div>
+                            <div class="store-action-note">Fast billing for walk-in customers</div>
+                        </a>
+                    </div>
+                </div>
+
+                <div class="owner-summary-board" id="storeOwnerSummary">
+                    <div class="store-board-header">Owner Summary Snapshot</div>
+                    <div class="owner-summary-grid">
+                        <div class="owner-summary-item">
+                            <span class="owner-summary-label">Today Orders</span>
+                            <span class="owner-summary-value" id="ownerTodayOrders">--</span>
+                        </div>
+                        <div class="owner-summary-item">
+                            <span class="owner-summary-label">Ready for Delivery</span>
+                            <span class="owner-summary-value" id="ownerReadyOrders">--</span>
+                        </div>
+                        <div class="owner-summary-item">
+                            <span class="owner-summary-label">Pending Payment Amount</span>
+                            <span class="owner-summary-value" id="ownerPendingAmount">--</span>
+                        </div>
+                        <div class="owner-summary-item">
+                            <span class="owner-summary-label">Average Ticket (Today)</span>
+                            <span class="owner-summary-value" id="ownerAvgTicket">--</span>
+                        </div>
+                    </div>
+                </div>
+
                 <div class="search-mode">
-                    <div>
+                    <div class="search-option" id="searchOptionCustomer">
                         <input type="radio" id="search" name="search" checked="@(string.Equals(searchMode, "invoice", StringComparison.OrdinalIgnoreCase) ? null : "checked")" />
                         <label for="search">Search Customer (Name, Address, Mobile Number, Membership Id or Customer Code)</label>
                     </div>
-                    <div>
+                    <div class="search-option" id="searchOptionInvoice">
                         <input type="radio" id="invoice" name="search" checked="@(string.Equals(searchMode, "invoice", StringComparison.OrdinalIgnoreCase) ? "checked" : null)" />
                         <label for="invoice">Search Invoice</label>
                     </div>
@@ -699,23 +1167,159 @@
                                 <li><a href="#">Customer Code</a></li>
                             </ul>
                         </div>
-                        <input type="text" id="searchCustomers" class="form-control" placeholder="Search customer..." />
+                        <input type="text" id="searchCustomers" class="form-control" placeholder="Search customer..." autocomplete="off" />
+                        <span class="input-group-btn">
+                            <button type="button" class="btn btn-primary" id="customerSearchGoBtn">Go</button>
+                        </span>
                     </div>
+                    <div class="search-hint">Type to search. Use ↑/↓ to navigate suggestions and Enter to load customer history.</div>
                     <div id="customerSearchMessage" class="search-no-result"></div>
                 </div>
 
                 <div class="form-group search-input-wrap" id="searchInvoiceradio">
-                    <input type="text" id="searchInvoiceText" class="form-control" placeholder="Search Order No / Invoice No..." />
+                    <div class="input-group">
+                        <input type="text" id="searchInvoiceText" class="form-control" placeholder="Search Order No / Invoice No..." autocomplete="off" />
+                        <span class="input-group-btn">
+                            <button type="button" class="btn btn-primary" id="invoiceSearchGoBtn">Go</button>
+                        </span>
+                    </div>
+                    <div class="search-hint">Partial match supported. Press Enter to preview invoice details and then open workflow.</div>
                     <div id="invoiceSearchMessage" class="search-no-result"></div>
+                </div>
+
+                <div id="invoicePreviewPanel" class="invoice-preview-panel" style="display:none;">
+                    <div class="invoice-preview-header" id="invoicePreviewHeader">Invoice details</div>
+                    <div class="invoice-preview-body" id="invoicePreviewBody"></div>
+                    <div class="invoice-preview-actions">
+                        <button type="button" class="btn btn-primary" id="invoiceOpenWorkflowBtn">Open in Workflow</button>
+                        <button type="button" class="btn btn-default" id="invoicePreviewClearBtn">Clear</button>
+                    </div>
+                </div>
+
+                <div id="customerOrdersPanel" class="customer-orders-panel" style="display:none;">
+                    <div id="customerOrdersHeader" class="customer-orders-header">Customer order history</div>
+                    <div class="customer-history-filters" id="customerHistoryFilters" style="display:none;">
+                        <div class="customer-history-quick-filters">
+                            <button type="button" class="btn btn-default btn-xs customer-history-chip" data-range="today">Today</button>
+                            <button type="button" class="btn btn-default btn-xs customer-history-chip" data-range="last7">Last 7 days</button>
+                            <button type="button" class="btn btn-default btn-xs customer-history-chip" data-range="thisMonth">This Month</button>
+                            <button type="button" class="btn btn-default btn-xs customer-history-chip" data-range="clear">Clear Range</button>
+                        </div>
+                        <div>
+                            <label class="sr-only" for="customerHistoryStatus">Status</label>
+                            <select id="customerHistoryStatus" class="form-control">
+                                <option value="">All Status</option>
+                                <option value="received">Received</option>
+                                <option value="processing">Processing</option>
+                                <option value="ready">Ready</option>
+                                <option value="delivered">Delivered</option>
+                                <option value="cancelled">Cancelled</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="sr-only" for="customerHistoryFromDate">From Date</label>
+                            <input type="date" id="customerHistoryFromDate" class="form-control" />
+                        </div>
+                        <div>
+                            <label class="sr-only" for="customerHistoryToDate">To Date</label>
+                            <input type="date" id="customerHistoryToDate" class="form-control" />
+                        </div>
+                        <div>
+                            <label class="sr-only" for="customerHistorySearchText">Search Order / Invoice</label>
+                            <input type="text" id="customerHistorySearchText" class="form-control" placeholder="Order / Invoice" />
+                        </div>
+                        <div class="filter-actions">
+                            <button type="button" id="customerHistoryApplyBtn" class="btn btn-default">Apply</button>
+                            <button type="button" id="customerHistoryResetBtn" class="btn btn-link">Reset</button>
+                        </div>
+                    </div>
+                    <div class="customer-orders-wrap">
+                        <table class="customer-orders-table">
+                            <thead>
+                                <tr>
+                                    <th>Order No</th>
+                                    <th>Invoice No</th>
+                                    <th>Date (UTC)</th>
+                                    <th>Status</th>
+                                    <th>Items</th>
+                                    <th class="num">Pieces</th>
+                                    <th class="num">Total Amount</th>
+                                    <th class="num">Paid Amount</th>
+                                    <th class="num">Pending Balance</th>
+                                </tr>
+                            </thead>
+                            <tbody id="customerOrdersBody">
+                                <tr><td colspan="9" class="customer-orders-state">Search and select a customer to view all orders.</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             }
 
             @if (!isAdminUser)
             {
-                <div class="dashboard-actions">
-                    <button type="button" class="btn btn-primary" onclick="location.href='@Url.Action("Index", "Customer")'">
-                        Add New Customer
+                <div class="customer-workbench">
+                    <div class="customer-workbench-meta" id="selectedCustomerMeta">Selected customer: None</div>
+                    <div class="dashboard-actions">
+                        <button type="button" class="btn btn-primary" onclick="location.href='@Url.Action("Index", "Customer")'">
+                            Add New Customer
+                        </button>
+                        <button type="button" class="btn btn-primary" id="dashboardCreateOrderBtn" disabled>
+                            Create New Order
+                        </button>
+                        <button type="button" class="btn btn-default" id="dashboardEditCustomerBtn" disabled>
+                            Edit Customer
+                        </button>
+                        <button type="button" class="btn btn-danger" id="dashboardDeleteCustomerBtn" disabled>
+                            Delete Customer
+                        </button>
+                    </div>
+                    <div id="customerActionMessage" class="search-no-result" style="display:none;"></div>
+                </div>
+                <div class="dashboard-actions" style="margin-top:10px;">
+                    <button type="button" class="btn btn-default" id="dashboardClearCustomerBtn">
+                        Clear Selected Customer
                     </button>
+                    <button type="button" class="btn btn-default" id="dashboardRefreshCustomerOrdersBtn" disabled>
+                        Refresh Customer Orders
+                    </button>
+                </div>
+            }
+
+            @if (!isAdminUser)
+            {
+                <div id="dashboardEditCustomerModal" class="modal fade" tabindex="-1" role="dialog" aria-labelledby="dashboardEditCustomerModalLabel">
+                    <div class="modal-dialog" role="document">
+                        <div class="modal-content">
+                            <div class="modal-header">
+                                <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+                                <h4 class="modal-title" id="dashboardEditCustomerModalLabel">Edit Customer</h4>
+                            </div>
+                            <div class="modal-body">
+                                <div class="form-group">
+                                    <label for="editCustomerName">Customer Name</label>
+                                    <input type="text" id="editCustomerName" class="form-control" />
+                                </div>
+                                <div class="form-group">
+                                    <label for="editCustomerAddress">Address</label>
+                                    <input type="text" id="editCustomerAddress" class="form-control" />
+                                </div>
+                                <div class="form-group">
+                                    <label for="editCustomerPhone">Phone Number</label>
+                                    <input type="text" id="editCustomerPhone" class="form-control" />
+                                </div>
+                                <div class="form-group">
+                                    <label for="editCustomerEmail">Email</label>
+                                    <input type="email" id="editCustomerEmail" class="form-control" />
+                                </div>
+                                <div id="editCustomerMessage" class="search-no-result" style="display:none;"></div>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-default" data-dismiss="modal">Cancel</button>
+                                <button type="button" class="btn btn-primary" id="dashboardSaveCustomerBtn">Save Changes</button>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             }
             else if (isSuperAdminUser)
@@ -764,6 +1368,39 @@
                             <span id="adminToolbarRefreshInfo" class="admin-refresh-inline-info">Next refresh: --</span>
                         </div>
                     </div>
+
+                    <div class="admin-ebj-suite" id="adminEbjSuite">
+                        <div class="admin-ebj-suite-header">
+                            <div>
+                                <h4 class="admin-ebj-suite-title">Admin Dashboard - EBJ Store</h4>
+                                <p class="admin-ebj-suite-subtitle">Daily KPI focus, SLA monitor, and reporting actions for quick business decisions.</p>
+                            </div>
+                            <div class="admin-report-actions">
+                                <button type="button" class="btn btn-default" id="adminPrintSummaryBtn">Print Summary</button>
+                                <button type="button" class="btn btn-default" id="adminEmailSummaryBtn">Email Summary</button>
+                            </div>
+                        </div>
+                        <div class="admin-sla-grid">
+                            <div class="admin-sla-card">
+                                <span class="admin-sla-label">SLA &lt; 4h</span>
+                                <span class="admin-sla-value success" id="adminSla0to4">--</span>
+                            </div>
+                            <div class="admin-sla-card">
+                                <span class="admin-sla-label">SLA 4-12h</span>
+                                <span class="admin-sla-value" id="adminSla4to12">--</span>
+                            </div>
+                            <div class="admin-sla-card">
+                                <span class="admin-sla-label">SLA 12-24h</span>
+                                <span class="admin-sla-value warn" id="adminSla12to24">--</span>
+                            </div>
+                            <div class="admin-sla-card">
+                                <span class="admin-sla-label">SLA &gt; 24h (At Risk)</span>
+                                <span class="admin-sla-value alert" id="adminSla24Plus">--</span>
+                            </div>
+                        </div>
+                        <div class="admin-ebj-summary" id="adminEbjSummaryText">Loading admin summary...</div>
+                    </div>
+
                     <div class="admin-kpi-grid">
                         <div class="admin-kpi-card"><span class="admin-kpi-label">Today Orders</span><span class="admin-kpi-value" id="adminKpiTodayOrders">--</span></div>
                         <div class="admin-kpi-card"><span class="admin-kpi-label">Today Sales</span><span class="admin-kpi-value" id="adminKpiTodaySales">--</span></div>
@@ -1033,10 +1670,16 @@
 </section>
 
 <script type='text/javascript'>
+    // expose resolved currency metadata to client scripts
+    window.__currency = @Html.Raw(_currencyJson ?? "{}");
     var customerSearchRequest = null;
+    var customerLookupRequest = null;
+    var customerOrdersRequest = null;
     var orderReferenceSearchRequest = null;
     var serverCustomers = [];
     var serverOrderReferences = [];
+    var customerOrdersByCodeCache = {};
+    var customerCodeByNameCache = {};
     var isAutocompleteRefresh = false;
     var isInvoiceAutocompleteRefresh = false;
     var isAdminDashboardUser = @Html.Raw(isAdminUser.ToString().ToLowerInvariant());
@@ -1045,6 +1688,17 @@
     var adminInsightsCountdownHandle = null;
     var adminInsightsNextRefreshAt = null;
     var adminInsightsIntervalMs = 60000;
+    var adminLastComputedMetrics = null;
+    var adminInsightsInitialized = false;
+    var invoiceDetailsRequest = null;
+    var selectedInvoiceReference = null;
+    var selectedDashboardCustomer = {
+        name: "",
+        code: "",
+        profile: null,
+        orders: [],
+        filteredOrders: []
+    };
 
     function asNumber(value) {
         var parsed = Number(value);
@@ -1055,9 +1709,8 @@
         return asNumber(value).toFixed(2);
     }
 
-    function formatCurrency(value) {
-        return "₹ " + formatAmount(value);
-    }
+    // Use shared formatCurrency from layout for client-side currency display.
+    // This view exposes window.__currency above; call the global formatCurrency when needed.
 
     function formatDateTime(value) {
         var date = value instanceof Date ? value : new Date(value);
@@ -1066,6 +1719,554 @@
         }
 
         return date.toLocaleDateString() + " " + date.toLocaleTimeString();
+    }
+
+    function escapeHtml(text) {
+        return (text == null ? "" : String(text))
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/\"/g, "&quot;")
+            .replace(/'/g, "&#39;");
+    }
+
+    function parseItemsForDashboard(order) {
+        var items = order && (order.Items || order.items);
+        if (Array.isArray(items) && items.length) {
+            return items;
+        }
+
+        var json = (order && (order.OrderItemsJson || order.orderItemsJson)) || "";
+        if (!json) {
+            return [];
+        }
+
+        try {
+            var parsed = JSON.parse(json);
+            if (Array.isArray(parsed)) {
+                return parsed;
+            }
+            if (parsed && Array.isArray(parsed.Items)) {
+                return parsed.Items;
+            }
+        } catch (_) { }
+
+        return [];
+    }
+
+    function summarizeItemsForDashboard(order) {
+        var items = parseItemsForDashboard(order);
+        if (!items.length) {
+            return "-";
+        }
+
+        return items.slice(0, 3).map(function (item) {
+            var name = (item && (item.ItemName || item.itemName)) || "Item";
+            var qtyValue = item && (item.Quantity != null ? item.Quantity : (item.quantity != null ? item.quantity : 1));
+            var qty = asNumber(qtyValue);
+            return escapeHtml(name) + " x" + (qty > 0 ? qty : 1);
+        }).join(", ") + (items.length > 3 ? " +" + (items.length - 3) + " more" : "");
+    }
+
+    function resolvePiecesForDashboard(order) {
+        var explicitPieces = order && (order.TotalPieces != null ? order.TotalPieces : (order.totalPieces != null ? order.totalPieces : 0));
+        var explicit = asNumber(explicitPieces);
+        if (explicit > 0) {
+            return Math.floor(explicit);
+        }
+
+        var items = parseItemsForDashboard(order);
+        if (!items.length) {
+            return 0;
+        }
+
+        return items.reduce(function (sum, item) {
+            var qtyValue = item && (item.Quantity != null ? item.Quantity : (item.quantity != null ? item.quantity : 0));
+            var qty = asNumber(qtyValue);
+            return sum + (qty > 0 ? qty : 0);
+        }, 0);
+    }
+
+    function setCustomerOrdersState(message) {
+        var panel = document.getElementById("customerOrdersPanel");
+        var body = document.getElementById("customerOrdersBody");
+        if (!panel || !body) {
+            return;
+        }
+
+        panel.style.display = "block";
+        body.innerHTML = "<tr><td colspan='9' class='customer-orders-state'>" + escapeHtml(message || "No orders found.") + "</td></tr>";
+    }
+
+    function setCustomerSearchMessage(message) {
+        var messageBox = document.getElementById("customerSearchMessage");
+        if (!messageBox) {
+            return;
+        }
+
+        if (!message) {
+            messageBox.textContent = "";
+            messageBox.style.display = "none";
+            return;
+        }
+
+        messageBox.textContent = message;
+        messageBox.style.display = "block";
+    }
+
+    function setSearchModeUi(mode) {
+        var customerWrap = document.getElementById("searchradio");
+        var invoiceWrap = document.getElementById("searchInvoiceradio");
+        var customerOpt = document.getElementById("searchOptionCustomer");
+        var invoiceOpt = document.getElementById("searchOptionInvoice");
+
+        if (mode === "invoice") {
+            if (customerWrap) customerWrap.style.display = "none";
+            if (invoiceWrap) invoiceWrap.style.display = "block";
+            if (customerOpt) customerOpt.classList.remove("active");
+            if (invoiceOpt) invoiceOpt.classList.add("active");
+            if (customerWrap) customerWrap.classList.remove("active");
+            if (invoiceWrap) invoiceWrap.classList.add("active");
+            return;
+        }
+
+        if (customerWrap) customerWrap.style.display = "block";
+        if (invoiceWrap) invoiceWrap.style.display = "none";
+        if (customerOpt) customerOpt.classList.add("active");
+        if (invoiceOpt) invoiceOpt.classList.remove("active");
+        if (customerWrap) customerWrap.classList.add("active");
+        if (invoiceWrap) invoiceWrap.classList.remove("active");
+    }
+
+    function applyQuickDateRange(rangeKey) {
+        var fromDateInput = document.getElementById("customerHistoryFromDate");
+        var toDateInput = document.getElementById("customerHistoryToDate");
+        if (!fromDateInput || !toDateInput) {
+            return;
+        }
+
+        var now = new Date();
+        var today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        var fromDate = "";
+        var toDate = "";
+
+        if (rangeKey === "today") {
+            fromDate = toDate = today;
+        } else if (rangeKey === "last7") {
+            var last7 = new Date(today);
+            last7.setDate(last7.getDate() - 6);
+            fromDate = last7;
+            toDate = today;
+        } else if (rangeKey === "thisMonth") {
+            fromDate = new Date(today.getFullYear(), today.getMonth(), 1);
+            toDate = today;
+        }
+
+        if (fromDate instanceof Date) {
+            fromDateInput.value = fromDate.toISOString().slice(0, 10);
+        } else {
+            fromDateInput.value = "";
+        }
+
+        if (toDate instanceof Date) {
+            toDateInput.value = toDate.toISOString().slice(0, 10);
+        } else {
+            toDateInput.value = "";
+        }
+
+        setActiveQuickDateChip(rangeKey === "clear" ? "" : rangeKey);
+        applyCustomerHistoryFilters();
+    }
+
+    function setActiveQuickDateChip(rangeKey) {
+        var chips = document.querySelectorAll(".customer-history-chip");
+        if (!chips || chips.length === 0) {
+            return;
+        }
+
+        chips.forEach(function (chip) {
+            var key = (chip.getAttribute("data-range") || "").trim();
+            if (rangeKey && key === rangeKey) {
+                chip.classList.add("active");
+            } else {
+                chip.classList.remove("active");
+            }
+        });
+    }
+
+    function hideInvoicePreview() {
+        var panel = document.getElementById("invoicePreviewPanel");
+        var body = document.getElementById("invoicePreviewBody");
+        var header = document.getElementById("invoicePreviewHeader");
+        if (panel) {
+            panel.style.display = "none";
+        }
+        if (body) {
+            body.innerHTML = "";
+        }
+        if (header) {
+            header.textContent = "Invoice details";
+        }
+        selectedInvoiceReference = null;
+    }
+
+    function renderInvoicePreview(orderInfo) {
+        var panel = document.getElementById("invoicePreviewPanel");
+        var body = document.getElementById("invoicePreviewBody");
+        var header = document.getElementById("invoicePreviewHeader");
+        if (!panel || !body || !header) {
+            return;
+        }
+
+        if (!orderInfo) {
+            hideInvoicePreview();
+            return;
+        }
+
+        selectedInvoiceReference = orderInfo;
+        header.textContent = "Invoice details - " + (orderInfo.invoiceNo || orderInfo.orderNo || "-");
+        body.innerHTML = ""
+            + "<div class='invoice-preview-item'><b>Order No:</b> " + escapeHtml(orderInfo.orderNo || "-") + "</div>"
+            + "<div class='invoice-preview-item'><b>Invoice No:</b> " + escapeHtml(orderInfo.invoiceNo || "-") + "</div>"
+            + "<div class='invoice-preview-item'><b>Customer:</b> " + escapeHtml(orderInfo.customerName || "-") + "</div>"
+            + "<div class='invoice-preview-item'><b>Customer Code:</b> " + escapeHtml(orderInfo.customerCode || "-") + "</div>"
+            + "<div class='invoice-preview-item'><b>Status:</b> " + escapeHtml(orderInfo.status || "-") + "</div>"
+            + "<div class='invoice-preview-item'><b>Date:</b> " + escapeHtml(orderInfo.createdDate || "-") + "</div>"
+            + "<div class='invoice-preview-item'><b>Total:</b> " + formatCurrency(asNumber(orderInfo.totalAmount || 0)) + "</div>"
+            + "<div class='invoice-preview-item'><b>Paid:</b> " + formatCurrency(asNumber(orderInfo.paidAmount || 0)) + "</div>"
+            + "<div class='invoice-preview-item'><b>Pending:</b> " + formatCurrency(asNumber(orderInfo.pendingAmount || 0)) + "</div>";
+
+        panel.style.display = "block";
+        try {
+            panel.scrollIntoView({ behavior: "smooth", block: "start" });
+        } catch (_) { }
+    }
+
+    function setCustomerActionMessage(message) {
+        var messageBox = document.getElementById("customerActionMessage");
+        if (!messageBox) {
+            return;
+        }
+
+        if (!message) {
+            messageBox.textContent = "";
+            messageBox.style.display = "none";
+            return;
+        }
+
+        messageBox.textContent = message;
+        messageBox.style.display = "block";
+    }
+
+    function setEditCustomerMessage(message) {
+        var messageBox = document.getElementById("editCustomerMessage");
+        if (!messageBox) {
+            return;
+        }
+
+        if (!message) {
+            messageBox.textContent = "";
+            messageBox.style.display = "none";
+            return;
+        }
+
+        messageBox.textContent = message;
+        messageBox.style.display = "block";
+    }
+
+    function updateSelectedCustomerMeta() {
+        var meta = document.getElementById("selectedCustomerMeta");
+        if (!meta) {
+            return;
+        }
+
+        if (!selectedDashboardCustomer.code) {
+            meta.textContent = "Selected customer: None";
+            return;
+        }
+
+        var total = Array.isArray(selectedDashboardCustomer.orders) ? selectedDashboardCustomer.orders.length : 0;
+        meta.textContent = "Selected customer: " + (selectedDashboardCustomer.name || "-")
+            + " (" + selectedDashboardCustomer.code + ")"
+            + " | Orders: " + total;
+    }
+
+    function updateDashboardCustomerActionButtons() {
+        var hasCustomer = !!selectedDashboardCustomer.code;
+        var hasOrders = Array.isArray(selectedDashboardCustomer.orders) && selectedDashboardCustomer.orders.length > 0;
+
+        var createOrderBtn = document.getElementById("dashboardCreateOrderBtn");
+        var editBtn = document.getElementById("dashboardEditCustomerBtn");
+        var deleteBtn = document.getElementById("dashboardDeleteCustomerBtn");
+        var refreshBtn = document.getElementById("dashboardRefreshCustomerOrdersBtn");
+
+        if (createOrderBtn) {
+            createOrderBtn.disabled = !hasCustomer;
+        }
+        if (editBtn) {
+            editBtn.disabled = !hasCustomer;
+        }
+        if (deleteBtn) {
+            deleteBtn.disabled = !hasCustomer || hasOrders;
+        }
+        if (refreshBtn) {
+            refreshBtn.disabled = !hasCustomer;
+        }
+    }
+
+    function normalizeStatusValue(value) {
+        return ((value || "") + "").toLowerCase().trim();
+    }
+
+    function getOrderDateKey(order) {
+        var raw = (order && (order.CreatedDate || order.createdDate)) || "";
+        var dt = new Date(raw);
+        if (isNaN(dt.getTime())) {
+            return "";
+        }
+
+        var year = dt.getFullYear();
+        var month = String(dt.getMonth() + 1).padStart(2, "0");
+        var day = String(dt.getDate()).padStart(2, "0");
+        return year + "-" + month + "-" + day;
+    }
+
+    function applyCustomerHistoryFilters() {
+        var allOrders = Array.isArray(selectedDashboardCustomer.orders) ? selectedDashboardCustomer.orders : [];
+        var statusFilter = normalizeStatusValue((document.getElementById("customerHistoryStatus") || {}).value || "");
+        var fromDate = ((document.getElementById("customerHistoryFromDate") || {}).value || "").trim();
+        var toDate = ((document.getElementById("customerHistoryToDate") || {}).value || "").trim();
+        var textFilter = (((document.getElementById("customerHistorySearchText") || {}).value || "") + "").trim().toLowerCase();
+
+        var filtered = allOrders.filter(function (order) {
+            var status = normalizeStatusValue(order && (order.Status || order.status || "received"));
+            var orderNo = ((order && (order.OrderNo || order.orderNo)) || "").toString().toLowerCase();
+            var invoiceNo = ((order && (order.InvoiceNo || order.invoiceNo)) || "").toString().toLowerCase();
+            var dateKey = getOrderDateKey(order);
+
+            if (statusFilter && status.indexOf(statusFilter) === -1) {
+                return false;
+            }
+
+            if (fromDate && dateKey && dateKey < fromDate) {
+                return false;
+            }
+
+            if (toDate && dateKey && dateKey > toDate) {
+                return false;
+            }
+
+            if (textFilter && orderNo.indexOf(textFilter) === -1 && invoiceNo.indexOf(textFilter) === -1) {
+                return false;
+            }
+
+            return true;
+        });
+
+        selectedDashboardCustomer.filteredOrders = filtered;
+        renderCustomerOrdersRows(selectedDashboardCustomer.name, selectedDashboardCustomer.code, filtered);
+        updateDashboardCustomerActionButtons();
+        updateSelectedCustomerMeta();
+    }
+
+    function setSelectedCustomerOrdersAndRender(customerName, customerCode, orders) {
+        selectedDashboardCustomer.name = (customerName || "").trim();
+        selectedDashboardCustomer.code = (customerCode || "").trim();
+        selectedDashboardCustomer.orders = Array.isArray(orders) ? orders : [];
+
+        var filtersPanel = document.getElementById("customerHistoryFilters");
+        if (filtersPanel) {
+            filtersPanel.style.display = selectedDashboardCustomer.code ? "grid" : "none";
+        }
+
+        applyCustomerHistoryFilters();
+        var panel = document.getElementById("customerOrdersPanel");
+        if (panel) {
+            try {
+                panel.scrollIntoView({ behavior: "smooth", block: "start" });
+            } catch (_) { }
+        }
+    }
+
+    function setInvoiceSearchMessage(message) {
+        var messageBox = document.getElementById("invoiceSearchMessage");
+        if (!messageBox) {
+            return;
+        }
+
+        if (!message) {
+            messageBox.textContent = "";
+            messageBox.style.display = "none";
+            return;
+        }
+
+        messageBox.textContent = message;
+        messageBox.style.display = "block";
+    }
+
+    function renderCustomerOrdersRows(customerName, customerCode, orders) {
+        var panel = document.getElementById("customerOrdersPanel");
+        var header = document.getElementById("customerOrdersHeader");
+        var body = document.getElementById("customerOrdersBody");
+        if (!panel || !header || !body) {
+            return;
+        }
+
+        panel.style.display = "block";
+        header.textContent = "Customer order history - " + (customerName || "-") + (customerCode ? (" (" + customerCode + ")") : "");
+
+        if (!orders || !orders.length) {
+            body.innerHTML = "<tr><td colspan='9' class='customer-orders-state'>No orders found for this customer.</td></tr>";
+            return;
+        }
+
+        body.innerHTML = (orders || []).map(function (order) {
+            var orderNo = (order.OrderNo || order.orderNo || "").toString();
+            var invoiceNo = (order.InvoiceNo || order.invoiceNo || orderNo || "").toString();
+            var createdDate = (order.CreatedDate || order.createdDate || "").toString().replace("T", " ").substring(0, 16);
+            var status = (order.Status || order.status || "Received").toString();
+            var itemsText = summarizeItemsForDashboard(order);
+            var pieces = resolvePiecesForDashboard(order);
+            var totalAmount = asNumber(order.OrderAmount || order.orderAmount || 0);
+            var paidAmount = asNumber(order.PaidNow || order.paidNow || 0);
+            var pendingAmountRaw = (order.PendingAmount != null ? order.PendingAmount : (order.pendingAmount != null ? order.pendingAmount : (order.NetPayable != null ? order.NetPayable : (order.netPayable != null ? order.netPayable : 0))));
+            var pendingAmount = asNumber(pendingAmountRaw);
+
+            return "<tr>"
+                + "<td><a class='customer-order-link' href='@Url.Action("OrderWorkflow", "Customer")?searchText=" + encodeURIComponent(orderNo) + "'>" + escapeHtml(orderNo) + "</a></td>"
+                + "<td>" + escapeHtml(invoiceNo) + "</td>"
+                + "<td>" + escapeHtml(createdDate || "-") + "</td>"
+                + "<td>" + escapeHtml(status) + "</td>"
+                + "<td>" + itemsText + "</td>"
+                + "<td class='num'>" + escapeHtml(String(pieces)) + "</td>"
+                + "<td class='num'>" + formatCurrency(totalAmount) + "</td>"
+                + "<td class='num'>" + formatCurrency(paidAmount) + "</td>"
+                + "<td class='num'>" + formatCurrency(pendingAmount) + "</td>"
+                + "</tr>";
+        }).join("");
+    }
+
+    function loadDashboardCustomerOrders(selectedCustomer) {
+        var customerName = (selectedCustomer || "").trim();
+        if (!customerName) {
+            return;
+        }
+
+        setCustomerSearchMessage("");
+        setCustomerOrdersState("Loading customer orders...");
+
+        var normalizedNameKey = customerName.toLowerCase();
+        var cachedCustomerCode = customerCodeByNameCache[normalizedNameKey] || "";
+
+        if (customerLookupRequest && customerLookupRequest.readyState !== 4) {
+            customerLookupRequest.abort();
+        }
+        if (customerOrdersRequest && customerOrdersRequest.readyState !== 4) {
+            customerOrdersRequest.abort();
+        }
+
+        function fetchOrdersByCode(customerCode) {
+            var codeKey = (customerCode || "").trim().toLowerCase();
+            if (codeKey && customerOrdersByCodeCache[codeKey]) {
+                renderCustomerOrdersRows(customerName, customerCode, customerOrdersByCodeCache[codeKey]);
+                return;
+            }
+
+            customerOrdersRequest = $.ajax({
+                type: "GET",
+                url: '@Url.Action("GetCustomerOrders", "Customer")',
+                data: { customerName: customerName, customerCode: customerCode || "" },
+                success: function (payload) {
+                    if (!payload || payload.success !== true) {
+                        setCustomerOrdersState((payload && payload.message) || "Unable to load customer orders.");
+                        return;
+                    }
+
+                    var resolvedCode = ((payload.customerCode || payload.CustomerCode || customerCode || "") + "").trim();
+                    var orders = Array.isArray(payload.orders)
+                        ? payload.orders
+                        : (Array.isArray(payload.Orders) ? payload.Orders : []);
+
+                    // Fallback for stores where customer-orders API can return empty while
+                    // workflow API still has full historical rows.
+                    if (orders.length === 0) {
+                        $.ajax({
+                            type: "GET",
+                            url: '@Url.Action("GetStoreWorkflowOrders", "Customer")',
+                            data: { status: "", searchText: customerName },
+                            success: function (wfPayload) {
+                                var wfOrders = (wfPayload && wfPayload.success === true && Array.isArray(wfPayload.orders))
+                                    ? wfPayload.orders
+                                    : [];
+
+                                var filtered = wfOrders.filter(function (x) {
+                                    var code = ((x && (x.CustCode || x.custCode)) || "").toString().trim();
+                                    var name = ((x && (x.CustomerName || x.customerName)) || "").toString().trim();
+                                    if (resolvedCode) {
+                                        return code && code.toLowerCase() === resolvedCode.toLowerCase();
+                                    }
+                                    return name && name.toLowerCase() === customerName.toLowerCase();
+                                });
+
+                                if (resolvedCode) {
+                                    customerOrdersByCodeCache[resolvedCode.toLowerCase()] = filtered;
+                                    customerCodeByNameCache[normalizedNameKey] = resolvedCode;
+                                }
+
+                                setSelectedCustomerOrdersAndRender(customerName, resolvedCode, filtered);
+                            },
+                            error: function () {
+                                setSelectedCustomerOrdersAndRender(customerName, resolvedCode, orders);
+                            }
+                        });
+                        return;
+                    }
+
+                    if (resolvedCode) {
+                        customerOrdersByCodeCache[resolvedCode.toLowerCase()] = orders;
+                        customerCodeByNameCache[normalizedNameKey] = resolvedCode;
+                    }
+
+                    setSelectedCustomerOrdersAndRender(customerName, resolvedCode, orders);
+                },
+                error: function () {
+                    setCustomerOrdersState("Unable to load customer orders. Please try again.");
+                }
+            });
+        }
+
+        if (cachedCustomerCode) {
+            fetchOrdersByCode(cachedCustomerCode);
+            return;
+        }
+
+        customerLookupRequest = $.ajax({
+            type: "GET",
+            url: '@Url.Action("GetCustomerByName", "Customer")',
+            data: { customerName: customerName },
+            success: function (customerData) {
+                var statusCode = ((customerData && (customerData.StatusCode || customerData.statusCode)) || "").toString();
+                var custCode = ((customerData && (customerData.CustCode || customerData.custCode)) || "").toString().trim();
+                if (!customerData || statusCode !== "200" || !custCode) {
+                    setCustomerOrdersState((customerData && customerData.Message) || "Customer not found in this store.");
+                    return;
+                }
+
+                var resolvedCode = custCode;
+                selectedDashboardCustomer.profile = {
+                    customerName: (customerData.CustomerName || customerData.customerName || customerName || "").toString().trim(),
+                    address: (customerData.Address || customerData.address || "").toString(),
+                    phoneNumber: (customerData.PhoneNumber || customerData.phoneNumber || "").toString(),
+                    email: (customerData.Email || customerData.email || "").toString(),
+                    customerCode: resolvedCode
+                };
+                customerCodeByNameCache[normalizedNameKey] = resolvedCode;
+                fetchOrdersByCode(resolvedCode);
+            },
+            error: function () {
+                setCustomerOrdersState("Unable to resolve customer details.");
+            }
+        });
     }
 
     function updateAdminRefreshModeLabel(enabled) {
@@ -1278,6 +2479,55 @@
         URL.revokeObjectURL(url);
     }
 
+    function setAdminSlaText(id, value) {
+        var el = document.getElementById(id);
+        if (el) {
+            el.textContent = String(value == null ? "--" : value);
+        }
+    }
+
+    function buildAdminEbjReportText() {
+        if (!adminLastComputedMetrics) {
+            return "Admin Dashboard - EBJ Store summary is not available yet.";
+        }
+
+        var m = adminLastComputedMetrics;
+        return "EBJ Store Admin Summary"
+            + "\nRange: " + (m.rangeLabel || "Selected")
+            + "\nToday Orders: " + m.todayOrders
+            + "\nToday Sales: " + m.todaySales
+            + "\nPending Amount: " + m.pendingAmount
+            + "\nCollected: " + m.collectedAmount
+            + "\nSLA (<4h / 4-12h / 12-24h / >24h): " + m.sla0to4 + " / " + m.sla4to12 + " / " + m.sla12to24 + " / " + m.sla24Plus
+            + "\nAt-Risk Orders (>24h): " + m.sla24Plus;
+    }
+
+    function printAdminEbjSummary() {
+        var reportText = buildAdminEbjReportText();
+        var popup = window.open("", "_blank", "width=900,height=700");
+        if (!popup) {
+            window.alert("Popup blocked. Please allow popups to print summary.");
+            return;
+        }
+
+        popup.document.open();
+        var safeText = reportText.replace(/</g, "&lt;").replace(/>/g, "&gt;");
+        var html = "<html><head><title>EBJ Admin Summary</title></head>"
+            + "<body style='font-family:Segoe UI,Arial,sans-serif;padding:20px;white-space:pre-wrap;'>"
+            + safeText
+            + "</bo" + "dy></ht" + "ml>";
+        popup.document.write(html);
+        popup.document.close();
+        popup.focus();
+        popup.print();
+    }
+
+    function emailAdminEbjSummary() {
+        var subject = encodeURIComponent("EBJ Store Admin Dashboard Summary");
+        var body = encodeURIComponent(buildAdminEbjReportText());
+        window.location.href = "mailto:?subject=" + subject + "&body=" + body;
+    }
+
     function loadAdminInsightsDashboard(refreshSource) {
         var messageBox = document.getElementById("adminInsightsMessage");
         if (messageBox) {
@@ -1287,17 +2537,30 @@
 
         var rangeKey = getAdminSelectedRangeKey();
         var selectedRange = getDateRangeByKey(rangeKey);
+        var requestUrl = '@Url.Action("GetStoreWorkflowOrders", "Customer")?status=&searchText=&_ts=' + Date.now();
 
-        fetch('@Url.Action("GetStoreWorkflowOrders", "Customer")?status=&searchText=&_ts=' + Date.now(), {
-            method: 'GET',
-            credentials: 'same-origin',
-            headers: { 'X-Requested-With': 'XMLHttpRequest' }
-        })
-        .then(function (response) { return response.json(); })
-        .then(function (payload) {
-            if (!payload || payload.success !== true) {
-                throw new Error((payload && payload.message) || "Unable to load store dashboard insights.");
+        function onLoadError(httpStatus, message) {
+            if (messageBox) {
+                messageBox.style.display = "block";
+                var statusSuffix = httpStatus ? (" (HTTP " + httpStatus + ")") : "";
+                messageBox.textContent = (message || "Unable to load store dashboard insights.") + statusSuffix;
             }
+            setAdminSlaText("adminSla0to4", 0);
+            setAdminSlaText("adminSla4to12", 0);
+            setAdminSlaText("adminSla12to24", 0);
+            setAdminSlaText("adminSla24Plus", 0);
+
+            var summaryEl = document.getElementById("adminEbjSummaryText");
+            if (summaryEl) {
+                summaryEl.textContent = "Unable to load admin summary. Please refresh or re-login if session expired.";
+            }
+        }
+
+        function onLoadSuccess(payload) {
+                if (!payload || payload.success !== true) {
+                    onLoadError(0, (payload && payload.message) || "Unable to load store dashboard insights.");
+                    return;
+                }
 
             var orders = Array.isArray(payload.orders) ? payload.orders : [];
             var now = new Date();
@@ -1324,11 +2587,17 @@
             var openAgeOrders = 0;
             var stuckOrders = 0;
             var highUnpaidOrders = 0;
+            var sla0to4 = 0;
+            var sla4to12 = 0;
+            var sla12to24 = 0;
+            var sla24Plus = 0;
 
             orders.forEach(function (order) {
+                order = order || {};
                 var created = new Date(order.CreatedDate || order.createdDate || "");
                 var amount = asNumber(order.OrderAmount || order.orderAmount || 0);
-                var pending = asNumber(order.PendingAmount ?? order.pendingAmount ?? order.NetPayable ?? order.netPayable ?? 0);
+                var pendingRaw = (order.PendingAmount != null ? order.PendingAmount : (order.pendingAmount != null ? order.pendingAmount : (order.NetPayable != null ? order.NetPayable : (order.netPayable != null ? order.netPayable : 0))));
+                var pending = asNumber(pendingRaw);
                 var status = (order.Status || order.status || "Received").toString();
                 var normalizedStatus = status.charAt(0).toUpperCase() + status.slice(1).toLowerCase();
                 var dateKey = toDateOnlyKey(created);
@@ -1388,6 +2657,16 @@
                     openAgeOrders += 1;
                     if (ageHours >= 24) {
                         stuckOrders += 1;
+                    }
+
+                    if (ageHours < 4) {
+                        sla0to4 += 1;
+                    } else if (ageHours < 12) {
+                        sla4to12 += 1;
+                    } else if (ageHours < 24) {
+                        sla12to24 += 1;
+                    } else {
+                        sla24Plus += 1;
                     }
                 }
 
@@ -1452,6 +2731,32 @@
                 updateAdminNextRefreshLabel();
             }
 
+            setAdminSlaText("adminSla0to4", sla0to4);
+            setAdminSlaText("adminSla4to12", sla4to12);
+            setAdminSlaText("adminSla12to24", sla12to24);
+            setAdminSlaText("adminSla24Plus", sla24Plus);
+
+            var summaryEl = document.getElementById("adminEbjSummaryText");
+            if (summaryEl) {
+                var priorityText = sla24Plus > 0
+                    ? ("Immediate action: " + sla24Plus + " order(s) are above 24h SLA.")
+                    : ("SLA is stable. Keep processing and ready queues within target.");
+                summaryEl.textContent = priorityText + " Pending amount: " + formatCurrency(pendingAmount) + ".";
+            }
+
+            var rangeKeyLabel = getAdminSelectedRangeKey();
+            adminLastComputedMetrics = {
+                rangeLabel: rangeKeyLabel === "today" ? "Today" : (rangeKeyLabel === "7d" ? "Last 7 Days" : "Month to Date"),
+                todayOrders: todayOrders,
+                todaySales: formatCurrency(todaySales),
+                pendingAmount: formatCurrency(pendingAmount),
+                collectedAmount: formatCurrency(selectedPaid),
+                sla0to4: sla0to4,
+                sla4to12: sla4to12,
+                sla12to24: sla12to24,
+                sla24Plus: sla24Plus
+            };
+
             renderAdminListRows("adminActionQueueRows", [
                 { label: "Ready for Delivery", value: String(readyForDeliveryCount) },
                 { label: "Pending Delivery", value: String(pendingDeliveryCount) },
@@ -1485,13 +2790,13 @@
             ]);
 
             var topServiceText = topServices.length
-                ? topServices.map(function (x) { return x.key + " (₹" + x.value.toFixed(0) + ")"; }).join(", ")
+                ? topServices.map(function (x) { return x.key + " (" + formatCurrency(x.value) + ")"; }).join(", ")
                 : "N/A";
 
             renderAdminListRows("adminServiceRows", [
                 { label: "Top Service Mix", value: topServiceText },
                 { label: "Unique Services", value: String(Object.keys(serviceSales).length) },
-                { label: "Top Service Revenue", value: topServices.length ? formatCurrency(topServices[0].value) : "₹ 0.00" },
+                { label: "Top Service Revenue", value: topServices.length ? formatCurrency(topServices[0].value) : formatCurrency(0) },
                 { label: "Service Coverage", value: selectedOrders > 0 ? (Object.keys(serviceSales).length + " types") : "N/A" }
             ]);
 
@@ -1517,29 +2822,96 @@
 
             renderAdminBarRows("adminTrendChartRows", trendRows, function (value) { return String(Math.round(value)); });
 
-            var exportButton = document.getElementById("adminExportSnapshotBtn");
-            if (exportButton) {
-                exportButton.onclick = function () {
-                    exportAdminInsightsSnapshot([
-                        { label: "Today Orders", value: String(todayOrders) },
-                        { label: "Today Sales", value: formatCurrency(todaySales) },
-                        { label: "Month Orders", value: String(monthOrders) },
-                        { label: "Month Sales", value: formatCurrency(monthSales) },
-                        { label: "Pending Payments", value: String(pendingPayments) },
-                        { label: "Pending Amount", value: formatCurrency(pendingAmount) },
-                        { label: "Collected (Selected Range)", value: formatCurrency(selectedPaid) },
-                        { label: "Avg Order Value", value: formatCurrency(avgOrderValue) },
-                        { label: "Stuck Orders", value: String(stuckOrders) }
-                    ]);
-                };
+                var exportButton = document.getElementById("adminExportSnapshotBtn");
+                if (exportButton) {
+                    exportButton.onclick = function () {
+                        exportAdminInsightsSnapshot([
+                            { label: "Today Orders", value: String(todayOrders) },
+                            { label: "Today Sales", value: formatCurrency(todaySales) },
+                            { label: "Month Orders", value: String(monthOrders) },
+                            { label: "Month Sales", value: formatCurrency(monthSales) },
+                            { label: "Pending Payments", value: String(pendingPayments) },
+                            { label: "Pending Amount", value: formatCurrency(pendingAmount) },
+                            { label: "Collected (Selected Range)", value: formatCurrency(selectedPaid) },
+                            { label: "Avg Order Value", value: formatCurrency(avgOrderValue) },
+                            { label: "Stuck Orders", value: String(stuckOrders) }
+                        ]);
+                    };
+                }
+        }
+
+        if (window.jQuery && typeof $.ajax === "function") {
+            $.ajax({
+                type: "GET",
+                url: requestUrl,
+                success: onLoadSuccess,
+                error: function (xhr) {
+                    onLoadError(xhr && xhr.status ? xhr.status : 0, "Unable to load store dashboard insights.");
+                }
+            });
+            return;
+        }
+
+        var xhr = new XMLHttpRequest();
+        xhr.open("GET", requestUrl, true);
+        xhr.setRequestHeader("X-Requested-With", "XMLHttpRequest");
+        xhr.onreadystatechange = function () {
+            if (xhr.readyState !== 4) {
+                return;
             }
-        })
-        .catch(function (error) {
-            if (messageBox) {
-                messageBox.style.display = "block";
-                messageBox.textContent = (error && error.message) || "Unable to load store dashboard insights.";
+
+            if (xhr.status < 200 || xhr.status >= 300) {
+                onLoadError(xhr.status || 0, "Unable to load store dashboard insights.");
+                return;
             }
-        });
+
+            var payload = null;
+            try {
+                payload = JSON.parse(xhr.responseText || "{}");
+            } catch (e) {
+                onLoadError(xhr.status || 0, "Invalid dashboard response.");
+                return;
+            }
+
+            onLoadSuccess(payload);
+        };
+        xhr.onerror = function () {
+            onLoadError(0, "Unable to load store dashboard insights.");
+        };
+        xhr.send(null);
+    }
+
+    function initializeAdminInsights() {
+        if (!isAdminDashboardUser || isSuperAdminDashboardUser || adminInsightsInitialized) {
+            return;
+        }
+
+        adminInsightsInitialized = true;
+
+        var adminRangeFilter = document.getElementById("adminRangeFilter");
+        if (adminRangeFilter) {
+            adminRangeFilter.addEventListener("change", function () {
+                loadAdminInsightsDashboard("filter");
+            });
+        }
+
+        var adminRefreshInsightsBtn = document.getElementById("adminRefreshInsightsBtn");
+        if (adminRefreshInsightsBtn) {
+            adminRefreshInsightsBtn.addEventListener("click", function () {
+                loadAdminInsightsDashboard("manual");
+            });
+        }
+
+        var adminAutoRefreshChk = document.getElementById("adminAutoRefreshChk");
+        if (adminAutoRefreshChk) {
+            adminAutoRefreshChk.addEventListener("change", function (e) {
+                var checked = !!(e && e.target && e.target.checked);
+                setAdminInsightsAutoRefresh(checked);
+            });
+        }
+
+        loadAdminInsightsDashboard("initial");
+        setAdminInsightsAutoRefresh(true);
     }
 
     function setAdminInsightsAutoRefresh(enabled) {
@@ -1570,6 +2942,9 @@
 
     function autocomplete(inp, arr, onItemSelected)
          {
+            if (!inp) {
+                return;
+            }
             var currentFocus;
             inp.addEventListener("input", function(e) {
             var a, b, i, val = this.value;
@@ -1587,16 +2962,35 @@
         }
 
         b = document.createElement("DIV");
-        b.innerHTML = customerText;
-        b.innerHTML += "<input type='hidden' value='" + customerText + "'>";
-            b.addEventListener("click", function(e) {
-            var selectedItem = this.getElementsByTagName("input")[0].value;
+        b.textContent = customerText;
+        b.setAttribute("data-value", customerText);
+
+        var selectAutocompleteItem = function(e) {
+            var target = (e && e.currentTarget) ? e.currentTarget : this;
+            if (!target) {
+                return;
+            }
+
+            if (target.getAttribute("data-selected") === "1") {
+                return;
+            }
+
+            target.setAttribute("data-selected", "1");
+            var selectedItem = (target.getAttribute("data-value") || target.textContent || "").trim();
             inp.value = selectedItem;
             closeAllLists();
             if (typeof onItemSelected === "function") {
                 onItemSelected(selectedItem);
             }
+        };
+
+        // mousedown supports mouse selection before document click closes list,
+        // click keeps keyboard-enter selection (x[currentFocus].click()) working.
+        b.addEventListener("mousedown", function(e) {
+            e.preventDefault();
+            selectAutocompleteItem(e);
         });
+        b.addEventListener("click", selectAutocompleteItem);
         a.appendChild(b);
       }
   });
@@ -1646,32 +3040,7 @@ document.addEventListener("click", function (e)
     $(function () {
         var initialSearchMode = '@searchMode'.toLowerCase();
         if (isAdminDashboardUser) {
-            if (!isSuperAdminDashboardUser) {
-                var adminRangeFilter = document.getElementById("adminRangeFilter");
-                if (adminRangeFilter) {
-                    adminRangeFilter.addEventListener("change", function () {
-                        loadAdminInsightsDashboard("filter");
-                    });
-                }
-
-                var adminRefreshInsightsBtn = document.getElementById("adminRefreshInsightsBtn");
-                if (adminRefreshInsightsBtn) {
-                    adminRefreshInsightsBtn.addEventListener("click", function () {
-                        loadAdminInsightsDashboard("manual");
-                    });
-                }
-
-                var adminAutoRefreshChk = document.getElementById("adminAutoRefreshChk");
-                if (adminAutoRefreshChk) {
-                    adminAutoRefreshChk.addEventListener("change", function (e) {
-                        var checked = !!(e && e.target && e.target.checked);
-                        setAdminInsightsAutoRefresh(checked);
-                    });
-                }
-
-                loadAdminInsightsDashboard("initial");
-                setAdminInsightsAutoRefresh(true);
-            }
+            initializeAdminInsights();
             return;
         }
 
@@ -1689,6 +3058,30 @@ document.addEventListener("click", function (e)
 
         var searchInput = document.getElementById("searchCustomers");
         var invoiceInput = document.getElementById("searchInvoiceText");
+        var customerSearchGoBtn = document.getElementById("customerSearchGoBtn");
+        var invoiceSearchGoBtn = document.getElementById("invoiceSearchGoBtn");
+        var invoiceOpenWorkflowBtn = document.getElementById("invoiceOpenWorkflowBtn");
+        var invoicePreviewClearBtn = document.getElementById("invoicePreviewClearBtn");
+        var customerHistoryApplyBtn = document.getElementById("customerHistoryApplyBtn");
+        var customerHistoryResetBtn = document.getElementById("customerHistoryResetBtn");
+        var customerHistoryFromDate = document.getElementById("customerHistoryFromDate");
+        var customerHistoryToDate = document.getElementById("customerHistoryToDate");
+        var quickFilterChips = document.querySelectorAll(".customer-history-chip");
+        var dashboardCreateOrderBtn = document.getElementById("dashboardCreateOrderBtn");
+        var dashboardEditCustomerBtn = document.getElementById("dashboardEditCustomerBtn");
+        var dashboardDeleteCustomerBtn = document.getElementById("dashboardDeleteCustomerBtn");
+        var dashboardClearCustomerBtn = document.getElementById("dashboardClearCustomerBtn");
+        var dashboardRefreshCustomerOrdersBtn = document.getElementById("dashboardRefreshCustomerOrdersBtn");
+        var dashboardSaveCustomerBtn = document.getElementById("dashboardSaveCustomerBtn");
+
+        if (!window.location.search && !window.location.hash) {
+            if (searchInput) {
+                searchInput.value = "";
+            }
+            if (invoiceInput) {
+                invoiceInput.value = "";
+            }
+        }
 
         function triggerInvoiceReferenceLookup(referenceText) {
             var value = (referenceText || "").trim();
@@ -1698,6 +3091,17 @@ document.addEventListener("click", function (e)
             }
 
             setInvoiceSearchMessage("");
+            renderInvoicePreview({
+                orderNo: value,
+                invoiceNo: value,
+                customerName: "Loading...",
+                customerCode: "-",
+                status: "Loading...",
+                createdDate: "-",
+                totalAmount: 0,
+                paidAmount: 0,
+                pendingAmount: 0
+            });
 
             $.ajax({
                 type: "GET",
@@ -1706,61 +3110,365 @@ document.addEventListener("click", function (e)
                 success: function (data) {
                     if (!data || data.success !== true) {
                         setInvoiceSearchMessage((data && data.message) ? data.message : "No order found.");
+                        hideInvoicePreview();
                         return;
                     }
 
                     var workflowSearchValue = (data.orderNo || data.invoiceNo || value || "");
-                    var url = '@Url.Action("OrderWorkflow", "Customer")'
-                        + '?searchText=' + encodeURIComponent(workflowSearchValue);
 
-                    window.location.href = url;
+                    if (invoiceDetailsRequest && invoiceDetailsRequest.readyState !== 4) {
+                        invoiceDetailsRequest.abort();
+                    }
+
+                    invoiceDetailsRequest = $.ajax({
+                        type: "GET",
+                        url: '@Url.Action("GetStoreWorkflowOrders", "Customer")',
+                        data: { status: "", searchText: workflowSearchValue },
+                        success: function (wf) {
+                            var orders = (wf && wf.success === true && Array.isArray(wf.orders)) ? wf.orders : [];
+                            var matched = orders.find(function (x) {
+                                var o = ((x && (x.OrderNo || x.orderNo)) || "").toString().trim().toLowerCase();
+                                var i = ((x && (x.InvoiceNo || x.invoiceNo)) || "").toString().trim().toLowerCase();
+                                var input = workflowSearchValue.toLowerCase();
+                                return o === input || i === input;
+                            }) || orders[0] || null;
+
+                            renderInvoicePreview({
+                                orderNo: (data.orderNo || (matched && (matched.OrderNo || matched.orderNo)) || "").toString(),
+                                invoiceNo: (data.invoiceNo || (matched && (matched.InvoiceNo || matched.invoiceNo)) || "").toString(),
+                                customerName: (data.customerName || (matched && (matched.CustomerName || matched.customerName)) || "").toString(),
+                                customerCode: (data.customerCode || (matched && (matched.CustCode || matched.custCode)) || "").toString(),
+                                status: ((matched && (matched.Status || matched.status)) || "-").toString(),
+                                createdDate: ((matched && (matched.CreatedDate || matched.createdDate)) || "").toString().replace("T", " ").substring(0, 16),
+                                totalAmount: asNumber(matched && (matched.OrderAmount || matched.orderAmount || 0)),
+                                paidAmount: asNumber(matched && (matched.PaidNow || matched.paidNow || 0)),
+                                pendingAmount: asNumber(matched && (matched.PendingAmount != null ? matched.PendingAmount : (matched.pendingAmount != null ? matched.pendingAmount : (matched.NetPayable != null ? matched.NetPayable : (matched.netPayable != null ? matched.netPayable : 0))))),
+                                workflowSearchValue: workflowSearchValue
+                            });
+                        },
+                        error: function () {
+                            renderInvoicePreview({
+                                orderNo: (data.orderNo || "").toString(),
+                                invoiceNo: (data.invoiceNo || "").toString(),
+                                customerName: (data.customerName || "").toString(),
+                                customerCode: (data.customerCode || "").toString(),
+                                status: "-",
+                                createdDate: "-",
+                                totalAmount: 0,
+                                paidAmount: 0,
+                                pendingAmount: 0,
+                                workflowSearchValue: workflowSearchValue
+                            });
+                        }
+                    });
                 },
                 error: function () {
                     setInvoiceSearchMessage("Unable to search order reference. Please try again.");
+                    hideInvoicePreview();
                 }
             });
         }
 
+        if (invoiceOpenWorkflowBtn) {
+            invoiceOpenWorkflowBtn.addEventListener("click", function () {
+                if (!selectedInvoiceReference) {
+                    setInvoiceSearchMessage("Search and select an invoice first.");
+                    return;
+                }
+
+                var workflowSearchValue = (selectedInvoiceReference.workflowSearchValue
+                    || selectedInvoiceReference.orderNo
+                    || selectedInvoiceReference.invoiceNo
+                    || "").toString();
+                if (!workflowSearchValue) {
+                    setInvoiceSearchMessage("Unable to open workflow for this invoice.");
+                    return;
+                }
+
+                var url = '@Url.Action("OrderWorkflow", "Customer")'
+                    + '?searchText=' + encodeURIComponent(workflowSearchValue);
+                window.location.href = url;
+            });
+        }
+
+        if (invoicePreviewClearBtn) {
+            invoicePreviewClearBtn.addEventListener("click", function () {
+                if (invoiceInput) {
+                    invoiceInput.value = "";
+                }
+                setInvoiceSearchMessage("");
+                hideInvoicePreview();
+            });
+        }
+
+        function triggerCustomerSelection(selectedCustomer, source) {
+            var value = (selectedCustomer || "").trim();
+            if (!value) {
+                return;
+            }
+            setCustomerActionMessage("");
+
+            loadDashboardCustomerOrders(value);
+        }
+
+        function executeCustomerSearch() {
+            var value = (searchInput && searchInput.value ? searchInput.value : "").trim();
+            if (!value) {
+                setCustomerSearchMessage("Please enter customer name, phone, address or code.");
+                return;
+            }
+
+            var hasExactMatch = serverCustomers.some(function (item) {
+                return (item || "").trim().toLowerCase() === value.toLowerCase();
+            });
+
+            if (!hasExactMatch && serverCustomers.length > 0) {
+                setCustomerSearchMessage('No exact match for "' + value + '". Showing best available customer result.');
+            }
+
+            triggerCustomerSelection(value, "search-go");
+        }
+
+        function executeInvoiceSearch() {
+            var value = (invoiceInput && invoiceInput.value ? invoiceInput.value : "").trim();
+            if (!value) {
+                setInvoiceSearchMessage("Please enter Order No or Invoice No.");
+                return;
+            }
+
+            setInvoiceSearchMessage("");
+            triggerInvoiceReferenceLookup(value);
+        }
+
+        if (customerSearchGoBtn) {
+            customerSearchGoBtn.addEventListener("click", executeCustomerSearch);
+        }
+
+        if (invoiceSearchGoBtn) {
+            invoiceSearchGoBtn.addEventListener("click", executeInvoiceSearch);
+        }
+
+        function clearSelectedDashboardCustomer() {
+            selectedDashboardCustomer = {
+                name: "",
+                code: "",
+                profile: null,
+                orders: [],
+                filteredOrders: []
+            };
+
+            var filtersPanel = document.getElementById("customerHistoryFilters");
+            if (filtersPanel) {
+                filtersPanel.style.display = "none";
+            }
+
+            var statusFilter = document.getElementById("customerHistoryStatus");
+            var fromDate = document.getElementById("customerHistoryFromDate");
+            var toDate = document.getElementById("customerHistoryToDate");
+            var searchText = document.getElementById("customerHistorySearchText");
+            if (statusFilter) statusFilter.value = "";
+            if (fromDate) fromDate.value = "";
+            if (toDate) toDate.value = "";
+            if (searchText) searchText.value = "";
+
+            updateSelectedCustomerMeta();
+            updateDashboardCustomerActionButtons();
+            setCustomerActionMessage("");
+            setCustomerOrdersState("Search and select a customer to view all orders.");
+        }
+
+        if (customerHistoryApplyBtn) {
+            customerHistoryApplyBtn.addEventListener("click", applyCustomerHistoryFilters);
+        }
+
+        if (customerHistoryResetBtn) {
+            customerHistoryResetBtn.addEventListener("click", function () {
+                var statusFilter = document.getElementById("customerHistoryStatus");
+                var fromDate = document.getElementById("customerHistoryFromDate");
+                var toDate = document.getElementById("customerHistoryToDate");
+                var searchText = document.getElementById("customerHistorySearchText");
+                if (statusFilter) statusFilter.value = "";
+                if (fromDate) fromDate.value = "";
+                if (toDate) toDate.value = "";
+                if (searchText) searchText.value = "";
+                setActiveQuickDateChip("");
+                applyCustomerHistoryFilters();
+            });
+        }
+
+        if (customerHistoryFromDate) {
+            customerHistoryFromDate.addEventListener("change", function () {
+                setActiveQuickDateChip("");
+            });
+        }
+
+        if (customerHistoryToDate) {
+            customerHistoryToDate.addEventListener("change", function () {
+                setActiveQuickDateChip("");
+            });
+        }
+
+        if (quickFilterChips && quickFilterChips.length) {
+            quickFilterChips.forEach(function (chip) {
+                chip.addEventListener("click", function () {
+                    var key = (chip.getAttribute("data-range") || "").trim();
+                    applyQuickDateRange(key);
+                });
+            });
+        }
+
+        if (dashboardCreateOrderBtn) {
+            dashboardCreateOrderBtn.addEventListener("click", function () {
+                if (!selectedDashboardCustomer.code) {
+                    setCustomerActionMessage("Please select a customer first.");
+                    return;
+                }
+
+                var url = '@Url.Action("SetupCreateOrder", "Customer")'
+                    + '?customerName=' + encodeURIComponent(selectedDashboardCustomer.name || "")
+                    + '&customerCode=' + encodeURIComponent(selectedDashboardCustomer.code || "");
+                window.location.href = url;
+            });
+        }
+
+        if (dashboardEditCustomerBtn) {
+            dashboardEditCustomerBtn.addEventListener("click", function () {
+                if (!selectedDashboardCustomer.code) {
+                    setCustomerActionMessage("Please select a customer first.");
+                    return;
+                }
+
+                var profile = selectedDashboardCustomer.profile || {};
+                document.getElementById("editCustomerName").value = profile.customerName || selectedDashboardCustomer.name || "";
+                document.getElementById("editCustomerAddress").value = profile.address || "";
+                document.getElementById("editCustomerPhone").value = profile.phoneNumber || "";
+                document.getElementById("editCustomerEmail").value = profile.email || "";
+                setEditCustomerMessage("");
+                $("#dashboardEditCustomerModal").modal("show");
+            });
+        }
+
+        if (dashboardSaveCustomerBtn) {
+            dashboardSaveCustomerBtn.addEventListener("click", function () {
+                if (!selectedDashboardCustomer.code) {
+                    setEditCustomerMessage("Please select a customer first.");
+                    return;
+                }
+
+                var payload = {
+                    customerCode: selectedDashboardCustomer.code,
+                    CustomerName: (document.getElementById("editCustomerName").value || "").trim(),
+                    Address: (document.getElementById("editCustomerAddress").value || "").trim(),
+                    PhoneNumber: (document.getElementById("editCustomerPhone").value || "").trim(),
+                    Email: (document.getElementById("editCustomerEmail").value || "").trim()
+                };
+
+                $.ajax({
+                    type: "POST",
+                    url: '@Url.Action("UpdateCustomer", "Customer")',
+                    data: payload,
+                    success: function (response) {
+                        if (!response || response.success !== true) {
+                            setEditCustomerMessage((response && response.message) || "Unable to update customer.");
+                            return;
+                        }
+
+                        selectedDashboardCustomer.name = payload.CustomerName;
+                        selectedDashboardCustomer.profile = {
+                            customerName: payload.CustomerName,
+                            address: payload.Address,
+                            phoneNumber: payload.PhoneNumber,
+                            email: payload.Email,
+                            customerCode: selectedDashboardCustomer.code
+                        };
+
+                        if (searchInput) {
+                            searchInput.value = payload.CustomerName;
+                        }
+
+                        $("#dashboardEditCustomerModal").modal("hide");
+                        setCustomerActionMessage("Customer updated successfully.");
+                        updateSelectedCustomerMeta();
+                    },
+                    error: function () {
+                        setEditCustomerMessage("Unable to update customer. Please try again.");
+                    }
+                });
+            });
+        }
+
+        if (dashboardDeleteCustomerBtn) {
+            dashboardDeleteCustomerBtn.addEventListener("click", function () {
+                if (!selectedDashboardCustomer.code) {
+                    setCustomerActionMessage("Please select a customer first.");
+                    return;
+                }
+
+                if (Array.isArray(selectedDashboardCustomer.orders) && selectedDashboardCustomer.orders.length > 0) {
+                    setCustomerActionMessage("Delete is disabled for customers who have orders.");
+                    updateDashboardCustomerActionButtons();
+                    return;
+                }
+
+                var confirmed = window.confirm("Delete customer '" + (selectedDashboardCustomer.name || "") + "'? This action cannot be undone.");
+                if (!confirmed) {
+                    return;
+                }
+
+                $.ajax({
+                    type: "POST",
+                    url: '@Url.Action("DeleteCustomer", "Customer")',
+                    data: { customerCode: selectedDashboardCustomer.code, customerName: selectedDashboardCustomer.name },
+                    success: function (response) {
+                        if (!response || response.success !== true) {
+                            setCustomerActionMessage((response && response.message) || "Unable to delete customer.");
+                            return;
+                        }
+
+                        if (searchInput) {
+                            searchInput.value = "";
+                        }
+
+                        clearSelectedDashboardCustomer();
+                        setCustomerActionMessage("Customer deleted successfully.");
+                    },
+                    error: function () {
+                        setCustomerActionMessage("Unable to delete customer. Please try again.");
+                    }
+                });
+            });
+        }
+
+        if (dashboardClearCustomerBtn) {
+            dashboardClearCustomerBtn.addEventListener("click", function () {
+                if (searchInput) {
+                    searchInput.value = "";
+                }
+                clearSelectedDashboardCustomer();
+            });
+        }
+
+        if (dashboardRefreshCustomerOrdersBtn) {
+            dashboardRefreshCustomerOrdersBtn.addEventListener("click", function () {
+                if (!selectedDashboardCustomer.name) {
+                    setCustomerActionMessage("Please select a customer first.");
+                    return;
+                }
+
+                loadDashboardCustomerOrders(selectedDashboardCustomer.name);
+            });
+        }
+
+        updateSelectedCustomerMeta();
+        updateDashboardCustomerActionButtons();
+
         autocomplete(searchInput, serverCustomers, function (selectedCustomer) {
-            setCustomerSearchMessage("");
-            window.location.href = '@Url.Action("Index", "Customer")' + '?customerName=' + encodeURIComponent(selectedCustomer);
+            triggerCustomerSelection(selectedCustomer, "autocomplete-click");
         });
 
         autocomplete(invoiceInput, serverOrderReferences, function (selectedReference) {
             triggerInvoiceReferenceLookup(selectedReference);
         });
-
-        function setCustomerSearchMessage(message) {
-            var messageBox = document.getElementById("customerSearchMessage");
-            if (!messageBox) {
-                return;
-            }
-
-            if (!message) {
-                messageBox.textContent = "";
-                messageBox.style.display = "none";
-                return;
-            }
-
-            messageBox.textContent = message;
-            messageBox.style.display = "block";
-        }
-
-        function setInvoiceSearchMessage(message) {
-            var messageBox = document.getElementById("invoiceSearchMessage");
-            if (!messageBox) {
-                return;
-            }
-
-            if (!message) {
-                messageBox.textContent = "";
-                messageBox.style.display = "none";
-                return;
-            }
-
-            messageBox.textContent = message;
-            messageBox.style.display = "block";
-        }
 
         searchInput.addEventListener("input", function () {
             if (isAutocompleteRefresh) {
@@ -1816,33 +3524,27 @@ document.addEventListener("click", function (e)
             }
 
             e.preventDefault();
-
-            var customerSearchText = ($(this).val() || "").trim();
-            if (!customerSearchText) {
-                return;
-            }
-
-            var hasMatch = serverCustomers.some(function (item) {
-                return (item || "").trim().toLowerCase() === customerSearchText.toLowerCase();
-            });
-
-            if (!hasMatch) {
-                setCustomerSearchMessage('Customer "' + customerSearchText + '" does not exist in this store.');
-                return;
-            }
-
-            setCustomerSearchMessage("");
-            window.location.href = '@Url.Action("Index", "Customer")' + '?customerName=' + encodeURIComponent(customerSearchText);
+            executeCustomerSearch();
         });
 
+        if (searchInput) {
+            searchInput.addEventListener("change", function () {
+                var selectedValue = (searchInput.value || "").trim();
+                if (!selectedValue) {
+                    return;
+                }
+
+                triggerCustomerSelection(selectedValue, "change-event");
+            });
+
+        }
+
         $("#search").on("click", function () {
-            $("#searchradio").show();
-            $("#searchInvoiceradio").hide();
+            setSearchModeUi("customer");
         });
 
         $("#invoice").on("click", function () {
-            $("#searchInvoiceradio").show();
-            $("#searchradio").hide();
+            setSearchModeUi("invoice");
         });
 
         $("#searchInvoiceText").on("keydown", function (e) {
@@ -1851,23 +3553,7 @@ document.addEventListener("click", function (e)
             }
 
             e.preventDefault();
-
-            var invoiceSearchText = ($(this).val() || "").trim();
-            if (!invoiceSearchText) {
-                setInvoiceSearchMessage("Please enter Order No or Invoice No.");
-                return;
-            }
-
-            var hasMatch = serverOrderReferences.some(function (item) {
-                return (item || "").trim().toLowerCase() === invoiceSearchText.toLowerCase();
-            });
-
-            if (!hasMatch && serverOrderReferences.length > 0) {
-                setInvoiceSearchMessage('Order/Invoice "' + invoiceSearchText + '" does not exist in this store.');
-                return;
-            }
-
-            triggerInvoiceReferenceLookup(invoiceSearchText);
+            executeInvoiceSearch();
         });
 
         if (invoiceInput) {
@@ -1963,6 +3649,112 @@ document.addEventListener("click", function (e)
         statusElement.textContent = statusText;
     }
 
+    function setStoreBoardValue(elementId, value, fallbackValue) {
+        var element = document.getElementById(elementId);
+        if (!element) {
+            return;
+        }
+
+        if (value === null || value === undefined || value === "") {
+            element.textContent = fallbackValue || "--";
+            return;
+        }
+
+        element.textContent = value;
+    }
+
+    function formatDashboardCurrency(value) {
+        try {
+            return formatCurrency(asNumber(value));
+        } catch (_) {
+            return asNumber(value).toFixed(2);
+        }
+    }
+
+    function syncStoreBoardsFromLiveCounters(response) {
+        if (isAdminDashboardUser) {
+            return;
+        }
+
+        setStoreBoardValue("actReadyCount", asNumber(response.readyForDeliveryCount), "0");
+        setStoreBoardValue("actPendingCount", asNumber(response.pendingDeliveryCount), "0");
+        setStoreBoardValue("actPendingPaymentCount", asNumber(response.pendingPaymentCount), "0");
+
+        setStoreBoardValue("ownerTodayOrders", asNumber(response.todayOrders), "0");
+        setStoreBoardValue("ownerReadyOrders", asNumber(response.readyForDeliveryCount), "0");
+        setStoreBoardValue("ownerPendingAmount", formatDashboardCurrency(response.pendingPaymentAmount || 0), "0.00");
+        setStoreBoardValue("ownerAvgTicket", "--", "--");
+    }
+
+    function loadStoreImmediateAndOwnerSummary() {
+        if (isAdminDashboardUser) {
+            return;
+        }
+
+        fetch('@Url.Action("GetStoreWorkflowOrders", "Customer")?status=&searchText=&_ts=' + Date.now(), {
+            method: 'GET',
+            credentials: 'same-origin',
+            headers: { 'X-Requested-With': 'XMLHttpRequest' }
+        })
+        .then(function (response) { return response.json(); })
+        .then(function (payload) {
+            if (!payload || payload.success !== true) {
+                return;
+            }
+
+            var orders = Array.isArray(payload.orders) ? payload.orders : [];
+            var now = new Date();
+            var todayKey = now.getFullYear() + "-" + String(now.getMonth() + 1).padStart(2, "0") + "-" + String(now.getDate()).padStart(2, "0");
+
+            var readyCount = 0;
+            var pendingProcessingCount = 0;
+            var pendingPaymentCount = 0;
+            var pendingAmount = 0;
+            var todayOrders = 0;
+            var todaySales = 0;
+
+            orders.forEach(function (order) {
+                var status = normalizeStatusValue(order && (order.Status || order.status || "received"));
+                var pendingRaw = order && (order.PendingAmount != null ? order.PendingAmount : (order.pendingAmount != null ? order.pendingAmount : (order.NetPayable != null ? order.NetPayable : (order.netPayable != null ? order.netPayable : 0))));
+                var pending = asNumber(pendingRaw);
+                var createdValue = (order && (order.CreatedDate || order.createdDate)) || "";
+                var createdDate = new Date(createdValue);
+                var amount = asNumber(order && (order.OrderAmount || order.orderAmount || order.TotalAmount || order.totalAmount || 0));
+
+                if (status === "ready" || status === "ready for delivery") {
+                    readyCount += 1;
+                }
+
+                if (status === "received" || status === "processing" || status === "in process") {
+                    pendingProcessingCount += 1;
+                }
+
+                if (pending > 0) {
+                    pendingPaymentCount += 1;
+                    pendingAmount += pending;
+                }
+
+                if (!isNaN(createdDate.getTime())) {
+                    var createdKey = createdDate.getFullYear() + "-" + String(createdDate.getMonth() + 1).padStart(2, "0") + "-" + String(createdDate.getDate()).padStart(2, "0");
+                    if (createdKey === todayKey) {
+                        todayOrders += 1;
+                        todaySales += amount;
+                    }
+                }
+            });
+
+            setStoreBoardValue("actReadyCount", readyCount, "0");
+            setStoreBoardValue("actPendingCount", pendingProcessingCount, "0");
+            setStoreBoardValue("actPendingPaymentCount", pendingPaymentCount, "0");
+
+            setStoreBoardValue("ownerTodayOrders", todayOrders, "0");
+            setStoreBoardValue("ownerReadyOrders", readyCount, "0");
+            setStoreBoardValue("ownerPendingAmount", formatDashboardCurrency(pendingAmount), "0.00");
+            setStoreBoardValue("ownerAvgTicket", todayOrders > 0 ? formatDashboardCurrency(todaySales / todayOrders) : formatDashboardCurrency(0), "0.00");
+        })
+        .catch(function () { });
+    }
+
     function loadLiveCounterDashboardStats() {
         $.ajax({
             type: "GET",
@@ -1984,12 +3776,25 @@ document.addEventListener("click", function (e)
                 setLiveCounterValue("lcReadyDelivery", readyForDeliveryValue, "N/A");
                 setLiveCounterValue("lcPendingDelivery", pendingDeliveryValue, "N/A");
 
+                syncStoreBoardsFromLiveCounters(response);
+                loadStoreImmediateAndOwnerSummary();
+
                 var pendingAmount = response.pendingPaymentAmount || 0;
                 var statusText = "Live";
                 if (response.readyPendingReason) {
                     statusText += " (Delivery status pending API)";
                 }
-                statusText += " | Pending ₹" + pendingAmount;
+                    try { statusText += " | Pending " + formatCurrency(pendingAmount); } catch(e) {
+                    try {
+                        var digits = (window.__currency && Number.isFinite(Number(window.__currency.decimalDigits))) ? Number(window.__currency.decimalDigits) : 2;
+                        var sym = (window.__currency && window.__currency.symbol) ? window.__currency.symbol : '';
+                        // If symbol exists, include it; otherwise show numeric value only (preserve numeric precision)
+                        statusText += ' | Pending ' + (sym ? (sym + ' ' + Number(pendingAmount).toFixed(digits)) : Number(pendingAmount).toFixed(digits));
+                    } catch (e2) {
+                        // Last-resort fallback: show numeric value only with two decimals
+                        statusText += ' | Pending ' + Number(pendingAmount).toFixed(2);
+                    }
+                }
 
                 setLiveCounterStatus(statusText);
                 refreshLiveCounterDetails();
@@ -2003,5 +3808,32 @@ document.addEventListener("click", function (e)
     if (!isAdminDashboardUser) {
         loadLiveCounterDashboardStats();
         setInterval(loadLiveCounterDashboardStats, 30000);
+    } else {
+        initializeAdminInsights();
+        var adminPrintSummaryBtn = document.getElementById("adminPrintSummaryBtn");
+        if (adminPrintSummaryBtn) {
+            adminPrintSummaryBtn.addEventListener("click", printAdminEbjSummary);
+        }
+
+        var adminEmailSummaryBtn = document.getElementById("adminEmailSummaryBtn");
+        if (adminEmailSummaryBtn) {
+            adminEmailSummaryBtn.addEventListener("click", emailAdminEbjSummary);
+        }
+
+        if (!isSuperAdminDashboardUser && typeof loadAdminInsightsDashboard === "function") {
+            setTimeout(function () {
+                if (!adminLastComputedMetrics) {
+                    loadAdminInsightsDashboard("fallback");
+                }
+            }, 250);
+        }
+    }
+
+    if (!window.jQuery) {
+        if (document.readyState === "loading") {
+            document.addEventListener("DOMContentLoaded", initializeAdminInsights);
+        } else {
+            initializeAdminInsights();
+        }
     }
 </script>

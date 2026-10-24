@@ -24,12 +24,17 @@
     <meta charset="utf-8" />
     <title>Print Tags - @Model?.OrderNo</title>
     <style>
-        body { font-family: Arial, Helvetica, sans-serif; margin: 12px; }
+        body { font-family: Arial, Helvetica, sans-serif; margin: 12px; background:#fff; color:#111; }
         .noprint { margin-bottom:10px; }
-        .tag-grid { display:grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap:10px; }
-        .tag-card { border: 1px dashed #334155; border-radius:8px; padding:10px; min-height:120px; }
-        .tag-title { font-size:16px; font-weight:700; margin-bottom:6px; }
-        .tag-row { font-size:12px; margin:2px 0; }
+        .tag-grid { display:grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap:10px; }
+        .tag-card { border: 2px dashed #111; border-radius:8px; padding:10px 12px; min-height:170px; background:#fff; }
+        .tag-title { font-size:34px; line-height:1.05; font-weight:900; letter-spacing:.5px; margin:0 0 6px 0; color:#000; }
+        .tag-item-name { font-size:18px; font-weight:900; margin:0 0 8px 0; color:#111; border-top:1px solid #d1d5db; padding-top:6px; }
+        .tag-row { font-size:12px; margin:2px 0; color:#111; }
+        .tag-barcode-wrap { margin-top:6px; border-top:1px dashed #9ca3af; padding-top:6px; }
+        .tag-barcode { width:100%; max-width:220px; height:38px; display:block; }
+        .tag-barcode-text { font-family: Consolas, monospace; font-size:10px; letter-spacing:.4px; word-break:break-all; }
+        .tag-missing { color:#b42318; font-weight:700; }
         @@media print { .noprint { display:none; } }
     </style>
 </head>
@@ -49,16 +54,24 @@
                 for (var i = 1; i <= qty; i++)
                 {
                     runningPieceIndex++;
-                    var defaultTagNo = string.IsNullOrWhiteSpace(Model?.OrderNo)
-                        ? ("TAG-P" + runningPieceIndex.ToString("00"))
-                        : (Model.OrderNo + "-P" + runningPieceIndex.ToString("00"));
-                    var displayTagNo = !string.IsNullOrWhiteSpace(item.TagNo) ? item.TagNo : defaultTagNo;
+                    var persistedTagNo = (item.TagNo ?? string.Empty).Trim();
+                    var generatedTagNo = ((Model?.OrderNo ?? "ORD").Trim()) + "-P" + runningPieceIndex.ToString().PadLeft(2, '0');
+                    var usePersistedTagNo = qty <= 1 && !string.IsNullOrWhiteSpace(persistedTagNo);
+                    var displayTagNo = usePersistedTagNo ? persistedTagNo : generatedTagNo;
+                    var itemName = string.IsNullOrWhiteSpace(item.ItemName) ? "Item" : item.ItemName.Trim();
+                    var invoiceNo = string.IsNullOrWhiteSpace(Model?.InvoiceNo) ? Model?.OrderNo : Model?.InvoiceNo;
+                    var barcodePayload = (displayTagNo + "|" + (invoiceNo ?? string.Empty) + "|" + (Model?.CustomerName ?? string.Empty) + "|" + itemName + "|" + runningPieceIndex + "/" + perTagPieceCount);
                     <div class="tag-card">
                         <div class="tag-title">@displayTagNo</div>
-                        <div class="tag-row"><b>Invoice:</b> @(string.IsNullOrWhiteSpace(Model?.InvoiceNo) ? Model?.OrderNo : Model?.InvoiceNo)</div>
+                        <div class="tag-item-name">@itemName</div>
+                        <div class="tag-row"><b>Invoice:</b> @invoiceNo</div>
                         <div class="tag-row"><b>Customer:</b> @Model?.CustomerName</div>
                         <div class="tag-row"><b>Service:</b> @Model?.ServiceType</div>
-                        <div class="tag-row"><b>Piece:</b> @i/@perTagPieceCount</div>
+                        <div class="tag-row"><b>Piece:</b> @runningPieceIndex/@perTagPieceCount</div>
+                        <div class="tag-barcode-wrap">
+                            <svg class="tag-barcode" data-barcode="@barcodePayload" data-tag="@displayTagNo" role="img" aria-label="Barcode for @displayTagNo"></svg>
+                            <div class="tag-barcode-text">@barcodePayload</div>
+                        </div>
                     </div>
                 }
             }
@@ -68,21 +81,49 @@
             for (var piece = 1; piece <= fallbackPieceCount; piece++)
             {
                 runningPieceIndex++;
-                var defaultTagNo = string.IsNullOrWhiteSpace(Model?.OrderNo)
-                    ? ("TAG-P" + runningPieceIndex.ToString("00"))
-                    : (Model.OrderNo + "-P" + runningPieceIndex.ToString("00"));
+                var generatedTagNo = ((Model?.OrderNo ?? "ORD").Trim()) + "-P" + runningPieceIndex.ToString().PadLeft(2, '0');
+                var invoiceNo = string.IsNullOrWhiteSpace(Model?.InvoiceNo) ? Model?.OrderNo : Model?.InvoiceNo;
+                var barcodePayload = (generatedTagNo + "|" + (invoiceNo ?? string.Empty) + "|" + (Model?.CustomerName ?? string.Empty) + "|Item|" + piece + "/" + fallbackPieceCount);
                 <div class="tag-card">
-                    <div class="tag-title">@defaultTagNo</div>
-                    <div class="tag-row"><b>Invoice:</b> @(string.IsNullOrWhiteSpace(Model?.InvoiceNo) ? Model?.OrderNo : Model?.InvoiceNo)</div>
+                    <div class="tag-title">@generatedTagNo</div>
+                    <div class="tag-item-name">Item</div>
+                    <div class="tag-row"><b>Invoice:</b> @invoiceNo</div>
                     <div class="tag-row"><b>Customer:</b> @Model?.CustomerName</div>
                     <div class="tag-row"><b>Service:</b> @Model?.ServiceType</div>
                     <div class="tag-row"><b>Piece:</b> @piece/@fallbackPieceCount</div>
+                    <div class="tag-barcode-wrap">
+                        <svg class="tag-barcode" data-barcode="@barcodePayload" data-tag="@generatedTagNo" role="img" aria-label="Barcode for @generatedTagNo"></svg>
+                        <div class="tag-barcode-text">@barcodePayload</div>
+                    </div>
                 </div>
             }
         }
     </div>
 
     <script>
+        (function () {
+            var barcodeNodes = document.querySelectorAll('.tag-barcode[data-barcode]');
+            if (!barcodeNodes || barcodeNodes.length === 0) return;
+
+            // Render only when barcode support library is already available globally.
+            // No new dependency is introduced from this page.
+            if (typeof window.JsBarcode === 'function') {
+                barcodeNodes.forEach(function (node) {
+                    var value = node.getAttribute('data-tag') || node.getAttribute('data-barcode') || '';
+                    if (!value) return;
+                    try {
+                        window.JsBarcode(node, value, {
+                            format: 'CODE128',
+                            displayValue: false,
+                            height: 36,
+                            margin: 0,
+                            lineColor: '#000',
+                            width: 1.4
+                        });
+                    } catch (_) { }
+                });
+            }
+        })();
         window.onload = function () { setTimeout(function(){ window.print(); }, 150); };
     </script>
 </body>
