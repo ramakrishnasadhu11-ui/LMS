@@ -10,9 +10,12 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using Microsoft.OpenApi.Models;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.IdentityModel.Tokens;
 using System;
 using System.IO;
 using System.Reflection;
+using System.Text;
 using IConfiguration = Microsoft.Extensions.Configuration.IConfiguration;
 namespace LMS.Master.WebApi
 {
@@ -27,6 +30,33 @@ namespace LMS.Master.WebApi
         {
             services.AddControllers()
                     .AddNewtonsoftJson();
+
+            var jwtIssuer = Configuration["Jwt:Issuer"]?.Trim();
+            var jwtAudience = Configuration["Jwt:Audience"]?.Trim();
+            var jwtSigningKey = Configuration["Jwt:SigningKey"];
+
+            if (!string.IsNullOrWhiteSpace(jwtIssuer)
+                && !string.IsNullOrWhiteSpace(jwtAudience)
+                && !string.IsNullOrWhiteSpace(jwtSigningKey))
+            {
+                services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+                    .AddJwtBearer(options =>
+                    {
+                        options.RequireHttpsMetadata = true;
+                        options.SaveToken = false;
+                        options.TokenValidationParameters = new TokenValidationParameters
+                        {
+                            ValidateIssuer = true,
+                            ValidateAudience = true,
+                            ValidateIssuerSigningKey = true,
+                            ValidateLifetime = true,
+                            ValidIssuer = jwtIssuer,
+                            ValidAudience = jwtAudience,
+                            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSigningKey)),
+                            ClockSkew = TimeSpan.Zero
+                        };
+                    });
+            }
             services.AddDbContext<MasterDbContext>(options =>
                 options.UseSqlServer(Configuration.GetConnectionString("MasterDb")));
             LamarConfig.RegisterContainer(services);
@@ -97,6 +127,8 @@ namespace LMS.Master.WebApi
             app.UseHttpsRedirection();
             app.UseRouting();
             app.UseCors("AllowUI");
+            app.UseAuthentication();
+            app.UseAuthorization();
             app.UseSwagger();
             app.UseSwaggerUI(c =>
             {

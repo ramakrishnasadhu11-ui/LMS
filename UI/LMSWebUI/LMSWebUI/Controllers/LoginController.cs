@@ -31,6 +31,7 @@ namespace LMSWebUI.Controllers
         private const string ProfileImageSessionKey = "TenantProfileImageUrl";
         private const string TenantIdSessionKey = "TenantId";
         private const string BusinessNameSessionKey = "TenantBusinessName";
+        private const string AccessTokenSessionKey = "AccessToken";
         private const int MaxProfileImageBytes = 2 * 1024 * 1024;
         private static readonly EmailAddressAttribute EmailValidator = new EmailAddressAttribute();
         private static readonly HashSet<string> AllowedProfileImageExtensions = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
@@ -390,6 +391,8 @@ namespace LMSWebUI.Controllers
         {
             if (!string.IsNullOrWhiteSpace(Email))
             {
+                HttpContext.Session.Remove(AccessTokenSessionKey);
+
                 try
                 {
                     var parmsLogin = new TenantLoginRequest
@@ -405,6 +408,7 @@ namespace LMSWebUI.Controllers
                     // Surface the API message instead of a misleading "bad password" error.
                     if (responseMessage != null && responseMessage.StatusCode == "403")
                     {
+                        HttpContext.Session.Remove(AccessTokenSessionKey);
                         var blockedMessage = string.IsNullOrWhiteSpace(responseMessage.Message)
                             ? "Your account is not approved yet. Please contact the administrator."
                             : responseMessage.Message;
@@ -413,6 +417,15 @@ namespace LMSWebUI.Controllers
 
                     if (responseMessage != null && responseMessage.StatusCode == "200")
                     {
+                        if (!string.IsNullOrWhiteSpace(responseMessage.AccessToken))
+                        {
+                            HttpContext.Session.SetString(AccessTokenSessionKey, responseMessage.AccessToken.Trim());
+                        }
+                        else
+                        {
+                            HttpContext.Session.Remove(AccessTokenSessionKey);
+                        }
+
                         // A first-time login must reach the change-password screen regardless of
                         // store selection, so this is checked before the store rules below.
                         if (IsPasswordChangeRequiredMessage(responseMessage.Message))
@@ -493,11 +506,13 @@ namespace LMSWebUI.Controllers
                 }
                 catch (ApiUnavailableException)
                 {
+                    HttpContext.Session.Remove(AccessTokenSessionKey);
                     // The identity API is unreachable - do not report this as a bad password.
                     return "serviceUnavailable";
                 }
                 catch
                 {
+                    HttpContext.Session.Remove(AccessTokenSessionKey);
                     return "invalidCredentials";
                 }
             }

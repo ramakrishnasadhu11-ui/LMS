@@ -12,8 +12,6 @@ namespace LMSWebUI.Models.Admin
 
         public IEnumerable<IGrouping<string, IntegrationProviderViewModel>> ProvidersByCategory
             => (Providers ?? new List<IntegrationProviderViewModel>())
-                .OrderBy(x => x.Category)
-                .ThenBy(x => x.ProviderDisplayName)
                 .GroupBy(x => x.Category ?? "Other");
     }
 }

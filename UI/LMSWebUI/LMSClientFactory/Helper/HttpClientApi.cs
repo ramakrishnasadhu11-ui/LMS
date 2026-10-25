@@ -21,7 +21,10 @@ namespace LMSClientFactory.Helper
         public HttpClientApi(string url, string access_token)
         {
             _client = new RestClient(url);
-            _client.AddDefaultHeader("Authorization", string.Format("Bearer : " + access_token));
+            if (!string.IsNullOrWhiteSpace(access_token))
+            {
+                _client.AddDefaultHeader("Authorization", $"Bearer {access_token.Trim()}");
+            }
         }
         /// <summary>
         /// Async Call
@@ -125,6 +128,8 @@ namespace LMSClientFactory.Helper
                     var token = JToken.Parse(response.Content);
                     var unwrappedToken = token["ResultSet"]
                         ?? token["resultSet"]
+                        ?? token["Result"]
+                        ?? token["result"]
                         ?? token["Data"]
                         ?? token["data"]
                         ?? token["$values"]

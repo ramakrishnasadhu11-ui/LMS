@@ -23,12 +23,18 @@
         padding: 12px 16px;
         margin-bottom: 16px;
     }
+    .integration-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+        gap: 14px;
+    }
     .category-card {
         background: var(--els-surface);
         border: 1px solid var(--els-border);
         border-radius: 10px;
-        margin-bottom: 14px;
+        margin-bottom: 0;
         box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+        min-height: 100%;
     }
     .category-title {
         padding: 10px 14px;
@@ -38,9 +44,7 @@
     }
     .provider-card {
         padding: 14px;
-        border-bottom: 1px dashed var(--els-border);
     }
-    .provider-card:last-child { border-bottom: none; }
     .provider-head {
         display: flex;
         justify-content: space-between;
@@ -57,6 +61,14 @@
         gap: 10px;
     }
     .integration-field label { font-weight: 600; margin-bottom: 4px; display: block; }
+    .integration-label-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        flex-wrap: wrap;
+        margin-bottom: 4px;
+    }
     .integration-field input,
     .integration-field select {
         width: 100%;
@@ -85,6 +97,120 @@
     }
     .integration-btn.secondary { background: linear-gradient(180deg, #8f99a4 0%, #6f7a86 100%); }
     .integration-btn.warning { background: linear-gradient(180deg, #e5a83d 0%, #d08818 100%); }
+    .integration-btn:disabled {
+        opacity: 0.55;
+        cursor: not-allowed;
+        filter: grayscale(0.3);
+    }
+    .integration-help {
+        margin-top: 12px;
+        border: 1px solid var(--els-border);
+        border-radius: 8px;
+        background: var(--els-background);
+    }
+    .integration-help summary {
+        cursor: pointer;
+        padding: 10px 12px;
+        font-weight: 600;
+        color: var(--els-text);
+    }
+    .integration-help-content {
+        border-top: 1px solid var(--els-border);
+        padding: 10px 12px;
+        font-size: 13px;
+        color: var(--els-text);
+        line-height: 1.5;
+    }
+    .integration-help-content h5 {
+        margin: 10px 0 6px;
+        font-size: 13px;
+        font-weight: 700;
+    }
+    .integration-help-content ul {
+        margin: 0 0 8px 16px;
+        padding: 0;
+    }
+    .integration-help-content p {
+        margin: 0 0 8px;
+    }
+    .integration-field-hint {
+        margin-top: 4px;
+        font-size: 12px;
+        color: var(--els-text-muted);
+        line-height: 1.4;
+    }
+    .integration-example {
+        margin: 8px 0;
+        padding: 8px 10px;
+        border: 1px solid var(--els-border);
+        border-radius: 6px;
+        background: var(--els-surface);
+    }
+    .integration-example ul {
+        margin-bottom: 0;
+    }
+    .integration-action-hint {
+        margin-top: 8px;
+        font-size: 12px;
+        color: var(--els-text-muted);
+        line-height: 1.4;
+    }
+    .integration-help-link {
+        font-size: 12px;
+        color: var(--els-primary);
+        text-decoration: underline;
+        cursor: pointer;
+    }
+    .integration-inline-help {
+        margin-top: 6px;
+        border: 1px solid var(--els-border);
+        border-radius: 6px;
+        background: var(--els-surface);
+    }
+    .integration-inline-help summary {
+        padding: 8px 10px;
+        font-size: 12px;
+        color: var(--els-primary);
+        text-decoration: underline;
+        cursor: pointer;
+        font-weight: 600;
+    }
+    .integration-inline-help-content {
+        border-top: 1px solid var(--els-border);
+        padding: 10px;
+        font-size: 12px;
+        color: var(--els-text);
+        line-height: 1.45;
+    }
+    .integration-inline-help-content ol,
+    .integration-inline-help-content ul {
+        margin: 0 0 8px 16px;
+        padding: 0;
+    }
+    .integration-validation {
+        margin-top: 8px;
+        font-size: 12px;
+        color: #b0302b;
+        line-height: 1.4;
+    }
+    .integration-validation ul {
+        margin: 0;
+        padding-left: 16px;
+    }
+    @@media (max-width: 768px) {
+        .integration-help-content {
+            font-size: 12px;
+        }
+        .integration-field-hint,
+        .integration-action-hint {
+            font-size: 11px;
+        }
+        .integration-inline-help-content,
+        .integration-inline-help summary,
+        .integration-help-link {
+            font-size: 11px;
+        }
+    }
 </style>
 
 <section class="integrations-page">
@@ -96,72 +222,221 @@
             <div style="margin-top:6px;">Configure Email, SMS, WhatsApp, Payments, and future connectors securely per tenant/store. Secrets are masked and not returned in plain text.</div>
         </div>
 
-        @foreach (var group in Model.ProvidersByCategory)
+        <div class="integration-grid">
+        @foreach (var provider in Model.Providers)
         {
+            var lastTestStatus = string.IsNullOrWhiteSpace(provider.LastTestStatus) ? "NotTested" : provider.LastTestStatus;
+            var canEnable = string.Equals(lastTestStatus, "Success", StringComparison.OrdinalIgnoreCase);
+            var isEmailSmtp = string.Equals(provider.Category, "Email", StringComparison.OrdinalIgnoreCase)
+                && string.Equals(provider.ProviderKey, "smtp", StringComparison.OrdinalIgnoreCase);
+            var hasSavedPassword = provider.SecretKeys != null
+                && provider.SecretKeys.Any(key =>
+                    string.Equals(key, "Password", StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(key, "Token", StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(key, "Secret", StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(key, "SecretKey", StringComparison.OrdinalIgnoreCase));
             <div class="category-card">
-                <div class="category-title">@group.Key</div>
-
-                @foreach (var provider in group)
-                {
-                    <div class="provider-card">
-                        <div class="provider-head">
-                            <div class="provider-name">@provider.ProviderDisplayName</div>
-                            <div class="provider-status">
-                                @(provider.IsEnabled ? "Enabled" : "Disabled")
-                                | Last Test: @(string.IsNullOrWhiteSpace(provider.LastTestStatus) ? "NotTested" : provider.LastTestStatus)
-                            </div>
+                <div class="category-title">@provider.Category — @provider.ProviderDisplayName</div>
+                <div class="provider-card">
+                    <div class="provider-head">
+                        <div class="provider-name">@provider.ProviderDisplayName</div>
+                        <div class="provider-status">
+                            @(provider.IsEnabled ? "Enabled" : "Disabled")
+                            | Last Test: @lastTestStatus
                         </div>
+                    </div>
 
-                        <form asp-action="SaveIntegration" asp-controller="Customer" method="post">
+                    <form asp-action="SaveIntegration" asp-controller="Customer" method="post" class="integration-form" data-category="@provider.Category" data-provider-key="@provider.ProviderKey" data-secret-keys="@(provider.SecretKeys == null ? string.Empty : string.Join(",", provider.SecretKeys))">
                             @Html.AntiForgeryToken()
                             <input type="hidden" name="Category" value="@provider.Category" />
                             <input type="hidden" name="ProviderKey" value="@provider.ProviderKey" />
                             <input type="hidden" name="ProviderDisplayName" value="@provider.ProviderDisplayName" />
+                            <input type="hidden" name="TenantName" value="@provider.TenantName" />
+                            <input type="hidden" name="StoreCode" value="@provider.StoreCode" />
+                            <input type="hidden" name="IsEnabled" value="@(provider.IsEnabled ? "true" : "false")" />
 
                             <div class="provider-grid">
                                 <div class="integration-field">
                                     <label>Provider</label>
                                     <input name="PublicSettings[Provider]" value="@(provider.PublicSettings.ContainsKey("Provider") ? provider.PublicSettings["Provider"] : provider.ProviderDisplayName)" />
+                                    @if (isEmailSmtp)
+                                    {
+                                        <div class="integration-field-hint">1) Provider: Select or enter <b>Gmail SMTP</b> (the email service being used).</div>
+                                    }
                                 </div>
                                 <div class="integration-field">
                                     <label>Endpoint / Host</label>
                                     <input name="PublicSettings[Host]" value="@(provider.PublicSettings.ContainsKey("Host") ? provider.PublicSettings["Host"] : string.Empty)" />
+                                    @if (isEmailSmtp)
+                                    {
+                                        <div class="integration-field-hint">2) Endpoint / Host: Enter <b>smtp.gmail.com</b> (Gmail's outgoing mail server).</div>
+                                    }
                                 </div>
                                 <div class="integration-field">
                                     <label>Port / Account ID</label>
                                     <input name="PublicSettings[Port]" value="@(provider.PublicSettings.ContainsKey("Port") ? provider.PublicSettings["Port"] : string.Empty)" />
+                                    @if (isEmailSmtp)
+                                    {
+                                        <div class="integration-field-hint">3) Port / Account ID: Enter <b>587</b>. In Email integration this field is used as SMTP port for STARTTLS.</div>
+                                    }
                                 </div>
                                 <div class="integration-field">
                                     <label>Sender / From / Sender ID</label>
                                     <input name="PublicSettings[From]" value="@(provider.PublicSettings.ContainsKey("From") ? provider.PublicSettings["From"] : string.Empty)" />
+                                    @if (isEmailSmtp)
+                                    {
+                                        <div class="integration-field-hint">4) Sender / From / Sender ID: Use the same Gmail address used for SMTP login (example: <b>yourbusiness@gmail.com</b>).</div>
+                                    }
                                 </div>
                                 <div class="integration-field">
                                     <label>Webhook URL</label>
                                     <input name="PublicSettings[WebhookUrl]" value="@(provider.PublicSettings.ContainsKey("WebhookUrl") ? provider.PublicSettings["WebhookUrl"] : string.Empty)" />
+                                    @if (isEmailSmtp)
+                                    {
+                                        <div class="integration-field-hint">5) Webhook URL: Leave blank. Gmail SMTP does not require a webhook.</div>
+                                    }
                                 </div>
                                 <div class="integration-field">
                                     <label>Mode</label>
                                     <select name="IsTestMode">
-                                        <option value="true" selected="@(provider.IsTestMode ? "selected" : null)">Test / Sandbox</option>
-                                        <option value="false" selected="@(!provider.IsTestMode ? "selected" : null)">Live</option>
+                                        @if (provider.IsTestMode)
+                                        {
+                                            <option value="true" selected>Test / Sandbox</option>
+                                            <option value="false">Live</option>
+                                        }
+                                        else
+                                        {
+                                            <option value="true">Test / Sandbox</option>
+                                            <option value="false" selected>Live</option>
+                                        }
                                     </select>
+                                    @if (isEmailSmtp)
+                                    {
+                                        <div class="integration-field-hint">6) Mode: Select <b>Live</b> when configuring the real Gmail account.</div>
+                                    }
                                 </div>
                                 <div class="integration-field">
                                     <label>Username / API Key</label>
-                                    <input name="SecretSettings[Username]" value="" placeholder="Enter new value (kept encrypted)" autocomplete="off" />
+                                    <input name="SecretSettings[Username]" value="@(provider.SecretSettings.ContainsKey("Username") ? provider.SecretSettings["Username"] : string.Empty)" placeholder="Enter new value (kept encrypted)" autocomplete="off" />
+                                    @if (isEmailSmtp)
+                                    {
+                                        <div class="integration-field-hint">7) Username / API Key: Enter your complete Gmail address (example: <b>yourbusiness@gmail.com</b>).</div>
+                                    }
                                 </div>
                                 <div class="integration-field">
-                                    <label>Password / Token / Secret</label>
-                                    <input name="SecretSettings[Password]" value="" placeholder="Enter new value (kept encrypted)" autocomplete="off" />
+                                    <div class="integration-label-row">
+                                        <label>Password / Token / Secret</label>
+                                        @if (isEmailSmtp)
+                                        {
+                                            <span class="integration-help-link">How do I get a Google App Password?</span>
+                                        }
+                                    </div>
+                                    <input name="SecretSettings[Password]" value="" placeholder="@(hasSavedPassword ? "Saved securely" : "********")" autocomplete="off" />
+                                    @if (isEmailSmtp)
+                                    {
+                                        <div class="integration-field-hint">8) Password / Token / Secret: Enter the Google App Password for this Gmail account, not your normal Gmail password.</div>
+                                        <details class="integration-inline-help">
+                                            <summary>How do I get a Google App Password?</summary>
+                                            <div class="integration-inline-help-content">
+                                                <p><b>How to Get Your Google App Password</b></p>
+                                                <ol>
+                                                    <li>Sign in to the Gmail account you want Excel Laundry Services to send emails from.</li>
+                                                    <li>Enable 2-Step Verification in Google Account Security: <a href="https://myaccount.google.com/security" target="_blank" rel="noopener noreferrer">https://myaccount.google.com/security</a></li>
+                                                    <li>Open Google's App Passwords page: <a href="https://myaccount.google.com/apppasswords" target="_blank" rel="noopener noreferrer">https://myaccount.google.com/apppasswords</a></li>
+                                                    <li>If prompted, sign in again. Enter "Excel Laundry Services" as the app name if Google asks.</li>
+                                                    <li>Click Create or Generate and copy the generated App Password.</li>
+                                                    <li>Return to Excel Laundry Services and paste it into the "Password / Token / Secret" field.</li>
+                                                    <li>Click Save, then Test Connection. Click Enable only after the test succeeds.</li>
+                                                </ol>
+                                                <p><b>Important notes:</b></p>
+                                                <ul>
+                                                    <li>Use the Google App Password, not your regular Gmail password.</li>
+                                                    <li>Keep the App Password private.</li>
+                                                    <li>If the App Passwords page is unavailable, verify that 2-Step Verification is enabled. Some Google Workspace accounts or security policies may prevent App Password creation.</li>
+                                                    <li>The generated password is shown by Google; Excel Laundry Services cannot retrieve it later. If lost, generate a new one.</li>
+                                                    <li>Never display, log, or return the saved password in API responses.</li>
+                                                </ul>
+                                                <p><b>What value goes in each field?</b></p>
+                                                <ul>
+                                                    <li>SMTP host: <b>smtp.gmail.com</b></li>
+                                                    <li>Port: <b>587</b></li>
+                                                    <li>Username / API Key: your full Gmail address</li>
+                                                    <li>Sender / From / Sender ID: same Gmail address</li>
+                                                    <li>SSL/TLS: STARTTLS</li>
+                                                    <li>Webhook URL: leave blank</li>
+                                                </ul>
+                                            </div>
+                                        </details>
+                                    }
                                 </div>
                             </div>
 
                             <div class="integration-actions">
-                                <button class="integration-btn" type="submit">Save</button>
-                                <button class="integration-btn warning" type="submit" formaction="@Url.Action("TestIntegration", "Customer")" formmethod="post" name="category" value="@provider.Category">Test Connection</button>
-                                <button class="integration-btn secondary" type="submit" formaction="@Url.Action("ToggleIntegration", "Customer")" formmethod="post" name="isEnabled" value="@(!provider.IsEnabled)">@(provider.IsEnabled ? "Disable" : "Enable")</button>
+                                <button class="integration-btn" type="submit" formaction="@Url.Action("SaveIntegration", "Customer")" formmethod="post" data-action="save" data-role="save">Save</button>
+                                <button class="integration-btn warning" type="submit" formaction="@Url.Action("TestIntegration", "Customer")" formmethod="post" name="category" value="@provider.Category" data-role="test">Test Connection</button>
                                 <input type="hidden" name="providerKey" value="@provider.ProviderKey" />
                             </div>
+                            <div class="integration-validation" data-role="validation"></div>
+
+                            @if (isEmailSmtp)
+                            {
+                                <div class="integration-action-hint">
+                                    9) Click <b>Save</b>. 10) Click <b>Test Connection</b> to run SMTP validation and review the real result message. 11) Click <b>Enable</b> only after successful test.
+                                </div>
+                            }
+
+                            @if (isEmailSmtp)
+                            {
+                                <details class="integration-help">
+                                    <summary>Step-by-step setup guide</summary>
+                                    <div class="integration-help-content">
+                                        <p><b>Google setup links:</b> <a href="https://myaccount.google.com/security" target="_blank" rel="noopener noreferrer">Google Account Security</a> | <a href="https://myaccount.google.com/apppasswords" target="_blank" rel="noopener noreferrer">Google App Passwords</a></p>
+
+                                        <p>Before filling fields, enable 2-Step Verification and generate a Google App Password for this mailbox. If App Password is unavailable, your Google account eligibility or organization security policy may prevent it.</p>
+
+                                        <h5>Field-by-field setup</h5>
+                                        <ul>
+                                            <li><b>1. Provider:</b> Select or enter <b>Gmail SMTP</b> — the email service being used.</li>
+                                            <li><b>2. Endpoint / Host:</b> Enter <b>smtp.gmail.com</b> — Gmail's outgoing mail server.</li>
+                                            <li><b>3. Port / Account ID:</b> Enter <b>587</b> — SMTP port for STARTTLS. In Email integration this field is used for SMTP port.</li>
+                                            <li><b>4. Sender / From / Sender ID:</b> Enter the same Gmail address used for SMTP login, e.g. <b>yourbusiness@gmail.com</b>.</li>
+                                            <li><b>5. Webhook URL:</b> Leave blank — Gmail SMTP does not require a webhook.</li>
+                                            <li><b>6. Mode:</b> Select <b>Live</b> when configuring the real Gmail account.</li>
+                                            <li><b>7. Username / API Key:</b> Enter the complete Gmail address, e.g. <b>yourbusiness@gmail.com</b>.</li>
+                                            <li><b>8. Password / Token / Secret:</b> Enter the Google App Password generated for this Gmail account, not the normal Gmail password.</li>
+                                            <li><b>9. Save:</b> Save the settings.</li>
+                                            <li><b>10. Test Connection:</b> Run SMTP validation and check the real result message.</li>
+                                            <li><b>11. Enable:</b> Enable the integration only after a successful test.</li>
+                                        </ul>
+
+                                        <h5>Example (replace with your own values)</h5>
+                                        <div class="integration-example">
+                                            <ul>
+                                                <li>Gmail address: <b>yourbusiness@gmail.com</b></li>
+                                                <li>SMTP host: <b>smtp.gmail.com</b></li>
+                                                <li>Port: <b>587</b></li>
+                                                <li>Sender email: <b>yourbusiness@gmail.com</b></li>
+                                                <li>Username: <b>yourbusiness@gmail.com</b></li>
+                                                <li>Password: <b>Enter your own Google App Password</b></li>
+                                            </ul>
+                                        </div>
+
+                                        <p><b>Important:</b> Replace the example Gmail address with your own mailbox values. App Password is not the normal Gmail password.</p>
+
+                                        <h5>Security guidance</h5>
+                                        <p>Never share your App Password with anyone. Credentials are encrypted on the server and never returned in API responses. Masked-password behavior remains in place.</p>
+
+                                        <h5>Troubleshooting & FAQ</h5>
+                                        <ul>
+                                            <li><b>Incorrect credentials:</b> Regenerate App Password and confirm full Gmail address is entered in Username and Sender fields.</li>
+                                            <li><b>App Password unavailable:</b> Verify 2-Step Verification is enabled and account policy permits App Passwords.</li>
+                                            <li><b>SMTP connection failures:</b> Recheck host <b>smtp.gmail.com</b>, port <b>587</b>, and test result details shown by the system.</li>
+                                            <li><b>Hosting restrictions:</b> Some hosting/firewall networks block outbound SMTP. Ask your host/network team to allow SMTP traffic.</li>
+                                        </ul>
+
+                                    </div>
+                                </details>
+                            }
 
                             @if (provider.HasSecretsConfigured)
                             {
@@ -172,10 +447,153 @@
                             {
                                 <div style="margin-top:8px;font-size:12px;color:var(--els-text-muted);">@provider.LastTestMessage</div>
                             }
-                        </form>
-                    </div>
-                }
+                    </form>
+                </div>
             </div>
         }
+        </div>
     </div>
 </section>
+
+<script>
+    (function () {
+        if (window.__integrationStateInit) {
+            return;
+        }
+        window.__integrationStateInit = true;
+
+        function normalize(v) { return (v || '').trim().toLowerCase(); }
+        function hasValue(v) { return (v || '').trim().length > 0; }
+        function get(form, name) {
+            var el = form.querySelector('[name="' + name + '"]');
+            return el ? (el.value || '').trim() : '';
+        }
+        function hasSavedSecret(form, aliases) {
+            var raw = form.getAttribute('data-secret-keys') || '';
+            var map = {};
+            raw.split(',').forEach(function (k) { if (normalize(k)) map[normalize(k)] = true; });
+            for (var i = 0; i < aliases.length; i++) {
+                if (map[normalize(aliases[i])]) return true;
+            }
+            return false;
+        }
+        function hasSecret(form, aliases) {
+            for (var i = 0; i < aliases.length; i++) {
+                if (hasValue(get(form, 'SecretSettings[' + aliases[i] + ']'))) return true;
+            }
+            return hasSavedSecret(form, aliases);
+        }
+        function hasPublic(form, names) {
+            for (var i = 0; i < names.length; i++) {
+                if (hasValue(get(form, 'PublicSettings[' + names[i] + ']'))) return true;
+            }
+            return false;
+        }
+        function initializeFieldBaselines(form) {
+            var fields = form.querySelectorAll('input[name^="PublicSettings["],input[name^="SecretSettings["],select[name="IsTestMode"]');
+            for (var i = 0; i < fields.length; i++) {
+                var field = fields[i];
+                var name = field.getAttribute('name') || '';
+                if (name === 'SecretSettings[Password]') {
+                    field.setAttribute('data-initial-value', '');
+                    continue;
+                }
+
+                field.setAttribute('data-initial-value', (field.value || '').trim());
+            }
+        }
+        function isDirty(form) {
+            var fields = form.querySelectorAll('input[name^="PublicSettings["],input[name^="SecretSettings["],select[name="IsTestMode"]');
+            for (var i = 0; i < fields.length; i++) {
+                var f = fields[i];
+                var name = f.getAttribute('name') || '';
+                var current = (f.value || '').trim();
+                if (name === 'SecretSettings[Password]') {
+                    if (current.length > 0) {
+                        return true;
+                    }
+
+                    continue;
+                }
+
+                var baseline = (f.getAttribute('data-initial-value') || '').trim();
+                if (current !== baseline) return true;
+            }
+            return false;
+        }
+        function validate(form) {
+            var errors = [];
+            var category = normalize(form.getAttribute('data-category'));
+            if (category === 'email') {
+                if (!hasPublic(form, ['Host', 'Endpoint'])) errors.push('Email host is required.');
+                var port = get(form, 'PublicSettings[Port]') || get(form, 'PublicSettings[AccountId]');
+                if (!hasValue(port) || isNaN(parseInt(port, 10)) || parseInt(port, 10) <= 0) errors.push('Email port is required and must be valid.');
+                if (!hasPublic(form, ['From', 'SenderId'])) errors.push('Email sender is required.');
+                if (!hasSecret(form, ['Username', 'ApiKey'])) errors.push('Email username/API key is required.');
+                if (!hasSecret(form, ['Password', 'Token', 'Secret', 'SecretKey'])) errors.push('Email password/token/secret is required.');
+            } else if (category === 'sms') {
+                if (!hasPublic(form, ['Provider'])) errors.push('SMS provider is required.');
+                if (!hasPublic(form, ['SenderId', 'From'])) errors.push('SMS sender ID is required.');
+                if (!hasSecret(form, ['ApiKey', 'AuthToken', 'Username', 'Password', 'Token', 'Secret'])) errors.push('SMS API credentials are required.');
+            } else if (category === 'whatsapp') {
+                if (!hasPublic(form, ['Provider'])) errors.push('WhatsApp provider is required.');
+                if (!hasPublic(form, ['PhoneNumberId', 'Port', 'AccountId'])) errors.push('WhatsApp phone number/account ID is required.');
+                if (!hasSecret(form, ['AccessToken', 'Token', 'Password', 'Secret'])) errors.push('WhatsApp access token/secret is required.');
+            } else if (category === 'payments') {
+                if (!hasPublic(form, ['Provider'])) errors.push('Payment provider is required.');
+                if (!hasPublic(form, ['MerchantId', 'AccountId', 'Port'])) errors.push('Merchant/account ID is required.');
+                if (!hasPublic(form, ['WebhookUrl'])) errors.push('Webhook URL is required.');
+                if (!hasSecret(form, ['ApiKey', 'Username', 'Token'])) errors.push('Payment API key/username is required.');
+                if (!hasSecret(form, ['SecretKey', 'Password', 'Secret'])) errors.push('Payment secret key/password is required.');
+            }
+            return errors;
+        }
+        function update(form) {
+            var errors = validate(form);
+            var dirty = isDirty(form);
+            var submitting = form.getAttribute('data-submitting') === 'true';
+            var saveBtn = form.querySelector('[data-role="save"]');
+            var testBtn = form.querySelector('[data-role="test"]');
+            var message = form.querySelector('[data-role="validation"]');
+
+            var hasSavedPassword = hasSavedSecret(form, ['Password', 'Token', 'Secret', 'SecretKey']);
+
+            if (saveBtn) saveBtn.disabled = submitting || errors.length > 0 || !dirty;
+            if (testBtn) testBtn.disabled = submitting || errors.length > 0 || dirty;
+
+            var info = [];
+            if (errors.length > 0) info = info.concat(errors);
+            else if (dirty) info.push('Save changes before Test Connection.');
+            if (normalize(form.getAttribute('data-category')) === 'email' && !hasSavedPassword && !hasValue(get(form, 'SecretSettings[Password]'))) {
+                info.push('Enter and save SMTP password/token to enable Test Connection.');
+            }
+
+            if (message) {
+                message.innerHTML = info.length ? ('<ul><li>' + info.join('</li><li>') + '</li></ul>') : '';
+            }
+        }
+
+        var forms = document.querySelectorAll('.integration-form');
+        forms.forEach(function (form) {
+            initializeFieldBaselines(form);
+            form.querySelectorAll('input,select').forEach(function (field) {
+                field.addEventListener('input', function () { update(form); });
+                field.addEventListener('change', function () { update(form); });
+            });
+
+            form.addEventListener('submit', function (e) {
+                var submitter = e.submitter;
+                if (!submitter) return;
+                update(form);
+                if (submitter.disabled) {
+                    e.preventDefault();
+                    return;
+                }
+                form.setAttribute('data-submitting', 'true');
+                update(form);
+            });
+
+            update(form);
+        });
+    })();
+</script>

@@ -255,6 +255,11 @@ namespace LMS.Master.WebApi.Controllers
         [ProducesResponseType(StatusCodes.Status400BadRequest, Type = typeof(Result<object>))]
         public async Task<ActionResult> GetTenantIntegrationSettings(string tenantName, string storeCode, string category = null)
         {
+            if (User?.Identity?.IsAuthenticated != true)
+            {
+                return Unauthorized("Unauthorized access.");
+            }
+
             if (!TryResolvePricingScope(tenantName, storeCode, out var scopedTenantName, out var scopedStoreCode, out var scopeValidationError))
             {
                 return BadRequest(scopeValidationError);
@@ -270,6 +275,11 @@ namespace LMS.Master.WebApi.Controllers
         [ProducesResponseType(StatusCodes.Status400BadRequest, Type = typeof(Result<object>))]
         public async Task<ActionResult> SaveTenantIntegrationSettings([FromBody] TenantIntegrationSettingsDto integrationDto)
         {
+            if (User?.Identity?.IsAuthenticated != true)
+            {
+                return Unauthorized("Unauthorized access.");
+            }
+
             if (integrationDto == null)
             {
                 return BadRequest("Invalid data for this operation.");
@@ -293,6 +303,11 @@ namespace LMS.Master.WebApi.Controllers
         [ProducesResponseType(StatusCodes.Status400BadRequest, Type = typeof(Result<object>))]
         public async Task<ActionResult> SetTenantIntegrationEnabled([FromBody] TenantIntegrationToggleRequestDto request)
         {
+            if (User?.Identity?.IsAuthenticated != true)
+            {
+                return Unauthorized("Unauthorized access.");
+            }
+
             if (request == null)
             {
                 return BadRequest("Invalid data for this operation.");
@@ -315,6 +330,11 @@ namespace LMS.Master.WebApi.Controllers
         [ProducesResponseType(StatusCodes.Status400BadRequest, Type = typeof(Result<object>))]
         public async Task<ActionResult> TestTenantIntegration([FromBody] TenantIntegrationTestRequestDto request)
         {
+            if (User?.Identity?.IsAuthenticated != true)
+            {
+                return Unauthorized("Unauthorized access.");
+            }
+
             if (request == null)
             {
                 return BadRequest("Invalid data for this operation.");
