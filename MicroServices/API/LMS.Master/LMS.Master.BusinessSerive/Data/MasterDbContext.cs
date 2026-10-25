@@ -23,6 +23,7 @@ namespace LMS.Master.BusinessSerive.Data
         public DbSet<LaundryItemPriceEntity> LaundryItemPrices => Set<LaundryItemPriceEntity>();
         public DbSet<StoreServiceMasterEntity> StoreServiceMasters => Set<StoreServiceMasterEntity>();
         public DbSet<StoreItemMasterEntity> StoreItemMasters => Set<StoreItemMasterEntity>();
+        public DbSet<TenantIntegrationSettingsEntity> TenantIntegrationSettings => Set<TenantIntegrationSettingsEntity>();
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -111,6 +112,21 @@ namespace LMS.Master.BusinessSerive.Data
                 entity.Property(x => x.ColorCode).HasMaxLength(16);
 
                 entity.HasIndex(x => new { x.TenantName, x.StoreCode, x.StatusName }).IsUnique();
+            });
+
+            modelBuilder.Entity<TenantIntegrationSettingsEntity>(entity =>
+            {
+                entity.ToTable("TenantIntegrationSettings");
+                entity.Property(x => x.TenantName).HasMaxLength(256).IsRequired();
+                entity.Property(x => x.StoreCode).HasMaxLength(64).IsRequired();
+                entity.Property(x => x.Category).HasMaxLength(64).IsRequired();
+                entity.Property(x => x.ProviderKey).HasMaxLength(64).IsRequired();
+                entity.Property(x => x.ProviderDisplayName).HasMaxLength(128);
+                entity.Property(x => x.EncryptedSettingsJson).HasColumnType("nvarchar(max)");
+                entity.Property(x => x.LastTestStatus).HasMaxLength(32);
+                entity.Property(x => x.LastTestMessage).HasMaxLength(512);
+
+                entity.HasIndex(x => new { x.TenantName, x.StoreCode, x.Category, x.ProviderKey }).IsUnique();
             });
 
             modelBuilder.Entity<CustomerAdvanceEntity>(entity =>

@@ -13,6 +13,7 @@ namespace LMS.Identity.BusinessSerive.Tests.Fixtures
         public string SmtpServer { get; set; } = "invalid";
         public string Reciever { get; set; } = string.Empty;
         public int Port { get; set; } = 465;
+        public bool? EnableSsl { get; set; } = true;
         public string Username { get; set; } = "invalid";
         public string Password { get; set; } = "invalid";
         public string AlertMailSubject { get; set; } = string.Empty;

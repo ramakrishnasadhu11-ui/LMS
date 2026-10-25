@@ -2777,8 +2777,210 @@ namespace LMSWebUI.Controllers
         }
 
         [HttpGet]
-        public IActionResult Integrations()
-            => AdminOnlyView("Integrations", "Manage third-party integrations and external system connectors.");
+        public async Task<IActionResult> Integrations()
+        {
+            if (!IsAdminUser())
+            {
+                TempData["UserMessage"] = JsonConvert.SerializeObject(new MessageDto
+                {
+                    CssClassName = "alert alert-danger",
+                    Title = "Access Denied!",
+                    DisplayMessage = "Only admin users can access integrations."
+                });
+                return RedirectToAction("Index", "Dashboard");
+            }
+
+            var tenantName = HttpContext.Session.GetString("TenantName");
+            var storeCode = HttpContext.Session.GetString("TenantStore");
+
+            if (string.IsNullOrWhiteSpace(tenantName) || string.IsNullOrWhiteSpace(storeCode))
+            {
+                TempData["UserMessage"] = JsonConvert.SerializeObject(new MessageDto
+                {
+                    CssClassName = "alert alert-danger",
+                    Title = "Failed.",
+                    DisplayMessage = "Session expired. Please log in again."
+                });
+                return RedirectToAction("Index", "Login");
+            }
+
+            var model = await LoadIntegrationsAsync(tenantName, storeCode);
+            return View(model);
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> SaveIntegration(Models.Admin.IntegrationProviderViewModel model)
+        {
+            if (!IsAdminUser())
+            {
+                return RedirectToAction(nameof(Integrations));
+            }
+
+            if (model == null)
+            {
+                TempData["UserMessage"] = JsonConvert.SerializeObject(new MessageDto
+                {
+                    CssClassName = "alert alert-danger",
+                    Title = "Failed.",
+                    DisplayMessage = "Invalid integration payload."
+                });
+                return RedirectToAction(nameof(Integrations));
+            }
+
+            model.TenantName = HttpContext.Session.GetString("TenantName");
+            model.StoreCode = HttpContext.Session.GetString("TenantStore");
+
+            if (string.IsNullOrWhiteSpace(model.TenantName) || string.IsNullOrWhiteSpace(model.StoreCode))
+            {
+                TempData["UserMessage"] = JsonConvert.SerializeObject(new MessageDto
+                {
+                    CssClassName = "alert alert-danger",
+                    Title = "Failed.",
+                    DisplayMessage = "Session expired. Please log in again."
+                });
+                return RedirectToAction("Index", "Login");
+            }
+
+            var result = await _clientApi.SendRequestAsync<CustomerIOResponse>("/SaveTenantIntegrationSettings", model, Method.POST);
+            TempData["UserMessage"] = JsonConvert.SerializeObject(new MessageDto
+            {
+                CssClassName = string.Equals(result?.StatusCode, "200", StringComparison.OrdinalIgnoreCase)
+                    ? "alert alert-success"
+                    : "alert alert-danger",
+                Title = string.Equals(result?.StatusCode, "200", StringComparison.OrdinalIgnoreCase) ? "Success." : "Failed.",
+                DisplayMessage = result?.Message ?? "Unable to save integration settings."
+            });
+
+            return RedirectToAction(nameof(Integrations));
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> ToggleIntegration(string category, string providerKey, bool isEnabled)
+        {
+            if (!IsAdminUser())
+            {
+                return RedirectToAction(nameof(Integrations));
+            }
+
+            var payload = new
+            {
+                TenantName = HttpContext.Session.GetString("TenantName"),
+                StoreCode = HttpContext.Session.GetString("TenantStore"),
+                Category = category,
+                ProviderKey = providerKey,
+                IsEnabled = isEnabled
+            };
+
+            var result = await _clientApi.SendRequestAsync<CustomerIOResponse>("/SetTenantIntegrationEnabled", payload, Method.POST);
+            TempData["UserMessage"] = JsonConvert.SerializeObject(new MessageDto
+            {
+                CssClassName = string.Equals(result?.StatusCode, "200", StringComparison.OrdinalIgnoreCase)
+                    ? "alert alert-success"
+                    : "alert alert-danger",
+                Title = string.Equals(result?.StatusCode, "200", StringComparison.OrdinalIgnoreCase) ? "Success." : "Failed.",
+                DisplayMessage = result?.Message ?? "Unable to update integration status."
+            });
+
+            return RedirectToAction(nameof(Integrations));
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> TestIntegration(string category, string providerKey)
+        {
+            if (!IsAdminUser())
+            {
+                return RedirectToAction(nameof(Integrations));
+            }
+
+            var payload = new
+            {
+                TenantName = HttpContext.Session.GetString("TenantName"),
+                StoreCode = HttpContext.Session.GetString("TenantStore"),
+                Category = category,
+                ProviderKey = providerKey
+            };
+
+            var result = await _clientApi.SendRequestAsync<CustomerIOResponse>("/TestTenantIntegration", payload, Method.POST);
+            TempData["UserMessage"] = JsonConvert.SerializeObject(new MessageDto
+            {
+                CssClassName = string.Equals(result?.StatusCode, "200", StringComparison.OrdinalIgnoreCase)
+                    ? "alert alert-success"
+                    : "alert alert-warning",
+                Title = string.Equals(result?.StatusCode, "200", StringComparison.OrdinalIgnoreCase) ? "Test Success." : "Test Failed.",
+                DisplayMessage = result?.Message ?? "Unable to validate integration settings."
+            });
+
+            return RedirectToAction(nameof(Integrations));
+        }
+
+        private async Task<Models.Admin.IntegrationsViewModel> LoadIntegrationsAsync(string tenantName, string storeCode)
+        {
+            var model = new Models.Admin.IntegrationsViewModel
+            {
+                TenantName = tenantName,
+                StoreCode = storeCode,
+                Providers = new List<Models.Admin.IntegrationProviderViewModel>()
+            };
+
+            try
+            {
+                var providers = await _clientApi.SendRequestAsync<List<Models.Admin.IntegrationProviderViewModel>>(
+                    "/GetTenantIntegrationSettings",
+                    BuildScopedParameters(),
+                    Method.GET);
+
+                if (providers != null && providers.Count > 0)
+                {
+                    model.Providers = providers;
+                }
+            }
+            catch
+            {
+            }
+
+            EnsureDefaultIntegrationCards(model);
+            return model;
+        }
+
+        private static void EnsureDefaultIntegrationCards(Models.Admin.IntegrationsViewModel model)
+        {
+            if (model?.Providers == null)
+            {
+                return;
+            }
+
+            void ensure(string category, string providerKey, string providerName)
+            {
+                if (model.Providers.Any(x =>
+                    string.Equals(x.Category, category, StringComparison.OrdinalIgnoreCase)
+                    && string.Equals(x.ProviderKey, providerKey, StringComparison.OrdinalIgnoreCase)))
+                {
+                    return;
+                }
+
+                model.Providers.Add(new Models.Admin.IntegrationProviderViewModel
+                {
+                    TenantName = model.TenantName,
+                    StoreCode = model.StoreCode,
+                    Category = category,
+                    ProviderKey = providerKey,
+                    ProviderDisplayName = providerName,
+                    IsEnabled = false,
+                    IsTestMode = true,
+                    LastTestStatus = "NotTested",
+                    LastTestMessage = "Not tested yet."
+                });
+            }
+
+            ensure("Email", "smtp", "SMTP");
+            ensure("SMS", "generic-sms", "SMS Provider");
+            ensure("WhatsApp", "meta-cloud", "WhatsApp Cloud API");
+            ensure("Payments", "generic-payment", "Payment Gateway");
+            ensure("Other", "generic-other", "Other Connector");
+        }
 
         [HttpPost]
         public async Task<JsonResult> CreateStoreUser(string email, string password, string role = "StoreUser", string storeCode = null)

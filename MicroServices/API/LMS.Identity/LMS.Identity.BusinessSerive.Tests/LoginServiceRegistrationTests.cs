@@ -13,6 +13,7 @@ using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.Extensions.DependencyInjection;
 using System.Linq;
 using Newtonsoft.Json.Linq;
+using Microsoft.Extensions.Configuration;
 
 namespace LMS.Identity.BusinessSerive.Tests
 {
@@ -47,7 +48,9 @@ namespace LMS.Identity.BusinessSerive.Tests
             // and fail in tests that assert background email handling. Passing null
             // is fine for tests that don't exercise mail sending.
             var mailConfig = new Fixtures.FailingSmtpMailConfiguration();
-            _service = new LoginService(mailConfig, mapper, _uow, logger);
+            IConfiguration config = null;
+
+            _service = new LoginService(mailConfig, mapper, _uow, logger, config);
         }
 
         [Fact]

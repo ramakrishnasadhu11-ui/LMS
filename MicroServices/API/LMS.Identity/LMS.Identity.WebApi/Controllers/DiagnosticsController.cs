@@ -30,22 +30,30 @@ namespace LMS.Identity.WebApi.Controllers
             try
             {
                 var host = string.IsNullOrWhiteSpace(_mailConfiguration.SmtpServer) ? "smtp.gmail.com" : _mailConfiguration.SmtpServer;
-                var port = _mailConfiguration.Port > 0 ? _mailConfiguration.Port : 465;
+                var port = _mailConfiguration.Port > 0 ? _mailConfiguration.Port : 587;
                 var user = _mailConfiguration.Username;
                 var pass = _mailConfiguration.Password;
 
-                var secureOption = port == 465 ? SecureSocketOptions.SslOnConnect : SecureSocketOptions.StartTls;
+                if (string.IsNullOrWhiteSpace(user) || string.IsNullOrWhiteSpace(pass))
+                {
+                    return StatusCode(500, new
+                    {
+                        success = false,
+                        message = "MailConfiguration username/password are not configured. Set MailConfiguration__Username and MailConfiguration__Password in production environment settings."
+                    });
+                }
+
+                var enableSsl = _mailConfiguration.EnableSsl ?? (port == 465 || port == 587);
+                var secureOption = enableSsl
+                    ? (port == 465 ? SecureSocketOptions.SslOnConnect : SecureSocketOptions.StartTls)
+                    : SecureSocketOptions.None;
 
                 using var client = new MailKit.Net.Smtp.SmtpClient();
                 // Short timeout to avoid long waits in diagnostics
                 client.Timeout = 10_000; // 10s
 
                 await client.ConnectAsync(host, port, secureOption);
-
-                if (!string.IsNullOrWhiteSpace(user) || !string.IsNullOrWhiteSpace(pass))
-                {
-                    await client.AuthenticateAsync(user, pass);
-                }
+                await client.AuthenticateAsync(user, pass);
 
                 await client.DisconnectAsync(true);
 

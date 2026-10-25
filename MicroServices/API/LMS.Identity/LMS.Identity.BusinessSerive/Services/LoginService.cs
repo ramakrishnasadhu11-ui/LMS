@@ -18,11 +18,15 @@ using Newtonsoft.Json.Linq;
 using MailKit.Security;
 using MimeKit;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Configuration;
 using System.Collections.Concurrent;
 using System.Data.Common;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore.Storage;
 using System.Transactions;
+using System.Text.Json;
+using System.Data;
+using System.Security.Cryptography;
 
 namespace LMS.Identity.BusinessSerive.Services
 {
@@ -39,8 +43,9 @@ namespace LMS.Identity.BusinessSerive.Services
         private readonly string _mailSubject;
         private readonly string _mailFrom;
         private readonly ILogger<LoginService> _logger;
+        private readonly IConfiguration _configuration;
 
-        public LoginService(IMailConfiguration mailConfiguration, IMapper mapper, IUnitOfWork<IdentityDbContext> unitOfWork, ILogger<LoginService> logger)
+        public LoginService(IMailConfiguration mailConfiguration, IMapper mapper, IUnitOfWork<IdentityDbContext> unitOfWork, ILogger<LoginService> logger, IConfiguration configuration)
         {
             _mapper = mapper ?? throw new ArgumentNullException(nameof(mapper));
             _unitOfWork = unitOfWork ?? throw new ArgumentNullException(nameof(unitOfWork));
@@ -48,6 +53,7 @@ namespace LMS.Identity.BusinessSerive.Services
             _mailFrom = _mail_configuration_safe(mailConfiguration);
             _mailSubject = _mail_configuration_subject(mailConfiguration);
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+            _configuration = configuration;
         }
 
         // Small helpers to avoid potential null reference when reading mail config in ctor
@@ -1753,7 +1759,7 @@ namespace LMS.Identity.BusinessSerive.Services
             {
                 try
                 {
-                    var isRegistrationMailSent = await SendEmailToRegisterTenantAsync(tenantDto.Email, password, storeCodes, tenantDto.TenantName);
+                    var isRegistrationMailSent = await SendEmailToRegisterTenantAsync(tenantDto.Email, password, storeCodes, tenantDto.TenantName, tenantid);
                     if (!isRegistrationMailSent)
                     {
                         _logger?.LogWarning("Tenant {TenantId} registered but registration email was not delivered to {Email}.", tenantid, tenantDto?.Email);
@@ -1809,7 +1815,7 @@ namespace LMS.Identity.BusinessSerive.Services
                 return false;
             }
         }
-        private async Task<bool> SendEmailToRegisterTenantAsync(string eMail, string password, List<string> storeCodes, string tenantName)
+        private async Task<bool> SendEmailToRegisterTenantAsync(string eMail, string password, List<string> storeCodes, string tenantName, string tenantId)
         {
             storeCodes ??= new List<string>();
             var resolvedTenantName = string.IsNullOrWhiteSpace(tenantName) ? "Tenant" : tenantName.Trim();
@@ -1842,7 +1848,7 @@ namespace LMS.Identity.BusinessSerive.Services
             string FileName = string.Empty;
             try
             {
-                await SendMail(eMail, FileName, ReportSubject, ReportBody);
+                await SendMail(eMail, FileName, ReportSubject, ReportBody, tenantId, eMail);
                 return true;
             }
             catch (Exception ex)
@@ -1852,20 +1858,21 @@ namespace LMS.Identity.BusinessSerive.Services
                 return false;
             }
         }
-        public async Task SendMail(string eMail, string successFile, string subject, string body)
+        public async Task SendMail(string eMail, string successFile, string subject, string body, string tenantId = null, string tenantEmail = null)
         {
-            var userName = _mailConfiguration.Username;
-            var password = _mailConfiguration.Password;
+            var effectiveMail = await ResolveTenantMailConfigurationAsync(tenantId, tenantEmail);
+            var userName = effectiveMail.Username;
+            var password = effectiveMail.Password;
             if (string.IsNullOrWhiteSpace(userName) || string.IsNullOrWhiteSpace(password))
             {
                 throw new InvalidOperationException("MailConfiguration:Username/Password are not configured. Set them via user-secrets or the MailConfiguration__Username and MailConfiguration__Password environment variables.");
             }
 
-            var host = string.IsNullOrWhiteSpace(_mailConfiguration.SmtpServer) ? "smtp.gmail.com" : _mailConfiguration.SmtpServer;
-            var port = _mailConfiguration.Port > 0 ? _mailConfiguration.Port : 465;
+            var host = string.IsNullOrWhiteSpace(effectiveMail.Host) ? "smtp.gmail.com" : effectiveMail.Host;
+            var port = effectiveMail.Port > 0 ? effectiveMail.Port : 587;
 
             // Gmail only accepts a From address that matches the authenticated mailbox or one of its verified aliases.
-            var fromAddress = string.IsNullOrWhiteSpace(_mailFrom) ? userName : _mailFrom;
+            var fromAddress = string.IsNullOrWhiteSpace(effectiveMail.FromAddress) ? userName : effectiveMail.FromAddress;
 
             var message = new MimeMessage();
             message.From.Add(new MailboxAddress("Excel Laundry Services", fromAddress));
@@ -1873,17 +1880,191 @@ namespace LMS.Identity.BusinessSerive.Services
             message.Subject = subject;
             message.Body = new BodyBuilder { HtmlBody = body }.ToMessageBody();
 
-            // Port 465 uses implicit TLS; 587 negotiates STARTTLS. Some networks block the
-            // STARTTLS upgrade on 587, so implicit TLS is the safer default.
-            var secureOption = port == 465
-                ? SecureSocketOptions.SslOnConnect
-                : SecureSocketOptions.StartTls;
+            var enableSsl = effectiveMail.EnableSsl ?? (port == 465 || port == 587);
+            var secureOption = enableSsl
+                ? (port == 465 ? SecureSocketOptions.SslOnConnect : SecureSocketOptions.StartTls)
+                : SecureSocketOptions.None;
 
             using var client = new MailKit.Net.Smtp.SmtpClient();
             await client.ConnectAsync(host, port, secureOption);
             await client.AuthenticateAsync(userName, password);
             await client.SendAsync(message);
             await client.DisconnectAsync(true);
+        }
+
+        private sealed class EffectiveMailSettings
+        {
+            public string Host { get; set; }
+            public int Port { get; set; }
+            public bool? EnableSsl { get; set; }
+            public string FromAddress { get; set; }
+            public string Username { get; set; }
+            public string Password { get; set; }
+        }
+
+        private async Task<EffectiveMailSettings> ResolveTenantMailConfigurationAsync(string tenantId, string tenantEmail)
+        {
+            var defaults = new EffectiveMailSettings
+            {
+                Host = _mailConfiguration.SmtpServer,
+                Port = _mailConfiguration.Port,
+                EnableSsl = _mailConfiguration.EnableSsl,
+                FromAddress = string.IsNullOrWhiteSpace(_mailFrom) ? _mailConfiguration.MailFrom : _mailFrom,
+                Username = _mailConfiguration.Username,
+                Password = _mailConfiguration.Password
+            };
+
+            var normalizedTenantEmail = tenantEmail?.Trim();
+            if (string.IsNullOrWhiteSpace(normalizedTenantEmail))
+            {
+                return defaults;
+            }
+
+            string encryptedPayload = null;
+            try
+            {
+                var connection = _unitOfWork.DbContext.Database.GetDbConnection();
+                if (connection.State != ConnectionState.Open)
+                {
+                    await connection.OpenAsync();
+                }
+
+                await using var command = connection.CreateCommand();
+                command.CommandText = @"
+SELECT TOP (1) [EncryptedSettingsJson]
+FROM [dbo].[TenantIntegrationSettings]
+WHERE [TenantName] = @tenantName
+  AND [Category] = 'Email'
+  AND [IsEnabled] = 1
+ORDER BY CASE WHEN ISNULL([StoreCode], '') = '' THEN 0 ELSE 1 END, [ModifiedDate] DESC";
+
+                var tenantNameParam = command.CreateParameter();
+                tenantNameParam.ParameterName = "@tenantName";
+                tenantNameParam.Value = normalizedTenantEmail;
+                command.Parameters.Add(tenantNameParam);
+
+                var obj = await command.ExecuteScalarAsync();
+                encryptedPayload = obj?.ToString();
+            }
+            catch (Exception ex) when (ex is SqlException sqlEx && sqlEx.Number == 208)
+            {
+                _logger?.LogDebug("TenantIntegrationSettings table not found while resolving tenant email integration. Falling back to global MailConfiguration.");
+                return defaults;
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogWarning(ex, "Unable to resolve tenant email integration for {TenantEmail}. Falling back to global MailConfiguration.", normalizedTenantEmail);
+                return defaults;
+            }
+
+            if (string.IsNullOrWhiteSpace(encryptedPayload))
+            {
+                return defaults;
+            }
+
+            try
+            {
+                var decrypted = DecryptIntegrationPayload(encryptedPayload);
+                if (string.IsNullOrWhiteSpace(decrypted))
+                {
+                    return defaults;
+                }
+
+                using var json = JsonDocument.Parse(decrypted);
+                var root = json.RootElement;
+                var publicObj = root.TryGetProperty("Public", out var pub) ? pub : default;
+                var secretObj = root.TryGetProperty("Secret", out var sec) ? sec : default;
+
+                static string getValue(JsonElement element, string key)
+                {
+                    if (element.ValueKind != JsonValueKind.Object)
+                    {
+                        return null;
+                    }
+
+                    foreach (var property in element.EnumerateObject())
+                    {
+                        if (string.Equals(property.Name, key, StringComparison.OrdinalIgnoreCase))
+                        {
+                            return property.Value.GetString()?.Trim();
+                        }
+                    }
+
+                    return null;
+                }
+
+                var host = getValue(publicObj, "Host");
+                var portText = getValue(publicObj, "Port");
+                var from = getValue(publicObj, "From");
+                var sslText = getValue(publicObj, "EnableSsl");
+                var user = getValue(secretObj, "Username");
+                var pass = getValue(secretObj, "Password");
+
+                if (string.IsNullOrWhiteSpace(user) || string.IsNullOrWhiteSpace(pass))
+                {
+                    return defaults;
+                }
+
+                var resolved = new EffectiveMailSettings
+                {
+                    Host = string.IsNullOrWhiteSpace(host) ? defaults.Host : host,
+                    Port = int.TryParse(portText, out var p) ? p : (defaults.Port > 0 ? defaults.Port : 587),
+                    FromAddress = string.IsNullOrWhiteSpace(from) ? defaults.FromAddress : from,
+                    Username = user,
+                    Password = pass,
+                    EnableSsl = string.IsNullOrWhiteSpace(sslText)
+                        ? defaults.EnableSsl
+                        : !string.Equals(sslText, "false", StringComparison.OrdinalIgnoreCase)
+                };
+
+                return resolved;
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogWarning(ex, "Tenant email integration payload parsing failed for {TenantEmail}. Falling back to global MailConfiguration.", normalizedTenantEmail);
+                return defaults;
+            }
+        }
+
+        private string DecryptIntegrationPayload(string encryptedText)
+        {
+            if (string.IsNullOrWhiteSpace(encryptedText) || !encryptedText.Contains(':'))
+            {
+                return null;
+            }
+
+            var parts = encryptedText.Split(':');
+            if (parts.Length != 2)
+            {
+                return null;
+            }
+
+            var iv = Convert.FromBase64String(parts[0]);
+            var cipherBytes = Convert.FromBase64String(parts[1]);
+
+            using var aes = Aes.Create();
+            aes.Key = BuildTenantIntegrationEncryptionKey();
+            aes.IV = iv;
+            aes.Mode = CipherMode.CBC;
+            aes.Padding = PaddingMode.PKCS7;
+
+            var decryptor = aes.CreateDecryptor(aes.Key, aes.IV);
+            var plainBytes = decryptor.TransformFinalBlock(cipherBytes, 0, cipherBytes.Length);
+            return Encoding.UTF8.GetString(plainBytes);
+        }
+
+        private byte[] BuildTenantIntegrationEncryptionKey()
+        {
+            var keyMaterial = _configuration?["IntegrationSettings:EncryptionKey"];
+            if (string.IsNullOrWhiteSpace(keyMaterial))
+            {
+                keyMaterial = _configuration?.GetConnectionString("MasterDb")
+                    ?? _configuration?.GetConnectionString("IdentityDb")
+                    ?? string.Empty;
+            }
+
+            using var sha256 = SHA256.Create();
+            return sha256.ComputeHash(Encoding.UTF8.GetBytes(keyMaterial));
         }
 
 
