@@ -13,6 +13,7 @@ using System.Data;
 using System.IO;
 using System.Linq;
 using System.Net;
+using System.Net.Sockets;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -858,9 +859,11 @@ namespace LMS.Master.BusinessSerive.Services
                 && x.Category == integrationDto.Category
                 && x.ProviderKey == integrationDto.ProviderKey);
 
-            var payload = existing == null
+            var previousPayload = existing == null
                 ? new IntegrationSettingsPayload()
                 : ReadPayload(existing.EncryptedSettingsJson);
+
+            var payload = ClonePayload(previousPayload);
 
             payload.Public ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
             payload.Secret ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
@@ -914,6 +917,10 @@ namespace LMS.Master.BusinessSerive.Services
 
             var encryptedPayload = EncryptSettingsPayload(payload);
             var hasSecrets = payload.Secret.Count > 0;
+            var configurationChanged = existing == null
+                || !PayloadEquals(previousPayload, payload)
+                || existing.IsTestMode != integrationDto.IsTestMode
+                || !string.Equals(existing.ProviderDisplayName ?? string.Empty, integrationDto.ProviderDisplayName ?? string.Empty, StringComparison.Ordinal);
 
             if (existing == null)
             {
@@ -924,12 +931,13 @@ namespace LMS.Master.BusinessSerive.Services
                     Category = integrationDto.Category,
                     ProviderKey = integrationDto.ProviderKey,
                     ProviderDisplayName = integrationDto.ProviderDisplayName,
-                    IsEnabled = integrationDto.IsEnabled,
+                    IsEnabled = false,
                     IsTestMode = integrationDto.IsTestMode,
                     EncryptedSettingsJson = encryptedPayload,
                     HasSecretsConfigured = hasSecrets,
                     LastTestStatus = "NotTested",
                     LastTestMessage = "Not tested yet.",
+                    LastTestedAtUtc = null,
                     CreatedDate = DateTime.UtcNow,
                     ModifiedDate = DateTime.UtcNow
                 };
@@ -939,10 +947,17 @@ namespace LMS.Master.BusinessSerive.Services
             else
             {
                 existing.ProviderDisplayName = integrationDto.ProviderDisplayName;
-                existing.IsEnabled = integrationDto.IsEnabled;
                 existing.IsTestMode = integrationDto.IsTestMode;
                 existing.EncryptedSettingsJson = encryptedPayload;
                 existing.HasSecretsConfigured = hasSecrets;
+                if (configurationChanged)
+                {
+                    existing.IsEnabled = false;
+                    existing.LastTestStatus = "NotTested";
+                    existing.LastTestMessage = "Not tested yet.";
+                    existing.LastTestedAtUtc = null;
+                }
+
                 existing.ModifiedDate = DateTime.UtcNow;
             }
 
@@ -951,7 +966,9 @@ namespace LMS.Master.BusinessSerive.Services
             return ActionSet.ActionReturnType(HttpStatusCode.OK, new CustomerIOResponse
             {
                 StatusCode = "200",
-                Message = "Integration settings saved successfully."
+                Message = configurationChanged
+                    ? "Integration settings saved. Please test connection before enabling."
+                    : "Integration settings saved successfully."
             });
         }
 
@@ -989,6 +1006,29 @@ namespace LMS.Master.BusinessSerive.Services
                     StatusCode = "404",
                     Message = "Integration configuration not found. Save configuration first."
                 });
+            }
+
+            if (isEnabled)
+            {
+                var payload = ReadPayload(existing.EncryptedSettingsJson);
+                var validationErrors = ValidateIntegrationConfiguration(category, payload);
+                if (validationErrors.Count > 0)
+                {
+                    return ActionSet.ActionReturnType(HttpStatusCode.BadRequest, new CustomerIOResponse
+                    {
+                        StatusCode = "400",
+                        Message = string.Join(" ", validationErrors)
+                    });
+                }
+
+                if (!string.Equals(existing.LastTestStatus, "Success", StringComparison.OrdinalIgnoreCase))
+                {
+                    return ActionSet.ActionReturnType(HttpStatusCode.BadRequest, new CustomerIOResponse
+                    {
+                        StatusCode = "400",
+                        Message = "Integration can be enabled only after a successful connection test."
+                    });
+                }
             }
 
             existing.IsEnabled = isEnabled;
@@ -1044,6 +1084,7 @@ namespace LMS.Master.BusinessSerive.Services
             existing.LastTestedAtUtc = DateTime.UtcNow;
             if (validationErrors.Count > 0)
             {
+                existing.IsEnabled = false;
                 existing.LastTestStatus = "Failed";
                 existing.LastTestMessage = string.Join(" ", validationErrors).Trim();
                 if (existing.LastTestMessage?.Length > 512)
@@ -1061,8 +1102,28 @@ namespace LMS.Master.BusinessSerive.Services
                 });
             }
 
+            var (probeSuccess, probeMessage) = await ProbeIntegrationConnectionAsync(category, providerKey, payload, existing.IsTestMode);
+            if (!probeSuccess)
+            {
+                existing.IsEnabled = false;
+                existing.LastTestStatus = "Failed";
+                existing.LastTestMessage = string.IsNullOrWhiteSpace(probeMessage)
+                    ? "Connection test failed."
+                    : probeMessage;
+                existing.ModifiedDate = DateTime.UtcNow;
+                await _masterDbContext.SaveChangesAsync();
+
+                return ActionSet.ActionReturnType(HttpStatusCode.BadRequest, new CustomerIOResponse
+                {
+                    StatusCode = "400",
+                    Message = existing.LastTestMessage
+                });
+            }
+
             existing.LastTestStatus = "Success";
-            existing.LastTestMessage = "Configuration validated successfully. This test did not send live notifications or initiate payments.";
+            existing.LastTestMessage = string.IsNullOrWhiteSpace(probeMessage)
+                ? "Configuration validated successfully. This test did not send live notifications or initiate payments."
+                : probeMessage;
             existing.ModifiedDate = DateTime.UtcNow;
             await _masterDbContext.SaveChangesAsync();
 
@@ -1071,6 +1132,52 @@ namespace LMS.Master.BusinessSerive.Services
                 StatusCode = "200",
                 Message = existing.LastTestMessage
             });
+        }
+
+        private static IntegrationSettingsPayload ClonePayload(IntegrationSettingsPayload payload)
+        {
+            payload ??= new IntegrationSettingsPayload();
+            return new IntegrationSettingsPayload
+            {
+                Public = payload.Public?.ToDictionary(x => x.Key, x => x.Value, StringComparer.OrdinalIgnoreCase)
+                    ?? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase),
+                Secret = payload.Secret?.ToDictionary(x => x.Key, x => x.Value, StringComparer.OrdinalIgnoreCase)
+                    ?? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            };
+        }
+
+        private static bool PayloadEquals(IntegrationSettingsPayload left, IntegrationSettingsPayload right)
+        {
+            left ??= new IntegrationSettingsPayload();
+            right ??= new IntegrationSettingsPayload();
+
+            static bool dictEquals(Dictionary<string, string> a, Dictionary<string, string> b)
+            {
+                a ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                b ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+                if (a.Count != b.Count)
+                {
+                    return false;
+                }
+
+                foreach (var kv in a)
+                {
+                    if (!b.TryGetValue(kv.Key, out var other))
+                    {
+                        return false;
+                    }
+
+                    if (!string.Equals(kv.Value ?? string.Empty, other ?? string.Empty, StringComparison.Ordinal))
+                    {
+                        return false;
+                    }
+                }
+
+                return true;
+            }
+
+            return dictEquals(left.Public, right.Public) && dictEquals(left.Secret, right.Secret);
         }
 
         public async Task<ActionReturnType> SaveTaxInvoiceSettings(TaxInvoiceSettingsDto taxInvoiceSettingsDto)
@@ -3508,6 +3615,25 @@ END;";
                 dto.SecretSettings[key] = "********";
             }
 
+            // For SMTP UI convenience, show saved username/API key while never exposing
+            // password/token/secret values back to browser clients.
+            if (string.Equals(dto.Category, IntegrationConstants.Category.Email, StringComparison.OrdinalIgnoreCase)
+                && string.Equals(dto.ProviderKey, "smtp", StringComparison.OrdinalIgnoreCase))
+            {
+                if (payload.Secret != null
+                    && payload.Secret.TryGetValue("Username", out var smtpUsername)
+                    && !string.IsNullOrWhiteSpace(smtpUsername))
+                {
+                    dto.SecretSettings["Username"] = smtpUsername;
+                }
+                else if (payload.Secret != null
+                    && payload.Secret.TryGetValue("ApiKey", out var smtpApiKey)
+                    && !string.IsNullOrWhiteSpace(smtpApiKey))
+                {
+                    dto.SecretSettings["Username"] = smtpApiKey;
+                }
+            }
+
             dto.HasSecretsConfigured = entity?.HasSecretsConfigured == true;
             return dto;
         }
@@ -3519,13 +3645,99 @@ END;";
                 return new IntegrationSettingsPayload();
             }
 
+            static Dictionary<string, string> NormalizeSettings(Dictionary<string, string> source)
+            {
+                var normalized = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                if (source == null)
+                {
+                    return normalized;
+                }
+
+                foreach (var item in source)
+                {
+                    var key = item.Key?.Trim();
+                    if (string.IsNullOrWhiteSpace(key))
+                    {
+                        continue;
+                    }
+
+                    normalized[key] = item.Value?.Trim();
+                }
+
+                return normalized;
+            }
+
+            static Dictionary<string, string> ReadSettingsObject(JsonElement root, params string[] propertyNames)
+            {
+                if (root.ValueKind != JsonValueKind.Object)
+                {
+                    return new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                }
+
+                JsonElement selected = default;
+                var found = false;
+
+                foreach (var property in root.EnumerateObject())
+                {
+                    if (propertyNames.Any(name => string.Equals(property.Name, name, StringComparison.OrdinalIgnoreCase)))
+                    {
+                        selected = property.Value;
+                        found = true;
+                        break;
+                    }
+                }
+
+                if (!found || selected.ValueKind != JsonValueKind.Object)
+                {
+                    return new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                }
+
+                var dictionary = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                foreach (var item in selected.EnumerateObject())
+                {
+                    var key = item.Name?.Trim();
+                    if (string.IsNullOrWhiteSpace(key))
+                    {
+                        continue;
+                    }
+
+                    dictionary[key] = item.Value.ValueKind == JsonValueKind.String
+                        ? item.Value.GetString()?.Trim()
+                        : item.Value.ToString()?.Trim();
+                }
+
+                return dictionary;
+            }
+
             try
             {
-                var json = DecryptString(encryptedPayload);
-                var payload = JsonSerializer.Deserialize<IntegrationSettingsPayload>(json);
+                string json;
+                try
+                {
+                    json = DecryptString(encryptedPayload);
+                }
+                catch
+                {
+                    // Backward compatibility for any legacy rows that stored plain JSON.
+                    json = encryptedPayload;
+                }
+
+                var payload = JsonSerializer.Deserialize<IntegrationSettingsPayload>(json, new JsonSerializerOptions
+                {
+                    PropertyNameCaseInsensitive = true
+                });
                 payload ??= new IntegrationSettingsPayload();
-                payload.Public ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-                payload.Secret ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+                payload.Public = NormalizeSettings(payload.Public);
+                payload.Secret = NormalizeSettings(payload.Secret);
+
+                if (payload.Public.Count == 0 && payload.Secret.Count == 0)
+                {
+                    using var document = JsonDocument.Parse(json);
+                    payload.Public = ReadSettingsObject(document.RootElement, "Public", "PublicSettings");
+                    payload.Secret = ReadSettingsObject(document.RootElement, "Secret", "SecretSettings");
+                }
+
                 return payload;
             }
             catch
@@ -3559,38 +3771,156 @@ END;";
             bool HasSecret(string key)
                 => payload.Secret.TryGetValue(key, out var val) && !string.IsNullOrWhiteSpace(val);
 
+            string Public(params string[] keys)
+            {
+                foreach (var key in keys)
+                {
+                    if (payload.Public.TryGetValue(key, out var value) && !string.IsNullOrWhiteSpace(value))
+                    {
+                        return value.Trim();
+                    }
+                }
+
+                return null;
+            }
+
+            bool HasAnySecret(params string[] keys)
+            {
+                foreach (var key in keys)
+                {
+                    if (HasSecret(key))
+                    {
+                        return true;
+                    }
+                }
+
+                return false;
+            }
+
             var normalizedCategory = NormalizeKey(category);
 
             if (normalizedCategory.Equals(IntegrationConstants.Category.Email, StringComparison.OrdinalIgnoreCase))
             {
-                if (!HasPublic("Host")) errors.Add("Email host is required.");
-                if (!HasPublic("Port")) errors.Add("Email port is required.");
-                if (!HasPublic("From")) errors.Add("Email sender is required.");
-                if (!HasSecret("Username")) errors.Add("Email username is required.");
-                if (!HasSecret("Password")) errors.Add("Email password/app password is required.");
+                if (string.IsNullOrWhiteSpace(Public("Host", "Endpoint"))) errors.Add("Email host is required.");
+                if (string.IsNullOrWhiteSpace(Public("Port", "AccountId"))) errors.Add("Email port is required.");
+                if (string.IsNullOrWhiteSpace(Public("From", "SenderId"))) errors.Add("Email sender is required.");
+                if (!HasAnySecret("Username", "ApiKey")) errors.Add("Email username/API key is required.");
+                if (!HasAnySecret("Password", "Token", "Secret", "SecretKey")) errors.Add("Email password/token/secret is required.");
             }
             else if (normalizedCategory.Equals(IntegrationConstants.Category.Sms, StringComparison.OrdinalIgnoreCase))
             {
-                if (!HasPublic("Provider")) errors.Add("SMS provider is required.");
-                if (!HasPublic("SenderId")) errors.Add("SMS sender ID is required.");
-                if (!HasSecret("ApiKey") && !HasSecret("AuthToken")) errors.Add("SMS API credentials are required.");
+                if (string.IsNullOrWhiteSpace(Public("Provider"))) errors.Add("SMS provider is required.");
+                if (string.IsNullOrWhiteSpace(Public("SenderId", "From"))) errors.Add("SMS sender ID is required.");
+                if (!HasAnySecret("ApiKey", "AuthToken", "Username", "Password", "Token", "Secret")) errors.Add("SMS API credentials are required.");
             }
             else if (normalizedCategory.Equals(IntegrationConstants.Category.WhatsApp, StringComparison.OrdinalIgnoreCase))
             {
-                if (!HasPublic("Provider")) errors.Add("WhatsApp provider is required.");
-                if (!HasPublic("PhoneNumberId")) errors.Add("WhatsApp phone number ID is required.");
-                if (!HasSecret("AccessToken")) errors.Add("WhatsApp access token is required.");
+                if (string.IsNullOrWhiteSpace(Public("Provider"))) errors.Add("WhatsApp provider is required.");
+                if (string.IsNullOrWhiteSpace(Public("PhoneNumberId", "Port", "AccountId"))) errors.Add("WhatsApp phone number/account ID is required.");
+                if (!HasAnySecret("AccessToken", "Token", "Password", "Secret")) errors.Add("WhatsApp access token/secret is required.");
             }
             else if (normalizedCategory.Equals(IntegrationConstants.Category.Payments, StringComparison.OrdinalIgnoreCase))
             {
-                if (!HasPublic("Provider")) errors.Add("Payment provider is required.");
-                if (!HasPublic("MerchantId")) errors.Add("Merchant/account ID is required.");
-                if (!HasPublic("WebhookUrl")) errors.Add("Webhook URL is required.");
-                if (!HasSecret("ApiKey")) errors.Add("Payment API key is required.");
-                if (!HasSecret("SecretKey")) errors.Add("Payment secret key is required.");
+                if (string.IsNullOrWhiteSpace(Public("Provider"))) errors.Add("Payment provider is required.");
+                if (string.IsNullOrWhiteSpace(Public("MerchantId", "AccountId", "Port"))) errors.Add("Merchant/account ID is required.");
+                if (string.IsNullOrWhiteSpace(Public("WebhookUrl"))) errors.Add("Webhook URL is required.");
+                if (!HasAnySecret("ApiKey", "Username", "Token")) errors.Add("Payment API key/username is required.");
+                if (!HasAnySecret("SecretKey", "Password", "Secret")) errors.Add("Payment secret key/password is required.");
             }
 
             return errors;
+        }
+
+        private async Task<(bool Success, string Message)> ProbeIntegrationConnectionAsync(string category, string providerKey, IntegrationSettingsPayload payload, bool isTestMode)
+        {
+            payload ??= new IntegrationSettingsPayload();
+            payload.Public ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            payload.Secret ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+            string Public(params string[] keys)
+            {
+                foreach (var key in keys)
+                {
+                    if (payload.Public.TryGetValue(key, out var value) && !string.IsNullOrWhiteSpace(value))
+                    {
+                        return value.Trim();
+                    }
+                }
+
+                return null;
+            }
+
+            var normalizedCategory = NormalizeKey(category);
+            if (normalizedCategory.Equals(IntegrationConstants.Category.Email, StringComparison.OrdinalIgnoreCase))
+            {
+                var host = Public("Host", "Endpoint");
+                var portText = Public("Port", "AccountId");
+                if (!int.TryParse(portText, out var port) || port <= 0)
+                {
+                    return (false, "Invalid SMTP port.");
+                }
+
+                try
+                {
+                    using var client = new TcpClient();
+                    var connectTask = client.ConnectAsync(host, port);
+                    var completed = await Task.WhenAny(connectTask, Task.Delay(5000));
+                    if (completed != connectTask || !client.Connected)
+                    {
+                        return (false, "SMTP connection timed out.");
+                    }
+
+                    return (true, "SMTP host is reachable. Credentials were validated by server-side configuration checks.");
+                }
+                catch (Exception ex)
+                {
+                    return (false, $"SMTP connection failed: {ex.Message}");
+                }
+            }
+
+            if (normalizedCategory.Equals(IntegrationConstants.Category.Payments, StringComparison.OrdinalIgnoreCase))
+            {
+                var webhookUrl = Public("WebhookUrl");
+                if (!Uri.TryCreate(webhookUrl, UriKind.Absolute, out var uri) || (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps))
+                {
+                    return (false, "Webhook URL is invalid.");
+                }
+
+                if (!isTestMode && uri.Host.Contains("localhost", StringComparison.OrdinalIgnoreCase))
+                {
+                    return (false, "Live mode requires a publicly reachable webhook URL.");
+                }
+
+                return (true, isTestMode
+                    ? "Payment configuration validated in test/sandbox mode. No transaction was initiated."
+                    : "Payment configuration validated for live mode. No transaction was initiated.");
+            }
+
+            if (normalizedCategory.Equals(IntegrationConstants.Category.WhatsApp, StringComparison.OrdinalIgnoreCase))
+            {
+                var endpoint = Public("Host", "Endpoint");
+                if (!string.IsNullOrWhiteSpace(endpoint)
+                    && !Uri.TryCreate(endpoint, UriKind.Absolute, out _))
+                {
+                    return (false, "WhatsApp endpoint/host is invalid.");
+                }
+
+                return (true, "WhatsApp configuration validated. No customer message was sent.");
+            }
+
+            if (normalizedCategory.Equals(IntegrationConstants.Category.Sms, StringComparison.OrdinalIgnoreCase))
+            {
+                var endpoint = Public("Host", "Endpoint");
+                if (!string.IsNullOrWhiteSpace(endpoint)
+                    && !Uri.TryCreate(endpoint, UriKind.Absolute, out _))
+                {
+                    return (false, "SMS endpoint/host is invalid.");
+                }
+
+                return (true, "SMS configuration validated. No customer message was sent.");
+            }
+
+            return (true, "Integration configuration validated.");
         }
 
         private byte[] BuildIntegrationEncryptionKey()

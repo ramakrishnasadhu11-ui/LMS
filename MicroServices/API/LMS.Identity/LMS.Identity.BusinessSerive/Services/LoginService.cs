@@ -27,6 +27,9 @@ using System.Transactions;
 using System.Text.Json;
 using System.Data;
 using System.Security.Cryptography;
+using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
+using IdentityModelTokens = Microsoft.IdentityModel.Tokens;
 
 namespace LMS.Identity.BusinessSerive.Services
 {
@@ -63,6 +66,62 @@ namespace LMS.Identity.BusinessSerive.Services
         private static bool IsLegacySubject(string subject)
             => string.Equals((subject ?? string.Empty).Trim(), "Registration Status Report", StringComparison.OrdinalIgnoreCase)
                || string.Equals((subject ?? string.Empty).Trim(), "Registration Status Alert", StringComparison.OrdinalIgnoreCase);
+
+        private (string Token, DateTime ExpiresAtUtc) GenerateAccessToken(string email, string userRole, string tenantId, IEnumerable<string> storeCodes)
+        {
+            var issuer = _configuration["Jwt:Issuer"]?.Trim();
+            var audience = _configuration["Jwt:Audience"]?.Trim();
+            var signingKey = _configuration["Jwt:SigningKey"];
+            var expiryValue = _configuration["Jwt:ExpiryMinutes"];
+
+            if (string.IsNullOrWhiteSpace(issuer)
+                || string.IsNullOrWhiteSpace(audience)
+                || string.IsNullOrWhiteSpace(signingKey)
+                || !int.TryParse(expiryValue, out var expiryMinutes)
+                || expiryMinutes <= 0)
+            {
+                throw new InvalidOperationException("JWT settings are not configured correctly. Configure Jwt:Issuer, Jwt:Audience, Jwt:SigningKey and Jwt:ExpiryMinutes.");
+            }
+
+            var now = DateTime.UtcNow;
+            var expiresAtUtc = now.AddMinutes(expiryMinutes);
+
+            var claims = new List<Claim>
+            {
+                new Claim(JwtRegisteredClaimNames.Sub, email ?? string.Empty),
+                new Claim(JwtRegisteredClaimNames.Email, email ?? string.Empty),
+                new Claim(ClaimTypes.Name, email ?? string.Empty),
+                new Claim(ClaimTypes.Role, string.IsNullOrWhiteSpace(userRole) ? "StoreUser" : userRole.Trim())
+            };
+
+            if (!string.IsNullOrWhiteSpace(tenantId))
+            {
+                claims.Add(new Claim("tenantId", tenantId.Trim()));
+            }
+
+            var normalizedStores = (storeCodes ?? Enumerable.Empty<string>())
+                .Where(x => !string.IsNullOrWhiteSpace(x))
+                .Select(x => x.Trim())
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            if (normalizedStores.Count > 0)
+            {
+                claims.Add(new Claim("storeCodes", string.Join(",", normalizedStores)));
+            }
+
+            var key = new IdentityModelTokens.SymmetricSecurityKey(Encoding.UTF8.GetBytes(signingKey));
+            var signingCredentials = new IdentityModelTokens.SigningCredentials(key, IdentityModelTokens.SecurityAlgorithms.HmacSha256);
+            var jwtToken = new JwtSecurityToken(
+                issuer: issuer,
+                audience: audience,
+                claims: claims,
+                notBefore: now,
+                expires: expiresAtUtc,
+                signingCredentials: signingCredentials);
+
+            return (new JwtSecurityTokenHandler().WriteToken(jwtToken), expiresAtUtc);
+        }
 
         public async Task<ActionReturnType> Register(TenantDto tenantDto)
         {
@@ -443,6 +502,7 @@ namespace LMS.Identity.BusinessSerive.Services
                     var superAdminMessage = superAdmin.IsPasswordChanged
                         ? IdentityValidationMessage.IDENTITY_DATAFOUND_LOGIN_MESSAGE
                         : IdentityValidationMessage.IDENTITY_DATAFOUND_PASSWORDCHANGE_MESSAGE;
+                    var (superAdminToken, superAdminTokenExpiresAtUtc) = GenerateAccessToken(superAdmin.Email, "SuperAdmin", null, new List<string>());
 
                     return ActionSet.ActionReturnType(HttpStatusCode.OK, new IOResponse
                     {
@@ -451,7 +511,9 @@ namespace LMS.Identity.BusinessSerive.Services
                         Storecodes = new List<string>(),
                         Message = superAdminMessage,
                         UserRole = "SuperAdmin",
-                        MustChangePassword = superAdmin.IsPasswordChanged ? (bool?)false : true
+                        MustChangePassword = superAdmin.IsPasswordChanged ? (bool?)false : true,
+                        AccessToken = superAdminToken,
+                        AccessTokenExpiresAtUtc = superAdminTokenExpiresAtUtc
                     });
                 }
 
@@ -531,13 +593,21 @@ namespace LMS.Identity.BusinessSerive.Services
                             });
                         }
 
+                        var (storeUserToken, storeUserTokenExpiresAtUtc) = GenerateAccessToken(
+                            tenantForStoreUser?.Email ?? eMail,
+                            string.IsNullOrWhiteSpace(primaryStoreUser.Role) ? "StoreUser" : primaryStoreUser.Role,
+                            primaryStoreUser.TenantId,
+                            matchedStores);
+
                         return ActionSet.ActionReturnType(HttpStatusCode.OK, new IOResponse
                         {
                             StatusCode = "200",
                             Email = tenantForStoreUser?.Email ?? eMail,
                             Storecodes = matchedStores,
                             Message = IdentityValidationMessage.IDENTITY_DATAFOUND_LOGIN_MESSAGE,
-                            UserRole = string.IsNullOrWhiteSpace(primaryStoreUser.Role) ? "StoreUser" : primaryStoreUser.Role
+                            UserRole = string.IsNullOrWhiteSpace(primaryStoreUser.Role) ? "StoreUser" : primaryStoreUser.Role,
+                            AccessToken = storeUserToken,
+                            AccessTokenExpiresAtUtc = storeUserTokenExpiresAtUtc
                         });
                     }
                     // fall through to tenant flow if no matching store user found
@@ -590,7 +660,8 @@ namespace LMS.Identity.BusinessSerive.Services
 
                         if (tenantstoreinforesult.IsPasswordChanged == false)
                         {
-                            return ActionSet.ActionReturnType(HttpStatusCode.OK, new IOResponse { StatusCode = "200", Email = eMail, Storecodes = tenantStoreCodes, Message = IdentityValidationMessage.IDENTITY_DATAFOUND_PASSWORDCHANGE_MESSAGE, UserRole = "Admin" });
+                            var (tenantPasswordChangeToken, tenantPasswordChangeTokenExpiresAtUtc) = GenerateAccessToken(eMail, "Admin", tenantId, tenantStoreCodes);
+                            return ActionSet.ActionReturnType(HttpStatusCode.OK, new IOResponse { StatusCode = "200", Email = eMail, Storecodes = tenantStoreCodes, Message = IdentityValidationMessage.IDENTITY_DATAFOUND_PASSWORDCHANGE_MESSAGE, UserRole = "Admin", AccessToken = tenantPasswordChangeToken, AccessTokenExpiresAtUtc = tenantPasswordChangeTokenExpiresAtUtc });
                         }
 
                         // The tenant password is shared by every store, so a store that is assigned
@@ -609,7 +680,8 @@ namespace LMS.Identity.BusinessSerive.Services
                             return ActionSet.ActionReturnType(HttpStatusCode.Forbidden, new IOResponse { StatusCode = "403", Email = eMail, Storecodes = tenantStoreCodes, Message = StorePendingActivationMessage });
                         }
 
-                        return ActionSet.ActionReturnType(HttpStatusCode.OK, new IOResponse { StatusCode = "200", Email = eMail, Storecodes = tenantStoreCodes, Message = IdentityValidationMessage.IDENTITY_DATAFOUND_LOGIN_MESSAGE, UserRole = "Admin" });
+                        var (tenantLoginToken, tenantLoginTokenExpiresAtUtc) = GenerateAccessToken(eMail, "Admin", tenantId, tenantStoreCodes);
+                        return ActionSet.ActionReturnType(HttpStatusCode.OK, new IOResponse { StatusCode = "200", Email = eMail, Storecodes = tenantStoreCodes, Message = IdentityValidationMessage.IDENTITY_DATAFOUND_LOGIN_MESSAGE, UserRole = "Admin", AccessToken = tenantLoginToken, AccessTokenExpiresAtUtc = tenantLoginTokenExpiresAtUtc });
                     }
                 }
 
@@ -704,13 +776,21 @@ namespace LMS.Identity.BusinessSerive.Services
                             });
                         }
 
+                        var (fallbackStoreUserToken, fallbackStoreUserTokenExpiresAtUtc) = GenerateAccessToken(
+                            tenantForStoreUser?.Email ?? eMail,
+                            string.IsNullOrWhiteSpace(primaryStoreUser.Role) ? "StoreUser" : primaryStoreUser.Role,
+                            primaryStoreUser.TenantId,
+                            matchedStores);
+
                         return ActionSet.ActionReturnType(HttpStatusCode.OK, new IOResponse
                         {
                             StatusCode = "200",
                             Email = tenantForStoreUser?.Email ?? eMail,
                             Storecodes = matchedStores,
                             Message = IdentityValidationMessage.IDENTITY_DATAFOUND_LOGIN_MESSAGE,
-                            UserRole = string.IsNullOrWhiteSpace(primaryStoreUser.Role) ? "StoreUser" : primaryStoreUser.Role
+                            UserRole = string.IsNullOrWhiteSpace(primaryStoreUser.Role) ? "StoreUser" : primaryStoreUser.Role,
+                            AccessToken = fallbackStoreUserToken,
+                            AccessTokenExpiresAtUtc = fallbackStoreUserTokenExpiresAtUtc
                         });
                     }
                 }

@@ -2936,6 +2936,15 @@ namespace LMSWebUI.Controllers
                 {
                     model.Providers = providers;
                 }
+
+                if (model.Providers != null)
+                {
+                    foreach (var provider in model.Providers)
+                    {
+                        provider.TenantName = tenantName;
+                        provider.StoreCode = storeCode;
+                    }
+                }
             }
             catch
             {
@@ -2952,16 +2961,20 @@ namespace LMSWebUI.Controllers
                 return;
             }
 
-            void ensure(string category, string providerKey, string providerName)
+            var reordered = new List<Models.Admin.IntegrationProviderViewModel>();
+
+            Models.Admin.IntegrationProviderViewModel existingOrNew(string category, string providerKey, string providerName)
             {
-                if (model.Providers.Any(x =>
+                var existing = model.Providers.FirstOrDefault(x =>
                     string.Equals(x.Category, category, StringComparison.OrdinalIgnoreCase)
-                    && string.Equals(x.ProviderKey, providerKey, StringComparison.OrdinalIgnoreCase)))
+                    && string.Equals(x.ProviderKey, providerKey, StringComparison.OrdinalIgnoreCase));
+
+                if (existing != null)
                 {
-                    return;
+                    return existing;
                 }
 
-                model.Providers.Add(new Models.Admin.IntegrationProviderViewModel
+                return new Models.Admin.IntegrationProviderViewModel
                 {
                     TenantName = model.TenantName,
                     StoreCode = model.StoreCode,
@@ -2972,14 +2985,16 @@ namespace LMSWebUI.Controllers
                     IsTestMode = true,
                     LastTestStatus = "NotTested",
                     LastTestMessage = "Not tested yet."
-                });
+                };
             }
 
-            ensure("Email", "smtp", "SMTP");
-            ensure("SMS", "generic-sms", "SMS Provider");
-            ensure("WhatsApp", "meta-cloud", "WhatsApp Cloud API");
-            ensure("Payments", "generic-payment", "Payment Gateway");
-            ensure("Other", "generic-other", "Other Connector");
+            reordered.Add(existingOrNew("Email", "smtp", "SMTP"));
+            reordered.Add(existingOrNew("Other", "generic-other", "Other Connector"));
+            reordered.Add(existingOrNew("Payments", "generic-payment", "Payment Gateway"));
+            reordered.Add(existingOrNew("SMS", "generic-sms", "SMS Provider"));
+            reordered.Add(existingOrNew("WhatsApp", "meta-cloud", "WhatsApp Cloud API"));
+
+            model.Providers = reordered;
         }
 
         [HttpPost]

@@ -93,6 +93,10 @@ namespace LMSWebUI.Models
         /// </summary>
         public bool? MustChangePassword { get; set; }
 
+        public string AccessToken { get; set; }
+
+        public DateTime? AccessTokenExpiresAtUtc { get; set; }
+
    
     }
      public class CustomerIOResponse
@@ -166,6 +170,10 @@ namespace LMSWebUI.Models
         ///  CustomerNames
         /// </summary>
          public List<string> CustomerNames {get;set;}
+
+        public string AccessToken { get; set; }
+
+        public DateTime? AccessTokenExpiresAtUtc { get; set; }
 
     }
 }

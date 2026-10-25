@@ -79,6 +79,16 @@ namespace LMS.Identity.DTO
         public bool? MustChangePassword { get; set; }
 
         /// <summary>
+        /// Access token for authenticated API calls
+        /// </summary>
+        public string AccessToken { get; set; }
+
+        /// <summary>
+        /// Access token expiry time in UTC
+        /// </summary>
+        public DateTime? AccessTokenExpiresAtUtc { get; set; }
+
+        /// <summary>
         /// Store configuration payload
         /// </summary>
         public string ConfigurationJson { get; set; }
