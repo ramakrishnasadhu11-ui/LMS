@@ -10,6 +10,7 @@ namespace LMS.Identity.BusinessSerive.Services
         public string SmtpServer { get; set; }
         public string Reciever { get; set; }
         public int Port { get; set; }
+        public bool? EnableSsl { get; set; }
         public string Username { get; set; }
         public string Password { get; set; }
         public string AlertMailSubject { get; set; }
@@ -26,6 +27,7 @@ namespace LMS.Identity.BusinessSerive.Services
         string SmtpServer { get; set; }
         string Reciever { get; set; }
         int Port { get; set; }
+        bool? EnableSsl { get; set; }
         string Username { get; set; }
         string Password { get; set; }
         string AlertMailSubject { get; set; }

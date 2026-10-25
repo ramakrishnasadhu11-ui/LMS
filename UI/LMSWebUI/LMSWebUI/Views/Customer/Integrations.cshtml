@@ -1,0 +1,181 @@
+@model LMSWebUI.Models.Admin.IntegrationsViewModel
+@{
+    ViewData["Title"] = "Integrations";
+    Layout = "~/Views/Shared/_HeaderMenuItemsLayout.cshtml";
+}
+
+<style>
+    .integrations-page { padding: 20px; }
+    .integrations-wrap { max-width: 1180px; margin: 0 auto; }
+    .integrations-title {
+        background: linear-gradient(90deg, var(--els-primary) 0%, var(--els-primary-dark) 100%);
+        color: #fff;
+        padding: 14px 20px;
+        border-radius: 10px 10px 0 0;
+        font-size: 20px;
+        font-weight: 600;
+    }
+    .integrations-note {
+        border: 1px solid var(--els-border);
+        border-top: none;
+        border-radius: 0 0 10px 10px;
+        background: var(--els-surface);
+        padding: 12px 16px;
+        margin-bottom: 16px;
+    }
+    .category-card {
+        background: var(--els-surface);
+        border: 1px solid var(--els-border);
+        border-radius: 10px;
+        margin-bottom: 14px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    }
+    .category-title {
+        padding: 10px 14px;
+        font-size: 16px;
+        font-weight: 700;
+        border-bottom: 1px solid var(--els-border);
+    }
+    .provider-card {
+        padding: 14px;
+        border-bottom: 1px dashed var(--els-border);
+    }
+    .provider-card:last-child { border-bottom: none; }
+    .provider-head {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 12px;
+        flex-wrap: wrap;
+        margin-bottom: 10px;
+    }
+    .provider-name { font-weight: 700; color: var(--els-text); }
+    .provider-status { font-size: 12px; padding: 4px 8px; border-radius: 99px; background: var(--els-accent); }
+    .provider-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        gap: 10px;
+    }
+    .integration-field label { font-weight: 600; margin-bottom: 4px; display: block; }
+    .integration-field input,
+    .integration-field select {
+        width: 100%;
+        min-height: 38px;
+        border: 1px solid var(--els-border);
+        border-radius: 8px;
+        padding: 8px 10px;
+        background: var(--els-background);
+        color: var(--els-text);
+    }
+    .integration-actions {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+        margin-top: 12px;
+    }
+    .integration-btn {
+        min-height: 38px;
+        min-width: 140px;
+        border: 1px solid transparent;
+        border-radius: 8px;
+        padding: 0 12px;
+        color: #fff;
+        background: linear-gradient(180deg, var(--els-primary-light) 0%, var(--els-primary) 100%);
+        font-weight: 600;
+    }
+    .integration-btn.secondary { background: linear-gradient(180deg, #8f99a4 0%, #6f7a86 100%); }
+    .integration-btn.warning { background: linear-gradient(180deg, #e5a83d 0%, #d08818 100%); }
+</style>
+
+<section class="integrations-page">
+    <div class="integrations-wrap">
+        <div class="integrations-title">Integrations Management Center</div>
+        <div class="integrations-note">
+            <div><b>Tenant:</b> @Model.TenantName</div>
+            <div><b>Store:</b> @Model.StoreCode</div>
+            <div style="margin-top:6px;">Configure Email, SMS, WhatsApp, Payments, and future connectors securely per tenant/store. Secrets are masked and not returned in plain text.</div>
+        </div>
+
+        @foreach (var group in Model.ProvidersByCategory)
+        {
+            <div class="category-card">
+                <div class="category-title">@group.Key</div>
+
+                @foreach (var provider in group)
+                {
+                    <div class="provider-card">
+                        <div class="provider-head">
+                            <div class="provider-name">@provider.ProviderDisplayName</div>
+                            <div class="provider-status">
+                                @(provider.IsEnabled ? "Enabled" : "Disabled")
+                                | Last Test: @(string.IsNullOrWhiteSpace(provider.LastTestStatus) ? "NotTested" : provider.LastTestStatus)
+                            </div>
+                        </div>
+
+                        <form asp-action="SaveIntegration" asp-controller="Customer" method="post">
+                            @Html.AntiForgeryToken()
+                            <input type="hidden" name="Category" value="@provider.Category" />
+                            <input type="hidden" name="ProviderKey" value="@provider.ProviderKey" />
+                            <input type="hidden" name="ProviderDisplayName" value="@provider.ProviderDisplayName" />
+
+                            <div class="provider-grid">
+                                <div class="integration-field">
+                                    <label>Provider</label>
+                                    <input name="PublicSettings[Provider]" value="@(provider.PublicSettings.ContainsKey("Provider") ? provider.PublicSettings["Provider"] : provider.ProviderDisplayName)" />
+                                </div>
+                                <div class="integration-field">
+                                    <label>Endpoint / Host</label>
+                                    <input name="PublicSettings[Host]" value="@(provider.PublicSettings.ContainsKey("Host") ? provider.PublicSettings["Host"] : string.Empty)" />
+                                </div>
+                                <div class="integration-field">
+                                    <label>Port / Account ID</label>
+                                    <input name="PublicSettings[Port]" value="@(provider.PublicSettings.ContainsKey("Port") ? provider.PublicSettings["Port"] : string.Empty)" />
+                                </div>
+                                <div class="integration-field">
+                                    <label>Sender / From / Sender ID</label>
+                                    <input name="PublicSettings[From]" value="@(provider.PublicSettings.ContainsKey("From") ? provider.PublicSettings["From"] : string.Empty)" />
+                                </div>
+                                <div class="integration-field">
+                                    <label>Webhook URL</label>
+                                    <input name="PublicSettings[WebhookUrl]" value="@(provider.PublicSettings.ContainsKey("WebhookUrl") ? provider.PublicSettings["WebhookUrl"] : string.Empty)" />
+                                </div>
+                                <div class="integration-field">
+                                    <label>Mode</label>
+                                    <select name="IsTestMode">
+                                        <option value="true" selected="@(provider.IsTestMode ? "selected" : null)">Test / Sandbox</option>
+                                        <option value="false" selected="@(!provider.IsTestMode ? "selected" : null)">Live</option>
+                                    </select>
+                                </div>
+                                <div class="integration-field">
+                                    <label>Username / API Key</label>
+                                    <input name="SecretSettings[Username]" value="" placeholder="Enter new value (kept encrypted)" autocomplete="off" />
+                                </div>
+                                <div class="integration-field">
+                                    <label>Password / Token / Secret</label>
+                                    <input name="SecretSettings[Password]" value="" placeholder="Enter new value (kept encrypted)" autocomplete="off" />
+                                </div>
+                            </div>
+
+                            <div class="integration-actions">
+                                <button class="integration-btn" type="submit">Save</button>
+                                <button class="integration-btn warning" type="submit" formaction="@Url.Action("TestIntegration", "Customer")" formmethod="post" name="category" value="@provider.Category">Test Connection</button>
+                                <button class="integration-btn secondary" type="submit" formaction="@Url.Action("ToggleIntegration", "Customer")" formmethod="post" name="isEnabled" value="@(!provider.IsEnabled)">@(provider.IsEnabled ? "Disable" : "Enable")</button>
+                                <input type="hidden" name="providerKey" value="@provider.ProviderKey" />
+                            </div>
+
+                            @if (provider.HasSecretsConfigured)
+                            {
+                                <div style="margin-top:8px;font-size:12px;color:var(--els-text-muted);">Secrets configured: @string.Join(", ", provider.SecretKeys)</div>
+                            }
+
+                            @if (!string.IsNullOrWhiteSpace(provider.LastTestMessage))
+                            {
+                                <div style="margin-top:8px;font-size:12px;color:var(--els-text-muted);">@provider.LastTestMessage</div>
+                            }
+                        </form>
+                    </div>
+                }
+            </div>
+        }
+    </div>
+</section>

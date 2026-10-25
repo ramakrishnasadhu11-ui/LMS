@@ -21,6 +21,7 @@ namespace LMS.Master.BusinessSerive.Mapper
             CreateMap<LaundryItemPriceEntity, LaundryItemPriceDto>().ReverseMap();
             CreateMap<StoreServiceMasterEntity, StoreServiceMasterDto>().ReverseMap();
             CreateMap<StoreItemMasterEntity, StoreItemMasterDto>().ReverseMap();
+            CreateMap<TenantIntegrationSettingsEntity, TenantIntegrationSettingsDto>().ReverseMap();
         }
     }
 }

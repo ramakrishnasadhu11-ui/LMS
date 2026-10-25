@@ -4,6 +4,7 @@ using LMS.Master.BusinessSerive.Interfaces;
 using LMS.Master.DTO;
 using LMS.Master.DTO.Entity;
 using LMS.Master.Utilities;
+using Microsoft.Extensions.Configuration;
 using Microsoft.EntityFrameworkCore;
 using System;
 using System.Collections.Generic;
@@ -14,6 +15,7 @@ using System.Linq;
 using System.Net;
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 
@@ -21,14 +23,28 @@ namespace LMS.Master.BusinessSerive.Services
 {
     public class Customerservice : ICustomer
     {
+        private sealed class IntegrationSettingsPayload
+        {
+            public Dictionary<string, string> Public { get; set; } = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            public Dictionary<string, string> Secret { get; set; } = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        }
+
         private readonly IMapper _mapper;
         private readonly MasterDbContext _masterDbContext;
+        private readonly string _integrationEncryptionKeyMaterial;
         private readonly List<string> _seedFilePaths;
 
-        public Customerservice(IMapper mapper, MasterDbContext masterDbContext)
+        public Customerservice(IMapper mapper, MasterDbContext masterDbContext, IConfiguration configuration)
         {
             _mapper = mapper ?? throw new ArgumentNullException(nameof(mapper));
             _masterDbContext = masterDbContext ?? throw new ArgumentNullException(nameof(masterDbContext));
+            var encryptionKey = configuration?["IntegrationSettings:EncryptionKey"];
+            if (string.IsNullOrWhiteSpace(encryptionKey))
+            {
+                encryptionKey = configuration?.GetConnectionString("MasterDb") ?? string.Empty;
+            }
+
+            _integrationEncryptionKeyMaterial = encryptionKey;
             var contentRoot = AppContext.BaseDirectory;
             _seedFilePaths = new List<string>
             {
@@ -771,6 +787,290 @@ namespace LMS.Master.BusinessSerive.Services
 
             var responseDto = _mapper.Map<PaymentSettingsDto>(paymentSettings);
             return ActionSet.ActionReturnType(HttpStatusCode.OK, responseDto);
+        }
+
+        public async Task<ActionReturnType> GetTenantIntegrationSettings(string tenantName, string storeCode, string category = null)
+        {
+            await EnsureTenantIntegrationSettingsTableExistsAsync();
+
+            if (string.IsNullOrWhiteSpace(tenantName) || string.IsNullOrWhiteSpace(storeCode))
+            {
+                return ActionSet.ActionReturnType(HttpStatusCode.BadRequest, new CustomerIOResponse
+                {
+                    StatusCode = "400",
+                    Message = "Invalid integration settings request."
+                });
+            }
+
+            tenantName = tenantName.Trim();
+            storeCode = storeCode.Trim();
+            category = string.IsNullOrWhiteSpace(category) ? null : category.Trim();
+
+            var query = _masterDbContext.TenantIntegrationSettings
+                .AsNoTracking()
+                .Where(x => x.TenantName == tenantName && x.StoreCode == storeCode);
+
+            if (!string.IsNullOrWhiteSpace(category))
+            {
+                query = query.Where(x => x.Category == category);
+            }
+
+            var records = await query
+                .OrderBy(x => x.Category)
+                .ThenBy(x => x.ProviderDisplayName)
+                .ToListAsync();
+
+            var result = records
+                .Select(MapToIntegrationDto)
+                .ToList();
+
+            return ActionSet.ActionReturnType(HttpStatusCode.OK, result);
+        }
+
+        public async Task<ActionReturnType> SaveTenantIntegrationSettings(TenantIntegrationSettingsDto integrationDto)
+        {
+            await EnsureTenantIntegrationSettingsTableExistsAsync();
+
+            if (integrationDto == null
+                || string.IsNullOrWhiteSpace(integrationDto.TenantName)
+                || string.IsNullOrWhiteSpace(integrationDto.StoreCode)
+                || string.IsNullOrWhiteSpace(integrationDto.Category)
+                || string.IsNullOrWhiteSpace(integrationDto.ProviderKey))
+            {
+                return ActionSet.ActionReturnType(HttpStatusCode.BadRequest, new CustomerIOResponse
+                {
+                    StatusCode = "400",
+                    Message = "Invalid integration settings payload."
+                });
+            }
+
+            integrationDto.TenantName = integrationDto.TenantName.Trim();
+            integrationDto.StoreCode = integrationDto.StoreCode.Trim();
+            integrationDto.Category = integrationDto.Category.Trim();
+            integrationDto.ProviderKey = integrationDto.ProviderKey.Trim();
+            integrationDto.ProviderDisplayName = string.IsNullOrWhiteSpace(integrationDto.ProviderDisplayName)
+                ? integrationDto.ProviderKey
+                : integrationDto.ProviderDisplayName.Trim();
+
+            var existing = await _masterDbContext.TenantIntegrationSettings.FirstOrDefaultAsync(x =>
+                x.TenantName == integrationDto.TenantName
+                && x.StoreCode == integrationDto.StoreCode
+                && x.Category == integrationDto.Category
+                && x.ProviderKey == integrationDto.ProviderKey);
+
+            var payload = existing == null
+                ? new IntegrationSettingsPayload()
+                : ReadPayload(existing.EncryptedSettingsJson);
+
+            payload.Public ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            payload.Secret ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+            if (integrationDto.PublicSettings != null)
+            {
+                foreach (var item in integrationDto.PublicSettings)
+                {
+                    var key = item.Key?.Trim();
+                    if (string.IsNullOrWhiteSpace(key))
+                    {
+                        continue;
+                    }
+
+                    var value = item.Value?.Trim();
+                    if (string.IsNullOrEmpty(value))
+                    {
+                        payload.Public.Remove(key);
+                    }
+                    else
+                    {
+                        payload.Public[key] = value;
+                    }
+                }
+            }
+
+            if (integrationDto.ClearSecrets)
+            {
+                payload.Secret.Clear();
+            }
+
+            if (integrationDto.SecretSettings != null)
+            {
+                foreach (var item in integrationDto.SecretSettings)
+                {
+                    var key = item.Key?.Trim();
+                    if (string.IsNullOrWhiteSpace(key))
+                    {
+                        continue;
+                    }
+
+                    var value = item.Value?.Trim();
+                    if (string.IsNullOrWhiteSpace(value))
+                    {
+                        continue;
+                    }
+
+                    payload.Secret[key] = value;
+                }
+            }
+
+            var encryptedPayload = EncryptSettingsPayload(payload);
+            var hasSecrets = payload.Secret.Count > 0;
+
+            if (existing == null)
+            {
+                existing = new TenantIntegrationSettingsEntity
+                {
+                    TenantName = integrationDto.TenantName,
+                    StoreCode = integrationDto.StoreCode,
+                    Category = integrationDto.Category,
+                    ProviderKey = integrationDto.ProviderKey,
+                    ProviderDisplayName = integrationDto.ProviderDisplayName,
+                    IsEnabled = integrationDto.IsEnabled,
+                    IsTestMode = integrationDto.IsTestMode,
+                    EncryptedSettingsJson = encryptedPayload,
+                    HasSecretsConfigured = hasSecrets,
+                    LastTestStatus = "NotTested",
+                    LastTestMessage = "Not tested yet.",
+                    CreatedDate = DateTime.UtcNow,
+                    ModifiedDate = DateTime.UtcNow
+                };
+
+                _masterDbContext.TenantIntegrationSettings.Add(existing);
+            }
+            else
+            {
+                existing.ProviderDisplayName = integrationDto.ProviderDisplayName;
+                existing.IsEnabled = integrationDto.IsEnabled;
+                existing.IsTestMode = integrationDto.IsTestMode;
+                existing.EncryptedSettingsJson = encryptedPayload;
+                existing.HasSecretsConfigured = hasSecrets;
+                existing.ModifiedDate = DateTime.UtcNow;
+            }
+
+            await _masterDbContext.SaveChangesAsync();
+
+            return ActionSet.ActionReturnType(HttpStatusCode.OK, new CustomerIOResponse
+            {
+                StatusCode = "200",
+                Message = "Integration settings saved successfully."
+            });
+        }
+
+        public async Task<ActionReturnType> SetTenantIntegrationEnabled(string tenantName, string storeCode, string category, string providerKey, bool isEnabled)
+        {
+            await EnsureTenantIntegrationSettingsTableExistsAsync();
+
+            if (string.IsNullOrWhiteSpace(tenantName)
+                || string.IsNullOrWhiteSpace(storeCode)
+                || string.IsNullOrWhiteSpace(category)
+                || string.IsNullOrWhiteSpace(providerKey))
+            {
+                return ActionSet.ActionReturnType(HttpStatusCode.BadRequest, new CustomerIOResponse
+                {
+                    StatusCode = "400",
+                    Message = "Invalid integration toggle request."
+                });
+            }
+
+            tenantName = tenantName.Trim();
+            storeCode = storeCode.Trim();
+            category = category.Trim();
+            providerKey = providerKey.Trim();
+
+            var existing = await _masterDbContext.TenantIntegrationSettings.FirstOrDefaultAsync(x =>
+                x.TenantName == tenantName
+                && x.StoreCode == storeCode
+                && x.Category == category
+                && x.ProviderKey == providerKey);
+
+            if (existing == null)
+            {
+                return ActionSet.ActionReturnType(HttpStatusCode.NotFound, new CustomerIOResponse
+                {
+                    StatusCode = "404",
+                    Message = "Integration configuration not found. Save configuration first."
+                });
+            }
+
+            existing.IsEnabled = isEnabled;
+            existing.ModifiedDate = DateTime.UtcNow;
+            await _masterDbContext.SaveChangesAsync();
+
+            return ActionSet.ActionReturnType(HttpStatusCode.OK, new CustomerIOResponse
+            {
+                StatusCode = "200",
+                Message = isEnabled ? "Integration enabled successfully." : "Integration disabled successfully."
+            });
+        }
+
+        public async Task<ActionReturnType> TestTenantIntegration(string tenantName, string storeCode, string category, string providerKey)
+        {
+            await EnsureTenantIntegrationSettingsTableExistsAsync();
+
+            if (string.IsNullOrWhiteSpace(tenantName)
+                || string.IsNullOrWhiteSpace(storeCode)
+                || string.IsNullOrWhiteSpace(category)
+                || string.IsNullOrWhiteSpace(providerKey))
+            {
+                return ActionSet.ActionReturnType(HttpStatusCode.BadRequest, new CustomerIOResponse
+                {
+                    StatusCode = "400",
+                    Message = "Invalid integration test request."
+                });
+            }
+
+            tenantName = tenantName.Trim();
+            storeCode = storeCode.Trim();
+            category = category.Trim();
+            providerKey = providerKey.Trim();
+
+            var existing = await _masterDbContext.TenantIntegrationSettings.FirstOrDefaultAsync(x =>
+                x.TenantName == tenantName
+                && x.StoreCode == storeCode
+                && x.Category == category
+                && x.ProviderKey == providerKey);
+
+            if (existing == null)
+            {
+                return ActionSet.ActionReturnType(HttpStatusCode.NotFound, new CustomerIOResponse
+                {
+                    StatusCode = "404",
+                    Message = "Integration configuration not found. Save configuration first."
+                });
+            }
+
+            var payload = ReadPayload(existing.EncryptedSettingsJson);
+            var validationErrors = ValidateIntegrationConfiguration(category, payload);
+
+            existing.LastTestedAtUtc = DateTime.UtcNow;
+            if (validationErrors.Count > 0)
+            {
+                existing.LastTestStatus = "Failed";
+                existing.LastTestMessage = string.Join(" ", validationErrors).Trim();
+                if (existing.LastTestMessage?.Length > 512)
+                {
+                    existing.LastTestMessage = existing.LastTestMessage.Substring(0, 512);
+                }
+
+                existing.ModifiedDate = DateTime.UtcNow;
+                await _masterDbContext.SaveChangesAsync();
+
+                return ActionSet.ActionReturnType(HttpStatusCode.BadRequest, new CustomerIOResponse
+                {
+                    StatusCode = "400",
+                    Message = existing.LastTestMessage
+                });
+            }
+
+            existing.LastTestStatus = "Success";
+            existing.LastTestMessage = "Configuration validated successfully. This test did not send live notifications or initiate payments.";
+            existing.ModifiedDate = DateTime.UtcNow;
+            await _masterDbContext.SaveChangesAsync();
+
+            return ActionSet.ActionReturnType(HttpStatusCode.OK, new CustomerIOResponse
+            {
+                StatusCode = "200",
+                Message = existing.LastTestMessage
+            });
         }
 
         public async Task<ActionReturnType> SaveTaxInvoiceSettings(TaxInvoiceSettingsDto taxInvoiceSettingsDto)
@@ -3151,6 +3451,199 @@ BEGIN
 END;";
 
             await _masterDbContext.Database.ExecuteSqlRawAsync(createTableSql);
+        }
+
+        private async Task EnsureTenantIntegrationSettingsTableExistsAsync()
+        {
+            const string createTableSql = @"
+IF OBJECT_ID(N'[dbo].[TenantIntegrationSettings]', N'U') IS NULL
+BEGIN
+    CREATE TABLE [dbo].[TenantIntegrationSettings](
+        [Id] [int] IDENTITY(1,1) NOT NULL,
+        [TenantName] [nvarchar](256) NOT NULL,
+        [StoreCode] [nvarchar](64) NOT NULL,
+        [Category] [nvarchar](64) NOT NULL,
+        [ProviderKey] [nvarchar](64) NOT NULL,
+        [ProviderDisplayName] [nvarchar](128) NULL,
+        [IsEnabled] [bit] NOT NULL,
+        [IsTestMode] [bit] NOT NULL,
+        [EncryptedSettingsJson] [nvarchar](max) NULL,
+        [HasSecretsConfigured] [bit] NOT NULL,
+        [LastTestStatus] [nvarchar](32) NULL,
+        [LastTestMessage] [nvarchar](512) NULL,
+        [LastTestedAtUtc] [datetime2](7) NULL,
+        [CreatedDate] [datetime2](7) NOT NULL,
+        [ModifiedDate] [datetime2](7) NOT NULL,
+        CONSTRAINT [PK_TenantIntegrationSettings] PRIMARY KEY CLUSTERED ([Id] ASC)
+    );
+END;
+
+IF NOT EXISTS (
+    SELECT 1
+    FROM sys.indexes
+    WHERE name = N'IX_TenantIntegrationSettings_Tenant_Store_Category_Provider'
+      AND object_id = OBJECT_ID(N'[dbo].[TenantIntegrationSettings]'))
+BEGIN
+    CREATE UNIQUE NONCLUSTERED INDEX [IX_TenantIntegrationSettings_Tenant_Store_Category_Provider]
+    ON [dbo].[TenantIntegrationSettings] ([TenantName], [StoreCode], [Category], [ProviderKey]);
+END;";
+
+            await _masterDbContext.Database.ExecuteSqlRawAsync(createTableSql);
+        }
+
+        private TenantIntegrationSettingsDto MapToIntegrationDto(TenantIntegrationSettingsEntity entity)
+        {
+            var dto = _mapper.Map<TenantIntegrationSettingsDto>(entity) ?? new TenantIntegrationSettingsDto();
+            var payload = ReadPayload(entity?.EncryptedSettingsJson);
+
+            dto.PublicSettings = payload.Public ?? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            dto.SecretSettings = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            dto.SecretKeys = payload.Secret?.Keys
+                .Where(k => !string.IsNullOrWhiteSpace(k))
+                .OrderBy(k => k)
+                .ToList() ?? new List<string>();
+
+            foreach (var key in dto.SecretKeys)
+            {
+                dto.SecretSettings[key] = "********";
+            }
+
+            dto.HasSecretsConfigured = entity?.HasSecretsConfigured == true;
+            return dto;
+        }
+
+        private IntegrationSettingsPayload ReadPayload(string encryptedPayload)
+        {
+            if (string.IsNullOrWhiteSpace(encryptedPayload))
+            {
+                return new IntegrationSettingsPayload();
+            }
+
+            try
+            {
+                var json = DecryptString(encryptedPayload);
+                var payload = JsonSerializer.Deserialize<IntegrationSettingsPayload>(json);
+                payload ??= new IntegrationSettingsPayload();
+                payload.Public ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                payload.Secret ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                return payload;
+            }
+            catch
+            {
+                return new IntegrationSettingsPayload();
+            }
+        }
+
+        private string EncryptSettingsPayload(IntegrationSettingsPayload payload)
+        {
+            payload ??= new IntegrationSettingsPayload();
+            payload.Public ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            payload.Secret ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            var json = JsonSerializer.Serialize(payload);
+            return EncryptString(json);
+        }
+
+        private static string NormalizeKey(string value)
+            => string.IsNullOrWhiteSpace(value) ? string.Empty : value.Trim();
+
+        private List<string> ValidateIntegrationConfiguration(string category, IntegrationSettingsPayload payload)
+        {
+            payload ??= new IntegrationSettingsPayload();
+            payload.Public ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            payload.Secret ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            var errors = new List<string>();
+
+            bool HasPublic(string key)
+                => payload.Public.TryGetValue(key, out var val) && !string.IsNullOrWhiteSpace(val);
+
+            bool HasSecret(string key)
+                => payload.Secret.TryGetValue(key, out var val) && !string.IsNullOrWhiteSpace(val);
+
+            var normalizedCategory = NormalizeKey(category);
+
+            if (normalizedCategory.Equals(IntegrationConstants.Category.Email, StringComparison.OrdinalIgnoreCase))
+            {
+                if (!HasPublic("Host")) errors.Add("Email host is required.");
+                if (!HasPublic("Port")) errors.Add("Email port is required.");
+                if (!HasPublic("From")) errors.Add("Email sender is required.");
+                if (!HasSecret("Username")) errors.Add("Email username is required.");
+                if (!HasSecret("Password")) errors.Add("Email password/app password is required.");
+            }
+            else if (normalizedCategory.Equals(IntegrationConstants.Category.Sms, StringComparison.OrdinalIgnoreCase))
+            {
+                if (!HasPublic("Provider")) errors.Add("SMS provider is required.");
+                if (!HasPublic("SenderId")) errors.Add("SMS sender ID is required.");
+                if (!HasSecret("ApiKey") && !HasSecret("AuthToken")) errors.Add("SMS API credentials are required.");
+            }
+            else if (normalizedCategory.Equals(IntegrationConstants.Category.WhatsApp, StringComparison.OrdinalIgnoreCase))
+            {
+                if (!HasPublic("Provider")) errors.Add("WhatsApp provider is required.");
+                if (!HasPublic("PhoneNumberId")) errors.Add("WhatsApp phone number ID is required.");
+                if (!HasSecret("AccessToken")) errors.Add("WhatsApp access token is required.");
+            }
+            else if (normalizedCategory.Equals(IntegrationConstants.Category.Payments, StringComparison.OrdinalIgnoreCase))
+            {
+                if (!HasPublic("Provider")) errors.Add("Payment provider is required.");
+                if (!HasPublic("MerchantId")) errors.Add("Merchant/account ID is required.");
+                if (!HasPublic("WebhookUrl")) errors.Add("Webhook URL is required.");
+                if (!HasSecret("ApiKey")) errors.Add("Payment API key is required.");
+                if (!HasSecret("SecretKey")) errors.Add("Payment secret key is required.");
+            }
+
+            return errors;
+        }
+
+        private byte[] BuildIntegrationEncryptionKey()
+        {
+            var material = string.IsNullOrWhiteSpace(_integrationEncryptionKeyMaterial)
+                ? "LMS_Master_Default_Integration_Key"
+                : _integrationEncryptionKeyMaterial;
+
+            using var sha256 = SHA256.Create();
+            return sha256.ComputeHash(Encoding.UTF8.GetBytes(material));
+        }
+
+        private string EncryptString(string plainText)
+        {
+            plainText ??= string.Empty;
+            using var aes = Aes.Create();
+            aes.Key = BuildIntegrationEncryptionKey();
+            aes.GenerateIV();
+            aes.Mode = CipherMode.CBC;
+            aes.Padding = PaddingMode.PKCS7;
+
+            var encryptor = aes.CreateEncryptor(aes.Key, aes.IV);
+            var plainBytes = Encoding.UTF8.GetBytes(plainText);
+            var cipherBytes = encryptor.TransformFinalBlock(plainBytes, 0, plainBytes.Length);
+
+            return Convert.ToBase64String(aes.IV) + ":" + Convert.ToBase64String(cipherBytes);
+        }
+
+        private string DecryptString(string encryptedText)
+        {
+            if (string.IsNullOrWhiteSpace(encryptedText) || !encryptedText.Contains(':'))
+            {
+                return string.Empty;
+            }
+
+            var parts = encryptedText.Split(':');
+            if (parts.Length != 2)
+            {
+                return string.Empty;
+            }
+
+            var iv = Convert.FromBase64String(parts[0]);
+            var cipherBytes = Convert.FromBase64String(parts[1]);
+
+            using var aes = Aes.Create();
+            aes.Key = BuildIntegrationEncryptionKey();
+            aes.IV = iv;
+            aes.Mode = CipherMode.CBC;
+            aes.Padding = PaddingMode.PKCS7;
+
+            var decryptor = aes.CreateDecryptor(aes.Key, aes.IV);
+            var plainBytes = decryptor.TransformFinalBlock(cipherBytes, 0, cipherBytes.Length);
+            return Encoding.UTF8.GetString(plainBytes);
         }
 
         private async Task EnsureLaundryOrderItemsTableExistsAsync()

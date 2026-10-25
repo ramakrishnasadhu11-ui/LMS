@@ -1,5 +1,6 @@
 ﻿using System.Threading.Tasks;
 using System;
+using System.Collections.Generic;
 using LMS.Master.BusinessSerive.Interfaces;
 using LMS.Master.DTO;
 using LMS.Master.Utilities;
@@ -246,6 +247,88 @@ namespace LMS.Master.WebApi.Controllers
 
             var paymentSettingsResult = await _customer.SavePaymentSettings(paymentSettingsDto);
             return StatusCode((int)paymentSettingsResult.StatusCode, paymentSettingsResult.ResultSet);
+        }
+
+        [HttpGet(nameof(GetTenantIntegrationSettings))]
+        [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(Result<List<TenantIntegrationSettingsDto>>))]
+        [ProducesResponseType(StatusCodes.Status500InternalServerError, Type = typeof(Result<object>))]
+        [ProducesResponseType(StatusCodes.Status400BadRequest, Type = typeof(Result<object>))]
+        public async Task<ActionResult> GetTenantIntegrationSettings(string tenantName, string storeCode, string category = null)
+        {
+            if (!TryResolvePricingScope(tenantName, storeCode, out var scopedTenantName, out var scopedStoreCode, out var scopeValidationError))
+            {
+                return BadRequest(scopeValidationError);
+            }
+
+            var result = await _customer.GetTenantIntegrationSettings(scopedTenantName, scopedStoreCode, category);
+            return StatusCode((int)result.StatusCode, result.ResultSet);
+        }
+
+        [HttpPost(nameof(SaveTenantIntegrationSettings))]
+        [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(Result<CustomerIOResponse>))]
+        [ProducesResponseType(StatusCodes.Status500InternalServerError, Type = typeof(Result<object>))]
+        [ProducesResponseType(StatusCodes.Status400BadRequest, Type = typeof(Result<object>))]
+        public async Task<ActionResult> SaveTenantIntegrationSettings([FromBody] TenantIntegrationSettingsDto integrationDto)
+        {
+            if (integrationDto == null)
+            {
+                return BadRequest("Invalid data for this operation.");
+            }
+
+            if (!TryResolvePricingScope(integrationDto.TenantName, integrationDto.StoreCode, out var scopedTenantName, out var scopedStoreCode, out var scopeValidationError))
+            {
+                return BadRequest(scopeValidationError);
+            }
+
+            integrationDto.TenantName = scopedTenantName;
+            integrationDto.StoreCode = scopedStoreCode;
+
+            var result = await _customer.SaveTenantIntegrationSettings(integrationDto);
+            return StatusCode((int)result.StatusCode, result.ResultSet);
+        }
+
+        [HttpPost(nameof(SetTenantIntegrationEnabled))]
+        [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(Result<CustomerIOResponse>))]
+        [ProducesResponseType(StatusCodes.Status500InternalServerError, Type = typeof(Result<object>))]
+        [ProducesResponseType(StatusCodes.Status400BadRequest, Type = typeof(Result<object>))]
+        public async Task<ActionResult> SetTenantIntegrationEnabled([FromBody] TenantIntegrationToggleRequestDto request)
+        {
+            if (request == null)
+            {
+                return BadRequest("Invalid data for this operation.");
+            }
+
+            var tenantName = request.TenantName;
+            var storeCode = request.StoreCode;
+            if (!TryResolvePricingScope(tenantName, storeCode, out var scopedTenantName, out var scopedStoreCode, out var scopeValidationError))
+            {
+                return BadRequest(scopeValidationError);
+            }
+
+            var result = await _customer.SetTenantIntegrationEnabled(scopedTenantName, scopedStoreCode, request.Category, request.ProviderKey, request.IsEnabled);
+            return StatusCode((int)result.StatusCode, result.ResultSet);
+        }
+
+        [HttpPost(nameof(TestTenantIntegration))]
+        [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(Result<CustomerIOResponse>))]
+        [ProducesResponseType(StatusCodes.Status500InternalServerError, Type = typeof(Result<object>))]
+        [ProducesResponseType(StatusCodes.Status400BadRequest, Type = typeof(Result<object>))]
+        public async Task<ActionResult> TestTenantIntegration([FromBody] TenantIntegrationTestRequestDto request)
+        {
+            if (request == null)
+            {
+                return BadRequest("Invalid data for this operation.");
+            }
+
+            var tenantName = request.TenantName;
+            var storeCode = request.StoreCode;
+            if (!TryResolvePricingScope(tenantName, storeCode, out var scopedTenantName, out var scopedStoreCode, out var scopeValidationError))
+            {
+                return BadRequest(scopeValidationError);
+            }
+
+            var result = await _customer.TestTenantIntegration(scopedTenantName, scopedStoreCode, request.Category, request.ProviderKey);
+            return StatusCode((int)result.StatusCode, result.ResultSet);
         }
 
         [HttpGet(nameof(GetTaxInvoiceSettings))]

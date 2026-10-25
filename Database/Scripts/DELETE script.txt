@@ -1,0 +1,24 @@
+
+
+
+--DELETE FROM BarcodeTagSettings
+--DELETE FROM StoreConfigurations
+--DELETE FROM StoreUsers
+--DELETE FROM Tenants
+--DELETE FROM TenantStoreInfos
+--DELETE FROM TenantStoreStatuses
+--DELETE FROM CustomerAdvances
+--DELETE FROM CustomerPreferences
+--DELETE FROM Customers
+--DELETE FROM LaundryItemPrices
+--DELETE FROM LaundryOrders
+--DELETE FROM PaymentSettings
+--DELETE FROM StoreItemMaster
+--DELETE FROM StoreServiceMaster
+--DELETE FROM TaxInvoiceSettings
+--DELETE FROM WorkflowStatuses
+--DELETE FROM OrderActionAuditLogs
+--DELETE FROM PricingRules
+
+
+test.uk.tenant@test.com
