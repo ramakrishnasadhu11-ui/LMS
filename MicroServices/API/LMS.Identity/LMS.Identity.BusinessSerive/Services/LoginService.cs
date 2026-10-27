@@ -1420,13 +1420,55 @@ namespace LMS.Identity.BusinessSerive.Services
             }
 
             var existing = await _unitOfWork.DbContext.StoreUsers
-                .FirstOrDefaultAsync(x => x.Email != null && x.Email.ToLower() == normalizedEmailLower);
+                .FirstOrDefaultAsync(x => x.Email != null
+                    && x.Email.ToLower() == normalizedEmailLower
+                    && x.TenantId == tenant.TenantId
+                    && x.StoreCode == storeCode);
             if (existing != null)
+            {
+                if (!PasswordHasher.Verify(existing.Password, model.Password, out _))
+                {
+                    return ActionSet.ActionReturnType(HttpStatusCode.Conflict, new IOResponse
+                    {
+                        StatusCode = "409",
+                        Message = "Store user already assigned to this store with a different password."
+                    });
+                }
+
+                return ActionSet.ActionReturnType(HttpStatusCode.OK, new IOResponse
+                {
+                    StatusCode = "200",
+                    Message = "Store user already assigned to this store."
+                });
+            }
+
+            var existingByEmailDifferentTenant = await _unitOfWork.DbContext.StoreUsers
+                .AnyAsync(x => x.Email != null
+                    && x.Email.ToLower() == normalizedEmailLower
+                    && x.TenantId != tenant.TenantId);
+
+            if (existingByEmailDifferentTenant)
             {
                 return ActionSet.ActionReturnType(HttpStatusCode.Conflict, new IOResponse
                 {
                     StatusCode = "409",
-                    Message = "Store user email already exists. Please use a different email."
+                    Message = "Store user email already exists under another tenant."
+                });
+            }
+
+            var existingByEmailSameTenant = await _unitOfWork.DbContext.StoreUsers
+                .Where(x => x.Email != null
+                    && x.Email.ToLower() == normalizedEmailLower
+                    && x.TenantId == tenant.TenantId)
+                .OrderBy(x => x.CreatedDate)
+                .FirstOrDefaultAsync();
+
+            if (existingByEmailSameTenant != null && !PasswordHasher.Verify(existingByEmailSameTenant.Password, model.Password, out _))
+            {
+                return ActionSet.ActionReturnType(HttpStatusCode.Conflict, new IOResponse
+                {
+                    StatusCode = "409",
+                    Message = "Store user email already exists for this tenant with a different password."
                 });
             }
 
@@ -1435,7 +1477,7 @@ namespace LMS.Identity.BusinessSerive.Services
                 TenantId = tenant.TenantId,
                 StoreCode = storeCode,
                 Email = normalizedEmail,
-                Password = PasswordHasher.Hash(model.Password),
+                Password = existingByEmailSameTenant != null ? existingByEmailSameTenant.Password : PasswordHasher.Hash(model.Password),
                 Role = string.IsNullOrWhiteSpace(model.Role) ? "StoreUser" : model.Role.Trim(),
                 IsActive = model.IsActive,
                 CreatedDate = DateTime.UtcNow,
@@ -1480,7 +1522,8 @@ namespace LMS.Identity.BusinessSerive.Services
                     x.Email,
                     x.Role,
                     x.IsActive,
-                    x.CreatedDate
+                    x.CreatedDate,
+                    x.StoreCode
                 })
                 .ToListAsync();
 

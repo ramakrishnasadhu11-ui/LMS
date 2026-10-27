@@ -410,6 +410,55 @@ namespace LMSWebUI.Controllers
                 .ToList();
         }
 
+        private async Task<(bool IsValid, string Message)> ValidateTenantActiveStoreSelectionAsync(string tenantEmail, string currentStoreCode, string selectedStoreCode)
+        {
+            if (string.IsNullOrWhiteSpace(selectedStoreCode))
+            {
+                return (false, "Please select an active store.");
+            }
+
+            var normalizedStore = selectedStoreCode.Trim();
+            var (tenantStores, loadErrorMessage) = await GetTenantStoreStatusesForNewStoreCreationAsync(tenantEmail, currentStoreCode);
+            var matchingStore = tenantStores.FirstOrDefault(x => x != null
+                && !string.IsNullOrWhiteSpace(x.StoreCode)
+                && string.Equals(x.StoreCode, normalizedStore, StringComparison.OrdinalIgnoreCase)
+                && (string.Equals(x.TenantName, tenantEmail, StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(x.TenantEmail, tenantEmail, StringComparison.OrdinalIgnoreCase)
+                    || string.IsNullOrWhiteSpace(x.TenantName) && string.IsNullOrWhiteSpace(x.TenantEmail)));
+
+            if (matchingStore == null)
+            {
+                if (!string.IsNullOrWhiteSpace(loadErrorMessage))
+                {
+                    return (false, loadErrorMessage);
+                }
+
+                return (false, "Selected store does not belong to your tenant.");
+            }
+
+            if (!matchingStore.IsActive)
+            {
+                return (false, "Selected store is inactive. Please select an active store.");
+            }
+
+            return (true, string.Empty);
+        }
+
+        private async Task<List<string>> GetActiveTenantStoreCodesAsync(string tenantEmail, string currentStoreCode)
+        {
+            var (tenantStores, _) = await GetTenantStoreStatusesForNewStoreCreationAsync(tenantEmail, currentStoreCode);
+            return tenantStores
+                .Where(x => x != null
+                    && x.IsActive
+                    && !string.IsNullOrWhiteSpace(x.StoreCode)
+                    && (string.Equals(x.TenantName, tenantEmail, StringComparison.OrdinalIgnoreCase)
+                        || string.Equals(x.TenantEmail, tenantEmail, StringComparison.OrdinalIgnoreCase)
+                        || string.IsNullOrWhiteSpace(x.TenantName) && string.IsNullOrWhiteSpace(x.TenantEmail)))
+                .Select(x => x.StoreCode.Trim())
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+        }
+
         private IActionResult AdminOnlyView(string featureTitle, string description)
         {
             if (!IsAdminUser())
@@ -3085,7 +3134,7 @@ namespace LMSWebUI.Controllers
         }
 
         [HttpPost]
-        public async Task<JsonResult> CreateStoreUser(string email, string password, string role = "StoreUser", string storeCode = null)
+        public async Task<JsonResult> CreateStoreUser(string email, string password, string role = "StoreUser", string storeCode = null, List<string> storeCodes = null)
         {
             if (!IsAdminUser())
             {
@@ -3105,61 +3154,91 @@ namespace LMSWebUI.Controllers
                 return Json(new { success = false, message = "Email and password are required." });
             }
 
-            if (!TryResolveTargetStore(currentStoreCode, storeCode, out var resolvedStoreCode, out var validationMessage))
-            {
-                return Json(new { success = false, message = validationMessage });
-            }
+            var requestedStoreCodes = (storeCodes ?? new List<string>())
+                .Concat(string.IsNullOrWhiteSpace(storeCode) ? Enumerable.Empty<string>() : new[] { storeCode })
+                .Where(x => !string.IsNullOrWhiteSpace(x))
+                .Select(x => x.Trim())
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
 
-            if (!string.Equals(resolvedStoreCode, currentStoreCode, StringComparison.OrdinalIgnoreCase))
+            if (requestedStoreCodes.Count == 0)
             {
-                return Json(new { success = false, message = "Store users can only be created for the currently logged-in store." });
+                return Json(new { success = false, message = "Please select at least one active store." });
             }
 
             try
             {
-                var normalizedEmail = NormalizeEmail(email);
-                var storesToValidate = await GetTenantStoreCodesForValidationAsync(tenantEmail, currentStoreCode);
-                if (!storesToValidate.Contains(resolvedStoreCode, StringComparer.OrdinalIgnoreCase))
+                var resolvedStoreCodes = new List<string>();
+                foreach (var requestedStoreCode in requestedStoreCodes)
                 {
-                    storesToValidate.Add(resolvedStoreCode);
+                    if (!TryResolveTargetStore(currentStoreCode, requestedStoreCode, out var resolvedStoreCode, out var validationMessage))
+                    {
+                        return Json(new { success = false, message = validationMessage });
+                    }
+
+                    var (isValidStore, storeValidationMessage) = await ValidateTenantActiveStoreSelectionAsync(tenantEmail, currentStoreCode, resolvedStoreCode);
+                    if (!isValidStore)
+                    {
+                        return Json(new { success = false, message = storeValidationMessage });
+                    }
+
+                    if (!resolvedStoreCodes.Contains(resolvedStoreCode, StringComparer.OrdinalIgnoreCase))
+                    {
+                        resolvedStoreCodes.Add(resolvedStoreCode);
+                    }
                 }
 
-                if (storesToValidate.Count == 0)
+                var successStores = new List<string>();
+                var failedStores = new List<string>();
+
+                foreach (var resolvedStoreCode in resolvedStoreCodes)
+                {
+                    var request = new
+                    {
+                        TenantEmail = tenantEmail,
+                        StoreCode = resolvedStoreCode,
+                        Email = email.Trim(),
+                        Password = password,
+                        Role = string.IsNullOrWhiteSpace(role) ? "StoreUser" : role.Trim(),
+                        IsActive = true,
+                        CreatedBy = tenantEmail
+                    };
+
+                    var response = await _loginApi.SendRequestAsync<CustomerIOResponse>("/CreateStoreUser", request, Method.POST);
+                    if (response != null && response.StatusCode == "200")
+                    {
+                        successStores.Add(resolvedStoreCode);
+                    }
+                    else
+                    {
+                        failedStores.Add($"{resolvedStoreCode}: {(response?.Message ?? "Unable to create assignment")}");
+                    }
+                }
+
+                if (successStores.Count == 0)
                 {
                     return Json(new
                     {
                         success = false,
-                        message = "Unable to validate existing store users. Please try again."
+                        message = failedStores.Count > 0
+                            ? string.Join("; ", failedStores)
+                            : "Unable to create store user."
                     });
                 }
 
-                var isDuplicate = await IsStoreUserEmailExistsAcrossApplicationAsync(normalizedEmail, tenantEmail, storesToValidate);
-
-                if (isDuplicate)
+                if (failedStores.Count > 0)
                 {
                     return Json(new
                     {
-                        success = false,
-                        message = "Store user already exists in another store."
+                        success = true,
+                        message = $"Store user assigned to {string.Join(", ", successStores)}. Some assignments failed: {string.Join("; ", failedStores)}"
                     });
                 }
 
-                var request = new
-                {
-                    TenantEmail = tenantEmail,
-                    StoreCode = resolvedStoreCode,
-                    Email = email.Trim(),
-                    Password = password,
-                    Role = string.IsNullOrWhiteSpace(role) ? "StoreUser" : role.Trim(),
-                    IsActive = true,
-                    CreatedBy = tenantEmail
-                };
-
-                var response = await _loginApi.SendRequestAsync<CustomerIOResponse>("/CreateStoreUser", request, Method.POST);
                 return Json(new
                 {
-                    success = response != null && response.StatusCode == "200",
-                    message = response?.Message ?? "Store user created successfully."
+                    success = true,
+                    message = $"Store user created successfully and assigned to {string.Join(", ", successStores)}."
                 });
             }
             catch (Exception ex)
@@ -3310,20 +3389,68 @@ namespace LMSWebUI.Controllers
                 return Json(new { success = false, message = validationMessage, users = new List<object>() });
             }
 
-            if (!string.Equals(resolvedStoreCode, currentStoreCode, StringComparison.OrdinalIgnoreCase))
-            {
-                return Json(new { success = false, message = "Store users can only be viewed for the currently logged-in store.", users = new List<object>() });
-            }
-
             try
             {
-                var response = await _loginApi.SendRequestAsync<JObject>("/GetStoreUsers", new Dictionary<string, string>
+                var (isValidStore, storeValidationMessage) = await ValidateTenantActiveStoreSelectionAsync(tenantEmail, currentStoreCode, resolvedStoreCode);
+                if (!isValidStore)
                 {
-                    { "tenantEmail", tenantEmail },
-                    { "storeCode", resolvedStoreCode }
-                }, Method.GET);
+                    return Json(new { success = false, message = storeValidationMessage, users = new List<object>() });
+                }
 
-                var users = ExtractStoreUsersForUi(response);
+                var activeTenantStores = await GetActiveTenantStoreCodesAsync(tenantEmail, currentStoreCode);
+                if (activeTenantStores.Count == 0)
+                {
+                    return Json(new { success = true, message = string.Empty, users = new List<object>() });
+                }
+
+                var allUsers = new List<object>();
+                foreach (var tenantStore in activeTenantStores)
+                {
+                    JObject response;
+                    try
+                    {
+                        response = await _loginApi.SendRequestAsync<JObject>("/GetStoreUsers", new Dictionary<string, string>
+                        {
+                            { "tenantEmail", tenantEmail },
+                            { "storeCode", tenantStore }
+                        }, Method.GET);
+                    }
+                    catch
+                    {
+                        continue;
+                    }
+
+                    allUsers.AddRange(ExtractStoreUsersForUi(response));
+                }
+
+                var users = allUsers
+                    .Select(x => JObject.FromObject(x))
+                    .GroupBy(x => NormalizeEmail(x["email"]?.ToString() ?? x["Email"]?.ToString() ?? string.Empty))
+                    .Where(g => !string.IsNullOrWhiteSpace(g.Key)
+                        && g.Any(x => string.Equals(
+                            x["storeCode"]?.ToString() ?? x["StoreCode"]?.ToString() ?? string.Empty,
+                            resolvedStoreCode,
+                            StringComparison.OrdinalIgnoreCase)))
+                    .Select(g =>
+                    {
+                        var first = g.First();
+                        var stores = g
+                            .Select(x => (x["storeCode"]?.ToString() ?? x["StoreCode"]?.ToString() ?? string.Empty).Trim())
+                            .Where(x => !string.IsNullOrWhiteSpace(x))
+                            .Distinct(StringComparer.OrdinalIgnoreCase)
+                            .OrderBy(x => x, StringComparer.OrdinalIgnoreCase)
+                            .ToList();
+
+                        return (object)new
+                        {
+                            email = first["email"]?.ToString() ?? first["Email"]?.ToString() ?? string.Empty,
+                            role = first["role"]?.ToString() ?? first["Role"]?.ToString() ?? "StoreUser",
+                            isActive = bool.TryParse(first["isActive"]?.ToString() ?? first["IsActive"]?.ToString(), out var isActive) && isActive,
+                            createdDate = first["createdDate"]?.ToString() ?? first["CreatedDate"]?.ToString() ?? string.Empty,
+                            storeCode = string.Join(", ", stores)
+                        };
+                    })
+                    .ToList();
 
                 return Json(new
                 {
@@ -3389,7 +3516,8 @@ namespace LMSWebUI.Controllers
                     email = userObj["Email"]?.ToString() ?? userObj["email"]?.ToString() ?? string.Empty,
                     role = userObj["Role"]?.ToString() ?? userObj["role"]?.ToString() ?? "StoreUser",
                     isActive = bool.TryParse(userObj["IsActive"]?.ToString() ?? userObj["isActive"]?.ToString(), out var isActive) && isActive,
-                    createdDate = createdDateText
+                    createdDate = createdDateText,
+                    storeCode = userObj["StoreCode"]?.ToString() ?? userObj["storeCode"]?.ToString() ?? string.Empty
                 });
             }
 
@@ -3397,7 +3525,7 @@ namespace LMSWebUI.Controllers
         }
 
         [HttpGet]
-        public IActionResult StoreUsersSetup()
+        public async Task<IActionResult> StoreUsersSetup()
         {
             if (!IsAdminUser())
             {
@@ -3424,9 +3552,25 @@ namespace LMSWebUI.Controllers
                 return RedirectToAction("Index", "Login");
             }
 
+            var (tenantStores, loadErrorMessage) = await GetTenantStoreStatusesForNewStoreCreationAsync(tenantName, currentStoreCode);
+            var activeStores = tenantStores
+                .Where(x => x != null
+                    && x.IsActive
+                    && !string.IsNullOrWhiteSpace(x.StoreCode)
+                    && (string.Equals(x.TenantName, tenantName, StringComparison.OrdinalIgnoreCase)
+                        || string.Equals(x.TenantEmail, tenantName, StringComparison.OrdinalIgnoreCase)
+                        || string.IsNullOrWhiteSpace(x.TenantName) && string.IsNullOrWhiteSpace(x.TenantEmail)))
+                .Select(x => x.StoreCode.Trim())
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .OrderBy(x => x, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
             ViewData["TenantName"] = tenantName;
             ViewData["StoreCode"] = currentStoreCode;
-            ViewData["AllowedStores"] = new List<string> { currentStoreCode };
+            ViewData["AllowedStores"] = activeStores;
+            ViewData["ActiveStores"] = activeStores;
+            ViewData["NoActiveStores"] = activeStores.Count == 0;
+            ViewData["StoreUsersSetupStoresLoadError"] = loadErrorMessage ?? string.Empty;
             return View();
         }
 

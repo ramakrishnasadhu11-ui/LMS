@@ -3,10 +3,12 @@
     Layout = "~/Views/Shared/_HeaderMenuItemsLayout.cshtml";
     var tenantName = Convert.ToString(ViewData["TenantName"] ?? "-");
     var storeCode = Convert.ToString(ViewData["StoreCode"] ?? "-");
-    var allowedStores = ((IEnumerable<string>)(ViewData["AllowedStores"] ?? Enumerable.Empty<string>()))
+    var allowedStores = ((IEnumerable<string>)(ViewData["ActiveStores"] ?? ViewData["AllowedStores"] ?? Enumerable.Empty<string>()))
         .Where(x => !string.IsNullOrWhiteSpace(x))
         .Distinct(StringComparer.OrdinalIgnoreCase)
         .ToList();
+    var noActiveStores = Convert.ToBoolean(ViewData["NoActiveStores"] ?? false);
+    var storesLoadError = Convert.ToString(ViewData["StoreUsersSetupStoresLoadError"] ?? string.Empty);
 }
 
 <style>
@@ -71,13 +73,31 @@
             </div>
 
             <div class="admin-setup-note" style="margin-top:12px;">
-                <label for="targetStoreCodeDisplay"><b>Store for user setup</b></label>
-                <input type="text" id="targetStoreCodeDisplay" class="form-control" value="@storeCode" readonly disabled
-                       style="width:100%; max-width:300px; padding:8px; border:1px solid var(--els-border); border-radius:6px; margin-top:6px; background:var(--els-background);" />
-                <input type="hidden" id="targetStoreCode" value="@storeCode" />
-                <div style="margin-top:6px; font-size:12px; color:var(--els-text-muted, #6b7280);">
-                    Store users can only be created for the currently logged-in store.
-                </div>
+                <label><b>Assign Stores</b></label>
+                @if (noActiveStores)
+                {
+                    <div style="margin-top:6px; color:#b34848;">No active stores are available. Create a store before creating store users.</div>
+                    <div style="margin-top:8px;">
+                        <a href="@Url.Action("NewStoreCreation", "Customer")">Go to New Store Creation</a>
+                    </div>
+                }
+                else
+                {
+                    <div id="targetStoreCodes" style="display:flex; flex-wrap:wrap; gap:10px; margin-top:6px;">
+                        @foreach (var code in allowedStores)
+                        {
+                            var isDefaultChecked = string.Equals(code, storeCode, StringComparison.OrdinalIgnoreCase);
+                            <label style="display:inline-flex; align-items:center; gap:6px; border:1px solid var(--els-border); border-radius:6px; padding:6px 10px; background:var(--els-surface);">
+                                <input type="checkbox" class="target-store-code" value="@code" @(isDefaultChecked ? "checked" : null) />
+                                <span>@code</span>
+                            </label>
+                        }
+                    </div>
+                }
+                @if (!string.IsNullOrWhiteSpace(storesLoadError))
+                {
+                    <div style="margin-top:6px; font-size:12px; color:#b34848;">@storesLoadError</div>
+                }
             </div>
 
             <div class="admin-setup-note" style="margin-top:12px;">
@@ -91,7 +111,7 @@
                         <input type="password" id="storeUserPassword" class="form-control" style="width:100%; padding:8px; border:1px solid var(--els-border); border-radius:6px;" placeholder="Enter password" />
                     </div>
                     <div>
-                        <button type="button" class="admin-btn" id="createStoreUserBtn">Create Store User</button>
+                        <button type="button" class="admin-btn" id="createStoreUserBtn" @(noActiveStores ? "disabled" : null)>Create Store User</button>
                     </div>
                 </div>
             </div>
@@ -117,15 +137,18 @@
     var createRequestInProgress = false;
     var statusRequestsInProgressByUser = new Set();
 
-    if (!window.location.search) {
-        var emailInput = document.getElementById("storeUserEmail");
-        var passwordInput = document.getElementById("storeUserPassword");
-        if (emailInput) {
-            emailInput.value = "";
-        }
-        if (passwordInput) {
-            passwordInput.value = "";
-        }
+    function getSelectedStoreCodes() {
+        var selected = [];
+        var checkboxes = document.querySelectorAll('.target-store-code');
+        checkboxes.forEach(function (cb) {
+            if (cb && cb.checked) {
+                var code = (cb.value || '').trim();
+                if (code && selected.indexOf(code) < 0) {
+                    selected.push(code);
+                }
+            }
+        });
+        return selected;
     }
 
     function renderUsers(users) {
@@ -142,6 +165,7 @@
             + "<th style='text-align:left; border-bottom:1px solid var(--els-border); padding:6px;'>Role</th>"
             + "<th style='text-align:left; border-bottom:1px solid var(--els-border); padding:6px;'>Active</th>"
             + "<th style='text-align:left; border-bottom:1px solid var(--els-border); padding:6px;'>Created Date</th>"
+            + "<th style='text-align:left; border-bottom:1px solid var(--els-border); padding:6px;'>Assigned Store</th>"
             + "<th style='text-align:left; border-bottom:1px solid var(--els-border); padding:6px;'>Action</th>"
             + "</tr></thead><tbody>";
 
@@ -155,6 +179,7 @@
                 + "<td style='padding:6px; border-bottom:1px solid var(--els-border);'>" + (u.role || u.Role || "StoreUser") + "</td>"
                 + "<td style='padding:6px; border-bottom:1px solid var(--els-border);'>" + (isActive ? "Yes" : "No") + "</td>"
                 + "<td style='padding:6px; border-bottom:1px solid var(--els-border);'>" + (u.createdDate || u.CreatedDate || "") + "</td>"
+                + "<td style='padding:6px; border-bottom:1px solid var(--els-border);'>" + (u.storeCode || u.StoreCode || "") + "</td>"
                 + "<td style='padding:6px; border-bottom:1px solid var(--els-border);'>"
                 + "<button type='button' class='admin-btn secondary toggle-store-user-status-btn'"
                 + " data-email='" + encodeURIComponent(email) + "'"
@@ -186,8 +211,11 @@
                 }
 
                 var body = new URLSearchParams();
+                var selectedStores = getSelectedStoreCodes();
+                var selectedStore = selectedStores.length > 0 ? selectedStores[0] : "";
                 body.append('userEmail', userEmail);
                 body.append('isActive', nextActive ? 'true' : 'false');
+                body.append('storeCode', selectedStore);
 
                 var originalText = btn.textContent;
                 statusRequestsInProgressByUser.add(normalizedEmail);
@@ -225,7 +253,13 @@
     }
 
     function loadUsers() {
-        var selectedStore = (document.getElementById("targetStoreCode") || {}).value || "";
+        var selectedStores = getSelectedStoreCodes();
+        var selectedStore = selectedStores.length > 0 ? selectedStores[0] : "";
+        if (!selectedStore) {
+            renderUsers([]);
+            return;
+        }
+
         var requestUrl = '@Url.Action("GetStoreUsers", "Customer")';
         if (selectedStore) {
             requestUrl += "?storeCode=" + encodeURIComponent(selectedStore);
@@ -257,6 +291,12 @@
             var passwordInput = document.getElementById("storeUserPassword");
             var email = (emailInput || {}).value || "";
             var password = (passwordInput || {}).value || "";
+            var selectedStores = getSelectedStoreCodes();
+
+            if (selectedStores.length === 0) {
+                window.alert("Please select at least one active store.");
+                return;
+            }
 
             if (!email.trim()) {
                 window.alert("Store user email is required.");
@@ -284,7 +324,10 @@
             body.append("email", email);
             body.append("password", password);
             body.append("role", "StoreUser");
-            body.append("storeCode", ((document.getElementById("targetStoreCode") || {}).value || "").trim());
+            body.append("storeCode", selectedStores[0]);
+            selectedStores.forEach(function (code) {
+                body.append("storeCodes", code);
+            });
 
             var originalText = createBtn.textContent;
             createRequestInProgress = true;
@@ -321,11 +364,90 @@
 
     var refreshBtn = document.getElementById("refreshStoreUsersBtn");
     if (refreshBtn) {
-        refreshBtn.addEventListener("click", function () { loadUsers(); });
+        refreshBtn.addEventListener("click", function () { refreshStoresAndUsers(); });
     }
 
-    var storeSelector = document.getElementById("targetStoreCode");
+    var storeCheckboxes = document.querySelectorAll('.target-store-code');
+    if (storeCheckboxes && storeCheckboxes.length > 0) {
+        storeCheckboxes.forEach(function (cb) {
+            cb.addEventListener("change", function () {
+                loadUsers();
+            });
+        });
+    }
 
-    loadUsers();
+    function refreshStoresAndUsers() {
+        var storeContainer = document.getElementById("targetStoreCodes");
+        if (!storeContainer) {
+            loadUsers();
+            return;
+        }
+
+        var currentSelected = getSelectedStoreCodes();
+        fetch('@Url.Action("GetNewStoreCreationStoreStatuses", "Customer")', {
+            method: 'GET',
+            headers: { 'X-Requested-With': 'XMLHttpRequest' }
+        })
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+            if (!data || !data.success) {
+                loadUsers();
+                return;
+            }
+
+            var activeStores = (data.stores || [])
+                .filter(function (x) { return !!(x && (x.isActive ?? x.IsActive)); })
+                .map(function (x) { return (x.storeCode || x.StoreCode || '').trim(); })
+                .filter(function (x) { return !!x; });
+
+            var distinctStores = [];
+            activeStores.forEach(function (item) {
+                if (distinctStores.indexOf(item) < 0) {
+                    distinctStores.push(item);
+                }
+            });
+
+            storeContainer.innerHTML = "";
+
+            distinctStores.forEach(function (code) {
+                var wrapper = document.createElement("label");
+                wrapper.style.display = "inline-flex";
+                wrapper.style.alignItems = "center";
+                wrapper.style.gap = "6px";
+                wrapper.style.border = "1px solid var(--els-border)";
+                wrapper.style.borderRadius = "6px";
+                wrapper.style.padding = "6px 10px";
+                wrapper.style.background = "var(--els-surface)";
+
+                var input = document.createElement("input");
+                input.type = "checkbox";
+                input.className = "target-store-code";
+                input.value = code;
+                input.checked = currentSelected.indexOf(code) >= 0;
+                input.addEventListener("change", function () {
+                    loadUsers();
+                });
+
+                var span = document.createElement("span");
+                span.textContent = code;
+
+                wrapper.appendChild(input);
+                wrapper.appendChild(span);
+                storeContainer.appendChild(wrapper);
+            });
+
+            var createButton = document.getElementById("createStoreUserBtn");
+            if (createButton) {
+                createButton.disabled = distinctStores.length === 0;
+            }
+
+            loadUsers();
+        })
+        .catch(function () {
+            loadUsers();
+        });
+    }
+
+    refreshStoresAndUsers();
 })();
 </script>

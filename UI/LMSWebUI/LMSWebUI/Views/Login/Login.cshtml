@@ -749,7 +749,7 @@
                             @Html.DropDownListFor(x => x.StoreCode, new List<SelectListItem> { }, "Select a Store...", new { id = "Store" })
                         </div>
                         <div id="storeUserHint" class="login-hint">
-                            Tenant/Admin login: select a store. Store-user login: store is auto-detected.
+                            Tenant/Admin login: select a store when multiple are available. Store-user login: auto-selected only when exactly one active assigned store exists.
                         </div>
                         <div id="storeUserModeBadge" style="display:none; margin-top:8px;">
                             <span id="storeUserModeBadgeText" style="display:inline-block; padding:4px 10px; border-radius:999px; font-size:11px; font-weight:700; letter-spacing:.2px; background:color-mix(in srgb, var(--els-accent) 45%, #ffffff); color:var(--els-primary-dark); border:1px solid var(--els-primary-light);">
@@ -897,9 +897,16 @@
 
             if (isStoreUser) {
                 hint.css('color', '#0b7285');
-                hint.html('Store-user login detected. Store is auto-selected' + (autoStore ? (': <b>' + autoStore + '</b>') : '.') );
-                if (storeDropdownContainer.length) {
-                    storeDropdownContainer.hide();
+                if (autoStore) {
+                    hint.html('Store-user login detected. Store auto-selected: <b>' + autoStore + '</b>.');
+                    if (storeDropdownContainer.length) {
+                        storeDropdownContainer.hide();
+                    }
+                } else {
+                    hint.text('Store-user login detected. Multiple active assignments found; select your assigned store.');
+                    if (storeDropdownContainer.length) {
+                        storeDropdownContainer.show();
+                    }
                 }
                 if (modeBadgeText.length) {
                     modeBadgeText.text('Store User Mode');
@@ -911,12 +918,51 @@
             }
 
             hint.css('color', '#64748b');
-            hint.text('Tenant/Admin login: select a store. Store-user login: store is auto-detected.');
+            hint.text('Tenant/Admin login: select a store when multiple are available. Store-user auto-select applies only when exactly one active assigned store exists.');
             if (storeDropdownContainer.length) {
                 storeDropdownContainer.show();
             }
             if (modeBadge.length) {
                 modeBadge.hide();
+            }
+        }
+
+        function normalizeStores(rawStores) {
+            if (!rawStores) {
+                return [];
+            }
+
+            var stores = [];
+            if (Array.isArray(rawStores)) {
+                stores = rawStores;
+            } else if (typeof rawStores === 'string') {
+                stores = rawStores.split(',');
+            } else if (rawStores.$values && Array.isArray(rawStores.$values)) {
+                stores = rawStores.$values;
+            }
+
+            var distinct = [];
+            $.each(stores, function (_, item) {
+                var store = ((item || '') + '').trim();
+                if (store.length > 0 && $.inArray(store, distinct) === -1) {
+                    distinct.push(store);
+                }
+            });
+
+            return distinct;
+        }
+
+        function bindStoreOptions(stores, selectedStore) {
+            var storeDropDown = $('#Store');
+            storeDropDown.empty();
+            storeDropDown.append($('<option></option>').val('').html('Select a Store...'));
+
+            $.each(normalizeStores(stores), function (_, item) {
+                storeDropDown.append($('<option></option>').val(item).html(item));
+            });
+
+            if (selectedStore && storeDropDown.find('option[value="' + selectedStore + '"]').length > 0) {
+                storeDropDown.val(selectedStore);
             }
         }
 
@@ -1287,20 +1333,38 @@
                         return;
                     }
 
-                    var stores = resolveData.stores || [];
+                    var stores = normalizeStores(resolveData.stores);
                     var role = (resolveData.role || "").toLowerCase();
                     var isSuperAdmin = role === "superadmin";
                     var isStoreUser = !!resolveData.isStoreUser || (role && role !== "admin" && !isSuperAdmin);
                     var storeForLogin = selectedStore;
 
                     if (isStoreUser) {
-                        if (stores.length > 0) {
+                        var storeDropDown = $('#Store');
+                        if (stores.length === 1) {
                             storeForLogin = stores[0];
-                            var storeDropDown = $('#Store');
                             storeDropDown.empty();
                             storeDropDown.append($('<option></option>').val(storeForLogin).html(storeForLogin));
                             storeDropDown.val(storeForLogin);
                             setLoginModeHint(true, storeForLogin, false);
+                        } else if (stores.length > 1) {
+                            setLoginModeHint(true, '', false);
+                            bindStoreOptions(stores, selectedStore);
+
+                            if (selectedStore && stores.indexOf(selectedStore) >= 0) {
+                                storeDropDown.val(selectedStore);
+                                storeForLogin = selectedStore;
+                            } else {
+                                storeForLogin = '';
+                            }
+
+                            showInfo((resolveData.message || 'Please select your assigned store to continue.'), 'warning');
+                            if (!storeForLogin) {
+                                return;
+                            }
+                        } else {
+                            showInfo((resolveData.message || 'No valid active store assignment found for this user.'), 'danger');
+                            return;
                         }
                     } else if (isSuperAdmin) {
                         setLoginModeHint(false, "", true);
@@ -1308,7 +1372,11 @@
                     } else {
                         setLoginModeHint(false, "", false);
                         if (!storeForLogin || storeForLogin.trim().length === 0) {
-                            showInfo('Please select a store before login.', 'warning');
+                            if (stores.length > 1) {
+                                showInfo('Multiple stores found. Please select your store before login.', 'warning');
+                            } else {
+                                showInfo('Please select a store before login.', 'warning');
+                            }
                             return;
                         }
                     }
@@ -1334,7 +1402,10 @@
                                 $("#ChangePassword").modal("show");
                             }
                             else if (data === "storeRequired") {
-                                showInfo('Store mapping not found for this user.', 'warning');
+                                showInfo('Please select a valid assigned store before login.', 'warning');
+                            }
+                            else if (data === "storeUserNoAssignment") {
+                                showInfo('No valid active store assignment was found for this StoreUser.', 'danger');
                             }
                             else if (data === "serviceUnavailable") {
                                 showInfo('The login service is unavailable. Please try again shortly.', 'danger');
@@ -1461,16 +1532,7 @@
                             setLoginModeHint(false, "", false);
                             $('#LoginCheck').prop('disabled', false);
 
-                            var stores = data.split(',');
-                            var uniqueStores = [];
-
-                            $.each(stores, function (_, text) {
-                                var store = text ? text.trim() : '';
-                                if (store.length > 0 && $.inArray(store, uniqueStores) === -1) {
-                                    uniqueStores.push(store);
-                                    mySelect.append($('<option></option>').val(store).html(store));
-                                }
-                            });
+                            bindStoreOptions(data, $('#Store option:selected').val());
                         }
                         else
                         {
@@ -1480,6 +1542,39 @@
                             $('#information').empty();
                             setLoginModeHint(true, "", false);
                             $('#LoginCheck').prop('disabled', false);
+
+                            var passwordValue = (($('#tenantPassword').val() || '') + '').trim();
+                            if (passwordValue.length > 0) {
+                                $.ajax({
+                                    type: "GET",
+                                    url: '@Url.Action("ResolveLoginStores", "Login")',
+                                    data: { email: tenantEmail, password: passwordValue },
+                                    success: function (resolveData) {
+                                        if (!resolveData || !resolveData.success) {
+                                            if (resolveData && resolveData.message) {
+                                                showInfo(resolveData.message, 'warning');
+                                            }
+                                            return;
+                                        }
+
+                                        var stores = normalizeStores(resolveData.stores);
+                                        var role = (resolveData.role || "").toLowerCase();
+                                        var isSuperAdmin = role === "superadmin";
+                                        var isStoreUser = !!resolveData.isStoreUser || (role && role !== "admin" && !isSuperAdmin);
+
+                                        if (isStoreUser && stores.length > 1) {
+                                            bindStoreOptions(stores, $('#Store option:selected').val());
+                                            setLoginModeHint(true, "", false);
+                                        } else if (isStoreUser && stores.length === 1) {
+                                            bindStoreOptions(stores, stores[0]);
+                                            setLoginModeHint(true, stores[0], false);
+                                        }
+                                    },
+                                    error: function () {
+                                        showInfo('Unable to load store assignments right now. Please try again.', 'warning');
+                                    }
+                                });
+                            }
                         }
                     },
                     error: function (xhr) {
