@@ -296,7 +296,12 @@
                         </div>
                     </div>
 
-                    <form asp-action="SaveIntegration" asp-controller="Customer" method="post" class="integration-form" data-category="@provider.Category" data-provider-key="@provider.ProviderKey" data-last-test-status="@lastTestStatus" data-secret-keys="@(provider.SecretKeys == null ? string.Empty : string.Join(",", provider.SecretKeys))">
+                    @{ 
+                        var hasSavedIntegrationRecord = provider.HasSavedRecord
+                            || provider.HasSecretsConfigured
+                            || !string.Equals(lastTestStatus, "NotTested", StringComparison.OrdinalIgnoreCase);
+                    }
+                    <form asp-action="SaveIntegration" asp-controller="Customer" method="post" class="integration-form" data-category="@provider.Category" data-provider-key="@provider.ProviderKey" data-last-test-status="@lastTestStatus" data-secret-keys="@(provider.SecretKeys == null ? string.Empty : string.Join(",", provider.SecretKeys))" data-has-saved-record="@(hasSavedIntegrationRecord ? "true" : "false")" data-has-secrets-configured="@(provider.HasSecretsConfigured ? "true" : "false")">
                             @Html.AntiForgeryToken()
                             <input type="hidden" name="Category" value="@provider.Category" />
                             <input type="hidden" name="ProviderKey" value="@provider.ProviderKey" />
@@ -402,7 +407,6 @@
                                 {
                                     <button class="integration-btn secondary" type="submit" formaction="@Url.Action("SendTestEmail", "Customer")" formmethod="post" name="category" value="@provider.Category" data-role="send-test-email" disabled>Send Test Email</button>
                                     <input type="hidden" name="recipientEmail" value="" data-role="recipient-email" />
-                                    <button class="integration-btn @(provider.IsEnabled ? "warning" : "secondary")" type="submit" formaction="@Url.Action("ToggleIntegration", "Customer")" formmethod="post" name="isEnabled" value="@(provider.IsEnabled ? "false" : "true")">@(provider.IsEnabled ? "Disable" : "Enable")</button>
                                 }
                                 <input type="hidden" name="providerKey" value="@provider.ProviderKey" />
                             </div>
@@ -456,27 +460,6 @@
                 if (hasValue(get(form, 'PublicSettings[' + names[i] + ']'))) return true;
             }
             return false;
-        }
-        function getSendTestEmailGateKey(form) {
-            return 'els-send-test-email-gate:'
-                + normalize(form.getAttribute('data-category')) + ':'
-                + normalize(form.getAttribute('data-provider-key'));
-        }
-        function buildSendTestEmailConfigSignature(form) {
-            var fields = form.querySelectorAll('input[name^="PublicSettings["],input[name^="SecretSettings["],select[name="IsTestMode"]');
-            var parts = [];
-            for (var i = 0; i < fields.length; i++) {
-                var field = fields[i];
-                var name = field.getAttribute('name') || '';
-                if (name === 'SecretSettings[Password]') {
-                    continue;
-                }
-
-                parts.push(name + '=' + ((field.value || '').trim().toLowerCase()));
-            }
-
-            parts.sort();
-            return parts.join('|');
         }
         function initializeFieldBaselines(form) {
             var fields = form.querySelectorAll('input[name^="PublicSettings["],input[name^="SecretSettings["],select[name="IsTestMode"]');
@@ -546,7 +529,10 @@
             var sendTestEmailBtn = form.querySelector('[data-role="send-test-email"]');
             var message = form.querySelector('[data-role="validation"]');
 
+            var hasSavedConfig = normalize(form.getAttribute('data-has-saved-record')) === 'true';
+            var hasSecretsConfiguredFlag = normalize(form.getAttribute('data-has-secrets-configured')) === 'true';
             var hasSavedPassword = hasSavedSecret(form, ['Password', 'Token', 'Secret', 'SecretKey']);
+            var hasConfiguredSecrets = hasSecretsConfiguredFlag || hasSavedPassword;
             var isEmailCategory = normalize(form.getAttribute('data-category')) === 'email';
             var isEmailSmtp = isEmailCategory && normalize(form.getAttribute('data-provider-key')) === 'smtp';
             var lastTestStatusValue = normalize(form.getAttribute('data-last-test-status'));
@@ -558,30 +544,22 @@
                 hasSuccessfulConnectionTest = providerStatusText.indexOf('last test: success') >= 0;
             }
             var canSendTestEmail = false;
-            if (isEmailSmtp && !submitting && errors.length === 0 && !dirty && hasSavedPassword && hasSuccessfulConnectionTest) {
-                try {
-                    var gateValue = sessionStorage.getItem(getSendTestEmailGateKey(form));
-                    canSendTestEmail = gateValue === buildSendTestEmailConfigSignature(form);
-                } catch (e) {
-                    canSendTestEmail = false;
-                }
+            if (isEmailSmtp && !submitting && errors.length === 0 && !dirty && hasSavedConfig && hasConfiguredSecrets && hasSuccessfulConnectionTest) {
+                canSendTestEmail = true;
             }
 
-            if (isEmailSmtp && (dirty || !hasSuccessfulConnectionTest)) {
-                try {
-                    sessionStorage.removeItem(getSendTestEmailGateKey(form));
-                } catch (e) {
-                }
-            }
-
-            if (saveBtn) saveBtn.disabled = submitting || errors.length > 0 || !dirty;
+            var canSaveNewSmtpConfig = isEmailSmtp && !hasSavedPassword && errors.length === 0;
+            if (saveBtn) saveBtn.disabled = submitting || errors.length > 0 || (!dirty && !canSaveNewSmtpConfig);
             if (testBtn) testBtn.disabled = submitting || errors.length > 0 || dirty;
             if (sendTestEmailBtn) sendTestEmailBtn.disabled = !canSendTestEmail;
 
             var info = [];
             if (errors.length > 0) info = info.concat(errors);
             else if (dirty) info.push('Save changes before Test Connection.');
-            if (normalize(form.getAttribute('data-category')) === 'email' && !hasSavedPassword && !hasValue(get(form, 'SecretSettings[Password]'))) {
+            if (isEmailSmtp && !hasSavedConfig) {
+                info.push('Save SMTP configuration before sending a test email.');
+            }
+            if (normalize(form.getAttribute('data-category')) === 'email' && !hasConfiguredSecrets && !hasValue(get(form, 'SecretSettings[Password]'))) {
                 info.push('Enter and save SMTP password/token to enable Test Connection.');
             }
             if (isEmailSmtp && errors.length === 0 && !dirty && !hasSuccessfulConnectionTest) {
@@ -646,13 +624,6 @@
                 if (submitter.disabled) {
                     e.preventDefault();
                     return;
-                }
-
-                if (submitRole === 'test') {
-                    try {
-                        sessionStorage.setItem(getSendTestEmailGateKey(form), buildSendTestEmailConfigSignature(form));
-                    } catch (e) {
-                    }
                 }
 
                 form.setAttribute('data-submitting', 'true');

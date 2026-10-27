@@ -11,6 +11,7 @@ namespace LMSWebUI.Models.Admin
         public string ProviderKey { get; set; }
         public string ProviderDisplayName { get; set; }
         public bool IsEnabled { get; set; }
+        public bool HasSavedRecord { get; set; }
         public bool IsTestMode { get; set; }
         public Dictionary<string, string> PublicSettings { get; set; } = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         public Dictionary<string, string> SecretSettings { get; set; } = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);

@@ -1191,8 +1191,7 @@ namespace LMS.Master.BusinessSerive.Services
                 x.TenantName == tenantName
                 && x.StoreCode == storeCode
                 && x.Category == category
-                && x.ProviderKey == providerKey
-                && x.IsEnabled);
+                && x.ProviderKey == providerKey);
 
             if (existing == null)
             {
@@ -1503,8 +1502,7 @@ namespace LMS.Master.BusinessSerive.Services
                 x.TenantName == tenantName
                 && x.StoreCode == storeCode
                 && x.Category == category
-                && x.ProviderKey == providerKey
-                && x.IsEnabled);
+                && x.ProviderKey == providerKey);
 
             if (existing != null)
             {
@@ -4221,6 +4219,7 @@ END;";
             }
 
             dto.HasSecretsConfigured = entity?.HasSecretsConfigured == true;
+            dto.HasSavedRecord = entity != null;
             return dto;
         }
 

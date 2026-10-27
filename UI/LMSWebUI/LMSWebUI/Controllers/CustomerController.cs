@@ -2873,15 +2873,36 @@ namespace LMSWebUI.Controllers
                 IsEnabled = isEnabled
             };
 
-            var result = await _clientApi.SendRequestAsync<CustomerIOResponse>("/SetTenantIntegrationEnabled", payload, Method.POST);
-            TempData["UserMessage"] = JsonConvert.SerializeObject(new MessageDto
+            try
             {
-                CssClassName = string.Equals(result?.StatusCode, "200", StringComparison.OrdinalIgnoreCase)
-                    ? "alert alert-success"
-                    : "alert alert-danger",
-                Title = string.Equals(result?.StatusCode, "200", StringComparison.OrdinalIgnoreCase) ? "Success." : "Failed.",
-                DisplayMessage = result?.Message ?? "Unable to update integration status."
-            });
+                var result = await _clientApi.SendRequestAsync<CustomerIOResponse>("/SetTenantIntegrationEnabled", payload, Method.POST);
+                TempData["UserMessage"] = JsonConvert.SerializeObject(new MessageDto
+                {
+                    CssClassName = string.Equals(result?.StatusCode, "200", StringComparison.OrdinalIgnoreCase)
+                        ? "alert alert-success"
+                        : "alert alert-danger",
+                    Title = string.Equals(result?.StatusCode, "200", StringComparison.OrdinalIgnoreCase) ? "Success." : "Failed.",
+                    DisplayMessage = result?.Message ?? "Unable to update integration status."
+                });
+            }
+            catch (ApiUnavailableException ex)
+            {
+                TempData["UserMessage"] = JsonConvert.SerializeObject(new MessageDto
+                {
+                    CssClassName = "alert alert-danger",
+                    Title = "Failed.",
+                    DisplayMessage = BuildApiErrorMessage(ex, "Unable to update integration status.")
+                });
+            }
+            catch (Exception ex)
+            {
+                TempData["UserMessage"] = JsonConvert.SerializeObject(new MessageDto
+                {
+                    CssClassName = "alert alert-danger",
+                    Title = "Failed.",
+                    DisplayMessage = BuildApiErrorMessage(ex, "Unable to update integration status.")
+                });
+            }
 
             return RedirectToAction(nameof(Integrations));
         }
@@ -2946,15 +2967,36 @@ namespace LMSWebUI.Controllers
                 RecipientEmail = recipientEmail.Trim()
             };
 
-            var result = await _clientApi.SendRequestAsync<CustomerIOResponse>("/SendTenantIntegrationTestEmail", payload, Method.POST);
-            TempData["UserMessage"] = JsonConvert.SerializeObject(new MessageDto
+            try
             {
-                CssClassName = string.Equals(result?.StatusCode, "200", StringComparison.OrdinalIgnoreCase)
-                    ? "alert alert-success"
-                    : "alert alert-warning",
-                Title = string.Equals(result?.StatusCode, "200", StringComparison.OrdinalIgnoreCase) ? "Test Success." : "Test Failed.",
-                DisplayMessage = result?.Message ?? "Unable to send test email."
-            });
+                var result = await _clientApi.SendRequestAsync<CustomerIOResponse>("/SendTenantIntegrationTestEmail", payload, Method.POST);
+                TempData["UserMessage"] = JsonConvert.SerializeObject(new MessageDto
+                {
+                    CssClassName = string.Equals(result?.StatusCode, "200", StringComparison.OrdinalIgnoreCase)
+                        ? "alert alert-success"
+                        : "alert alert-warning",
+                    Title = string.Equals(result?.StatusCode, "200", StringComparison.OrdinalIgnoreCase) ? "Test Success." : "Test Failed.",
+                    DisplayMessage = result?.Message ?? "Unable to send test email."
+                });
+            }
+            catch (ApiUnavailableException ex)
+            {
+                TempData["UserMessage"] = JsonConvert.SerializeObject(new MessageDto
+                {
+                    CssClassName = "alert alert-warning",
+                    Title = "Test Failed.",
+                    DisplayMessage = BuildApiErrorMessage(ex, "Unable to send test email.")
+                });
+            }
+            catch (Exception ex)
+            {
+                TempData["UserMessage"] = JsonConvert.SerializeObject(new MessageDto
+                {
+                    CssClassName = "alert alert-warning",
+                    Title = "Test Failed.",
+                    DisplayMessage = BuildApiErrorMessage(ex, "Unable to send test email.")
+                });
+            }
 
             return RedirectToAction(nameof(Integrations));
         }
