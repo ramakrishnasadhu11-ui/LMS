@@ -473,23 +473,58 @@ namespace LMSWebUI.Controllers
                             ? Email
                             : responseMessage.Email;
 
+                        var role = string.IsNullOrWhiteSpace(responseMessage.UserRole) ? "StoreUser" : responseMessage.UserRole.Trim();
+                        var isStoreUser = !string.Equals(role, "Admin", StringComparison.OrdinalIgnoreCase)
+                            && !string.Equals(role, "SuperAdmin", StringComparison.OrdinalIgnoreCase);
+
                         var allowedStores = await FilterEnabledStoresForTenantAsync(tenantSessionEmail, responseMessage.Storecodes ?? new List<string>());
 
-                        var resolvedStore = !string.IsNullOrWhiteSpace(Store)
-                            ? Store.Trim()
-                        : (allowedStores.Count > 0
-                            ? allowedStores[0]
-                                : string.Empty);
-
-                        if (string.IsNullOrWhiteSpace(resolvedStore))
+                        string resolvedStore;
+                        if (isStoreUser)
                         {
-                            return "storeRequired";
+                            if (allowedStores.Count == 0)
+                            {
+                                return "storeUserNoAssignment";
+                            }
+
+                            if (allowedStores.Count == 1)
+                            {
+                                resolvedStore = allowedStores[0];
+                            }
+                            else
+                            {
+                                resolvedStore = string.IsNullOrWhiteSpace(Store) ? string.Empty : Store.Trim();
+                                if (string.IsNullOrWhiteSpace(resolvedStore))
+                                {
+                                    return "storeRequired";
+                                }
+                            }
+                        }
+                        else
+                        {
+                            if (allowedStores.Count == 0)
+                            {
+                                return "storeRequired";
+                            }
+
+                            if (allowedStores.Count == 1)
+                            {
+                                resolvedStore = allowedStores[0];
+                            }
+                            else
+                            {
+                                resolvedStore = string.IsNullOrWhiteSpace(Store) ? string.Empty : Store.Trim();
+                                if (string.IsNullOrWhiteSpace(resolvedStore))
+                                {
+                                    return "storeRequired";
+                                }
+                            }
                         }
 
-                    if (!allowedStores.Contains(resolvedStore, StringComparer.OrdinalIgnoreCase))
-                    {
-                        return "invalidStore";
-                    }
+                        if (!allowedStores.Contains(resolvedStore, StringComparer.OrdinalIgnoreCase))
+                        {
+                            return "invalidStore";
+                        }
 
                         if (IsTenantLoginSuccessMessage(responseMessage.Message))
                         {
@@ -506,7 +541,6 @@ namespace LMSWebUI.Controllers
                             HttpContext.Session.SetString(AllowedStoresSessionKey, string.Join(",", allowedStores));
                             SetTenantProfileImageSession(tenantSessionEmail, HttpContext.Session.GetString(TenantIdSessionKey));
                             await SetTenantMemberSinceSessionAsync(tenantSessionEmail, responseMessage.TenantName);
-                            var role = string.IsNullOrWhiteSpace(responseMessage.UserRole) ? "StoreUser" : responseMessage.UserRole.Trim();
                             HttpContext.Session.SetString("UserRole", role);
                             await SignInUserAsync(
                                 tenantSessionEmail,
@@ -1036,14 +1070,29 @@ namespace LMSWebUI.Controllers
                         ? email
                         : responseMessage.Email;
                     var stores = await FilterEnabledStoresForTenantAsync(tenantEmailForStores, responseMessage.Storecodes ?? new List<string>());
+                    var isStoreUser = !string.Equals(role, "Admin", StringComparison.OrdinalIgnoreCase)
+                                      && !string.Equals(role, "SuperAdmin", StringComparison.OrdinalIgnoreCase);
+
+                    var resolveMessage = string.Empty;
+                    if (isStoreUser)
+                    {
+                        if (stores.Count == 0)
+                        {
+                            resolveMessage = "No valid active store assignment was found for this user.";
+                        }
+                        else if (stores.Count > 1)
+                        {
+                            resolveMessage = "Multiple active store assignments were found. Please select your assigned store.";
+                        }
+                    }
+
                     return Json(new
                     {
                         success = true,
-                        message = string.Empty,
+                        message = resolveMessage,
                         stores,
                         role,
-                        isStoreUser = !string.Equals(role, "Admin", StringComparison.OrdinalIgnoreCase)
-                                      && !string.Equals(role, "SuperAdmin", StringComparison.OrdinalIgnoreCase)
+                        isStoreUser
                     });
                 }
 
@@ -1130,7 +1179,7 @@ namespace LMSWebUI.Controllers
         }
 
         [HttpPost]
-        public async Task<JsonResult> SetStoreUserActiveStatus(string userEmail, bool isActive)
+        public async Task<JsonResult> SetStoreUserActiveStatus(string userEmail, bool isActive, string storeCode = null)
         {
             var userRole = HttpContext.Session.GetString("UserRole");
             if (!string.Equals(userRole, "Admin", StringComparison.OrdinalIgnoreCase))
@@ -1139,11 +1188,21 @@ namespace LMSWebUI.Controllers
             }
 
             var tenantEmail = HttpContext.Session.GetString("TenantName");
-            var storeCode = HttpContext.Session.GetString("TenantStore");
+            var currentSessionStoreCode = HttpContext.Session.GetString("TenantStore");
 
-            if (string.IsNullOrWhiteSpace(tenantEmail) || string.IsNullOrWhiteSpace(storeCode))
+            if (string.IsNullOrWhiteSpace(tenantEmail) || string.IsNullOrWhiteSpace(currentSessionStoreCode))
             {
                 return Json(new { success = false, message = "Session expired. Please log in again." });
+            }
+
+            var selectedStoreCode = string.IsNullOrWhiteSpace(storeCode)
+                ? currentSessionStoreCode
+                : storeCode.Trim();
+
+            var enabledStores = await GetEnabledStoreCodesForTenantAsync(tenantEmail);
+            if (!enabledStores.Contains(selectedStoreCode))
+            {
+                return Json(new { success = false, message = "Invalid store selection." });
             }
 
             if (string.IsNullOrWhiteSpace(userEmail))
@@ -1156,7 +1215,7 @@ namespace LMSWebUI.Controllers
                 var response = await _clientApi.SendRequestAsync<LoginIoResponse>("/SetStoreUserActiveStatus", new Dictionary<string, string>
                 {
                     { "tenantEmail", tenantEmail },
-                    { "storeCode", storeCode },
+                    { "storeCode", selectedStoreCode },
                     { "userEmail", userEmail.Trim() },
                     { "isActive", isActive ? "true" : "false" }
                 }, RestSharp.Method.POST);
