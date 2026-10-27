@@ -9,7 +9,11 @@ namespace LMS.Identity.BusinessSerive.Mapper
         public MapperProfile()
         {
             AllowNullDestinationValues = true;
-            CreateMap<TenantDto, TenantEntity>().IgnoreAllPropertiesWithAnInaccessibleSetter().ReverseMap();
+
+            CreateMap<TenantDto, TenantEntity>()
+                .ForMember(dest => dest.Id, opt => opt.Ignore())
+                .IgnoreAllPropertiesWithAnInaccessibleSetter()
+                .ReverseMap();
         }
     }
 }

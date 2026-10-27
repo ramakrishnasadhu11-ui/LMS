@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Microsoft.EntityFrameworkCore;
 using LMS.Core.Repository.UnitOfWork;
@@ -15,6 +16,8 @@ using Microsoft.OpenApi.Models;
 using System;
 using System.IO;
 using System.Reflection;
+using System.Security.Cryptography;
+using System.Text;
 using LMS.Identity.BusinessSerive.Services;
 using static LMS.Identity.BusinessSerive.Services.LoginService;
 using IConfiguration = Microsoft.Extensions.Configuration.IConfiguration;
@@ -98,8 +101,22 @@ namespace LMS.Identity.WebApi
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
-        public void Configure(IApplicationBuilder app, IWebHostEnvironment env)
+        public void Configure(IApplicationBuilder app, IWebHostEnvironment env, ILogger<Startup> logger)
         {
+            var configuredIssuer = GetJwtValue("Issuer")?.Trim();
+            var configuredAudience = GetJwtValue("Audience")?.Trim();
+            var configuredSigningKey = GetJwtValue("SigningKey");
+
+            logger?.LogInformation(
+                "JWT configuration loaded. Environment={Environment}, Issuer={Issuer}, Audience={Audience}, IssuerConfigured={IssuerConfigured}, AudienceConfigured={AudienceConfigured}, SigningKeyLength={SigningKeyLength}, SigningKeyFingerprint={SigningKeyFingerprint}",
+                env.EnvironmentName,
+                configuredIssuer,
+                configuredAudience,
+                !string.IsNullOrWhiteSpace(configuredIssuer),
+                !string.IsNullOrWhiteSpace(configuredAudience),
+                configuredSigningKey?.Length ?? 0,
+                GetKeyFingerprint(configuredSigningKey));
+
             if (env.IsDevelopment())
             {
                 app.UseDeveloperExceptionPage();
@@ -128,6 +145,29 @@ namespace LMS.Identity.WebApi
                 c.SwaggerEndpoint("/swagger/v1/swagger.json", "LMS Identity API v1");
             });
             app.UseEndpoints(endpoints => endpoints.MapControllers());
+        }
+
+        private static string GetKeyFingerprint(string key)
+        {
+            if (string.IsNullOrWhiteSpace(key))
+            {
+                return "missing";
+            }
+
+            using var sha256 = SHA256.Create();
+            var hash = sha256.ComputeHash(Encoding.UTF8.GetBytes(key.Trim()));
+            return Convert.ToBase64String(hash, 0, 6);
+        }
+
+        private string GetJwtValue(string name)
+        {
+            var envValue = Environment.GetEnvironmentVariable($"Jwt__{name}");
+            if (!string.IsNullOrWhiteSpace(envValue))
+            {
+                return envValue;
+            }
+
+            return Configuration[$"Jwt:{name}"];
         }
     }
 }

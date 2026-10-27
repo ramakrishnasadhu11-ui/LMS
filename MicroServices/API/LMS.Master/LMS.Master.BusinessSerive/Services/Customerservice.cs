@@ -4,7 +4,10 @@ using LMS.Master.BusinessSerive.Interfaces;
 using LMS.Master.DTO;
 using LMS.Master.DTO.Entity;
 using LMS.Master.Utilities;
+using MailKit.Security;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
+using MimeKit;
 using Microsoft.EntityFrameworkCore;
 using System;
 using System.Collections.Generic;
@@ -13,6 +16,7 @@ using System.Data;
 using System.IO;
 using System.Linq;
 using System.Net;
+using System.Net.Mail;
 using System.Net.Sockets;
 using System.Security.Cryptography;
 using System.Text;
@@ -32,13 +36,17 @@ namespace LMS.Master.BusinessSerive.Services
 
         private readonly IMapper _mapper;
         private readonly MasterDbContext _masterDbContext;
+        private readonly IConfiguration _configuration;
+        private readonly ILogger<Customerservice> _logger;
         private readonly string _integrationEncryptionKeyMaterial;
         private readonly List<string> _seedFilePaths;
 
-        public Customerservice(IMapper mapper, MasterDbContext masterDbContext, IConfiguration configuration)
+        public Customerservice(IMapper mapper, MasterDbContext masterDbContext, IConfiguration configuration, ILogger<Customerservice> logger)
         {
             _mapper = mapper ?? throw new ArgumentNullException(nameof(mapper));
             _masterDbContext = masterDbContext ?? throw new ArgumentNullException(nameof(masterDbContext));
+            _configuration = configuration;
+            _logger = logger;
             var encryptionKey = configuration?["IntegrationSettings:EncryptionKey"];
             if (string.IsNullOrWhiteSpace(encryptionKey))
             {
@@ -1131,6 +1139,584 @@ namespace LMS.Master.BusinessSerive.Services
             {
                 StatusCode = "200",
                 Message = existing.LastTestMessage
+            });
+        }
+
+        public async Task<ActionReturnType> SendTenantIntegrationTestEmail(string tenantName, string storeCode, string category, string providerKey, string recipientEmail)
+        {
+            await EnsureTenantIntegrationSettingsTableExistsAsync();
+
+            if (string.IsNullOrWhiteSpace(tenantName)
+                || string.IsNullOrWhiteSpace(storeCode)
+                || string.IsNullOrWhiteSpace(category)
+                || string.IsNullOrWhiteSpace(providerKey)
+                || string.IsNullOrWhiteSpace(recipientEmail))
+            {
+                return ActionSet.ActionReturnType(HttpStatusCode.BadRequest, new CustomerIOResponse
+                {
+                    StatusCode = "400",
+                    Message = "Invalid send test email request."
+                });
+            }
+
+            tenantName = tenantName.Trim();
+            storeCode = storeCode.Trim();
+            category = category.Trim();
+            providerKey = providerKey.Trim();
+            recipientEmail = recipientEmail.Trim();
+
+            if (!string.Equals(category, IntegrationConstants.Category.Email, StringComparison.OrdinalIgnoreCase)
+                || !string.Equals(providerKey, "smtp", StringComparison.OrdinalIgnoreCase))
+            {
+                return ActionSet.ActionReturnType(HttpStatusCode.BadRequest, new CustomerIOResponse
+                {
+                    StatusCode = "400",
+                    Message = "Send test email is available only for Email/SMTP integration."
+                });
+            }
+
+            try
+            {
+                recipientEmail = new MailAddress(recipientEmail).Address;
+            }
+            catch
+            {
+                return ActionSet.ActionReturnType(HttpStatusCode.BadRequest, new CustomerIOResponse
+                {
+                    StatusCode = "400",
+                    Message = "Recipient email address is invalid."
+                });
+            }
+            var existing = await _masterDbContext.TenantIntegrationSettings.FirstOrDefaultAsync(x =>
+                x.TenantName == tenantName
+                && x.StoreCode == storeCode
+                && x.Category == category
+                && x.ProviderKey == providerKey
+                && x.IsEnabled);
+
+            if (existing == null)
+            {
+                return ActionSet.ActionReturnType(HttpStatusCode.NotFound, new CustomerIOResponse
+                {
+                    StatusCode = "404",
+                    Message = "Integration configuration not found. Save configuration first."
+                });
+            }
+
+            var payload = ReadPayload(existing.EncryptedSettingsJson);
+            var validationErrors = ValidateIntegrationConfiguration(category, payload);
+            if (validationErrors.Count > 0)
+            {
+                return ActionSet.ActionReturnType(HttpStatusCode.BadRequest, new CustomerIOResponse
+                {
+                    StatusCode = "400",
+                    Message = string.Join(" ", validationErrors)
+                });
+            }
+
+            payload ??= new IntegrationSettingsPayload();
+            payload.Public ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            payload.Secret ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+            string Public(params string[] keys)
+            {
+                foreach (var key in keys)
+                {
+                    if (payload.Public.TryGetValue(key, out var value) && !string.IsNullOrWhiteSpace(value))
+                    {
+                        return value.Trim();
+                    }
+                }
+
+                return null;
+            }
+
+            string Secret(params string[] keys)
+            {
+                foreach (var key in keys)
+                {
+                    if (payload.Secret.TryGetValue(key, out var value) && !string.IsNullOrWhiteSpace(value))
+                    {
+                        return value.Trim();
+                    }
+                }
+
+                return null;
+            }
+
+            var host = Public("Host", "Endpoint");
+            var portText = Public("Port", "AccountId");
+            var senderEmail = Public("From", "SenderId");
+            var username = Secret("Username", "ApiKey");
+            var password = Secret("Password", "Token", "Secret", "SecretKey");
+
+            if (!int.TryParse(portText, out var port) || port <= 0)
+            {
+                return ActionSet.ActionReturnType(HttpStatusCode.BadRequest, new CustomerIOResponse
+                {
+                    StatusCode = "400",
+                    Message = "SMTP port is invalid."
+                });
+            }
+
+            try
+            {
+                senderEmail = new MailAddress(senderEmail).Address;
+            }
+            catch
+            {
+                return ActionSet.ActionReturnType(HttpStatusCode.BadRequest, new CustomerIOResponse
+                {
+                    StatusCode = "400",
+                    Message = "Sender email address is invalid."
+                });
+            }
+
+            bool ResolveEnableSsl()
+            {
+                var sslText = Public("EnableSsl", "UseSsl", "Ssl", "Tls", "UseTls");
+                if (bool.TryParse(sslText, out var boolValue))
+                {
+                    return boolValue;
+                }
+
+                if (!string.IsNullOrWhiteSpace(sslText))
+                {
+                    var normalized = sslText.Trim();
+                    if (normalized.Equals("1", StringComparison.OrdinalIgnoreCase)
+                        || normalized.Equals("yes", StringComparison.OrdinalIgnoreCase)
+                        || normalized.Equals("y", StringComparison.OrdinalIgnoreCase)
+                        || normalized.Equals("on", StringComparison.OrdinalIgnoreCase)
+                        || normalized.Equals("required", StringComparison.OrdinalIgnoreCase))
+                    {
+                        return true;
+                    }
+                }
+
+                return port == 465 || port == 587;
+            }
+
+            var emailSubject = "Excel Laundry Services SMTP Test Email";
+            var emailBody = "This is a test email sent from Excel Laundry Services SMTP integration settings.\n\n"
+                + $"Tenant: {tenantName}\n"
+                + $"Store: {storeCode}\n"
+                + $"Sent UTC: {DateTime.UtcNow:O}";
+
+            var portsToTry = new List<int> { port };
+            if (string.Equals(host, "smtp.gmail.com", StringComparison.OrdinalIgnoreCase))
+            {
+                if (!portsToTry.Contains(587))
+                {
+                    portsToTry.Add(587);
+                }
+
+                if (!portsToTry.Contains(465))
+                {
+                    portsToTry.Add(465);
+                }
+            }
+
+            existing.LastTestedAtUtc = DateTime.UtcNow;
+
+            string BuildSmtpFailureMessage(Exception ex)
+            {
+                if (ex == null)
+                {
+                    return "Failed to send test email.";
+                }
+
+                var primary = ex.Message?.Trim();
+                var inner = ex.InnerException?.Message?.Trim();
+                var primaryType = ex.GetType().Name;
+                var innerType = ex.InnerException?.GetType().Name;
+
+                if (string.IsNullOrWhiteSpace(inner))
+                {
+                    return $"Failed to send test email: {primaryType}: {primary}";
+                }
+
+                return $"Failed to send test email: {primaryType}: {primary} | Inner: {innerType}: {inner}";
+            }
+
+            Exception lastException = null;
+            foreach (var portToTry in portsToTry)
+            {
+                try
+                {
+                    var message = new MimeMessage();
+                    message.From.Add(new MailboxAddress("Excel Laundry Services", senderEmail));
+                    message.To.Add(MailboxAddress.Parse(recipientEmail));
+                    message.Subject = emailSubject;
+                    message.Body = new TextPart("plain") { Text = emailBody };
+
+                    using (var smtpClient = new MailKit.Net.Smtp.SmtpClient())
+                    {
+                        smtpClient.Timeout = 15000;
+
+                        var enableSsl = ResolveEnableSsl();
+                        var socketOption = enableSsl
+                            ? (portToTry == 465 ? SecureSocketOptions.SslOnConnect : SecureSocketOptions.StartTls)
+                            : SecureSocketOptions.None;
+
+                        await smtpClient.ConnectAsync(host, portToTry, socketOption);
+
+                        if (!string.IsNullOrWhiteSpace(username))
+                        {
+                            await smtpClient.AuthenticateAsync(username, password ?? string.Empty);
+                        }
+
+                        await smtpClient.SendAsync(message);
+                        await smtpClient.DisconnectAsync(true);
+                    }
+
+                    existing.LastTestStatus = "Success";
+                    existing.LastTestMessage = $"Test email sent successfully to {recipientEmail}.";
+                    existing.ModifiedDate = DateTime.UtcNow;
+                    await _masterDbContext.SaveChangesAsync();
+
+                    return ActionSet.ActionReturnType(HttpStatusCode.OK, new CustomerIOResponse
+                    {
+                        StatusCode = "200",
+                        Message = existing.LastTestMessage
+                    });
+                }
+                catch (Exception ex)
+                {
+                    lastException = ex;
+                }
+            }
+
+            existing.IsEnabled = false;
+            existing.LastTestStatus = "Failed";
+            existing.LastTestMessage = BuildSmtpFailureMessage(lastException);
+            if (existing.LastTestMessage.Length > 512)
+            {
+                existing.LastTestMessage = existing.LastTestMessage.Substring(0, 512);
+            }
+
+            existing.ModifiedDate = DateTime.UtcNow;
+            await _masterDbContext.SaveChangesAsync();
+
+            return ActionSet.ActionReturnType(HttpStatusCode.BadRequest, new CustomerIOResponse
+            {
+                StatusCode = "400",
+                Message = existing.LastTestMessage
+            });
+        }
+
+        public async Task<ActionReturnType> SendTenantIntegrationOrderBillEmail(TenantIntegrationOrderBillEmailRequestDto request)
+        {
+            await EnsureTenantIntegrationSettingsTableExistsAsync();
+
+            if (request == null
+                || string.IsNullOrWhiteSpace(request.TenantName)
+                || string.IsNullOrWhiteSpace(request.StoreCode)
+                || string.IsNullOrWhiteSpace(request.RecipientEmail))
+            {
+                return ActionSet.ActionReturnType(HttpStatusCode.BadRequest, new CustomerIOResponse
+                {
+                    StatusCode = "400",
+                    Message = "Invalid order bill email request."
+                });
+            }
+
+            var tenantName = request.TenantName.Trim();
+            var storeCode = request.StoreCode.Trim();
+            var category = string.IsNullOrWhiteSpace(request.Category) ? IntegrationConstants.Category.Email : request.Category.Trim();
+            var providerKey = string.IsNullOrWhiteSpace(request.ProviderKey) ? "smtp" : request.ProviderKey.Trim();
+            var recipientEmail = request.RecipientEmail.Trim();
+
+            if (!string.Equals(category, IntegrationConstants.Category.Email, StringComparison.OrdinalIgnoreCase)
+                || !string.Equals(providerKey, "smtp", StringComparison.OrdinalIgnoreCase))
+            {
+                return ActionSet.ActionReturnType(HttpStatusCode.BadRequest, new CustomerIOResponse
+                {
+                    StatusCode = "400",
+                    Message = "Order bill email is available only for Email/SMTP integration."
+                });
+            }
+
+            try
+            {
+                recipientEmail = new MailAddress(recipientEmail).Address;
+            }
+            catch
+            {
+                return ActionSet.ActionReturnType(HttpStatusCode.BadRequest, new CustomerIOResponse
+                {
+                    StatusCode = "400",
+                    Message = "Recipient email address is invalid."
+                });
+            }
+
+            string GetConfig(params string[] keys)
+            {
+                foreach (var key in keys)
+                {
+                    var value = _configuration?[key];
+                    if (!string.IsNullOrWhiteSpace(value))
+                    {
+                        return value.Trim();
+                    }
+                }
+
+                return null;
+            }
+
+            static bool ParseEnableSsl(string sslText, int smtpPort)
+            {
+                if (bool.TryParse(sslText, out var boolValue))
+                {
+                    return boolValue;
+                }
+
+                if (!string.IsNullOrWhiteSpace(sslText))
+                {
+                    var normalized = sslText.Trim();
+                    if (normalized.Equals("1", StringComparison.OrdinalIgnoreCase)
+                        || normalized.Equals("yes", StringComparison.OrdinalIgnoreCase)
+                        || normalized.Equals("y", StringComparison.OrdinalIgnoreCase)
+                        || normalized.Equals("on", StringComparison.OrdinalIgnoreCase)
+                        || normalized.Equals("required", StringComparison.OrdinalIgnoreCase))
+                    {
+                        return true;
+                    }
+                }
+
+                return smtpPort == 465 || smtpPort == 587;
+            }
+
+            var host = GetConfig("MailConfiguration:Host", "MailConfiguration:SmtpServer");
+            var portText = GetConfig("MailConfiguration:Port");
+            var username = GetConfig("MailConfiguration:Username");
+            var password = GetConfig("MailConfiguration:Password");
+            var senderEmail = GetConfig("MailConfiguration:FromAddress", "MailConfiguration:MailFrom", "MailConfiguration:Sender");
+            if (string.IsNullOrWhiteSpace(senderEmail))
+            {
+                senderEmail = username;
+            }
+
+            var port = int.TryParse(portText, out var globalPort) && globalPort > 0 ? globalPort : 587;
+            var enableSsl = ParseEnableSsl(GetConfig("MailConfiguration:EnableSsl"), port);
+
+            var existing = await _masterDbContext.TenantIntegrationSettings.FirstOrDefaultAsync(x =>
+                x.TenantName == tenantName
+                && x.StoreCode == storeCode
+                && x.Category == category
+                && x.ProviderKey == providerKey
+                && x.IsEnabled);
+
+            if (existing != null)
+            {
+                var payload = ReadPayload(existing.EncryptedSettingsJson);
+                var validationErrors = ValidateIntegrationConfiguration(category, payload);
+
+                if (validationErrors.Count == 0)
+                {
+                    payload ??= new IntegrationSettingsPayload();
+                    payload.Public ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                    payload.Secret ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+                    string Public(params string[] keys)
+                    {
+                        foreach (var key in keys)
+                        {
+                            if (payload.Public.TryGetValue(key, out var value) && !string.IsNullOrWhiteSpace(value))
+                            {
+                                return value.Trim();
+                            }
+                        }
+
+                        return null;
+                    }
+
+                    string Secret(params string[] keys)
+                    {
+                        foreach (var key in keys)
+                        {
+                            if (payload.Secret.TryGetValue(key, out var value) && !string.IsNullOrWhiteSpace(value))
+                            {
+                                return value.Trim();
+                            }
+                        }
+
+                        return null;
+                    }
+
+                    var tenantHost = Public("Host", "Endpoint");
+                    var tenantPortText = Public("Port", "AccountId");
+                    var tenantSenderEmail = Public("From", "SenderId");
+                    var tenantUsername = Secret("Username", "ApiKey");
+                    var tenantPassword = Secret("Password", "Token", "Secret", "SecretKey");
+
+                    if (int.TryParse(tenantPortText, out var tenantPort) && tenantPort > 0
+                        && !string.IsNullOrWhiteSpace(tenantHost)
+                        && !string.IsNullOrWhiteSpace(tenantSenderEmail)
+                        && !string.IsNullOrWhiteSpace(tenantUsername)
+                        && !string.IsNullOrWhiteSpace(tenantPassword))
+                    {
+                        host = tenantHost;
+                        port = tenantPort;
+                        username = tenantUsername;
+                        password = tenantPassword;
+                        senderEmail = tenantSenderEmail;
+                        enableSsl = ParseEnableSsl(Public("EnableSsl", "UseSsl", "Ssl", "Tls", "UseTls"), port);
+                    }
+                    else
+                    {
+                        _logger?.LogWarning("Tenant SMTP integration is incomplete for Tenant {TenantName}, Store {StoreCode}. Falling back to global MailConfiguration for order bill email.", tenantName, storeCode);
+                    }
+                }
+                else
+                {
+                    _logger?.LogWarning("Tenant SMTP integration validation failed for Tenant {TenantName}, Store {StoreCode}. Falling back to global MailConfiguration for order bill email.", tenantName, storeCode);
+                }
+            }
+
+            if (string.IsNullOrWhiteSpace(host)
+                || port <= 0
+                || string.IsNullOrWhiteSpace(senderEmail))
+            {
+                return ActionSet.ActionReturnType(HttpStatusCode.BadRequest, new CustomerIOResponse
+                {
+                    StatusCode = "400",
+                    Message = "Email configuration is not available for order bill delivery."
+                });
+            }
+
+            try
+            {
+                senderEmail = new MailAddress(senderEmail).Address;
+            }
+            catch
+            {
+                return ActionSet.ActionReturnType(HttpStatusCode.BadRequest, new CustomerIOResponse
+                {
+                    StatusCode = "400",
+                    Message = "Sender email address is invalid."
+                });
+            }
+
+            byte[] attachmentBytes = null;
+            if (!string.IsNullOrWhiteSpace(request.AttachmentContentBase64))
+            {
+                try
+                {
+                    attachmentBytes = Convert.FromBase64String(request.AttachmentContentBase64);
+                }
+                catch
+                {
+                    return ActionSet.ActionReturnType(HttpStatusCode.BadRequest, new CustomerIOResponse
+                    {
+                        StatusCode = "400",
+                        Message = "Order bill attachment is invalid."
+                    });
+                }
+            }
+
+            var subject = string.IsNullOrWhiteSpace(request.Subject) ? "Laundry Invoice" : request.Subject.Trim();
+            var textBody = request.TextBody ?? string.Empty;
+            var htmlBody = request.HtmlBody;
+            var attachmentFileName = string.IsNullOrWhiteSpace(request.AttachmentFileName)
+                ? "Invoice.pdf"
+                : request.AttachmentFileName.Trim();
+
+            var portsToTry = new List<int> { port };
+            if (string.Equals(host, "smtp.gmail.com", StringComparison.OrdinalIgnoreCase))
+            {
+                if (!portsToTry.Contains(587))
+                {
+                    portsToTry.Add(587);
+                }
+
+                if (!portsToTry.Contains(465))
+                {
+                    portsToTry.Add(465);
+                }
+            }
+
+            string BuildSmtpFailureMessage(Exception ex)
+            {
+                if (ex == null)
+                {
+                    return "Failed to send order bill email.";
+                }
+
+                var primary = ex.Message?.Trim();
+                var inner = ex.InnerException?.Message?.Trim();
+                var primaryType = ex.GetType().Name;
+                var innerType = ex.InnerException?.GetType().Name;
+
+                if (string.IsNullOrWhiteSpace(inner))
+                {
+                    return $"Failed to send order bill email: {primaryType}: {primary}";
+                }
+
+                return $"Failed to send order bill email: {primaryType}: {primary} | Inner: {innerType}: {inner}";
+            }
+
+            Exception lastException = null;
+            foreach (var portToTry in portsToTry)
+            {
+                try
+                {
+                    var message = new MimeMessage();
+                    message.From.Add(new MailboxAddress("Excel Laundry Services", senderEmail));
+                    message.To.Add(MailboxAddress.Parse(recipientEmail));
+                    message.Subject = subject;
+
+                    var builder = new BodyBuilder
+                    {
+                        TextBody = textBody
+                    };
+
+                    if (!string.IsNullOrWhiteSpace(htmlBody))
+                    {
+                        builder.HtmlBody = htmlBody;
+                    }
+
+                    if (attachmentBytes != null && attachmentBytes.Length > 0)
+                    {
+                        builder.Attachments.Add(attachmentFileName, attachmentBytes, MimeKit.ContentType.Parse("application/pdf"));
+                    }
+
+                    message.Body = builder.ToMessageBody();
+
+                    using (var smtpClient = new MailKit.Net.Smtp.SmtpClient())
+                    {
+                        smtpClient.Timeout = 30000;
+
+                        var socketOption = enableSsl
+                            ? (portToTry == 465 ? SecureSocketOptions.SslOnConnect : SecureSocketOptions.StartTls)
+                            : SecureSocketOptions.None;
+
+                        await smtpClient.ConnectAsync(host, portToTry, socketOption);
+
+                        if (!string.IsNullOrWhiteSpace(username))
+                        {
+                            await smtpClient.AuthenticateAsync(username, password ?? string.Empty);
+                        }
+
+                        await smtpClient.SendAsync(message);
+                        await smtpClient.DisconnectAsync(true);
+                    }
+
+                    return ActionSet.ActionReturnType(HttpStatusCode.OK, new CustomerIOResponse
+                    {
+                        StatusCode = "200",
+                        Message = $"Order bill email sent successfully to {recipientEmail}."
+                    });
+                }
+                catch (Exception ex)
+                {
+                    lastException = ex;
+                }
+            }
+
+            return ActionSet.ActionReturnType(HttpStatusCode.BadRequest, new CustomerIOResponse
+            {
+                StatusCode = "400",
+                Message = BuildSmtpFailureMessage(lastException)
             });
         }
 

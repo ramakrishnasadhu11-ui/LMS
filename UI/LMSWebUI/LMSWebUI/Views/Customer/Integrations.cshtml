@@ -197,6 +197,56 @@
         margin: 0;
         padding-left: 16px;
     }
+    .smtp-setup-panel {
+        margin-top: 12px;
+        border: 1px solid var(--els-border);
+        border-radius: 8px;
+        background: var(--els-background);
+        padding: 10px 12px;
+    }
+    .smtp-setup-title {
+        font-size: 13px;
+        font-weight: 700;
+        margin-bottom: 6px;
+        color: var(--els-text);
+    }
+    .smtp-setup-panel ol {
+        margin: 0;
+        padding-left: 18px;
+        font-size: 12px;
+        color: var(--els-text);
+        line-height: 1.45;
+    }
+    .smtp-setup-link {
+        display: inline-block;
+        margin-top: 8px;
+        font-size: 12px;
+        font-weight: 600;
+        color: var(--els-primary);
+        text-decoration: underline;
+    }
+    .integration-status {
+        margin-top: 8px;
+        padding: 8px 10px;
+        border-radius: 6px;
+        font-size: 12px;
+        line-height: 1.4;
+    }
+    .integration-status.success {
+        background: #e7f6ec;
+        border: 1px solid #8bc49b;
+        color: #1f6b34;
+    }
+    .integration-status.error {
+        background: #fdecec;
+        border: 1px solid #e5a0a0;
+        color: #8d1f1f;
+    }
+    .integration-status.info {
+        background: var(--els-background);
+        border: 1px solid var(--els-border);
+        color: var(--els-text-muted);
+    }
     @@media (max-width: 768px) {
         .integration-help-content {
             font-size: 12px;
@@ -246,7 +296,7 @@
                         </div>
                     </div>
 
-                    <form asp-action="SaveIntegration" asp-controller="Customer" method="post" class="integration-form" data-category="@provider.Category" data-provider-key="@provider.ProviderKey" data-secret-keys="@(provider.SecretKeys == null ? string.Empty : string.Join(",", provider.SecretKeys))">
+                    <form asp-action="SaveIntegration" asp-controller="Customer" method="post" class="integration-form" data-category="@provider.Category" data-provider-key="@provider.ProviderKey" data-last-test-status="@lastTestStatus" data-secret-keys="@(provider.SecretKeys == null ? string.Empty : string.Join(",", provider.SecretKeys))">
                             @Html.AntiForgeryToken()
                             <input type="hidden" name="Category" value="@provider.Category" />
                             <input type="hidden" name="ProviderKey" value="@provider.ProviderKey" />
@@ -261,41 +311,40 @@
                                     <input name="PublicSettings[Provider]" value="@(provider.PublicSettings.ContainsKey("Provider") ? provider.PublicSettings["Provider"] : provider.ProviderDisplayName)" />
                                     @if (isEmailSmtp)
                                     {
-                                        <div class="integration-field-hint">1) Provider: Select or enter <b>Gmail SMTP</b> (the email service being used).</div>
+                                        <div class="integration-field-hint">Use <b>Gmail SMTP</b>.</div>
                                     }
                                 </div>
                                 <div class="integration-field">
-                                    <label>Endpoint / Host</label>
-                                    <input name="PublicSettings[Host]" value="@(provider.PublicSettings.ContainsKey("Host") ? provider.PublicSettings["Host"] : string.Empty)" />
+                                    <label>@(isEmailSmtp ? "SMTP Host" : "Endpoint / Host")</label>
+                                    <input name="PublicSettings[Host]" value="@(provider.PublicSettings.ContainsKey("Host") ? provider.PublicSettings["Host"] : string.Empty)" placeholder="@(isEmailSmtp ? "smtp.gmail.com" : string.Empty)" />
                                     @if (isEmailSmtp)
                                     {
-                                        <div class="integration-field-hint">2) Endpoint / Host: Enter <b>smtp.gmail.com</b> (Gmail's outgoing mail server).</div>
+                                        <div class="integration-field-hint">Recommended: <b>smtp.gmail.com</b>.</div>
                                     }
                                 </div>
                                 <div class="integration-field">
-                                    <label>Port / Account ID</label>
-                                    <input name="PublicSettings[Port]" value="@(provider.PublicSettings.ContainsKey("Port") ? provider.PublicSettings["Port"] : string.Empty)" />
+                                    <label>@(isEmailSmtp ? "Port" : "Port / Account ID")</label>
+                                    <input name="PublicSettings[Port]" value="@(provider.PublicSettings.ContainsKey("Port") ? provider.PublicSettings["Port"] : string.Empty)" placeholder="@(isEmailSmtp ? "587" : string.Empty)" />
                                     @if (isEmailSmtp)
                                     {
-                                        <div class="integration-field-hint">3) Port / Account ID: Enter <b>587</b>. In Email integration this field is used as SMTP port for STARTTLS.</div>
+                                        <div class="integration-field-hint">Recommended: <b>587</b> with STARTTLS.</div>
                                     }
                                 </div>
                                 <div class="integration-field">
-                                    <label>Sender / From / Sender ID</label>
+                                    <label>@(isEmailSmtp ? "Sender Email" : "Sender / From / Sender ID")</label>
                                     <input name="PublicSettings[From]" value="@(provider.PublicSettings.ContainsKey("From") ? provider.PublicSettings["From"] : string.Empty)" />
                                     @if (isEmailSmtp)
                                     {
-                                        <div class="integration-field-hint">4) Sender / From / Sender ID: Use the same Gmail address used for SMTP login (example: <b>yourbusiness@gmail.com</b>).</div>
+                                        <div class="integration-field-hint">Use the same Gmail address as the username.</div>
                                     }
                                 </div>
-                                <div class="integration-field">
-                                    <label>Webhook URL</label>
-                                    <input name="PublicSettings[WebhookUrl]" value="@(provider.PublicSettings.ContainsKey("WebhookUrl") ? provider.PublicSettings["WebhookUrl"] : string.Empty)" />
-                                    @if (isEmailSmtp)
-                                    {
-                                        <div class="integration-field-hint">5) Webhook URL: Leave blank. Gmail SMTP does not require a webhook.</div>
-                                    }
-                                </div>
+                                @if (!isEmailSmtp)
+                                {
+                                    <div class="integration-field">
+                                        <label>Webhook URL</label>
+                                        <input name="PublicSettings[WebhookUrl]" value="@(provider.PublicSettings.ContainsKey("WebhookUrl") ? provider.PublicSettings["WebhookUrl"] : string.Empty)" />
+                                    </div>
+                                }
                                 <div class="integration-field">
                                     <label>Mode</label>
                                     <select name="IsTestMode">
@@ -312,140 +361,59 @@
                                     </select>
                                     @if (isEmailSmtp)
                                     {
-                                        <div class="integration-field-hint">6) Mode: Select <b>Live</b> when configuring the real Gmail account.</div>
+                                        <div class="integration-field-hint">Use <b>Live</b> for real sending.</div>
                                     }
                                 </div>
                                 <div class="integration-field">
-                                    <label>Username / API Key</label>
+                                    <label>@(isEmailSmtp ? "Username" : "Username / API Key")</label>
                                     <input name="SecretSettings[Username]" value="@(provider.SecretSettings.ContainsKey("Username") ? provider.SecretSettings["Username"] : string.Empty)" placeholder="Enter new value (kept encrypted)" autocomplete="off" />
                                     @if (isEmailSmtp)
                                     {
-                                        <div class="integration-field-hint">7) Username / API Key: Enter your complete Gmail address (example: <b>yourbusiness@gmail.com</b>).</div>
+                                        <div class="integration-field-hint">Enter your full Gmail address.</div>
                                     }
                                 </div>
                                 <div class="integration-field">
-                                    <div class="integration-label-row">
-                                        <label>Password / Token / Secret</label>
-                                        @if (isEmailSmtp)
-                                        {
-                                            <span class="integration-help-link">How do I get a Google App Password?</span>
-                                        }
-                                    </div>
+                                    <label>@(isEmailSmtp ? "Password / App Password" : "Password / Token / Secret")</label>
                                     <input name="SecretSettings[Password]" value="" placeholder="@(hasSavedPassword ? "Saved securely" : "********")" autocomplete="off" />
                                     @if (isEmailSmtp)
                                     {
-                                        <div class="integration-field-hint">8) Password / Token / Secret: Enter the Google App Password for this Gmail account, not your normal Gmail password.</div>
-                                        <details class="integration-inline-help">
-                                            <summary>How do I get a Google App Password?</summary>
-                                            <div class="integration-inline-help-content">
-                                                <p><b>How to Get Your Google App Password</b></p>
-                                                <ol>
-                                                    <li>Sign in to the Gmail account you want Excel Laundry Services to send emails from.</li>
-                                                    <li>Enable 2-Step Verification in Google Account Security: <a href="https://myaccount.google.com/security" target="_blank" rel="noopener noreferrer">https://myaccount.google.com/security</a></li>
-                                                    <li>Open Google's App Passwords page: <a href="https://myaccount.google.com/apppasswords" target="_blank" rel="noopener noreferrer">https://myaccount.google.com/apppasswords</a></li>
-                                                    <li>If prompted, sign in again. Enter "Excel Laundry Services" as the app name if Google asks.</li>
-                                                    <li>Click Create or Generate and copy the generated App Password.</li>
-                                                    <li>Return to Excel Laundry Services and paste it into the "Password / Token / Secret" field.</li>
-                                                    <li>Click Save, then Test Connection. Click Enable only after the test succeeds.</li>
-                                                </ol>
-                                                <p><b>Important notes:</b></p>
-                                                <ul>
-                                                    <li>Use the Google App Password, not your regular Gmail password.</li>
-                                                    <li>Keep the App Password private.</li>
-                                                    <li>If the App Passwords page is unavailable, verify that 2-Step Verification is enabled. Some Google Workspace accounts or security policies may prevent App Password creation.</li>
-                                                    <li>The generated password is shown by Google; Excel Laundry Services cannot retrieve it later. If lost, generate a new one.</li>
-                                                    <li>Never display, log, or return the saved password in API responses.</li>
-                                                </ul>
-                                                <p><b>What value goes in each field?</b></p>
-                                                <ul>
-                                                    <li>SMTP host: <b>smtp.gmail.com</b></li>
-                                                    <li>Port: <b>587</b></li>
-                                                    <li>Username / API Key: your full Gmail address</li>
-                                                    <li>Sender / From / Sender ID: same Gmail address</li>
-                                                    <li>SSL/TLS: STARTTLS</li>
-                                                    <li>Webhook URL: leave blank</li>
-                                                </ul>
-                                            </div>
-                                        </details>
+                                        <div class="integration-field-hint">Use a Google App Password, not your normal Gmail password. Saved passwords are never shown.</div>
                                     }
                                 </div>
                             </div>
+
+                            @if (isEmailSmtp)
+                            {
+                                <div class="smtp-setup-panel">
+                                    <div class="smtp-setup-title">Gmail SMTP Setup</div>
+                                    <ol>
+                                        <li>Enable 2-Step Verification on your Google account.</li>
+                                        <li>Generate an App Password for Gmail.</li>
+                                        <li>Enter credentials here, then click Save and Test Connection.</li>
+                                    </ol>
+                                    <a class="smtp-setup-link" href="https://myaccount.google.com/apppasswords" target="_blank" rel="noopener noreferrer">Get Google App Password</a>
+                                </div>
+                            }
 
                             <div class="integration-actions">
                                 <button class="integration-btn" type="submit" formaction="@Url.Action("SaveIntegration", "Customer")" formmethod="post" data-action="save" data-role="save">Save</button>
                                 <button class="integration-btn warning" type="submit" formaction="@Url.Action("TestIntegration", "Customer")" formmethod="post" name="category" value="@provider.Category" data-role="test">Test Connection</button>
+                                @if (isEmailSmtp)
+                                {
+                                    <button class="integration-btn secondary" type="submit" formaction="@Url.Action("SendTestEmail", "Customer")" formmethod="post" name="category" value="@provider.Category" data-role="send-test-email" disabled>Send Test Email</button>
+                                    <input type="hidden" name="recipientEmail" value="" data-role="recipient-email" />
+                                    <button class="integration-btn @(provider.IsEnabled ? "warning" : "secondary")" type="submit" formaction="@Url.Action("ToggleIntegration", "Customer")" formmethod="post" name="isEnabled" value="@(provider.IsEnabled ? "false" : "true")">@(provider.IsEnabled ? "Disable" : "Enable")</button>
+                                }
                                 <input type="hidden" name="providerKey" value="@provider.ProviderKey" />
                             </div>
                             <div class="integration-validation" data-role="validation"></div>
 
-                            @if (isEmailSmtp)
-                            {
-                                <div class="integration-action-hint">
-                                    9) Click <b>Save</b>. 10) Click <b>Test Connection</b> to run SMTP validation and review the real result message. 11) Click <b>Enable</b> only after successful test.
-                                </div>
-                            }
-
-                            @if (isEmailSmtp)
-                            {
-                                <details class="integration-help">
-                                    <summary>Step-by-step setup guide</summary>
-                                    <div class="integration-help-content">
-                                        <p><b>Google setup links:</b> <a href="https://myaccount.google.com/security" target="_blank" rel="noopener noreferrer">Google Account Security</a> | <a href="https://myaccount.google.com/apppasswords" target="_blank" rel="noopener noreferrer">Google App Passwords</a></p>
-
-                                        <p>Before filling fields, enable 2-Step Verification and generate a Google App Password for this mailbox. If App Password is unavailable, your Google account eligibility or organization security policy may prevent it.</p>
-
-                                        <h5>Field-by-field setup</h5>
-                                        <ul>
-                                            <li><b>1. Provider:</b> Select or enter <b>Gmail SMTP</b> — the email service being used.</li>
-                                            <li><b>2. Endpoint / Host:</b> Enter <b>smtp.gmail.com</b> — Gmail's outgoing mail server.</li>
-                                            <li><b>3. Port / Account ID:</b> Enter <b>587</b> — SMTP port for STARTTLS. In Email integration this field is used for SMTP port.</li>
-                                            <li><b>4. Sender / From / Sender ID:</b> Enter the same Gmail address used for SMTP login, e.g. <b>yourbusiness@gmail.com</b>.</li>
-                                            <li><b>5. Webhook URL:</b> Leave blank — Gmail SMTP does not require a webhook.</li>
-                                            <li><b>6. Mode:</b> Select <b>Live</b> when configuring the real Gmail account.</li>
-                                            <li><b>7. Username / API Key:</b> Enter the complete Gmail address, e.g. <b>yourbusiness@gmail.com</b>.</li>
-                                            <li><b>8. Password / Token / Secret:</b> Enter the Google App Password generated for this Gmail account, not the normal Gmail password.</li>
-                                            <li><b>9. Save:</b> Save the settings.</li>
-                                            <li><b>10. Test Connection:</b> Run SMTP validation and check the real result message.</li>
-                                            <li><b>11. Enable:</b> Enable the integration only after a successful test.</li>
-                                        </ul>
-
-                                        <h5>Example (replace with your own values)</h5>
-                                        <div class="integration-example">
-                                            <ul>
-                                                <li>Gmail address: <b>yourbusiness@gmail.com</b></li>
-                                                <li>SMTP host: <b>smtp.gmail.com</b></li>
-                                                <li>Port: <b>587</b></li>
-                                                <li>Sender email: <b>yourbusiness@gmail.com</b></li>
-                                                <li>Username: <b>yourbusiness@gmail.com</b></li>
-                                                <li>Password: <b>Enter your own Google App Password</b></li>
-                                            </ul>
-                                        </div>
-
-                                        <p><b>Important:</b> Replace the example Gmail address with your own mailbox values. App Password is not the normal Gmail password.</p>
-
-                                        <h5>Security guidance</h5>
-                                        <p>Never share your App Password with anyone. Credentials are encrypted on the server and never returned in API responses. Masked-password behavior remains in place.</p>
-
-                                        <h5>Troubleshooting & FAQ</h5>
-                                        <ul>
-                                            <li><b>Incorrect credentials:</b> Regenerate App Password and confirm full Gmail address is entered in Username and Sender fields.</li>
-                                            <li><b>App Password unavailable:</b> Verify 2-Step Verification is enabled and account policy permits App Passwords.</li>
-                                            <li><b>SMTP connection failures:</b> Recheck host <b>smtp.gmail.com</b>, port <b>587</b>, and test result details shown by the system.</li>
-                                            <li><b>Hosting restrictions:</b> Some hosting/firewall networks block outbound SMTP. Ask your host/network team to allow SMTP traffic.</li>
-                                        </ul>
-
-                                    </div>
-                                </details>
-                            }
-
-                            @if (provider.HasSecretsConfigured)
-                            {
-                                <div style="margin-top:8px;font-size:12px;color:var(--els-text-muted);">Secrets configured: @string.Join(", ", provider.SecretKeys)</div>
-                            }
-
                             @if (!string.IsNullOrWhiteSpace(provider.LastTestMessage))
                             {
-                                <div style="margin-top:8px;font-size:12px;color:var(--els-text-muted);">@provider.LastTestMessage</div>
+                                var statusClass = string.Equals(lastTestStatus, "Success", StringComparison.OrdinalIgnoreCase)
+                                    ? "success"
+                                    : (string.Equals(lastTestStatus, "Failed", StringComparison.OrdinalIgnoreCase) ? "error" : "info");
+                                <div class="integration-status @statusClass">@provider.LastTestMessage</div>
                             }
                     </form>
                 </div>
@@ -488,6 +456,27 @@
                 if (hasValue(get(form, 'PublicSettings[' + names[i] + ']'))) return true;
             }
             return false;
+        }
+        function getSendTestEmailGateKey(form) {
+            return 'els-send-test-email-gate:'
+                + normalize(form.getAttribute('data-category')) + ':'
+                + normalize(form.getAttribute('data-provider-key'));
+        }
+        function buildSendTestEmailConfigSignature(form) {
+            var fields = form.querySelectorAll('input[name^="PublicSettings["],input[name^="SecretSettings["],select[name="IsTestMode"]');
+            var parts = [];
+            for (var i = 0; i < fields.length; i++) {
+                var field = fields[i];
+                var name = field.getAttribute('name') || '';
+                if (name === 'SecretSettings[Password]') {
+                    continue;
+                }
+
+                parts.push(name + '=' + ((field.value || '').trim().toLowerCase()));
+            }
+
+            parts.sort();
+            return parts.join('|');
         }
         function initializeFieldBaselines(form) {
             var fields = form.querySelectorAll('input[name^="PublicSettings["],input[name^="SecretSettings["],select[name="IsTestMode"]');
@@ -554,18 +543,49 @@
             var submitting = form.getAttribute('data-submitting') === 'true';
             var saveBtn = form.querySelector('[data-role="save"]');
             var testBtn = form.querySelector('[data-role="test"]');
+            var sendTestEmailBtn = form.querySelector('[data-role="send-test-email"]');
             var message = form.querySelector('[data-role="validation"]');
 
             var hasSavedPassword = hasSavedSecret(form, ['Password', 'Token', 'Secret', 'SecretKey']);
+            var isEmailCategory = normalize(form.getAttribute('data-category')) === 'email';
+            var isEmailSmtp = isEmailCategory && normalize(form.getAttribute('data-provider-key')) === 'smtp';
+            var lastTestStatusValue = normalize(form.getAttribute('data-last-test-status'));
+            var hasSuccessfulConnectionTest = lastTestStatusValue.indexOf('success') >= 0;
+            if (!hasSuccessfulConnectionTest) {
+                var providerCard = form.closest('.provider-card');
+                var providerStatus = providerCard ? providerCard.querySelector('.provider-status') : null;
+                var providerStatusText = normalize(providerStatus ? providerStatus.textContent : '');
+                hasSuccessfulConnectionTest = providerStatusText.indexOf('last test: success') >= 0;
+            }
+            var canSendTestEmail = false;
+            if (isEmailSmtp && !submitting && errors.length === 0 && !dirty && hasSavedPassword && hasSuccessfulConnectionTest) {
+                try {
+                    var gateValue = sessionStorage.getItem(getSendTestEmailGateKey(form));
+                    canSendTestEmail = gateValue === buildSendTestEmailConfigSignature(form);
+                } catch (e) {
+                    canSendTestEmail = false;
+                }
+            }
+
+            if (isEmailSmtp && (dirty || !hasSuccessfulConnectionTest)) {
+                try {
+                    sessionStorage.removeItem(getSendTestEmailGateKey(form));
+                } catch (e) {
+                }
+            }
 
             if (saveBtn) saveBtn.disabled = submitting || errors.length > 0 || !dirty;
             if (testBtn) testBtn.disabled = submitting || errors.length > 0 || dirty;
+            if (sendTestEmailBtn) sendTestEmailBtn.disabled = !canSendTestEmail;
 
             var info = [];
             if (errors.length > 0) info = info.concat(errors);
             else if (dirty) info.push('Save changes before Test Connection.');
             if (normalize(form.getAttribute('data-category')) === 'email' && !hasSavedPassword && !hasValue(get(form, 'SecretSettings[Password]'))) {
                 info.push('Enter and save SMTP password/token to enable Test Connection.');
+            }
+            if (isEmailSmtp && errors.length === 0 && !dirty && !hasSuccessfulConnectionTest) {
+                info.push('Run Test Connection successfully to enable Send Test Email.');
             }
 
             if (message) {
@@ -584,11 +604,57 @@
             form.addEventListener('submit', function (e) {
                 var submitter = e.submitter;
                 if (!submitter) return;
+
+                var submitRole = submitter.getAttribute('data-role') || '';
+                var recipientField = form.querySelector('[data-role="recipient-email"]');
+                var message = form.querySelector('[data-role="validation"]');
+                if (submitRole === 'send-test-email') {
+                    var entered = window.prompt('Enter recipient email address for test email:');
+                    if (entered === null) {
+                        e.preventDefault();
+                        return;
+                    }
+
+                    entered = (entered || '').trim();
+                    var atChar = String.fromCharCode(64);
+                    var atIndex = entered.indexOf(atChar);
+                    var lastAtIndex = entered.lastIndexOf(atChar);
+                    var dotIndex = entered.indexOf('.', atIndex + 2);
+                    var isValidEmail = entered.length > 3
+                        && entered.indexOf(' ') === -1
+                        && atIndex > 0
+                        && atIndex === lastAtIndex
+                        && dotIndex > atIndex + 1;
+                    if (!isValidEmail) {
+                        if (message) {
+                            message.innerHTML = '<ul><li>Please enter a valid recipient email address.</li></ul>';
+                        }
+
+                        e.preventDefault();
+                        return;
+                    }
+
+                    if (recipientField) {
+                        recipientField.value = entered;
+                    }
+                }
+                else if (recipientField) {
+                    recipientField.value = '';
+                }
+
                 update(form);
                 if (submitter.disabled) {
                     e.preventDefault();
                     return;
                 }
+
+                if (submitRole === 'test') {
+                    try {
+                        sessionStorage.setItem(getSendTestEmailGateKey(form), buildSendTestEmailConfigSignature(form));
+                    } catch (e) {
+                    }
+                }
+
                 form.setAttribute('data-submitting', 'true');
                 update(form);
             });

@@ -1,11 +1,12 @@
-﻿using System.Threading.Tasks;
-using System;
-using System.Collections.Generic;
-using LMS.Master.BusinessSerive.Interfaces;
+﻿using LMS.Master.BusinessSerive.Interfaces;
 using LMS.Master.DTO;
 using LMS.Master.Utilities;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using System;
+using System.Collections.Generic;
+using System.Threading.Tasks;
 
 namespace LMS.Master.WebApi.Controllers
 {
@@ -54,6 +55,7 @@ namespace LMS.Master.WebApi.Controllers
         /// Get Customers
         /// </summary>
         /// <returns></returns>
+        [Authorize]
         [HttpGet(nameof(GetCustomers))]
         [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(Result<CustomerIOResponse>))]
         [ProducesResponseType(StatusCodes.Status201Created, Type = typeof(Result<CustomerIOResponse>))]
@@ -348,6 +350,69 @@ namespace LMS.Master.WebApi.Controllers
             }
 
             var result = await _customer.TestTenantIntegration(scopedTenantName, scopedStoreCode, request.Category, request.ProviderKey);
+            return StatusCode((int)result.StatusCode, result.ResultSet);
+        }
+
+        [HttpPost(nameof(SendTenantIntegrationTestEmail))]
+        [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(Result<CustomerIOResponse>))]
+        [ProducesResponseType(StatusCodes.Status500InternalServerError, Type = typeof(Result<object>))]
+        [ProducesResponseType(StatusCodes.Status400BadRequest, Type = typeof(Result<object>))]
+        public async Task<ActionResult> SendTenantIntegrationTestEmail([FromBody] TenantIntegrationSendTestEmailRequestDto request)
+        {
+            if (User?.Identity?.IsAuthenticated != true)
+            {
+                return Unauthorized("Unauthorized access.");
+            }
+
+            if (request == null)
+            {
+                return BadRequest("Invalid data for this operation.");
+            }
+
+            var tenantName = request.TenantName;
+            var storeCode = request.StoreCode;
+            if (!TryResolvePricingScope(tenantName, storeCode, out var scopedTenantName, out var scopedStoreCode, out var scopeValidationError))
+            {
+                return BadRequest(scopeValidationError);
+            }
+
+            var result = await _customer.SendTenantIntegrationTestEmail(
+                scopedTenantName,
+                scopedStoreCode,
+                request.Category,
+                request.ProviderKey,
+                request.RecipientEmail);
+
+            return StatusCode((int)result.StatusCode, result.ResultSet);
+        }
+
+        [HttpPost(nameof(SendTenantIntegrationOrderBillEmail))]
+        [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(Result<CustomerIOResponse>))]
+        [ProducesResponseType(StatusCodes.Status500InternalServerError, Type = typeof(Result<object>))]
+        [ProducesResponseType(StatusCodes.Status400BadRequest, Type = typeof(Result<object>))]
+        public async Task<ActionResult> SendTenantIntegrationOrderBillEmail([FromBody] TenantIntegrationOrderBillEmailRequestDto request)
+        {
+            if (User?.Identity?.IsAuthenticated != true)
+            {
+                return Unauthorized("Unauthorized access.");
+            }
+
+            if (request == null)
+            {
+                return BadRequest("Invalid data for this operation.");
+            }
+
+            var tenantName = request.TenantName;
+            var storeCode = request.StoreCode;
+            if (!TryResolvePricingScope(tenantName, storeCode, out var scopedTenantName, out var scopedStoreCode, out var scopeValidationError))
+            {
+                return BadRequest(scopeValidationError);
+            }
+
+            request.TenantName = scopedTenantName;
+            request.StoreCode = scopedStoreCode;
+
+            var result = await _customer.SendTenantIntegrationOrderBillEmail(request);
             return StatusCode((int)result.StatusCode, result.ResultSet);
         }
 

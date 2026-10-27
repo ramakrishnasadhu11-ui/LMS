@@ -69,10 +69,11 @@ namespace LMS.Identity.BusinessSerive.Services
 
         private (string Token, DateTime ExpiresAtUtc) GenerateAccessToken(string email, string userRole, string tenantId, IEnumerable<string> storeCodes)
         {
-            var issuer = _configuration["Jwt:Issuer"]?.Trim();
-            var audience = _configuration["Jwt:Audience"]?.Trim();
-            var signingKey = _configuration["Jwt:SigningKey"];
-            var expiryValue = _configuration["Jwt:ExpiryMinutes"];
+            var issuer = GetJwtValue("Issuer")?.Trim();
+            var audience = GetJwtValue("Audience")?.Trim();
+            var signingKey = GetJwtValue("SigningKey");
+
+            var expiryValue = GetJwtValue("ExpiryMinutes");
 
             if (string.IsNullOrWhiteSpace(issuer)
                 || string.IsNullOrWhiteSpace(audience)
@@ -121,6 +122,17 @@ namespace LMS.Identity.BusinessSerive.Services
                 signingCredentials: signingCredentials);
 
             return (new JwtSecurityTokenHandler().WriteToken(jwtToken), expiresAtUtc);
+        }
+
+        private string GetJwtValue(string name)
+        {
+            var envValue = Environment.GetEnvironmentVariable($"Jwt__{name}");
+            if (!string.IsNullOrWhiteSpace(envValue))
+            {
+                return envValue;
+            }
+
+            return _configuration[$"Jwt:{name}"];
         }
 
         public async Task<ActionReturnType> Register(TenantDto tenantDto)
@@ -1883,9 +1895,25 @@ namespace LMS.Identity.BusinessSerive.Services
                 : configuredAlertSubject.Trim();
             string ReportBody = sb.ToString();
             string FileName = string.Empty;
+
+            string tenantId = null;
+            string tenantIntegrationKey = null;
             try
             {
-                await SendMail(eMail, FileName, ReportSubject, ReportBody);
+                var tenant = await GetTenantByEmailAsync(eMail);
+                tenantId = tenant?.TenantId;
+                tenantIntegrationKey = string.IsNullOrWhiteSpace(tenant?.TenantName)
+                    ? tenant?.Email
+                    : tenant.TenantName;
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogWarning(ex, "Unable to resolve tenant context for password reset email to {Email}. Falling back to default mail configuration.", eMail);
+            }
+
+            try
+            {
+                await SendMail(eMail, FileName, ReportSubject, ReportBody, tenantId, tenantIntegrationKey);
                 return true;
             }
             catch (Exception ex)
@@ -1928,7 +1956,7 @@ namespace LMS.Identity.BusinessSerive.Services
             string FileName = string.Empty;
             try
             {
-                await SendMail(eMail, FileName, ReportSubject, ReportBody, tenantId, eMail);
+                await SendMail(eMail, FileName, ReportSubject, ReportBody);
                 return true;
             }
             catch (Exception ex)
@@ -1994,8 +2022,44 @@ namespace LMS.Identity.BusinessSerive.Services
                 Password = _mailConfiguration.Password
             };
 
-            var normalizedTenantEmail = tenantEmail?.Trim();
-            if (string.IsNullOrWhiteSpace(normalizedTenantEmail))
+            var candidateTenantNames = new List<string>();
+
+            void addTenantNameCandidate(string value)
+            {
+                var normalized = value?.Trim();
+                if (string.IsNullOrWhiteSpace(normalized))
+                {
+                    return;
+                }
+
+                if (!candidateTenantNames.Contains(normalized, StringComparer.OrdinalIgnoreCase))
+                {
+                    candidateTenantNames.Add(normalized);
+                }
+            }
+
+            try
+            {
+                if (!string.IsNullOrWhiteSpace(tenantId))
+                {
+                    var tenant = await _unitOfWork.DbContext.Tenants
+                        .Where(t => t.TenantId == tenantId)
+                        .Select(t => new { t.TenantName, t.Email })
+                        .FirstOrDefaultAsync();
+
+                    addTenantNameCandidate(tenant?.TenantName);
+                    addTenantNameCandidate(tenant?.Email);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogDebug(ex, "Unable to resolve tenant record by TenantId {TenantId} while loading tenant SMTP integration.", tenantId);
+            }
+
+            // Keep email as a fallback key only after tenant-record-based keys.
+            addTenantNameCandidate(tenantEmail);
+
+            if (candidateTenantNames.Count == 0)
             {
                 return defaults;
             }
@@ -2009,22 +2073,30 @@ namespace LMS.Identity.BusinessSerive.Services
                     await connection.OpenAsync();
                 }
 
-                await using var command = connection.CreateCommand();
-                command.CommandText = @"
+                foreach (var candidateTenantName in candidateTenantNames)
+                {
+                    await using var command = connection.CreateCommand();
+                    command.CommandText = @"
 SELECT TOP (1) [EncryptedSettingsJson]
 FROM [dbo].[TenantIntegrationSettings]
 WHERE [TenantName] = @tenantName
   AND [Category] = 'Email'
+  AND (ISNULL([ProviderKey], '') = '' OR [ProviderKey] = 'smtp')
   AND [IsEnabled] = 1
 ORDER BY CASE WHEN ISNULL([StoreCode], '') = '' THEN 0 ELSE 1 END, [ModifiedDate] DESC";
 
-                var tenantNameParam = command.CreateParameter();
-                tenantNameParam.ParameterName = "@tenantName";
-                tenantNameParam.Value = normalizedTenantEmail;
-                command.Parameters.Add(tenantNameParam);
+                    var tenantNameParam = command.CreateParameter();
+                    tenantNameParam.ParameterName = "@tenantName";
+                    tenantNameParam.Value = candidateTenantName;
+                    command.Parameters.Add(tenantNameParam);
 
-                var obj = await command.ExecuteScalarAsync();
-                encryptedPayload = obj?.ToString();
+                    var obj = await command.ExecuteScalarAsync();
+                    encryptedPayload = obj?.ToString();
+                    if (!string.IsNullOrWhiteSpace(encryptedPayload))
+                    {
+                        break;
+                    }
+                }
             }
             catch (Exception ex) when (ex is SqlException sqlEx && sqlEx.Number == 208)
             {
@@ -2033,7 +2105,7 @@ ORDER BY CASE WHEN ISNULL([StoreCode], '') = '' THEN 0 ELSE 1 END, [ModifiedDate
             }
             catch (Exception ex)
             {
-                _logger?.LogWarning(ex, "Unable to resolve tenant email integration for {TenantEmail}. Falling back to global MailConfiguration.", normalizedTenantEmail);
+                _logger?.LogWarning(ex, "Unable to resolve tenant email integration settings. Falling back to global MailConfiguration. TenantId: {TenantId}", tenantId);
                 return defaults;
             }
 
@@ -2101,7 +2173,7 @@ ORDER BY CASE WHEN ISNULL([StoreCode], '') = '' THEN 0 ELSE 1 END, [ModifiedDate
             }
             catch (Exception ex)
             {
-                _logger?.LogWarning(ex, "Tenant email integration payload parsing failed for {TenantEmail}. Falling back to global MailConfiguration.", normalizedTenantEmail);
+                _logger?.LogWarning(ex, "Tenant email integration payload parsing failed. Falling back to global MailConfiguration. TenantId: {TenantId}", tenantId);
                 return defaults;
             }
         }
