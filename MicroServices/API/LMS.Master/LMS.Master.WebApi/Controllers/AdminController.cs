@@ -1,4 +1,5 @@
 using System;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using LMS.Master.BusinessSerive.Data;
@@ -17,6 +18,7 @@ namespace LMS.Master.WebApi.Controllers
 
         [HttpPost]
         [Route("admin/migrate")]
+        [Authorize]
         public IActionResult Migrate()
         {
             try

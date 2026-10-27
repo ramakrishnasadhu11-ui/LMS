@@ -10,6 +10,7 @@ using System.Threading.Tasks;
 
 namespace LMS.Master.WebApi.Controllers
 {
+    [Authorize]
     [Route("Customer")]
     [ApiController]
     public class CustomerController : ControllerBase
@@ -25,6 +26,7 @@ namespace LMS.Master.WebApi.Controllers
         /// Test Service
         /// </summary>
         /// <returns></returns>
+        [AllowAnonymous]
         [HttpGet(nameof(TestService))]
         public string TestService()
         {

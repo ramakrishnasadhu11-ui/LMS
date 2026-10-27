@@ -2,6 +2,7 @@
 using System.Threading.Tasks;
 using LMS.Master.BusinessSerive.Interfaces;
 using LMS.Master.WebApi.Utility;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using VMD.RESTApiResponseWrapper.Core.Wrappers;
@@ -16,6 +17,7 @@ namespace LMS.Master.WebApi.Controllers
         /// Test Service
         /// </summary>
         /// <returns></returns>
+        [AllowAnonymous]
         [HttpGet(nameof(TestService))]
         public string TestService()
         {

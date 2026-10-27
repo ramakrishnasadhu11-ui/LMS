@@ -1,8 +1,11 @@
 using System;
 using System.Threading.Tasks;
+using System.Net.Http;
+using System.Net.Http.Headers;
 using LMSWebUI.Data;
 using LMSWebUI.Models;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -29,6 +32,13 @@ namespace LMSWebUI.Controllers
         {
             var httpFactory = HttpContext.RequestServices.GetService(typeof(System.Net.Http.IHttpClientFactory)) as System.Net.Http.IHttpClientFactory;
             var config = HttpContext.RequestServices.GetService(typeof(Microsoft.Extensions.Configuration.IConfiguration)) as Microsoft.Extensions.Configuration.IConfiguration;
+            var accessToken = HttpContext.Session.GetString("AccessToken");
+
+            if (string.IsNullOrWhiteSpace(accessToken))
+            {
+                return Unauthorized(new { success = false, error = "Access token is missing. Please log in again." });
+            }
+
             try
             {
                 // Call Identity service migrate endpoint
@@ -43,7 +53,12 @@ namespace LMSWebUI.Controllers
                 {
                     try
                     {
-                        var resp = await client.PostAsync(identityUrl, null);
+                        using var request = new HttpRequestMessage(HttpMethod.Post, identityUrl)
+                        {
+                            Content = null
+                        };
+                        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken.Trim());
+                        var resp = await client.SendAsync(request);
                         identityResult = new { success = resp.IsSuccessStatusCode, message = resp.ReasonPhrase };
                     }
                     catch (Exception ex)
@@ -56,7 +71,12 @@ namespace LMSWebUI.Controllers
                 {
                     try
                     {
-                        var resp = await client.PostAsync(masterUrl, null);
+                        using var request = new HttpRequestMessage(HttpMethod.Post, masterUrl)
+                        {
+                            Content = null
+                        };
+                        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken.Trim());
+                        var resp = await client.SendAsync(request);
                         masterResult = new { success = resp.IsSuccessStatusCode, message = resp.ReasonPhrase };
                     }
                     catch (Exception ex)

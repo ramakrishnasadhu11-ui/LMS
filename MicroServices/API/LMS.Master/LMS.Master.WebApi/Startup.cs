@@ -2,21 +2,23 @@
 using Lamar;
 using LMS.Master.BusinessSerive.Data;
 using LMS.Master.BusinessSerive.Mapper;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using Microsoft.OpenApi.Models;
-using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
+using Microsoft.OpenApi.Models;
 using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Reflection;
 using System.Text;
+using System.Threading.Tasks;
 using IConfiguration = Microsoft.Extensions.Configuration.IConfiguration;
 namespace LMS.Master.WebApi
 {
@@ -56,6 +58,21 @@ namespace LMS.Master.WebApi
                     .AddJwtBearer(options =>
                     {
                         options.RequireHttpsMetadata = true;
+                        options.Events = new JwtBearerEvents
+                        {
+                            OnAuthenticationFailed = context =>
+                            {
+                                var logger = context.HttpContext.RequestServices
+                                    .GetRequiredService<ILogger<Startup>>();
+
+                                logger.LogError(
+                                    context.Exception,
+                                    "JWT authentication failed: {ErrorType}",
+                                    context.Exception.GetType().Name);
+
+                                return Task.CompletedTask;
+                            }
+                        };
                         options.SaveToken = false;
                         options.TokenValidationParameters = new TokenValidationParameters
                         {
