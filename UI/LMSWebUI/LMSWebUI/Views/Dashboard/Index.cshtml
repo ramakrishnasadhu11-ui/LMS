@@ -1787,6 +1787,63 @@
         }, 0);
     }
 
+    function resolveOrderAmounts(order) {
+        order = order || {};
+        var orderAmount = asNumber(order.OrderAmount != null ? order.OrderAmount : order.orderAmount);
+        var subTotalRaw = (order.SubTotal != null ? order.SubTotal : order.subTotal);
+        var subTotal = asNumber(subTotalRaw != null ? subTotalRaw : orderAmount);
+        var taxAmount = asNumber(order.TaxAmount != null ? order.TaxAmount : order.taxAmount);
+        var totalAmount = asNumber(order.TotalAmount != null ? order.TotalAmount : order.totalAmount);
+
+        if (subTotal <= 0 && orderAmount > 0) {
+            subTotal = orderAmount;
+        }
+
+        if (totalAmount <= 0) {
+            totalAmount = asNumber(subTotal + taxAmount);
+        }
+
+        if (taxAmount <= 0 && totalAmount > subTotal) {
+            taxAmount = asNumber(totalAmount - subTotal);
+        }
+
+        var advanceUsed = asNumber(order.AdvanceUsed != null ? order.AdvanceUsed : order.advanceUsed);
+        if (advanceUsed > totalAmount) {
+            advanceUsed = totalAmount;
+        }
+
+        var paidNow = asNumber(order.PaidNow != null ? order.PaidNow : order.paidNow);
+        var payableAfterAdvance = asNumber(totalAmount - advanceUsed);
+        if (payableAfterAdvance < 0) {
+            payableAfterAdvance = 0;
+        }
+        if (paidNow > payableAfterAdvance) {
+            paidNow = payableAfterAdvance;
+        }
+
+        var pendingStoredRaw = (order.PendingAmount != null ? order.PendingAmount : (order.pendingAmount != null ? order.pendingAmount : (order.NetPayable != null ? order.NetPayable : order.netPayable)));
+        var pendingStored = asNumber(pendingStoredRaw);
+        var pendingComputed = asNumber(payableAfterAdvance - paidNow);
+        if (pendingComputed < 0) {
+            pendingComputed = 0;
+        }
+
+        var pendingAmount = pendingComputed > 0 ? pendingComputed : pendingStored;
+        if (pendingAmount < 0) {
+            pendingAmount = 0;
+        }
+
+        return {
+            subTotal: subTotal,
+            taxAmount: taxAmount,
+            totalAmount: totalAmount,
+            advanceUsed: advanceUsed,
+            paidNow: paidNow,
+            pendingAmount: pendingAmount,
+            netPayable: pendingAmount
+        };
+    }
+
     function setCustomerOrdersState(message) {
         var panel = document.getElementById("customerOrdersPanel");
         var body = document.getElementById("customerOrdersBody");
@@ -2127,10 +2184,10 @@
             var status = (order.Status || order.status || "Received").toString();
             var itemsText = summarizeItemsForDashboard(order);
             var pieces = resolvePiecesForDashboard(order);
-            var totalAmount = asNumber(order.OrderAmount || order.orderAmount || 0);
-            var paidAmount = asNumber(order.PaidNow || order.paidNow || 0);
-            var pendingAmountRaw = (order.PendingAmount != null ? order.PendingAmount : (order.pendingAmount != null ? order.pendingAmount : (order.NetPayable != null ? order.NetPayable : (order.netPayable != null ? order.netPayable : 0))));
-            var pendingAmount = asNumber(pendingAmountRaw);
+            var amounts = resolveOrderAmounts(order);
+            var totalAmount = amounts.totalAmount;
+            var paidAmount = amounts.paidNow;
+            var pendingAmount = amounts.pendingAmount;
 
             return "<tr>"
                 + "<td><a class='customer-order-link' href='@Url.Action("OrderWorkflow", "Customer")?searchText=" + encodeURIComponent(orderNo) + "'>" + escapeHtml(orderNo) + "</a></td>"
@@ -3140,9 +3197,9 @@ document.addEventListener("click", function (e)
                                 customerCode: (data.customerCode || (matched && (matched.CustCode || matched.custCode)) || "").toString(),
                                 status: ((matched && (matched.Status || matched.status)) || "-").toString(),
                                 createdDate: ((matched && (matched.CreatedDate || matched.createdDate)) || "").toString().replace("T", " ").substring(0, 16),
-                                totalAmount: asNumber(matched && (matched.OrderAmount || matched.orderAmount || 0)),
-                                paidAmount: asNumber(matched && (matched.PaidNow || matched.paidNow || 0)),
-                                pendingAmount: asNumber(matched && (matched.PendingAmount != null ? matched.PendingAmount : (matched.pendingAmount != null ? matched.pendingAmount : (matched.NetPayable != null ? matched.NetPayable : (matched.netPayable != null ? matched.netPayable : 0))))),
+                                totalAmount: resolveOrderAmounts(matched).totalAmount,
+                                paidAmount: resolveOrderAmounts(matched).paidNow,
+                                pendingAmount: resolveOrderAmounts(matched).pendingAmount,
                                 workflowSearchValue: workflowSearchValue
                             });
                         },
@@ -3715,11 +3772,11 @@ document.addEventListener("click", function (e)
 
             orders.forEach(function (order) {
                 var status = normalizeStatusValue(order && (order.Status || order.status || "received"));
-                var pendingRaw = order && (order.PendingAmount != null ? order.PendingAmount : (order.pendingAmount != null ? order.pendingAmount : (order.NetPayable != null ? order.NetPayable : (order.netPayable != null ? order.netPayable : 0))));
-                var pending = asNumber(pendingRaw);
+                var amounts = resolveOrderAmounts(order);
+                var pending = amounts.pendingAmount;
                 var createdValue = (order && (order.CreatedDate || order.createdDate)) || "";
                 var createdDate = new Date(createdValue);
-                var amount = asNumber(order && (order.OrderAmount || order.orderAmount || order.TotalAmount || order.totalAmount || 0));
+                var amount = amounts.totalAmount;
 
                 if (status === "ready" || status === "ready for delivery") {
                     readyCount += 1;

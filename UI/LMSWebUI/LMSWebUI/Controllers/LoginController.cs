@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using LMSClientFactory.Helper;
 using LMSWebUI.Models;
 using LMSWebUI.Services;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Mvc;
 using VMD.RESTApiResponseWrapper.Core.Wrappers;
 using LMSWebUI.Models.Login;
@@ -14,10 +15,12 @@ using System.ComponentModel.DataAnnotations;
 using Microsoft.Extensions.Logging;
 using System.Globalization;
 using System.IO;
+using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
 using Microsoft.AspNetCore.Hosting;
 using Newtonsoft.Json.Linq;
+using Microsoft.AspNetCore.Identity;
 
 namespace LMSWebUI.Controllers
 {
@@ -26,6 +29,7 @@ namespace LMSWebUI.Controllers
         private readonly ILoginApiClient _clientApi;
         private readonly ILogger<LoginController> _logger;
         private readonly IWebHostEnvironment _environment;
+        private readonly SignInManager<ApplicationUser> _signInManager;
         private const string AllowedStoresSessionKey = "TenantAllowedStores";
         private const string MemberSinceSessionKey = "TenantMemberSince";
         private const string ProfileImageSessionKey = "TenantProfileImageUrl";
@@ -41,11 +45,12 @@ namespace LMSWebUI.Controllers
             ".png"
         };
 
-        public LoginController(ILoginApiClient clientAPI, ILogger<LoginController> logger, IWebHostEnvironment environment)
+        public LoginController(ILoginApiClient clientAPI, ILogger<LoginController> logger, IWebHostEnvironment environment, SignInManager<ApplicationUser> signInManager)
         {
             _clientApi = clientAPI;
             _logger = logger;
             _environment = environment;
+            _signInManager = signInManager;
         }
 
         [HttpGet]
@@ -456,6 +461,11 @@ namespace LMSWebUI.Controllers
                             HttpContext.Session.Remove(MemberSinceSessionKey);
                             SetTenantProfileImageSession(superAdminEmail, HttpContext.Session.GetString(TenantIdSessionKey));
                             HttpContext.Session.SetString("UserRole", "SuperAdmin");
+                            await SignInUserAsync(
+                                superAdminEmail,
+                                "SuperAdmin",
+                                string.Empty,
+                                HttpContext.Session.GetString(TenantIdSessionKey));
                             return "success";
                         }
 
@@ -498,6 +508,11 @@ namespace LMSWebUI.Controllers
                             await SetTenantMemberSinceSessionAsync(tenantSessionEmail, responseMessage.TenantName);
                             var role = string.IsNullOrWhiteSpace(responseMessage.UserRole) ? "StoreUser" : responseMessage.UserRole.Trim();
                             HttpContext.Session.SetString("UserRole", role);
+                            await SignInUserAsync(
+                                tenantSessionEmail,
+                                role,
+                                resolvedStore,
+                                HttpContext.Session.GetString(TenantIdSessionKey));
                             return "success";
                         }
                     }
@@ -521,10 +536,35 @@ namespace LMSWebUI.Controllers
         }
 
         [HttpGet]
-        public IActionResult Logout()
+        public async Task<IActionResult> Logout()
         {
             HttpContext.Session.Clear();
+            await _signInManager.SignOutAsync();
             return RedirectToAction("Login");
+        }
+
+        private async Task SignInUserAsync(string email, string role, string storeCode, string tenantId)
+        {
+            var claims = new List<Claim>
+            {
+                new Claim(ClaimTypes.Name, email ?? string.Empty),
+                new Claim(ClaimTypes.Email, email ?? string.Empty),
+                new Claim(ClaimTypes.Role, string.IsNullOrWhiteSpace(role) ? "StoreUser" : role)
+            };
+
+            if (!string.IsNullOrWhiteSpace(storeCode))
+            {
+                claims.Add(new Claim("storeCode", storeCode));
+            }
+
+            if (!string.IsNullOrWhiteSpace(tenantId))
+            {
+                claims.Add(new Claim("tenantId", tenantId));
+            }
+
+            var identity = new ClaimsIdentity(claims, IdentityConstants.ApplicationScheme);
+            var principal = new ClaimsPrincipal(identity);
+            await HttpContext.SignInAsync(IdentityConstants.ApplicationScheme, principal);
         }
 
         private void SetBusinessNameSession(string tenantBusinessName)
@@ -570,9 +610,10 @@ namespace LMSWebUI.Controllers
         [HttpPost]
         [ValidateAntiForgeryToken]
         [ActionName("Logout")]
-        public IActionResult LogoutPost()
+        public async Task<IActionResult> LogoutPost()
         {
             HttpContext.Session.Clear();
+            await _signInManager.SignOutAsync();
             return RedirectToAction(nameof(Login));
         }
 

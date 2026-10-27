@@ -722,22 +722,59 @@
             return wfNum(value).toFixed(2);
         }
     }
-    function wfSetText(id, text) {
-        var el = wfById(id);
-        if (el) {
-            el.textContent = text;
+    function wfResolveOrderAmounts(order) {
+        order = order || {};
+        var orderAmount = wfNum(order.OrderAmount != null ? order.OrderAmount : order.orderAmount);
+        var subTotal = wfNum(order.SubTotal != null ? order.SubTotal : order.subTotal);
+        var taxAmount = wfNum(order.TaxAmount != null ? order.TaxAmount : order.taxAmount);
+        var totalAmount = wfNum(order.TotalAmount != null ? order.TotalAmount : order.totalAmount);
+
+        if (subTotal <= 0 && orderAmount > 0) {
+            subTotal = orderAmount;
         }
-    }
-    function wfSyncToolbarState() {
-        var btns = document.querySelectorAll("#wfToolbar .wf-tool-btn[data-focus]");
-        for (var i = 0; i < btns.length; i++) {
-            var mode = (btns[i].getAttribute("data-focus") || "all").toLowerCase();
-            if (mode === wfFocusMode) {
-                btns[i].classList.add("active");
-            } else {
-                btns[i].classList.remove("active");
-            }
+
+        if (totalAmount <= 0) {
+            totalAmount = wfNum(subTotal + taxAmount);
         }
+
+        if (taxAmount <= 0 && totalAmount > subTotal) {
+            taxAmount = wfNum(totalAmount - subTotal);
+        }
+
+        var advanceUsed = wfNum(order.AdvanceUsed != null ? order.AdvanceUsed : order.advanceUsed);
+        if (advanceUsed > totalAmount) {
+            advanceUsed = totalAmount;
+        }
+
+        var paidNow = wfNum(order.PaidNow != null ? order.PaidNow : order.paidNow);
+        var payableAfterAdvance = wfNum(totalAmount - advanceUsed);
+        if (payableAfterAdvance < 0) {
+            payableAfterAdvance = 0;
+        }
+        if (paidNow > payableAfterAdvance) {
+            paidNow = payableAfterAdvance;
+        }
+
+        var pendingRaw = firstDefined(order.PendingAmount, order.pendingAmount, order.NetPayable, order.netPayable, 0);
+        var pendingStored = wfNum(pendingRaw);
+        var pendingComputed = wfNum(payableAfterAdvance - paidNow);
+        if (pendingComputed < 0) {
+            pendingComputed = 0;
+        }
+
+        var pendingAmount = pendingComputed > 0 ? pendingComputed : pendingStored;
+        if (pendingAmount < 0) {
+            pendingAmount = 0;
+        }
+
+        return {
+            totalAmount: totalAmount,
+            pendingAmount: pendingAmount,
+            paidNow: paidNow,
+            advanceUsed: advanceUsed,
+            subTotal: subTotal,
+            taxAmount: taxAmount
+        };
     }
     function wfFilterByFocus(orders) {
         var mode = (wfFocusMode || "all").toLowerCase();
@@ -745,7 +782,7 @@
 
         return (orders || []).filter(function (item) {
             var status = String((item && (item.Status || item.status)) || "").toLowerCase();
-            var pendingAmount = wfNum(item && (item.PendingAmount || item.pendingAmount || item.NetPayable || item.netPayable || 0));
+            var pendingAmount = wfResolveOrderAmounts(item).pendingAmount;
             var ageHours = wfHoursSince(item && (item.CreatedDate || item.createdDate || ""));
             if (mode === "ready") return status === "ready" || status === "ready for delivery";
             if (mode === "open") return status === "received" || status === "processing" || status === "in process";
@@ -764,8 +801,9 @@
         for (var i = 0; i < orders.length; i++) {
             var o = orders[i] || {};
             var status = String((o.Status || o.status) || "").toLowerCase();
-            var amount = wfNum(o.OrderAmount || o.orderAmount || 0);
-            var pending = wfNum(o.PendingAmount || o.pendingAmount || o.NetPayable || o.netPayable || 0);
+            var amounts = wfResolveOrderAmounts(o);
+            var amount = amounts.totalAmount;
+            var pending = amounts.pendingAmount;
             totalAmount += amount;
             totalPending += pending;
             if (status !== "delivered" && status !== "cancelled") {
@@ -972,8 +1010,9 @@
             var invNo = wfEsc(o.InvoiceNo || o.invoiceNo || o.OrderNo || o.orderNo || "");
             var customer = wfEsc(o.CustomerName || o.customerName || "");
             var created = wfEsc(String(o.CreatedDate || o.createdDate || "").replace("T", " ").substring(0, 16));
-            var pending = wfNum(o.PendingAmount || o.pendingAmount || o.NetPayable || o.netPayable || 0);
-            var amount = wfNum(o.OrderAmount || o.orderAmount || 0);
+            var amounts = wfResolveOrderAmounts(o);
+            var pending = amounts.pendingAmount;
+            var amount = amounts.totalAmount;
             var pcs = mode === "weight" ? "-" : String(wfPieces(o));
             var target = wfNext(status);
             var statusStyle = "";
@@ -1052,7 +1091,7 @@
             for (i = 0; i < orders.length; i++) {
                 var item = orders[i] || {};
                 var s = String((item.Status || item.status) || "").toLowerCase();
-                var pendingAmount = wfNum(item.PendingAmount || item.pendingAmount || item.NetPayable || item.netPayable || 0);
+                var pendingAmount = wfResolveOrderAmounts(item).pendingAmount;
                 var ageHours = wfHoursSince(item.CreatedDate || item.createdDate || "");
                 if (s === "received") c.received++;
                 else if (s === "processing" || s === "in process") c.processing++;
@@ -1370,7 +1409,7 @@
                 + "<td>" + esc(created) + "</td>"
                 + "<td><span class='wf-status-pill " + statusClass + "'>" + esc(status) + "</span></td>"
                 + "<td><span class='wf-mode-pill'>" + (orderMode === "weight" ? "Weight" : "Pieces") + "</span></td>"
-                + "<td style='text-align:right; font-weight:600; color:#1f4e79;">" + totalPiecesText + "</td>"
+                + "<td style='text-align:right; font-weight:600; color:#1f4e79;'>" + totalPiecesText + "</td>"
                 + "<td style='text-align:right;'>" + formatCurrency(Number(o.OrderAmount || o.orderAmount || 0)) + "</td>"
                 + "<td class='" + pendingClass + "' style='text-align:right; font-weight:700;'>" + formatCurrency(pendingAmount) + "</td>"
                 + "<td>" + actionHtml + "</td>";
@@ -1537,7 +1576,6 @@
             });
         });
     }
-
     function loadWorkflowOrders() {
         setBodyState("Loading orders...");
 
@@ -1566,7 +1604,7 @@
 
             orders.forEach(function (o) {
                 var status = (o.Status || o.status || "").toString().toLowerCase();
-                var pendingAmount = Number(firstDefined(o.PendingAmount, o.pendingAmount, o.NetPayable, o.netPayable, 0));
+                var pendingAmount = wfResolveOrderAmounts(o).pendingAmount;
 
                 if (status === "received") {
                     counters.received += 1;

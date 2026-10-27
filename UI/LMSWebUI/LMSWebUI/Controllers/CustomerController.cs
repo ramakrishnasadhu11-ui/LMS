@@ -21,6 +21,7 @@ using LMSWebUI.Models.Customer;
 using LMSWebUI.Models.Login;
 using System.ComponentModel.DataAnnotations;
 using LMSWebUI.Services;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Newtonsoft.Json;
@@ -32,6 +33,7 @@ using System.Diagnostics;
 
 namespace LMSWebUI.Controllers
 {
+    [Authorize]
     public class CustomerController : Controller
     {
         private readonly Microsoft.Extensions.Caching.Memory.IMemoryCache _memoryCache;
@@ -1226,8 +1228,8 @@ namespace LMSWebUI.Controllers
             {
                 TenantName = tenantName,
                 StoreCode = storeCode,
-                EnableTax = true,
-                GstPercent = 18,
+                EnableTax = false,
+                GstPercent = 0,
                 PricesIncludeTax = false,
                 InvoicePrefix = null,
                 NextInvoiceNumber = 1,
@@ -4579,6 +4581,53 @@ namespace LMSWebUI.Controllers
                         SaveOrderPieces(orderNo, createdTotalPieces);
                     }
 
+                    decimal ReadResponseAmount(string propertyName)
+                    {
+                        var token = saveResponse?[propertyName]
+                                    ?? saveResponse?[char.ToLowerInvariant(propertyName[0]) + propertyName.Substring(1)]
+                                    ?? saveResponse?["ResultSet"]?[propertyName]
+                                    ?? saveResponse?["ResultSet"]?[char.ToLowerInvariant(propertyName[0]) + propertyName.Substring(1)]
+                                    ?? saveResponse?["resultSet"]?[propertyName]
+                                    ?? saveResponse?["resultSet"]?[char.ToLowerInvariant(propertyName[0]) + propertyName.Substring(1)];
+
+                        return decimal.TryParse(Convert.ToString(token), NumberStyles.Any, CultureInfo.InvariantCulture, out var parsed)
+                            ? parsed
+                            : decimal.MinValue;
+                    }
+
+                    var responseOrderAmount = ReadResponseAmount("OrderAmount");
+                    var responseSubTotal = ReadResponseAmount("SubTotal");
+                    var responseTaxPercent = ReadResponseAmount("TaxPercent");
+                    var responseTaxAmount = ReadResponseAmount("TaxAmount");
+                    var responseTotalAmount = ReadResponseAmount("TotalAmount");
+                    var responseAdvanceUsed = ReadResponseAmount("AdvanceUsed");
+                    var responsePaidNow = ReadResponseAmount("PaidNow");
+                    var responsePendingAmount = ReadResponseAmount("PendingAmount");
+                    var responseNetPayable = ReadResponseAmount("NetPayable");
+
+                    var resolvedOrderAmount = responseOrderAmount != decimal.MinValue ? responseOrderAmount : model.OrderAmount;
+                    var resolvedSubTotal = responseSubTotal != decimal.MinValue ? responseSubTotal : resolvedOrderAmount;
+                    var resolvedTaxPercent = responseTaxPercent != decimal.MinValue ? responseTaxPercent : model.TaxPercent;
+                    var resolvedTaxAmount = responseTaxAmount != decimal.MinValue ? responseTaxAmount : model.TaxAmount;
+                    var resolvedTotalAmount = responseTotalAmount != decimal.MinValue
+                        ? responseTotalAmount
+                        : Math.Round(Math.Max(0m, resolvedSubTotal + resolvedTaxAmount), 2, MidpointRounding.AwayFromZero);
+                    var resolvedAdvanceUsed = responseAdvanceUsed != decimal.MinValue ? responseAdvanceUsed : model.AdvanceUsed;
+                    var resolvedPaidNow = responsePaidNow != decimal.MinValue ? responsePaidNow : model.PaidNow;
+                    var resolvedPendingAmount = responsePendingAmount != decimal.MinValue
+                        ? responsePendingAmount
+                        : (responseNetPayable != decimal.MinValue ? responseNetPayable : model.PendingAmount);
+
+                    var summary = ResolveOrderFinancialSummary(
+                        resolvedOrderAmount,
+                        resolvedSubTotal,
+                        resolvedTaxAmount,
+                        resolvedTotalAmount,
+                        resolvedAdvanceUsed,
+                        resolvedPaidNow,
+                        resolvedPendingAmount,
+                        resolvedPendingAmount);
+
                     var customerProfile = await ResolveCustomerByNameAsync(model.CustomerName);
                     var completionContext = new OrderCompletionContextDto
                     {
@@ -4591,12 +4640,15 @@ namespace LMSWebUI.Controllers
                         CustomerEmail = customerProfile?.Email,
                         OrderMode = model.OrderMode,
                         ServiceType = model.ServiceType,
-                        OrderAmount = model.OrderAmount,
-                        TaxAmount = model.TaxAmount,
-                        AdvanceUsed = model.AdvanceUsed,
-                        PaidNow = model.PaidNow,
-                        PendingAmount = model.PendingAmount,
-                        NetPayable = model.PendingAmount,
+                        OrderAmount = summary.OrderAmount,
+                        SubTotal = summary.SubTotal,
+                        TaxPercent = resolvedTaxPercent,
+                        TaxAmount = summary.TaxAmount,
+                        TotalAmount = summary.TotalAmount,
+                        AdvanceUsed = summary.AdvanceUsed,
+                        PaidNow = summary.PaidNow,
+                        PendingAmount = summary.PendingAmount,
+                        NetPayable = summary.NetPayable,
                         PaymentMode = model.PaymentMode,
                         CreatedDate = DateTime.UtcNow,
                         TotalPieces = createdTotalPieces,
@@ -4770,7 +4822,7 @@ namespace LMSWebUI.Controllers
                 return context;
             }
 
-            if (context != null && !string.IsNullOrWhiteSpace(context.OrderNo)
+            if (context != null && !allowFallback && !string.IsNullOrWhiteSpace(context.OrderNo)
                 && string.Equals(context.OrderNo, orderNo, StringComparison.OrdinalIgnoreCase))
             {
                 var hasItems = context.Items != null && context.Items.Any(x => x != null && x.Quantity > 0);
@@ -4788,10 +4840,15 @@ namespace LMSWebUI.Controllers
             var fallback = await TryBuildOrderCompletionContextFromStoreOrderAsync(orderNo.Trim());
             if (fallback != null)
             {
+                if (!string.IsNullOrWhiteSpace(context?.CustomerEmail) && string.IsNullOrWhiteSpace(fallback.CustomerEmail))
+                {
+                    fallback.CustomerEmail = context.CustomerEmail;
+                }
+
                 TempData["OrderCompletionContext"] = JsonConvert.SerializeObject(fallback);
             }
 
-            return fallback;
+            return fallback ?? context;
         }
 
         private static List<LaundryOrderItemDto> NormalizeOrderItems(IEnumerable<LaundryOrderItemDto> items)
@@ -4973,7 +5030,10 @@ namespace LMSWebUI.Controllers
                     OrderMode = order.OrderMode,
                     ServiceType = order.ServiceType,
                     OrderAmount = order.OrderAmount,
+                    SubTotal = order.SubTotal,
+                    TaxPercent = order.TaxPercent,
                     TaxAmount = order.TaxAmount,
+                    TotalAmount = order.TotalAmount,
                     AdvanceUsed = order.AdvanceUsed,
                     PaidNow = order.PaidNow,
                     PendingAmount = order.PendingAmount,
@@ -5138,9 +5198,75 @@ namespace LMSWebUI.Controllers
             }
         }
 
+        private static (decimal OrderAmount, decimal SubTotal, decimal TaxAmount, decimal TotalAmount, decimal AdvanceUsed, decimal PaidNow, decimal PendingAmount, decimal NetPayable)
+            ResolveOrderFinancialSummary(decimal orderAmount, decimal subTotal, decimal taxAmount, decimal totalAmount, decimal advanceUsed, decimal paidNow, decimal pendingAmount, decimal netPayable)
+        {
+            var safeOrderAmount = Math.Round(Math.Max(0m, orderAmount), 2, MidpointRounding.AwayFromZero);
+            var safeSubTotal = Math.Round(Math.Max(0m, subTotal), 2, MidpointRounding.AwayFromZero);
+            if (safeSubTotal <= 0m)
+            {
+                safeSubTotal = safeOrderAmount;
+            }
+
+            var safeTaxAmount = Math.Round(Math.Max(0m, taxAmount), 2, MidpointRounding.AwayFromZero);
+            var safeTotalAmount = Math.Round(Math.Max(0m, totalAmount), 2, MidpointRounding.AwayFromZero);
+            if (safeTotalAmount <= 0m)
+            {
+                safeTotalAmount = Math.Round(Math.Max(0m, safeSubTotal + safeTaxAmount), 2, MidpointRounding.AwayFromZero);
+            }
+
+            if (safeTaxAmount <= 0m && safeTotalAmount > safeSubTotal)
+            {
+                safeTaxAmount = Math.Round(safeTotalAmount - safeSubTotal, 2, MidpointRounding.AwayFromZero);
+            }
+
+            var safeAdvanceUsed = Math.Round(Math.Max(0m, advanceUsed), 2, MidpointRounding.AwayFromZero);
+            if (safeAdvanceUsed > safeTotalAmount)
+            {
+                safeAdvanceUsed = safeTotalAmount;
+            }
+
+            var payableAfterAdvance = Math.Round(Math.Max(0m, safeTotalAmount - safeAdvanceUsed), 2, MidpointRounding.AwayFromZero);
+            var safePaidNow = Math.Round(Math.Max(0m, paidNow), 2, MidpointRounding.AwayFromZero);
+            if (safePaidNow > payableAfterAdvance)
+            {
+                safePaidNow = payableAfterAdvance;
+            }
+
+            var computedPending = Math.Round(Math.Max(0m, payableAfterAdvance - safePaidNow), 2, MidpointRounding.AwayFromZero);
+            var safePendingAmount = Math.Round(Math.Max(0m, pendingAmount), 2, MidpointRounding.AwayFromZero);
+            var safeNetPayable = Math.Round(Math.Max(0m, netPayable), 2, MidpointRounding.AwayFromZero);
+
+            if (safePendingAmount <= 0m && computedPending > 0m)
+            {
+                safePendingAmount = computedPending;
+            }
+
+            if (safeNetPayable <= 0m)
+            {
+                safeNetPayable = safePendingAmount > 0m ? safePendingAmount : computedPending;
+            }
+
+            if (safePendingAmount <= 0m)
+            {
+                safePendingAmount = safeNetPayable;
+            }
+
+            return (safeOrderAmount, safeSubTotal, safeTaxAmount, safeTotalAmount, safeAdvanceUsed, safePaidNow, safePendingAmount, safeNetPayable);
+        }
+
         private static List<string> BuildBillLines(OrderCompletionContextDto context, LMSWebUI.Services.CurrencyConfig currencyCfg, LMSWebUI.Services.ICurrencyService currencyService, string billFromCompanyName, string billFromBusinessEmail)
         {
             var resolvedCompanyName = string.IsNullOrWhiteSpace(billFromCompanyName) ? "Laundry Service" : billFromCompanyName.Trim();
+            var summary = ResolveOrderFinancialSummary(
+                context?.OrderAmount ?? 0m,
+                context?.SubTotal ?? 0m,
+                context?.TaxAmount ?? 0m,
+                context?.TotalAmount ?? 0m,
+                context?.AdvanceUsed ?? 0m,
+                context?.PaidNow ?? 0m,
+                context?.PendingAmount ?? 0m,
+                context?.NetPayable ?? 0m);
             var lines = new List<string>
             {
                 $"Bill From: {resolvedCompanyName}",
@@ -5180,21 +5306,23 @@ namespace LMSWebUI.Controllers
             lines.Add($"Order Mode: {context.OrderMode}");
             if (currencyService != null && currencyCfg != null)
             {
-                lines.Add($"Order Amount: {currencyService.Format(context.OrderAmount, currencyCfg)}");
-                lines.Add($"Tax: {currencyService.Format(context.TaxAmount, currencyCfg)}");
-                lines.Add($"Advance Utilized (-): {currencyService.Format(context.AdvanceUsed, currencyCfg)}");
-                lines.Add($"Paid Now (-): {currencyService.Format(context.PaidNow, currencyCfg)}");
-                lines.Add($"Pending Amount: {currencyService.Format(context.PendingAmount, currencyCfg)}");
-                lines.Add($"Net Payable: {currencyService.Format(context.NetPayable, currencyCfg)}");
+                lines.Add($"Subtotal: {currencyService.Format(summary.SubTotal, currencyCfg)}");
+                lines.Add($"Tax ({context.TaxPercent:0.##}%): {currencyService.Format(summary.TaxAmount, currencyCfg)}");
+                lines.Add($"Total: {currencyService.Format(summary.TotalAmount, currencyCfg)}");
+                lines.Add($"Advance Utilized (-): {currencyService.Format(summary.AdvanceUsed, currencyCfg)}");
+                lines.Add($"Paid Now (-): {currencyService.Format(summary.PaidNow, currencyCfg)}");
+                lines.Add($"Pending Amount: {currencyService.Format(summary.PendingAmount, currencyCfg)}");
+                lines.Add($"Net Payable: {currencyService.Format(summary.NetPayable, currencyCfg)}");
             }
             else
             {
-                lines.Add($"Order Amount: {context.OrderAmount:0.00}");
-                lines.Add($"Tax: {context.TaxAmount:0.00}");
-                lines.Add($"Advance Utilized (-): {context.AdvanceUsed:0.00}");
-                lines.Add($"Paid Now (-): {context.PaidNow:0.00}");
-                lines.Add($"Pending Amount: {context.PendingAmount:0.00}");
-                lines.Add($"Net Payable: {context.NetPayable:0.00}");
+                lines.Add($"Subtotal: {summary.SubTotal:0.00}");
+                lines.Add($"Tax ({context.TaxPercent:0.##}%): {summary.TaxAmount:0.00}");
+                lines.Add($"Total: {summary.TotalAmount:0.00}");
+                lines.Add($"Advance Utilized (-): {summary.AdvanceUsed:0.00}");
+                lines.Add($"Paid Now (-): {summary.PaidNow:0.00}");
+                lines.Add($"Pending Amount: {summary.PendingAmount:0.00}");
+                lines.Add($"Net Payable: {summary.NetPayable:0.00}");
             }
 
             return lines;
@@ -5208,8 +5336,9 @@ namespace LMSWebUI.Controllers
             var invoiceNo = string.IsNullOrWhiteSpace(context.InvoiceNo) ? context.OrderNo : context.InvoiceNo;
             var issueDate = context.CreatedDate == default ? DateTime.UtcNow : context.CreatedDate;
             var companyName = string.IsNullOrWhiteSpace(billFromCompanyName) ? "Laundry Service" : billFromCompanyName.Trim();
+            var summary = ResolveOrderFinancialSummary(context.OrderAmount, context.SubTotal, context.TaxAmount, context.TotalAmount, context.AdvanceUsed, context.PaidNow, context.PendingAmount, context.NetPayable);
 
-            var pendingAmount = context.PendingAmount;
+            var pendingAmount = summary.PendingAmount;
             var isPaid = pendingAmount <= 0;
             var statusText = isPaid ? "PAID IN FULL" : "BALANCE DUE";
             var statusBg = isPaid ? "#dcfce7" : "#fee2e2";
@@ -5307,12 +5436,13 @@ namespace LMSWebUI.Controllers
       </table>
 
       <table role='presentation' style='width:100%;border-collapse:collapse;font-size:13px;margin-top:12px;'>
-        <tr><td style='padding:5px 0;color:#6b7280;'>Subtotal</td><td style='padding:5px 0;text-align:right;font-weight:700;'>{F(context.OrderAmount)}</td></tr>
-        <tr><td style='padding:5px 0;color:#6b7280;'>Tax</td><td style='padding:5px 0;text-align:right;font-weight:700;'>{F(context.TaxAmount)}</td></tr>
-        <tr><td style='padding:5px 0;color:#6b7280;'>Advance utilized</td><td style='padding:5px 0;text-align:right;font-weight:700;'>{F(context.AdvanceUsed)}</td></tr>
-        <tr><td style='padding:5px 0;color:#6b7280;'>Paid now</td><td style='padding:5px 0;text-align:right;font-weight:700;'>{F(context.PaidNow)}</td></tr>
-        <tr><td style='padding:5px 0;color:#6b7280;'>Pending amount</td><td style='padding:5px 0;text-align:right;font-weight:700;'>{F(context.PendingAmount)}</td></tr>
-        <tr><td style='padding-top:8px;border-top:1px solid #dbe3ec;font-size:15px;font-weight:800;'>Net payable</td><td style='padding-top:8px;border-top:1px solid #dbe3ec;text-align:right;font-size:15px;font-weight:800;'>{F(context.NetPayable)}</td></tr>
+        <tr><td style='padding:5px 0;color:#6b7280;'>Subtotal</td><td style='padding:5px 0;text-align:right;font-weight:700;'>{F(summary.SubTotal)}</td></tr>
+        <tr><td style='padding:5px 0;color:#6b7280;'>Tax ({context.TaxPercent:0.##}%)</td><td style='padding:5px 0;text-align:right;font-weight:700;'>{F(summary.TaxAmount)}</td></tr>
+        <tr><td style='padding:5px 0;color:#6b7280;'>Total</td><td style='padding:5px 0;text-align:right;font-weight:700;'>{F(summary.TotalAmount)}</td></tr>
+        <tr><td style='padding:5px 0;color:#6b7280;'>Advance utilized</td><td style='padding:5px 0;text-align:right;font-weight:700;'>{F(summary.AdvanceUsed)}</td></tr>
+        <tr><td style='padding:5px 0;color:#6b7280;'>Paid now</td><td style='padding:5px 0;text-align:right;font-weight:700;'>{F(summary.PaidNow)}</td></tr>
+        <tr><td style='padding:5px 0;color:#6b7280;'>Pending amount</td><td style='padding:5px 0;text-align:right;font-weight:700;'>{F(summary.PendingAmount)}</td></tr>
+        <tr><td style='padding-top:8px;border-top:1px solid #dbe3ec;font-size:15px;font-weight:800;'>Net payable</td><td style='padding-top:8px;border-top:1px solid #dbe3ec;text-align:right;font-size:15px;font-weight:800;'>{F(summary.NetPayable)}</td></tr>
       </table>
 
       <div style='margin-top:14px;font-size:13px;color:#374151;'>
@@ -5334,10 +5464,11 @@ namespace LMSWebUI.Controllers
             var invoiceNo = string.IsNullOrWhiteSpace(context.InvoiceNo) ? context.OrderNo : context.InvoiceNo;
             var issueDate = context.CreatedDate == default ? DateTime.UtcNow : context.CreatedDate;
             var dueDate = issueDate;
-            var subTotal = context.OrderAmount;
-            var tax = context.TaxAmount;
-            var advanceUsed = context.AdvanceUsed;
-            var totalDue = context.NetPayable;
+            var summary = ResolveOrderFinancialSummary(context.OrderAmount, context.SubTotal, context.TaxAmount, context.TotalAmount, context.AdvanceUsed, context.PaidNow, context.PendingAmount, context.NetPayable);
+            var subTotal = summary.SubTotal;
+            var tax = summary.TaxAmount;
+            var advanceUsed = summary.AdvanceUsed;
+            var totalDue = summary.NetPayable;
 
             var companyName = string.IsNullOrWhiteSpace(billFromCompanyName)
                 ? "Laundry Service"
@@ -5479,14 +5610,15 @@ namespace LMSWebUI.Controllers
                             }
 
                             sumRow("Subtotal", FormatAmount(subTotal, currencyCfg));
-                            sumRow("Tax", FormatAmount(tax, currencyCfg));
+                            sumRow($"Tax ({context.TaxPercent:0.##}%)", FormatAmount(tax, currencyCfg));
+                            sumRow("Total", FormatAmount(summary.TotalAmount, currencyCfg));
                             sumRow("Advance Utilized (-)", FormatAmount(advanceUsed, currencyCfg));
-                            sumRow("Paid Now (-)", FormatAmount(context.PaidNow, currencyCfg));
-                            sumRow("Pending Amount", FormatAmount(context.PendingAmount, currencyCfg));
+                            sumRow("Paid Now (-)", FormatAmount(summary.PaidNow, currencyCfg));
+                            sumRow("Pending Amount", FormatAmount(summary.PendingAmount, currencyCfg));
                             sumRow("Total Due", FormatAmount(totalDue, currencyCfg), true);
                         });
 
-                        col.Item().Border(1).BorderColor("#dbe3ec").Padding(8).Text($"Payment Information: {context.OrderMode} / {context.ServiceType} / Advance Used: {FormatAmount(context.AdvanceUsed, currencyCfg)} / Paid Now: {FormatAmount(context.PaidNow, currencyCfg)} / Pending: {FormatAmount(context.PendingAmount, currencyCfg)}");
+                        col.Item().Border(1).BorderColor("#dbe3ec").Padding(8).Text($"Payment Information: {context.OrderMode} / {context.ServiceType} / Advance Used: {FormatAmount(summary.AdvanceUsed, currencyCfg)} / Paid Now: {FormatAmount(summary.PaidNow, currencyCfg)} / Pending: {FormatAmount(summary.PendingAmount, currencyCfg)}");
                         col.Item().AlignCenter().Text("Thank you for your business!").FontColor("#1f4e79").SemiBold();
                     });
                 });
