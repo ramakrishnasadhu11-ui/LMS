@@ -19,6 +19,12 @@
 --DELETE FROM WorkflowStatuses
 --DELETE FROM OrderActionAuditLogs
 --DELETE FROM PricingRules
+--DELETE FROM TenantIntegrationSettings
+
+
+
+
+
 
 
 test.uk.tenant@test.com

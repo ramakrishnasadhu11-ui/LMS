@@ -2916,6 +2916,49 @@ namespace LMSWebUI.Controllers
             return RedirectToAction(nameof(Integrations));
         }
 
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> SendTestEmail(string category, string providerKey, string recipientEmail)
+        {
+            if (!IsAdminUser())
+            {
+                return RedirectToAction(nameof(Integrations));
+            }
+
+            if (string.IsNullOrWhiteSpace(recipientEmail) || !new EmailAddressAttribute().IsValid(recipientEmail))
+            {
+                TempData["UserMessage"] = JsonConvert.SerializeObject(new MessageDto
+                {
+                    CssClassName = "alert alert-warning",
+                    Title = "Test Failed.",
+                    DisplayMessage = "Please enter a valid recipient email address."
+                });
+
+                return RedirectToAction(nameof(Integrations));
+            }
+
+            var payload = new
+            {
+                TenantName = HttpContext.Session.GetString("TenantName"),
+                StoreCode = HttpContext.Session.GetString("TenantStore"),
+                Category = category,
+                ProviderKey = providerKey,
+                RecipientEmail = recipientEmail.Trim()
+            };
+
+            var result = await _clientApi.SendRequestAsync<CustomerIOResponse>("/SendTenantIntegrationTestEmail", payload, Method.POST);
+            TempData["UserMessage"] = JsonConvert.SerializeObject(new MessageDto
+            {
+                CssClassName = string.Equals(result?.StatusCode, "200", StringComparison.OrdinalIgnoreCase)
+                    ? "alert alert-success"
+                    : "alert alert-warning",
+                Title = string.Equals(result?.StatusCode, "200", StringComparison.OrdinalIgnoreCase) ? "Test Success." : "Test Failed.",
+                DisplayMessage = result?.Message ?? "Unable to send test email."
+            });
+
+            return RedirectToAction(nameof(Integrations));
+        }
+
         private async Task<Models.Admin.IntegrationsViewModel> LoadIntegrationsAsync(string tenantName, string storeCode)
         {
             var model = new Models.Admin.IntegrationsViewModel
@@ -4460,7 +4503,6 @@ namespace LMSWebUI.Controllers
                 }
                 else
                 {
-                    TempData["SetupCreateOrderToast"] = $"Order created successfully. Order No: {orderNo}";
                     HttpContext.Session.SetString(SelectedCustomerNameSessionKey, model.CustomerName ?? string.Empty);
                     HttpContext.Session.SetString(SelectedCustomerCodeSessionKey, model.CustCode ?? string.Empty);
 
@@ -4518,6 +4560,29 @@ namespace LMSWebUI.Controllers
                         TotalPieces = createdTotalPieces,
                         Items = responseItems
                     };
+
+                    var orderToastMessage = $"Order created successfully. Order No: {orderNo}";
+                    var autoEmailAddress = completionContext.CustomerEmail?.Trim();
+                    if (!string.IsNullOrWhiteSpace(autoEmailAddress) && new EmailAddressAttribute().IsValid(autoEmailAddress))
+                    {
+                        var autoEmailResult = await SendOrderBillEmailInternalAsync(completionContext, autoEmailAddress);
+                        if (autoEmailResult.Success)
+                        {
+                            orderToastMessage += " Bill emailed successfully.";
+                            await LogOrderActionAuditAsync(completionContext, "EmailBillAuto", "Bill emailed automatically after order creation.", autoEmailAddress);
+                        }
+                        else
+                        {
+                            orderToastMessage += " Order created successfully, but the email could not be sent. Please check email configuration or retry.";
+                            await LogOrderActionAuditAsync(completionContext, "EmailBillAutoFailed", autoEmailResult.Message, autoEmailAddress);
+                        }
+                    }
+                    else
+                    {
+                        await LogOrderActionAuditAsync(completionContext, "EmailBillAutoSkipped", "Automatic bill email skipped. Customer email missing.");
+                    }
+
+                    TempData["SetupCreateOrderToast"] = orderToastMessage;
 
                     TempData["OrderCompletionContext"] = JsonConvert.SerializeObject(completionContext);
                     await LogOrderActionAuditAsync(completionContext, "OrderCreated", "Laundry order created successfully.");
@@ -4895,125 +4960,89 @@ namespace LMSWebUI.Controllers
                 return (false, "Customer email is missing. Please enter email and continue.");
             }
 
-            string getConfig(params string[] keys)
+            try
             {
-                bool isPlaceholder(string value)
-                {
-                    var v = (value ?? string.Empty).Trim();
-                    return string.Equals(v, "yourgmail@gmail.com", StringComparison.OrdinalIgnoreCase)
-                        || string.Equals(v, "your-16-char-app-password", StringComparison.OrdinalIgnoreCase)
-                        || string.Equals(v, "your-smtp-host", StringComparison.OrdinalIgnoreCase)
-                        || string.Equals(v, "your-user", StringComparison.OrdinalIgnoreCase)
-                        || string.Equals(v, "your-password", StringComparison.OrdinalIgnoreCase)
-                        || string.Equals(v, "noreply@yourdomain.com", StringComparison.OrdinalIgnoreCase);
-                }
+                toEmail = new MailAddress(toEmail.Trim()).Address;
+            }
+            catch
+            {
+                return (false, "Customer email is invalid. Please enter a valid email and continue.");
+            }
 
-                foreach (var key in keys)
+            var billFromCompanyName = await GetCompanyNameAsync(context.TenantName, context.StoreCode);
+            string billFromBusinessEmail = null;
+            try
+            {
+                var storeConfig = await _storeConfigurationService.LoadAsync(context.TenantName, context.StoreCode);
+                if (!string.IsNullOrWhiteSpace(storeConfig?.Email) && new EmailAddressAttribute().IsValid(storeConfig.Email))
                 {
-                    var value = _configuration[key];
-                    if (!string.IsNullOrWhiteSpace(value) && !isPlaceholder(value))
+                    billFromBusinessEmail = storeConfig.Email.Trim();
+                }
+                else
+                {
+                    var tenantConfig = await _storeConfigurationService.LoadAsync(context.TenantName, string.Empty);
+                    if (!string.IsNullOrWhiteSpace(tenantConfig?.Email) && new EmailAddressAttribute().IsValid(tenantConfig.Email))
                     {
-                        return value.Trim();
+                        billFromBusinessEmail = tenantConfig.Email.Trim();
                     }
                 }
-
-                return null;
             }
-
-            var smtpHost = getConfig("Email:Smtp:Host", "MailConfiguration:SmtpServer");
-            if (string.IsNullOrWhiteSpace(smtpHost))
+            catch
             {
-                return (false, "SMTP settings are not configured. Configure Email:Smtp or MailConfiguration in appsettings.");
-            }
-
-            var smtpPortText = getConfig("Email:Smtp:Port", "MailConfiguration:Port");
-            var smtpPort = int.TryParse(smtpPortText, out var p) ? p : 587;
-            var smtpUser = getConfig("Email:Smtp:Username", "MailConfiguration:Username");
-            var smtpPassword = getConfig("Email:Smtp:Password", "MailConfiguration:Password");
-            var enableSslText = getConfig("Email:Smtp:EnableSsl");
-            var enableSsl = string.IsNullOrWhiteSpace(enableSslText)
-                ? smtpPort == 465 || smtpPort == 587
-                : !string.Equals(enableSslText, "false", StringComparison.OrdinalIgnoreCase);
-            var fromEmail = getConfig("Email:Smtp:From", "MailConfiguration:MailFrom", "MailConfiguration:Sender");
-
-            if (string.IsNullOrWhiteSpace(fromEmail))
-            {
-                fromEmail = smtpUser;
-            }
-
-            if (string.IsNullOrWhiteSpace(fromEmail))
-            {
-                return (false, "Email sender is not configured. Set Email:Smtp:From, MailConfiguration:MailFrom, or SMTP username.");
-            }
-
-            var portsToTry = new List<int> { smtpPort };
-            if (string.Equals(smtpHost, "smtp.gmail.com", StringComparison.OrdinalIgnoreCase))
-            {
-                if (!portsToTry.Contains(587))
-                {
-                    portsToTry.Add(587);
-                }
-
-                if (!portsToTry.Contains(465))
-                {
-                    portsToTry.Add(465);
-                }
             }
 
             var currencyCfg = await _currencyService.GetEffectiveCurrencyAsync(HttpContext.Session.GetString("TenantName"), HttpContext.Session.GetString("TenantStore"));
-            var billLines = BuildBillLines(context, currencyCfg, _currencyService);
+            var billLines = BuildBillLines(context, currencyCfg, _currencyService, billFromCompanyName, billFromBusinessEmail);
             var body = string.Join("\n", billLines);
-            var htmlBody = BuildBillHtml(context, currencyCfg, _currencyService);
-            var pdfBytes = BuildStyledInvoicePdf(context, currencyCfg, _currencyService);
+            var htmlBody = BuildBillHtml(context, currencyCfg, _currencyService, billFromCompanyName, billFromBusinessEmail);
+            var pdfBytes = BuildStyledInvoicePdf(context, currencyCfg, _currencyService, billFromCompanyName, billFromBusinessEmail);
             var invoiceNo = string.IsNullOrWhiteSpace(context.InvoiceNo) ? context.OrderNo : context.InvoiceNo;
 
-            Exception lastException = null;
-
-            foreach (var portToTry in portsToTry)
+            var payload = new
             {
-                try
+                TenantName = context.TenantName,
+                StoreCode = context.StoreCode,
+                Category = "Email",
+                ProviderKey = "smtp",
+                RecipientEmail = toEmail,
+                Subject = $"Laundry Invoice {invoiceNo}",
+                TextBody = body,
+                HtmlBody = htmlBody,
+                AttachmentFileName = $"Invoice-{invoiceNo}.pdf",
+                AttachmentContentBase64 = Convert.ToBase64String(pdfBytes ?? Array.Empty<byte>())
+            };
+
+            try
+            {
+                var response = await _clientApi.SendRequestAsync<CustomerIOResponse>("/SendTenantIntegrationOrderBillEmail", payload, Method.POST);
+                if (string.Equals(response?.StatusCode, "200", StringComparison.OrdinalIgnoreCase))
                 {
-                    var message = new MimeMessage();
-                    message.From.Add(MailboxAddress.Parse(fromEmail));
-                    message.To.Add(MailboxAddress.Parse(toEmail));
-                    message.Subject = $"Laundry Invoice {invoiceNo}";
-
-                    var builder = new BodyBuilder
-                    {
-                        TextBody = body,
-                        HtmlBody = htmlBody
-                    };
-
-                    builder.Attachments.Add($"Invoice-{invoiceNo}.pdf", pdfBytes, MimeKit.ContentType.Parse("application/pdf"));
-                    message.Body = builder.ToMessageBody();
-
-                    using (var smtp = new MailKit.Net.Smtp.SmtpClient())
-                    {
-                        smtp.Timeout = 30000;
-
-                        var socketOption = enableSsl
-                            ? (portToTry == 465 ? SecureSocketOptions.SslOnConnect : SecureSocketOptions.StartTls)
-                            : SecureSocketOptions.None;
-                        await smtp.ConnectAsync(smtpHost, portToTry, socketOption);
-
-                        if (!string.IsNullOrWhiteSpace(smtpUser))
-                        {
-                            await smtp.AuthenticateAsync(smtpUser, smtpPassword ?? string.Empty);
-                        }
-
-                        await smtp.SendAsync(message);
-                        await smtp.DisconnectAsync(true);
-                    }
-
                     return (true, "Bill emailed successfully.");
                 }
-                catch (Exception ex)
-                {
-                    lastException ??= ex;
-                }
-            }
 
-            return (false, BuildApiErrorMessage(lastException ?? new Exception("SMTP send failed."), "Unable to send bill email."));
+                _logger.LogWarning(
+                    "Order bill email failed for OrderNo {OrderNo}, Tenant {TenantName}, Store {StoreCode}, Recipient {RecipientEmail}. ApiStatus: {StatusCode}. Message: {Message}",
+                    context.OrderNo,
+                    context.TenantName,
+                    context.StoreCode,
+                    toEmail,
+                    response?.StatusCode,
+                    response?.Message);
+
+                return (false, string.IsNullOrWhiteSpace(response?.Message) ? "Unable to send bill email." : response.Message);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(
+                    ex,
+                    "Order bill email exception for OrderNo {OrderNo}, Tenant {TenantName}, Store {StoreCode}, Recipient {RecipientEmail}",
+                    context.OrderNo,
+                    context.TenantName,
+                    context.StoreCode,
+                    toEmail);
+
+                return (false, BuildApiErrorMessage(ex, "Unable to send bill email."));
+            }
         }
 
         private async Task LogOrderActionAuditAsync(OrderCompletionContextDto context, string actionName, string actionMessage = null, string customerEmail = null)
@@ -5067,11 +5096,12 @@ namespace LMSWebUI.Controllers
             }
         }
 
-        private static List<string> BuildBillLines(OrderCompletionContextDto context, LMSWebUI.Services.CurrencyConfig currencyCfg, LMSWebUI.Services.ICurrencyService currencyService)
+        private static List<string> BuildBillLines(OrderCompletionContextDto context, LMSWebUI.Services.CurrencyConfig currencyCfg, LMSWebUI.Services.ICurrencyService currencyService, string billFromCompanyName, string billFromBusinessEmail)
         {
+            var resolvedCompanyName = string.IsNullOrWhiteSpace(billFromCompanyName) ? "Laundry Service" : billFromCompanyName.Trim();
             var lines = new List<string>
             {
-                $"Tenant: {context.TenantName}",
+                $"Bill From: {resolvedCompanyName}",
                 $"Store: {context.StoreCode}",
                 $"Invoice No: {(string.IsNullOrWhiteSpace(context.InvoiceNo) ? context.OrderNo : context.InvoiceNo)}",
                 $"Order No: {context.OrderNo}",
@@ -5080,6 +5110,11 @@ namespace LMSWebUI.Controllers
                 "",
                 "Items:"
             };
+
+            if (!string.IsNullOrWhiteSpace(billFromBusinessEmail))
+            {
+                lines.Insert(1, $"From Email: {billFromBusinessEmail.Trim()}");
+            }
 
                 if (context.Items != null && context.Items.Count > 0)
             {
@@ -5123,17 +5158,14 @@ namespace LMSWebUI.Controllers
             return lines;
         }
 
-        private static string BuildBillHtml(OrderCompletionContextDto context, LMSWebUI.Services.CurrencyConfig currencyCfg, LMSWebUI.Services.ICurrencyService currencyService)
+        private static string BuildBillHtml(OrderCompletionContextDto context, LMSWebUI.Services.CurrencyConfig currencyCfg, LMSWebUI.Services.ICurrencyService currencyService, string billFromCompanyName, string billFromBusinessEmail)
         {
             context ??= new OrderCompletionContextDto();
             context.Items ??= new List<LaundryOrderItemDto>();
 
             var invoiceNo = string.IsNullOrWhiteSpace(context.InvoiceNo) ? context.OrderNo : context.InvoiceNo;
             var issueDate = context.CreatedDate == default ? DateTime.UtcNow : context.CreatedDate;
-            var tenantNameRaw = (context.TenantName ?? string.Empty).Trim();
-            var companyName = string.IsNullOrWhiteSpace(tenantNameRaw)
-                ? "Laundry Service"
-                : (tenantNameRaw.Contains("@") ? tenantNameRaw.Split('@')[0].Replace('.', ' ').Replace('_', ' ') : tenantNameRaw);
+            var companyName = string.IsNullOrWhiteSpace(billFromCompanyName) ? "Laundry Service" : billFromCompanyName.Trim();
 
             var pendingAmount = context.PendingAmount;
             var isPaid = pendingAmount <= 0;
@@ -5147,6 +5179,10 @@ namespace LMSWebUI.Controllers
                 => WebUtility.HtmlEncode(currencyService != null && currencyCfg != null
                     ? currencyService.Format(value, currencyCfg)
                     : value.ToString("0.00", CultureInfo.InvariantCulture));
+
+            var fromEmailLine = string.IsNullOrWhiteSpace(billFromBusinessEmail)
+                ? string.Empty
+                : $"<div style='font-size:12px;color:#6b7280;margin-top:2px;'>From Email: {E(billFromBusinessEmail.Trim())}</div>";
 
             var rows = new StringBuilder();
             if (context.Items.Count > 0)
@@ -5183,6 +5219,7 @@ namespace LMSWebUI.Controllers
         <div>
           <div style='font-size:20px;font-weight:800;color:#1f4e79;'>{E(companyName)}</div>
           <div style='font-size:12px;color:#6b7280;'>Laundry Service &middot; Store {E(context.StoreCode)}</div>
+          {fromEmailLine}
         </div>
         <span style='display:inline-block;padding:6px 12px;border-radius:999px;border:1px solid {statusBd};background:{statusBg};color:{statusFg};font-size:12px;font-weight:800;letter-spacing:.4px;'>{statusText}</span>
       </div>
@@ -5247,7 +5284,7 @@ namespace LMSWebUI.Controllers
 </html>";
         }
 
-        private static byte[] BuildStyledInvoicePdf(OrderCompletionContextDto context, LMSWebUI.Services.CurrencyConfig currencyCfg, LMSWebUI.Services.ICurrencyService currencyService)
+        private static byte[] BuildStyledInvoicePdf(OrderCompletionContextDto context, LMSWebUI.Services.CurrencyConfig currencyCfg, LMSWebUI.Services.ICurrencyService currencyService, string billFromCompanyName, string billFromBusinessEmail)
         {
             context ??= new OrderCompletionContextDto();
             context.Items ??= new List<LaundryOrderItemDto>();
@@ -5260,10 +5297,9 @@ namespace LMSWebUI.Controllers
             var advanceUsed = context.AdvanceUsed;
             var totalDue = context.NetPayable;
 
-            var tenantNameRaw = (context.TenantName ?? string.Empty).Trim();
-            var companyName = string.IsNullOrWhiteSpace(tenantNameRaw)
-                ? "YOUR COMPANY NAME"
-                : (tenantNameRaw.Contains("@") ? tenantNameRaw.Split('@')[0].Replace('.', ' ').Replace('_', ' ') : tenantNameRaw);
+            var companyName = string.IsNullOrWhiteSpace(billFromCompanyName)
+                ? "Laundry Service"
+                : billFromCompanyName.Trim();
 
             QuestPDF.Settings.License = LicenseType.Community;
             string FormatAmount(decimal value, LMSWebUI.Services.CurrencyConfig cfg)
@@ -5303,6 +5339,10 @@ namespace LMSWebUI.Controllers
                             {
                                 c.Item().Text("BILL FROM").FontSize(8).SemiBold().FontColor("#6b7280");
                                 c.Item().Text(companyName).SemiBold();
+                                if (!string.IsNullOrWhiteSpace(billFromBusinessEmail))
+                                {
+                                    c.Item().Text($"From Email: {billFromBusinessEmail.Trim()}");
+                                }
                                 c.Item().Text($"Store: {context.StoreCode}");
                                 c.Item().Text($"Service: {context.ServiceType}");
                             });

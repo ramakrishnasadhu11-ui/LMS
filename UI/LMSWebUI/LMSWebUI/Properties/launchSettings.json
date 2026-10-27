@@ -16,7 +16,7 @@
         "Services__Identity__BaseUrl": "http://localhost:5013",
         //"Services__Identity__BaseUrl": "https://rksadhu-001-site1.ftempurl.com/",
         //"Services__Identity__BaseUrl": "https://identity.api.techforgedev.in/",
-        "Services__Master__BaseUrl": "https://localhost:53962"
+        "Services__Master__BaseUrl": "https://localhost:49778"
         //"Services__Master__BaseUrl": "https://master.api.techforgedev.in/"
       }
     },

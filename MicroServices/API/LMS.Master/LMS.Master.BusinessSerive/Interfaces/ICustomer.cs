@@ -44,6 +44,8 @@ namespace LMS.Master.BusinessSerive.Interfaces
         Task<ActionReturnType> SaveTenantIntegrationSettings(TenantIntegrationSettingsDto integrationDto);
         Task<ActionReturnType> SetTenantIntegrationEnabled(string tenantName, string storeCode, string category, string providerKey, bool isEnabled);
         Task<ActionReturnType> TestTenantIntegration(string tenantName, string storeCode, string category, string providerKey);
+        Task<ActionReturnType> SendTenantIntegrationTestEmail(string tenantName, string storeCode, string category, string providerKey, string recipientEmail);
+        Task<ActionReturnType> SendTenantIntegrationOrderBillEmail(TenantIntegrationOrderBillEmailRequestDto request);
         ActionReturnType GetCustomerByName(string customerName, string tenantName, string storeCode);
         ActionReturnType GetCustomers(string tenantName, string storeCode);
         ActionReturnType SearchCustomers(string searchText, string tenantName, string storeCode);

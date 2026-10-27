@@ -13,6 +13,7 @@ using Microsoft.OpenApi.Models;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Reflection;
 using System.Text;
@@ -24,21 +25,33 @@ namespace LMS.Master.WebApi
         public IConfiguration Configuration { get; }
         public Startup(IConfiguration configuration)
         {
-             Configuration = configuration;
+            Configuration = configuration;
         }
-          public void ConfigureContainer(ServiceRegistry services)
+        public void ConfigureContainer(ServiceRegistry services)
         {
             services.AddControllers()
                     .AddNewtonsoftJson();
 
-            var jwtIssuer = Configuration["Jwt:Issuer"]?.Trim();
-            var jwtAudience = Configuration["Jwt:Audience"]?.Trim();
-            var jwtSigningKey = Configuration["Jwt:SigningKey"];
-
+            var jwtIssuer = GetJwtValue("Issuer")?.Trim();
+            var jwtAudience = GetJwtValue("Audience")?.Trim();
+            var jwtSigningKey = GetJwtValue("SigningKey");
+            var jwtLegacySigningKey = GetJwtValue("LegacySigningKey");
+            
             if (!string.IsNullOrWhiteSpace(jwtIssuer)
                 && !string.IsNullOrWhiteSpace(jwtAudience)
                 && !string.IsNullOrWhiteSpace(jwtSigningKey))
             {
+                var signingKeys = new List<SecurityKey>
+                {
+                    new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSigningKey))
+                };
+
+                if (!string.IsNullOrWhiteSpace(jwtLegacySigningKey)
+                    && !string.Equals(jwtLegacySigningKey, jwtSigningKey, StringComparison.Ordinal))
+                {
+                    signingKeys.Add(new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtLegacySigningKey)));
+                }
+
                 services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
                     .AddJwtBearer(options =>
                     {
@@ -52,7 +65,7 @@ namespace LMS.Master.WebApi
                             ValidateLifetime = true,
                             ValidIssuer = jwtIssuer,
                             ValidAudience = jwtAudience,
-                            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSigningKey)),
+                            IssuerSigningKeys = signingKeys,
                             ClockSkew = TimeSpan.Zero
                         };
                     });
@@ -88,7 +101,31 @@ namespace LMS.Master.WebApi
                 {
                     c.IncludeXmlComments(xmlPathModel);
                 }
-            });
+
+                c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
+                {
+                    Name = "Authorization",
+                    Type = SecuritySchemeType.Http,
+                    Scheme = "bearer",
+                    BearerFormat = "JWT",
+                    In = ParameterLocation.Header,
+                    Description = "Enter your JWT access token."
+                });
+                c.AddSecurityRequirement(new OpenApiSecurityRequirement
+                   {
+                       {
+                          new OpenApiSecurityScheme
+                            {
+                              Reference = new OpenApiReference
+                               {
+                                 Type = ReferenceType.SecurityScheme,
+                                 Id = "Bearer"
+                               }
+                           },
+                       Array.Empty<string>()
+                       }
+                    });
+                });
             var mappingConfig = new MapperConfiguration(mc =>
             {
                 mc.AddProfile(new MapperProfile());
@@ -122,7 +159,7 @@ namespace LMS.Master.WebApi
             }
             else
             {
-                 app.UseHsts();
+                app.UseHsts();
             }
             app.UseHttpsRedirection();
             app.UseRouting();
@@ -146,5 +183,17 @@ namespace LMS.Master.WebApi
                 endpoints.MapControllers();
             });
         }
+
+        private string GetJwtValue(string name)
+        {
+            var envValue = Environment.GetEnvironmentVariable($"Jwt__{name}");
+            if (!string.IsNullOrWhiteSpace(envValue))
+            {
+                return envValue;
+            }
+
+            return Configuration[$"Jwt:{name}"];
+        }
     }
 }
+
