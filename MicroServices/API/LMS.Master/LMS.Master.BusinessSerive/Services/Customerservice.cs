@@ -2435,6 +2435,25 @@ namespace LMS.Master.BusinessSerive.Services
                 });
             }
 
+            await EnsurePricingRulesTableExistsAsync();
+            var pricingRules = await _masterDbContext.PricingRules
+                .AsNoTracking()
+                .FirstOrDefaultAsync(x => x.TenantName == orderDto.TenantName && x.StoreCode == orderDto.StoreCode);
+
+            if (pricingRules != null && pricingRules.EnableMinimumOrder && pricingRules.MinimumOrderAmount > 0)
+            {
+                var currentOrderAmount = Math.Round(Math.Max(0, orderDto.OrderAmount), 2, MidpointRounding.AwayFromZero);
+                var minimumOrderAmount = Math.Round(pricingRules.MinimumOrderAmount, 2, MidpointRounding.AwayFromZero);
+                if (currentOrderAmount < minimumOrderAmount)
+                {
+                    return ActionSet.ActionReturnType(HttpStatusCode.BadRequest, new CustomerIOResponse
+                    {
+                        StatusCode = "400",
+                        Message = $"Minimum order amount is {minimumOrderAmount:0.00}. Current order amount is {currentOrderAmount:0.00}."
+                    });
+                }
+            }
+
             var submittedItems = NormalizeSubmittedOrderItems(orderDto.Items);
             if (string.Equals(orderDto.OrderMode, "pieces", StringComparison.OrdinalIgnoreCase) && submittedItems.Count == 0)
             {

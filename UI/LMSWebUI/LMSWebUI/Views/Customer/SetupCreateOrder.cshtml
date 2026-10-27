@@ -10,6 +10,8 @@
     var taxEnabled = Convert.ToBoolean(ViewData["TaxEnabled"] ?? false);
     var gstPercent = Convert.ToDecimal(ViewData["GstPercent"] ?? 0);
     var pricesIncludeTax = Convert.ToBoolean(ViewData["PricesIncludeTax"] ?? false);
+    var enableMinimumOrder = Convert.ToBoolean(ViewData["EnableMinimumOrder"] ?? false);
+    var minimumOrderAmount = Convert.ToDecimal(ViewData["MinimumOrderAmount"] ?? 0m);
     var isAdminUser = Convert.ToBoolean(ViewData["IsAdminUser"] ?? false);
     var orderHistorySearch = Convert.ToString(ViewData["OrderHistorySearch"] ?? string.Empty);
 }
@@ -443,6 +445,8 @@
     var taxEnabled = @Html.Raw(taxEnabled ? "true" : "false");
     var gstPercent = @Html.Raw(gstPercent.ToString(System.Globalization.CultureInfo.InvariantCulture));
     var pricesIncludeTax = @Html.Raw(pricesIncludeTax ? "true" : "false");
+    var enableMinimumOrder = @Html.Raw(enableMinimumOrder ? "true" : "false");
+    var minimumOrderAmount = @Html.Raw(minimumOrderAmount.ToString(System.Globalization.CultureInfo.InvariantCulture));
     var allowPartialPayment = @Html.Raw(Convert.ToBoolean(ViewData["AllowPartialPayment"] ?? true).ToString().ToLowerInvariant());
     // Expose admin flag to client side so non-admins don't see price-edit controls
     var isAdminUser = @Html.Raw(Convert.ToBoolean(ViewData["IsAdminUser"] ?? false).ToString().ToLowerInvariant());
@@ -2791,6 +2795,12 @@
                 if (orderAmountValue <= 0) {
                     e.preventDefault();
                     showToast("Order amount is zero. Please add items or valid weight/rate before submit.", false);
+                    return;
+                }
+
+                if (enableMinimumOrder && minimumOrderAmount > 0 && orderAmountValue < minimumOrderAmount) {
+                    e.preventDefault();
+                    showToast("Minimum order amount is " + formatCurrency(minimumOrderAmount) + ". Current order amount is " + formatCurrency(orderAmountValue) + ".", false);
                     return;
                 }
 

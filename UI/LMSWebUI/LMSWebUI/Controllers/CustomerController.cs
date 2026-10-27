@@ -3515,8 +3515,8 @@ namespace LMSWebUI.Controllers
                 StoreCode = storeCode,
                 EnableExpressSurcharge = true,
                 ExpressSurchargePercent = 15,
-                EnableMinimumOrder = true,
-                MinimumOrderAmount = 100,
+                EnableMinimumOrder = false,
+                MinimumOrderAmount = 0,
                 StandardTurnaroundHours = 48,
                 ExpressTurnaroundHours = 24,
                 RoundOffInvoiceTotal = true
@@ -3560,6 +3560,32 @@ namespace LMSWebUI.Controllers
 
             validationError = null;
             return true;
+        }
+
+        private async Task<PricingRulesViewModel> LoadPricingRulesAsync(string tenantName, string storeCode)
+        {
+            var parameters = new Dictionary<string, string>
+            {
+                { "tenantName", tenantName },
+                { "storeCode", storeCode }
+            };
+
+            try
+            {
+                var response = await _clientApi.SendRequestAsync<PricingRulesViewModel>("/GetPricingRules", parameters, Method.GET);
+                var model = response ?? BuildDefaultPricingRules(tenantName, storeCode);
+                model.TenantName = tenantName;
+                model.StoreCode = storeCode;
+                return model;
+            }
+            catch (Exception ex) when (IsNotFoundApiResponse(ex))
+            {
+                return BuildDefaultPricingRules(tenantName, storeCode);
+            }
+            catch
+            {
+                return BuildDefaultPricingRules(tenantName, storeCode);
+            }
         }
 
         private static bool ValidatePricingRules(PricingRulesViewModel model, out string validationError)
@@ -4274,6 +4300,10 @@ namespace LMSWebUI.Controllers
             ViewData["AllowPartialPayment"] = paymentSettings.AllowPartialPayment;
             ViewData["AllowCredit"] = paymentSettings.AllowCredit;
             ViewData["RoundOffPayableAmount"] = paymentSettings.RoundOffPayableAmount;
+
+            var pricingRules = await LoadPricingRulesAsync(tenantName, storeCode);
+            ViewData["EnableMinimumOrder"] = pricingRules.EnableMinimumOrder;
+            ViewData["MinimumOrderAmount"] = pricingRules.MinimumOrderAmount;
 
             var taxSettings = await LoadTaxInvoiceSettingsAsync(tenantName, storeCode);
             ViewData["TaxEnabled"] = taxSettings.EnableTax && taxSettings.GstPercent > 0;
