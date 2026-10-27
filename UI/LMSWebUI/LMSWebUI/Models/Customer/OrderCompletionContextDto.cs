@@ -14,7 +14,10 @@ namespace LMSWebUI.Models.Customer
         public string TenantName { get; set; }
         public string OrderMode { get; set; }
         public decimal OrderAmount { get; set; }
+        public decimal SubTotal { get; set; }
+        public decimal TaxPercent { get; set; }
         public decimal TaxAmount { get; set; }
+        public decimal TotalAmount { get; set; }
         public decimal AdvanceUsed { get; set; }
         public decimal PaidNow { get; set; }
         public decimal PendingAmount { get; set; }

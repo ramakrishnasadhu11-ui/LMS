@@ -1,4 +1,5 @@
 ﻿using System;
+using System.IO;
 using LMSWebUI.Data;
 using LMSWebUI.Helpers;
 using LMSWebUI.Models;
@@ -56,6 +57,14 @@ namespace LMSWebUI
                 options.IdleTimeout = TimeSpan.FromMinutes(60);
             });
 
+            services.ConfigureApplicationCookie(options =>
+            {
+                options.LoginPath = "/Login/Login";
+                options.AccessDeniedPath = "/Login/Login";
+                options.SlidingExpiration = true;
+                options.ExpireTimeSpan = TimeSpan.FromMinutes(60);
+            });
+
             services.AddControllersWithViews()
                 .AddNewtonsoftJson();
             services.AddHttpClient();
@@ -85,6 +94,19 @@ namespace LMSWebUI
             app.UseAuthentication();
             app.UseAuthorization();
             app.UseSession();
+            app.Use(async (context, next) =>
+            {
+                if (context.User?.Identity?.IsAuthenticated == true
+                    && string.Equals(context.Request.Method, "GET", StringComparison.OrdinalIgnoreCase)
+                    && !Path.HasExtension(context.Request.Path.Value ?? string.Empty))
+                {
+                    context.Response.Headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0";
+                    context.Response.Headers["Pragma"] = "no-cache";
+                    context.Response.Headers["Expires"] = "0";
+                }
+
+                await next();
+            });
             app.UseEndpoints(endpoints =>
             {
                 endpoints.MapControllerRoute(
