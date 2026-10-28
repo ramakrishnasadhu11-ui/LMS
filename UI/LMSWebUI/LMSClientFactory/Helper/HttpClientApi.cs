@@ -13,14 +13,16 @@ namespace LMSClientFactory.Helper
     public class HttpClientApi : IHttpClientApi
     {
         private readonly IRestClient _client;
+        private readonly string _authenticationValidationError;
         public HttpClientApi(string url)
         {
             _client = new RestClient(url);
-
+            _authenticationValidationError = string.Empty;
         }
-        public HttpClientApi(string url, string access_token)
+        public HttpClientApi(string url, string access_token, string authenticationValidationError = null)
         {
             _client = new RestClient(url);
+            _authenticationValidationError = authenticationValidationError ?? string.Empty;
             if (!string.IsNullOrWhiteSpace(access_token))
             {
                 _client.AddDefaultHeader("Authorization", $"Bearer {access_token.Trim()}");
@@ -34,6 +36,11 @@ namespace LMSClientFactory.Helper
         /// <returns></returns>
         private async Task<T> SendRequest<T>(IRestRequest request) where T : new()
         {
+            if (!string.IsNullOrWhiteSpace(_authenticationValidationError))
+            {
+                throw new UnauthorizedAccessException(_authenticationValidationError);
+            }
+
             request.RequestFormat = DataFormat.Json;
             request.JsonSerializer = new RestSharpJsonNetSerializer();
 

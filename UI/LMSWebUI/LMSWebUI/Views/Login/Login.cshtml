@@ -12,6 +12,7 @@
     <style>
         html,
         body {
+            height: 100%;
             min-height: 100%;
             margin: 0;
             font-family: "Poppins", sans-serif;
@@ -20,6 +21,7 @@
         }
 
         .login-shell {
+            min-height: 100vh;
             min-height: 100dvh;
             box-sizing: border-box;
             padding: clamp(10px, 2vh, 24px) clamp(10px, 1.8vw, 24px);
@@ -46,14 +48,37 @@
             box-shadow: 0 24px 70px rgba(15, 23, 42, 0.14);
             background: #ffffff;
         }
-@@media (min-width: 901px) {
-    .login-grid {
-        /* Let the grid fill the wrapper but scroll internally if needed. */
-        max-height: 100%;
-        overflow: auto;
-        box-sizing: border-box;
-    }
-}
+        @@media (min-width: 901px) {
+            html,
+            body {
+                overflow: hidden;
+            }
+
+            .login-shell {
+                --login-shell-pad-y: 10px;
+                height: 100vh;
+                height: 100dvh;
+                padding-top: var(--login-shell-pad-y);
+                padding-bottom: var(--login-shell-pad-y);
+                overflow: hidden;
+            }
+
+            .login-grid {
+                /* Keep content within viewport on desktop and scroll inside only when needed. */
+                height: 100%;
+                max-height: calc(100dvh - (var(--login-shell-pad-y) * 2));
+                max-height: 100%;
+                min-height: 0;
+                overflow: hidden;
+                box-sizing: border-box;
+            }
+
+            .brand-panel,
+            .login-panel {
+                min-height: 0;
+                overflow: auto;
+            }
+        }
 
         .brand-panel {
             background: linear-gradient(170deg, #0b1b4d 0%, #132f77 52%, #19409b 100%);

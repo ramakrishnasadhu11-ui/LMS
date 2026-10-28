@@ -348,7 +348,7 @@
                     </div>
                 </div>
 
-                <div class="adv-balance">Current Balance: <span id="advanceBalance">@((IHtmlHelper)Html).FormatCurrency(Model?.Balance)</span></div>
+                <div class="adv-balance">Current Balance: <span id="advanceBalance">@Html.FormatCurrency(Model?.Balance)</span></div>
 
                 <div class="adv-summary-grid">
                     <div class="adv-summary-card">
@@ -361,11 +361,11 @@
                     </div>
                     <div class="adv-summary-card">
                         <div class="adv-summary-label">Total Advances (Credits)</div>
-                        <div class="adv-summary-value" id="summaryTotalAdvances">@((IHtmlHelper)Html).FormatCurrency(0m)</div>
+                        <div class="adv-summary-value" id="summaryTotalAdvances">@Html.FormatCurrency(0m)</div>
                     </div>
                     <div class="adv-summary-card">
                         <div class="adv-summary-label">Amount Used / Adjusted</div>
-                        <div class="adv-summary-value" id="summaryUsedAdjusted">@((IHtmlHelper)Html).FormatCurrency(0m)</div>
+                        <div class="adv-summary-value" id="summaryUsedAdjusted">@Html.FormatCurrency(0m)</div>
                         <div class="adv-hint" id="summaryUsedAdjustedHint">Shown only when usage data is available.</div>
                     </div>
                 </div>
@@ -427,10 +427,10 @@
                                     <td>@(string.Equals(txn.TransactionType, "Credit", StringComparison.OrdinalIgnoreCase) ? "Advance Added" : string.Equals(txn.TransactionType, "Debit", StringComparison.OrdinalIgnoreCase) ? "Balance Adjustment" : txn.TransactionType)</td>
                                     <td class="adv-muted">-</td>
                                     <td class="@(string.Equals(txn.TransactionType, "Debit", StringComparison.OrdinalIgnoreCase) ? "adv-amount-negative" : "adv-amount-positive")">
-                                        @(string.Equals(txn.TransactionType, "Debit", StringComparison.OrdinalIgnoreCase) ? "−" : "+")@((IHtmlHelper)Html).FormatCurrency(txn.AdvanceAmount)
+                                        @(string.Equals(txn.TransactionType, "Debit", StringComparison.OrdinalIgnoreCase) ? "−" : "+")@Html.FormatCurrency(txn.AdvanceAmount)
                                     </td>
                                     <td class="@(string.Equals(txn.TransactionType, "Debit", StringComparison.OrdinalIgnoreCase) ? "adv-amount-negative" : "adv-muted")">
-                                        @(string.Equals(txn.TransactionType, "Debit", StringComparison.OrdinalIgnoreCase) ? ("−" + Html.Raw(((IHtmlHelper)Html).FormatCurrency(txn.AdvanceAmount).ToString())) : "-")
+                                        @(string.Equals(txn.TransactionType, "Debit", StringComparison.OrdinalIgnoreCase) ? ("−" + Html.FormatCurrency(txn.AdvanceAmount).ToString()) : "-")
                                     </td>
                                     <td class="adv-balance-strong adv-muted">-</td>
                                     <td class="adv-muted">-</td>
@@ -458,6 +458,19 @@
         function parseAmount(value) {
             var amount = Number(value);
             return isNaN(amount) ? 0 : amount;
+        }
+
+        function parseMoneyText(value) {
+            if (value === undefined || value === null) {
+                return 0;
+            }
+
+            var text = value.toString().replace(/[^0-9.-]/g, "");
+            if (!text) {
+                return 0;
+            }
+
+            return parseAmount(text);
         }
 
         function parseDateUtc(value) {
@@ -726,6 +739,37 @@
             applyHistoryFiltersAndRender();
         }
 
+        function clearAdvanceDisplay() {
+            var advanceBalanceEl = document.getElementById("advanceBalance");
+            var custCodeEl = document.getElementById("custCode");
+            var custCodeDisplayEl = document.getElementById("customerCodeDisplay");
+
+            if (advanceBalanceEl) {
+                advanceBalanceEl.textContent = formatCurrency(0);
+            }
+
+            if (custCodeEl) {
+                custCodeEl.value = "";
+            }
+
+            if (custCodeDisplayEl) {
+                custCodeDisplayEl.value = "";
+            }
+
+            renderHistoryRows([]);
+            updateSummaryCards([], 0);
+        }
+
+        function setLoadHistoryState(isLoading) {
+            var loadBtn = document.getElementById("loadAdvanceBtn");
+            if (!loadBtn) {
+                return;
+            }
+
+            loadBtn.disabled = !!isLoading;
+            loadBtn.textContent = isLoading ? "Loading..." : "Load History";
+        }
+
         function loadHistory() {
             var customerNameInput = document.getElementById("customerName");
             var customerName = customerNameInput ? customerNameInput.value.trim() : "";
@@ -736,34 +780,66 @@
                 return;
             }
 
+            setLoadHistoryState(true);
+
             fetch('@Url.Action("GetCustomerAdvances", "Customer")' + '?customerName=' + encodeURIComponent(customerName) + '&customerCode=' + encodeURIComponent(customerCode), {
                 method: 'GET',
                 headers: {
                     'X-Requested-With': 'XMLHttpRequest'
                 }
             })
-                .then(function (response) { return response.json(); })
+                .then(function (response) {
+                    if (!response || !response.ok) {
+                        throw new Error("Unable to fetch customer advances. Server returned " + (response ? response.status : "an unknown status") + ".");
+                    }
+
+                    var contentType = (response.headers && response.headers.get("content-type")) || "";
+                    if (contentType.toLowerCase().indexOf("application/json") === -1) {
+                        throw new Error("Unable to fetch customer advances due to an unexpected server response.");
+                    }
+
+                    return response.json();
+                })
                 .then(function (data) {
                     if (!data || !data.success) {
                         showToast((data && data.message) || "Unable to fetch customer advances.", false);
-                        renderHistoryRows([]);
-                        document.getElementById("advanceBalance").textContent = formatCurrency(0);
-                        document.getElementById("custCode").value = "";
-                        document.getElementById("customerCodeDisplay").value = "";
-                        updateSummaryCards([], 0);
+                        clearAdvanceDisplay();
+                        return;
+                    }
+
+                    if (!Array.isArray(data.transactions)) {
+                        showToast("Unable to load customer history because the server returned malformed data.", false);
+                        clearAdvanceDisplay();
                         return;
                     }
 
                     var balance = data.balance || 0;
-                    document.getElementById("advanceBalance").textContent = formatCurrency(balance);
-                    document.getElementById("custCode").value = data.customerCode || "";
-                    document.getElementById("customerCodeDisplay").value = data.customerCode || "";
-                    updateSummaryCards(data.transactions || [], balance);
-                    renderHistoryRows(data.transactions || []);
+                    var advanceBalanceEl = document.getElementById("advanceBalance");
+                    var custCodeEl = document.getElementById("custCode");
+                    var custCodeDisplayEl = document.getElementById("customerCodeDisplay");
+
+                    if (advanceBalanceEl) {
+                        advanceBalanceEl.textContent = formatCurrency(balance);
+                    }
+
+                    if (custCodeEl) {
+                        custCodeEl.value = data.customerCode || "";
+                    }
+
+                    if (custCodeDisplayEl) {
+                        custCodeDisplayEl.value = data.customerCode || "";
+                    }
+
+                    updateSummaryCards(data.transactions, balance);
+                    renderHistoryRows(data.transactions);
                 })
                 .catch(function (error) {
-                    var message = error && error.message ? error.message : "Unable to fetch customer advances.";
+                    clearAdvanceDisplay();
+                    var message = error && error.message ? error.message : "Unable to fetch customer advances. Please try again.";
                     showToast(message, false);
+                })
+                .then(function () {
+                    setLoadHistoryState(false);
                 });
         }
 
@@ -870,7 +946,7 @@
                     var customerNameValue = (document.getElementById("customerName").value || "").trim();
                     var amountValue = parseAmount(document.getElementById("advanceAmount").value || 0);
                     var selectedType = (document.getElementById("transactionType").value || "").trim().toLowerCase();
-                    var availableBalance = parseAmount(document.getElementById("advanceBalance").textContent || 0);
+                    var availableBalance = parseMoneyText(document.getElementById("advanceBalance").textContent || 0);
 
                     if (!customerNameValue) {
                         e.preventDefault();
@@ -912,7 +988,7 @@
                     }
 
                     if (balance) {
-                        balance.textContent = "0.00";
+                        balance.textContent = formatCurrency(0);
                     }
 
                     if (historyBody) {
