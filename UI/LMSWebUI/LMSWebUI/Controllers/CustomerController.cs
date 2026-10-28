@@ -24,6 +24,7 @@ using LMSWebUI.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.Filters;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using RestSharp;
@@ -50,7 +51,54 @@ namespace LMSWebUI.Controllers
         private const string AllowedStoresSessionKey = "TenantAllowedStores";
         private const string OrderPiecesMapSessionKey = "OrderPiecesMap";
         private const string CustomerNotInStoreMessage = "Customer not found in the current store.";
+        private const string SessionExpiredMessage = "Session expired. Please log in again.";
         private const long MaxCsvUploadBytes = 2 * 1024 * 1024;
+
+        public override async Task OnActionExecutionAsync(ActionExecutingContext context, ActionExecutionDelegate next)
+        {
+            var executedContext = await next();
+
+            if (executedContext.Exception is UnauthorizedAccessException ex
+                && !executedContext.ExceptionHandled)
+            {
+                var message = string.IsNullOrWhiteSpace(ex.Message)
+                    ? SessionExpiredMessage
+                    : ex.Message;
+
+                var isAjaxRequest = string.Equals(
+                        context.HttpContext?.Request?.Headers["X-Requested-With"].ToString(),
+                        "XMLHttpRequest",
+                        StringComparison.OrdinalIgnoreCase)
+                    || (context.HttpContext?.Request?.Headers["Accept"].ToString() ?? string.Empty)
+                        .Contains("application/json", StringComparison.OrdinalIgnoreCase);
+
+                if (isAjaxRequest)
+                {
+                    executedContext.Result = new JsonResult(new
+                    {
+                        success = false,
+                        message,
+                        redirectUrl = Url.Action("Login", "Login")
+                    })
+                    {
+                        StatusCode = StatusCodes.Status401Unauthorized
+                    };
+                }
+                else
+                {
+                    TempData["UserMessage"] = JsonConvert.SerializeObject(new MessageDto
+                    {
+                        CssClassName = "alert alert-danger",
+                        Title = "Failed.",
+                        DisplayMessage = message
+                    });
+
+                    executedContext.Result = RedirectToAction("Login", "Login");
+                }
+
+                executedContext.ExceptionHandled = true;
+            }
+        }
 
         /// <summary>
         /// Reads the logged-in store scope from the session. Customer lookups are restricted
@@ -483,7 +531,7 @@ namespace LMSWebUI.Controllers
                     Title = "Failed.",
                     DisplayMessage = "Session expired. Please log in again."
                 });
-                return RedirectToAction("Index", "Login");
+                return RedirectToAction("Login", "Login");
             }
 
             var model = new AdminFeatureViewModel
@@ -639,7 +687,7 @@ namespace LMSWebUI.Controllers
                     Title = "Failed.",
                     DisplayMessage = "Session expired. Please log in again."
                 });
-                return RedirectToAction("Index", "Login");
+                return RedirectToAction("Login", "Login");
             }
 
             var parameters = new Dictionary<string, string>
@@ -697,7 +745,7 @@ namespace LMSWebUI.Controllers
                     Title = "Failed.",
                     DisplayMessage = "Session expired. Please log in again."
                 });
-                return RedirectToAction("Index", "Login");
+                return RedirectToAction("Login", "Login");
             }
 
             var model = await _storeConfigurationService.LoadAsync(tenantName, storeCode);
@@ -745,7 +793,7 @@ namespace LMSWebUI.Controllers
                     Title = "Failed.",
                     DisplayMessage = "Session expired. Please log in again."
                 });
-                return RedirectToAction("Index", "Login");
+                return RedirectToAction("Login", "Login");
             }
 
             model = _storeConfigurationService.Normalize(model);
@@ -853,7 +901,7 @@ namespace LMSWebUI.Controllers
                     Title = "Failed.",
                     DisplayMessage = "Session expired. Please log in again."
                 });
-                return RedirectToAction("Index", "Login");
+                return RedirectToAction("Login", "Login");
             }
 
             PricingRulesViewModel model;
@@ -933,7 +981,7 @@ namespace LMSWebUI.Controllers
                     Title = "Failed.",
                     DisplayMessage = "Session expired. Please log in again."
                 });
-                return RedirectToAction("Index", "Login");
+                return RedirectToAction("Login", "Login");
             }
 
             model.TenantName = tenantName;
@@ -1028,7 +1076,7 @@ namespace LMSWebUI.Controllers
                     Title = "Failed.",
                     DisplayMessage = "Session expired. Please log in again."
                 });
-                return RedirectToAction("Index", "Login");
+                return RedirectToAction("Login", "Login");
             }
 
             return View(new ServiceItemMasterViewModel
@@ -1063,7 +1111,7 @@ namespace LMSWebUI.Controllers
                     Title = "Failed.",
                     DisplayMessage = "Session expired. Please log in again."
                 });
-                return RedirectToAction("Index", "Login");
+                return RedirectToAction("Login", "Login");
             }
 
             var model = await LoadTaxInvoiceSettingsAsync(tenantName, storeCode);
@@ -1096,7 +1144,7 @@ namespace LMSWebUI.Controllers
                     Title = "Failed.",
                     DisplayMessage = "Session expired. Please log in again."
                 });
-                return RedirectToAction("Index", "Login");
+                return RedirectToAction("Login", "Login");
             }
 
             model.TenantName = tenantName;
@@ -1331,7 +1379,7 @@ namespace LMSWebUI.Controllers
                     Title = "Failed.",
                     DisplayMessage = "Session expired. Please log in again."
                 });
-                return RedirectToAction("Index", "Login");
+                return RedirectToAction("Login", "Login");
             }
 
             var model = await LoadBarcodeTagSettingsAsync(tenantName, storeCode);
@@ -1364,7 +1412,7 @@ namespace LMSWebUI.Controllers
                     Title = "Failed.",
                     DisplayMessage = "Session expired. Please log in again."
                 });
-                return RedirectToAction("Index", "Login");
+                return RedirectToAction("Login", "Login");
             }
 
             model.TenantName = tenantName;
@@ -1593,7 +1641,7 @@ namespace LMSWebUI.Controllers
                     Title = "Failed.",
                     DisplayMessage = "Session expired. Please log in again."
                 });
-                return RedirectToAction("Index", "Login");
+                return RedirectToAction("Login", "Login");
             }
 
             var model = await LoadWorkflowStatusSettingsAsync(tenantName, storeCode);
@@ -1626,7 +1674,7 @@ namespace LMSWebUI.Controllers
                     Title = "Failed.",
                     DisplayMessage = "Session expired. Please log in again."
                 });
-                return RedirectToAction("Index", "Login");
+                return RedirectToAction("Login", "Login");
             }
 
             model.TenantName = tenantName;
@@ -1798,7 +1846,7 @@ namespace LMSWebUI.Controllers
                     Title = "Failed.",
                     DisplayMessage = "Session expired. Please log in again."
                 });
-                return RedirectToAction("Index", "Login");
+                return RedirectToAction("Login", "Login");
             }
 
             var model = await LoadPaymentSettingsAsync(tenantName, storeCode);
@@ -1912,7 +1960,7 @@ namespace LMSWebUI.Controllers
                     Title = "Failed.",
                     DisplayMessage = "Session expired. Please log in again."
                 });
-                return RedirectToAction("Index", "Login");
+                return RedirectToAction("Login", "Login");
             }
 
             model.TenantName = tenantName;
@@ -1990,7 +2038,7 @@ namespace LMSWebUI.Controllers
                     Title = "Failed.",
                     DisplayMessage = "Session expired. Please log in again."
                 });
-                return RedirectToAction("Index", "Login");
+                return RedirectToAction("Login", "Login");
             }
 
             ViewData["TenantName"] = superAdminName;
@@ -2120,7 +2168,7 @@ namespace LMSWebUI.Controllers
                     Title = "Failed.",
                     DisplayMessage = "Session expired. Please log in again."
                 });
-                return RedirectToAction("Index", "Login");
+                return RedirectToAction("Login", "Login");
             }
 
             ViewData["TenantName"] = superAdminName;
@@ -2252,7 +2300,7 @@ namespace LMSWebUI.Controllers
                     Title = "Failed.",
                     DisplayMessage = "Session expired. Please log in again."
                 });
-                return RedirectToAction("Index", "Login");
+                return RedirectToAction("Login", "Login");
             }
 
             ViewData["TenantName"] = tenantName;
@@ -2819,7 +2867,7 @@ namespace LMSWebUI.Controllers
                     Title = "Failed.",
                     DisplayMessage = "Session expired. Please log in again."
                 });
-                return RedirectToAction("Index", "Login");
+                return RedirectToAction("Login", "Login");
             }
 
             ViewData["TenantName"] = tenantName;
@@ -2852,7 +2900,7 @@ namespace LMSWebUI.Controllers
                     Title = "Failed.",
                     DisplayMessage = "Session expired. Please log in again."
                 });
-                return RedirectToAction("Index", "Login");
+                return RedirectToAction("Login", "Login");
             }
 
             var model = await LoadIntegrationsAsync(tenantName, storeCode);
@@ -2890,7 +2938,7 @@ namespace LMSWebUI.Controllers
                     Title = "Failed.",
                     DisplayMessage = "Session expired. Please log in again."
                 });
-                return RedirectToAction("Index", "Login");
+                return RedirectToAction("Login", "Login");
             }
 
             var result = await _clientApi.SendRequestAsync<CustomerIOResponse>("/SaveTenantIntegrationSettings", model, Method.POST);
@@ -3549,7 +3597,7 @@ namespace LMSWebUI.Controllers
                     Title = "Failed.",
                     DisplayMessage = "Session expired. Please log in again."
                 });
-                return RedirectToAction("Index", "Login");
+                return RedirectToAction("Login", "Login");
             }
 
             var (tenantStores, loadErrorMessage) = await GetTenantStoreStatusesForNewStoreCreationAsync(tenantName, currentStoreCode);
@@ -3588,7 +3636,7 @@ namespace LMSWebUI.Controllers
                     Title = "Failed.",
                     DisplayMessage = "Session expired. Please log in again."
                 });
-                return RedirectToAction("Index", "Login");
+                return RedirectToAction("Login", "Login");
             }
 
             model.TenantName = tenantName;
@@ -3888,7 +3936,7 @@ namespace LMSWebUI.Controllers
             if (string.IsNullOrWhiteSpace(tenantName) || string.IsNullOrWhiteSpace(tenanStore))
             {
                 TempData["UserMessage"] = JsonConvert.SerializeObject(new MessageDto { CssClassName = "alert alert-danger", Title = "Failed.", DisplayMessage = "Session expired. Please log in again." });
-                return RedirectToAction("Index", "Login");
+                return RedirectToAction("Login", "Login");
             }
 
             customerInfoDto.StoreCode = tenanStore;
@@ -4134,7 +4182,7 @@ namespace LMSWebUI.Controllers
                     Title = "Failed.",
                     DisplayMessage = "Session expired. Please log in again."
                 });
-                return RedirectToAction("Index", "Login");
+                return RedirectToAction("Login", "Login");
             }
 
             var model = new CustomerAdvanceDto
@@ -4163,7 +4211,7 @@ namespace LMSWebUI.Controllers
                     Title = "Failed.",
                     DisplayMessage = "Session expired. Please log in again."
                 });
-                return RedirectToAction("Index", "Login");
+                return RedirectToAction("Login", "Login");
             }
 
             model.TenantName = tenantName;
@@ -4374,7 +4422,7 @@ namespace LMSWebUI.Controllers
                     Title = "Failed.",
                     DisplayMessage = "Session expired. Please log in again."
                 });
-                return RedirectToAction("Index", "Login");
+                return RedirectToAction("Login", "Login");
             }
 
             var selectedCustomerName = string.IsNullOrWhiteSpace(customerName)
@@ -4494,7 +4542,7 @@ namespace LMSWebUI.Controllers
                     Title = "Failed.",
                     DisplayMessage = "Session expired. Please log in again."
                 });
-                return RedirectToAction("Index", "Login");
+                return RedirectToAction("Login", "Login");
             }
 
             model.TenantName = tenantName;
@@ -6151,7 +6199,7 @@ namespace LMSWebUI.Controllers
                     Title = "Failed.",
                     DisplayMessage = "Session expired. Please log in again."
                 });
-                return RedirectToAction("Index", "Login");
+                return RedirectToAction("Login", "Login");
             }
 
             if (!CanManageStoreOrderWorkflow())
@@ -6212,6 +6260,13 @@ namespace LMSWebUI.Controllers
 
             try
             {
+                _logger.LogInformation(
+                    "GetStoreWorkflowOrders started. TenantName={TenantName}, StoreCode={StoreCode}, StatusFilter={StatusFilter}, SearchTextLength={SearchTextLength}",
+                    tenantName,
+                    storeCode,
+                    status ?? string.Empty,
+                    searchText?.Length ?? 0);
+
                 var response = await _clientApi.SendRequestAsync<LaundryOrderResponseDto>("/GetStoreLaundryOrders", new Dictionary<string, string>
                 {
                     { "tenantName", tenantName },
@@ -6219,6 +6274,12 @@ namespace LMSWebUI.Controllers
                     { "status", status ?? string.Empty },
                     { "searchText", searchText ?? string.Empty }
                 }, Method.GET);
+
+                _logger.LogInformation(
+                    "GetStoreWorkflowOrders downstream call completed. DownstreamHttpStatusCode={DownstreamHttpStatusCode}, ResponseStatusCodeField={ResponseStatusCode}, OrderCount={OrderCount}",
+                    "NotAvailable",
+                    response?.StatusCode ?? string.Empty,
+                    response?.Orders?.Count ?? 0);
 
                 var orders = response?.Orders ?? new List<LaundryOrderDto>();
 
@@ -6261,8 +6322,29 @@ namespace LMSWebUI.Controllers
                     orders
                 });
             }
+            catch (ApiUnavailableException apiEx)
+            {
+                _logger.LogError(
+                    apiEx,
+                    "GetStoreWorkflowOrders downstream API failed. DownstreamHttpStatusCode={DownstreamHttpStatusCode}, Message={Message}",
+                    apiEx.StatusCode?.ToString() ?? "NotAvailable",
+                    apiEx.Message);
+
+                return Json(new
+                {
+                    success = false,
+                    message = BuildApiErrorMessage(apiEx, "Unable to load workflow orders."),
+                    orders = new List<LaundryOrderDto>()
+                });
+            }
             catch (Exception ex)
             {
+                _logger.LogError(
+                    ex,
+                    "GetStoreWorkflowOrders failed. DownstreamHttpStatusCode={DownstreamHttpStatusCode}, Message={Message}",
+                    "NotAvailable",
+                    ex.Message);
+
                 return Json(new
                 {
                     success = false,

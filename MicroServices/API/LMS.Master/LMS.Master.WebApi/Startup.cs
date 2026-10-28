@@ -38,55 +38,59 @@ namespace LMS.Master.WebApi
             var jwtAudience = GetJwtValue("Audience")?.Trim();
             var jwtSigningKey = GetJwtValue("SigningKey");
             var jwtLegacySigningKey = GetJwtValue("LegacySigningKey");
-            
-            if (!string.IsNullOrWhiteSpace(jwtIssuer)
-                && !string.IsNullOrWhiteSpace(jwtAudience)
-                && !string.IsNullOrWhiteSpace(jwtSigningKey))
+
+            if (string.IsNullOrWhiteSpace(jwtIssuer)
+                || string.IsNullOrWhiteSpace(jwtAudience)
+                || string.IsNullOrWhiteSpace(jwtSigningKey))
             {
-                var signingKeys = new List<SecurityKey>
-                {
-                    new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSigningKey))
-                };
-
-                if (!string.IsNullOrWhiteSpace(jwtLegacySigningKey)
-                    && !string.Equals(jwtLegacySigningKey, jwtSigningKey, StringComparison.Ordinal))
-                {
-                    signingKeys.Add(new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtLegacySigningKey)));
-                }
-
-                services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
-                    .AddJwtBearer(options =>
-                    {
-                        options.RequireHttpsMetadata = true;
-                        options.Events = new JwtBearerEvents
-                        {
-                            OnAuthenticationFailed = context =>
-                            {
-                                var logger = context.HttpContext.RequestServices
-                                    .GetRequiredService<ILogger<Startup>>();
-
-                                logger.LogError(
-                                    context.Exception,
-                                    "JWT authentication failed: {ErrorType}",
-                                    context.Exception.GetType().Name);
-
-                                return Task.CompletedTask;
-                            }
-                        };
-                        options.SaveToken = false;
-                        options.TokenValidationParameters = new TokenValidationParameters
-                        {
-                            ValidateIssuer = true,
-                            ValidateAudience = true,
-                            ValidateIssuerSigningKey = true,
-                            ValidateLifetime = true,
-                            ValidIssuer = jwtIssuer,
-                            ValidAudience = jwtAudience,
-                            IssuerSigningKeys = signingKeys,
-                            ClockSkew = TimeSpan.Zero
-                        };
-                    });
+                throw new InvalidOperationException("JWT settings are not configured correctly. Configure Jwt:Issuer, Jwt:Audience and Jwt:SigningKey.");
             }
+
+            var signingKeys = new List<SecurityKey>
+            {
+                new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSigningKey))
+            };
+
+            if (!string.IsNullOrWhiteSpace(jwtLegacySigningKey)
+                && !string.Equals(jwtLegacySigningKey, jwtSigningKey, StringComparison.Ordinal))
+            {
+                signingKeys.Add(new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtLegacySigningKey)));
+            }
+
+            services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+                .AddJwtBearer(options =>
+                {
+                    options.RequireHttpsMetadata = true;
+                    options.Events = new JwtBearerEvents
+                    {
+                        OnAuthenticationFailed = context =>
+                        {
+                            var logger = context.HttpContext.RequestServices
+                                .GetRequiredService<ILogger<Startup>>();
+
+                            logger.LogError(
+                                context.Exception,
+                                "JWT authentication failed: {ErrorType}",
+                                context.Exception.GetType().Name);
+
+                            return Task.CompletedTask;
+                        }
+                    };
+                    options.SaveToken = false;
+                    options.TokenValidationParameters = new TokenValidationParameters
+                    {
+                        ValidateIssuer = true,
+                        ValidateAudience = true,
+                        ValidateIssuerSigningKey = true,
+                        ValidateLifetime = true,
+                        ValidIssuer = jwtIssuer,
+                        ValidAudience = jwtAudience,
+                        IssuerSigningKeys = signingKeys,
+                        ClockSkew = TimeSpan.Zero
+                    };
+                });
+
+            services.AddAuthorization();
             services.AddDbContext<MasterDbContext>(options =>
                 options.UseSqlServer(Configuration.GetConnectionString("MasterDb")));
             LamarConfig.RegisterContainer(services);

@@ -36,6 +36,7 @@ namespace LMSWebUI.Controllers
         private const string TenantIdSessionKey = "TenantId";
         private const string BusinessNameSessionKey = "TenantBusinessName";
         private const string AccessTokenSessionKey = "AccessToken";
+        private const string AccessTokenExpiresAtUtcSessionKey = "AccessTokenExpiresAtUtc";
         private const int MaxProfileImageBytes = 2 * 1024 * 1024;
         private static readonly EmailAddressAttribute EmailValidator = new EmailAddressAttribute();
         private static readonly HashSet<string> AllowedProfileImageExtensions = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
@@ -397,6 +398,7 @@ namespace LMSWebUI.Controllers
             if (!string.IsNullOrWhiteSpace(Email))
             {
                 HttpContext.Session.Remove(AccessTokenSessionKey);
+                HttpContext.Session.Remove(AccessTokenExpiresAtUtcSessionKey);
 
                 try
                 {
@@ -414,6 +416,7 @@ namespace LMSWebUI.Controllers
                     if (responseMessage != null && responseMessage.StatusCode == "403")
                     {
                         HttpContext.Session.Remove(AccessTokenSessionKey);
+                        HttpContext.Session.Remove(AccessTokenExpiresAtUtcSessionKey);
                         var blockedMessage = string.IsNullOrWhiteSpace(responseMessage.Message)
                             ? "Your account is not approved yet. Please contact the administrator."
                             : responseMessage.Message;
@@ -425,10 +428,22 @@ namespace LMSWebUI.Controllers
                         if (!string.IsNullOrWhiteSpace(responseMessage.AccessToken))
                         {
                             HttpContext.Session.SetString(AccessTokenSessionKey, responseMessage.AccessToken.Trim());
+
+                            if (responseMessage.AccessTokenExpiresAtUtc.HasValue)
+                            {
+                                HttpContext.Session.SetString(
+                                    AccessTokenExpiresAtUtcSessionKey,
+                                    responseMessage.AccessTokenExpiresAtUtc.Value.ToUniversalTime().ToString("O"));
+                            }
+                            else
+                            {
+                                HttpContext.Session.Remove(AccessTokenExpiresAtUtcSessionKey);
+                            }
                         }
                         else
                         {
                             HttpContext.Session.Remove(AccessTokenSessionKey);
+                            HttpContext.Session.Remove(AccessTokenExpiresAtUtcSessionKey);
                         }
 
                         // A first-time login must reach the change-password screen regardless of
@@ -556,12 +571,14 @@ namespace LMSWebUI.Controllers
                 catch (ApiUnavailableException)
                 {
                     HttpContext.Session.Remove(AccessTokenSessionKey);
+                    HttpContext.Session.Remove(AccessTokenExpiresAtUtcSessionKey);
                     // The identity API is unreachable - do not report this as a bad password.
                     return "serviceUnavailable";
                 }
                 catch
                 {
                     HttpContext.Session.Remove(AccessTokenSessionKey);
+                    HttpContext.Session.Remove(AccessTokenExpiresAtUtcSessionKey);
                     return "invalidCredentials";
                 }
             }
