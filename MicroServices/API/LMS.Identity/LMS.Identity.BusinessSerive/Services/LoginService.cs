@@ -67,7 +67,13 @@ namespace LMS.Identity.BusinessSerive.Services
             => string.Equals((subject ?? string.Empty).Trim(), "Registration Status Report", StringComparison.OrdinalIgnoreCase)
                || string.Equals((subject ?? string.Empty).Trim(), "Registration Status Alert", StringComparison.OrdinalIgnoreCase);
 
-        private (string Token, DateTime ExpiresAtUtc) GenerateAccessToken(string email, string userRole, string tenantId, IEnumerable<string> storeCodes)
+        private (string Token, DateTime ExpiresAtUtc) GenerateAccessToken(
+            string email,
+            string userRole,
+            string tenantId,
+            IEnumerable<string> storeCodes,
+            string subscriptionStatus = null,
+            DateTime? trialEndUtc = null)
         {
             var issuer = GetJwtValue("Issuer")?.Trim();
             var audience = GetJwtValue("Audience")?.Trim();
@@ -98,6 +104,16 @@ namespace LMS.Identity.BusinessSerive.Services
             if (!string.IsNullOrWhiteSpace(tenantId))
             {
                 claims.Add(new Claim("tenantId", tenantId.Trim()));
+            }
+
+            if (!string.IsNullOrWhiteSpace(subscriptionStatus))
+            {
+                claims.Add(new Claim("subscriptionStatus", subscriptionStatus.Trim()));
+            }
+
+            if (trialEndUtc.HasValue)
+            {
+                claims.Add(new Claim("trialEndUtc", trialEndUtc.Value.ToUniversalTime().ToString("O")));
             }
 
             var normalizedStores = (storeCodes ?? Enumerable.Empty<string>())
@@ -177,12 +193,17 @@ namespace LMS.Identity.BusinessSerive.Services
                     }
 
                 var tenantData = _mapper.Map<TenantEntity>(tenantDto);
+                var nowUtc = DateTime.UtcNow;
                 // Assign TenantId early so tenant-level configuration can reference it atomically.
                 var guid = Guid.NewGuid();
                 var tenantid = Convert.ToString(guid);
                 tenantData.TenantId = tenantid;
-                tenantData.ModifiedDate = DateTime.UtcNow;
-                tenantData.CreatedDate = DateTime.UtcNow;
+                tenantData.ModifiedDate = nowUtc;
+                tenantData.CreatedDate = nowUtc;
+                tenantData.PlanCode = "Standard";
+                tenantData.TrialStartUtc = nowUtc;
+                tenantData.TrialEndUtc = nowUtc.AddDays(45);
+                tenantData.SubscriptionStatus = "TrialActive";
                 // New tenants stay pending until a super admin approves them.
                 tenantData.ApprovalStatus = TenantApprovalStatus.Pending;
 
@@ -609,7 +630,9 @@ namespace LMS.Identity.BusinessSerive.Services
                             tenantForStoreUser?.Email ?? eMail,
                             string.IsNullOrWhiteSpace(primaryStoreUser.Role) ? "StoreUser" : primaryStoreUser.Role,
                             primaryStoreUser.TenantId,
-                            matchedStores);
+                            matchedStores,
+                            tenantForStoreUser?.SubscriptionStatus,
+                            tenantForStoreUser?.TrialEndUtc);
 
                         return ActionSet.ActionReturnType(HttpStatusCode.OK, new IOResponse
                         {
@@ -672,7 +695,7 @@ namespace LMS.Identity.BusinessSerive.Services
 
                         if (tenantstoreinforesult.IsPasswordChanged == false)
                         {
-                            var (tenantPasswordChangeToken, tenantPasswordChangeTokenExpiresAtUtc) = GenerateAccessToken(eMail, "Admin", tenantId, tenantStoreCodes);
+                            var (tenantPasswordChangeToken, tenantPasswordChangeTokenExpiresAtUtc) = GenerateAccessToken(eMail, "Admin", tenantId, tenantStoreCodes, tenantregistryresult.SubscriptionStatus, tenantregistryresult.TrialEndUtc);
                             return ActionSet.ActionReturnType(HttpStatusCode.OK, new IOResponse { StatusCode = "200", Email = eMail, Storecodes = tenantStoreCodes, Message = IdentityValidationMessage.IDENTITY_DATAFOUND_PASSWORDCHANGE_MESSAGE, UserRole = "Admin", AccessToken = tenantPasswordChangeToken, AccessTokenExpiresAtUtc = tenantPasswordChangeTokenExpiresAtUtc });
                         }
 
@@ -692,7 +715,7 @@ namespace LMS.Identity.BusinessSerive.Services
                             return ActionSet.ActionReturnType(HttpStatusCode.Forbidden, new IOResponse { StatusCode = "403", Email = eMail, Storecodes = tenantStoreCodes, Message = StorePendingActivationMessage });
                         }
 
-                        var (tenantLoginToken, tenantLoginTokenExpiresAtUtc) = GenerateAccessToken(eMail, "Admin", tenantId, tenantStoreCodes);
+                        var (tenantLoginToken, tenantLoginTokenExpiresAtUtc) = GenerateAccessToken(eMail, "Admin", tenantId, tenantStoreCodes, tenantregistryresult.SubscriptionStatus, tenantregistryresult.TrialEndUtc);
                         return ActionSet.ActionReturnType(HttpStatusCode.OK, new IOResponse { StatusCode = "200", Email = eMail, Storecodes = tenantStoreCodes, Message = IdentityValidationMessage.IDENTITY_DATAFOUND_LOGIN_MESSAGE, UserRole = "Admin", AccessToken = tenantLoginToken, AccessTokenExpiresAtUtc = tenantLoginTokenExpiresAtUtc });
                     }
                 }
@@ -792,7 +815,9 @@ namespace LMS.Identity.BusinessSerive.Services
                             tenantForStoreUser?.Email ?? eMail,
                             string.IsNullOrWhiteSpace(primaryStoreUser.Role) ? "StoreUser" : primaryStoreUser.Role,
                             primaryStoreUser.TenantId,
-                            matchedStores);
+                            matchedStores,
+                            tenantForStoreUser?.SubscriptionStatus,
+                            tenantForStoreUser?.TrialEndUtc);
 
                         return ActionSet.ActionReturnType(HttpStatusCode.OK, new IOResponse
                         {
@@ -807,7 +832,27 @@ namespace LMS.Identity.BusinessSerive.Services
                     }
                 }
 
-                return ActionSet.ActionReturnType(HttpStatusCode.NotFound, new IOResponse { StatusCode = "200", Email = eMail, Message = IdentityValidationMessage.IDENTITY_DATANOTFOUND_LOGIN_MESSAGE });
+                var normalizedLoginEmail = (eMail ?? string.Empty).Trim().ToLower();
+                var hasKnownAccount = await _unitOfWork.DbContext.Tenants.AnyAsync(x => x.Email != null && x.Email.ToLower() == normalizedLoginEmail)
+                    || await _unitOfWork.DbContext.StoreUsers.AnyAsync(x => x.Email != null && x.Email.ToLower() == normalizedLoginEmail)
+                    || await _unitOfWork.DbContext.SuperAdmins.AnyAsync(x => x.Email != null && x.Email.ToLower() == normalizedLoginEmail);
+
+                if (!hasKnownAccount)
+                {
+                    return ActionSet.ActionReturnType(HttpStatusCode.NotFound, new IOResponse
+                    {
+                        StatusCode = "404",
+                        Email = eMail,
+                        Message = "User account not found. Please check your email address or contact your administrator."
+                    });
+                }
+
+                return ActionSet.ActionReturnType(HttpStatusCode.Unauthorized, new IOResponse
+                {
+                    StatusCode = "401",
+                    Email = eMail,
+                    Message = IdentityValidationMessage.IDENTITY_DATANOTFOUND_LOGIN_MESSAGE
+                });
             }
             else
             {
@@ -1069,6 +1114,7 @@ namespace LMS.Identity.BusinessSerive.Services
             var tenants = await _unitOfWork.DbContext.Tenants.ToListAsync();
             var tenantStoreInfos = await _unitOfWork.DbContext.TenantStoreInfos.ToListAsync();
             var statuses = await _unitOfWork.DbContext.TenantStoreStatuses.ToListAsync();
+            var storeConfigurations = await _unitOfWork.DbContext.StoreConfigurations.ToListAsync();
 
             var result = new List<TenantStoreStatusDto>();
 
@@ -1086,6 +1132,14 @@ namespace LMS.Identity.BusinessSerive.Services
                     var status = statuses.FirstOrDefault(s => s.TenantId == tenant.TenantId
                         && string.Equals(s.StoreCode, code, StringComparison.OrdinalIgnoreCase));
 
+                    var storeConfiguration = storeConfigurations.FirstOrDefault(c => c.TenantId == tenant.TenantId
+                        && string.Equals((c.StoreCode ?? string.Empty).Trim(), code, StringComparison.OrdinalIgnoreCase));
+                    var tenantLevelConfiguration = storeConfigurations.FirstOrDefault(c => c.TenantId == tenant.TenantId
+                        && string.IsNullOrWhiteSpace(c.StoreCode));
+
+                    var currencyCode = (storeConfiguration?.CurrencyCode ?? tenantLevelConfiguration?.CurrencyCode ?? storeInfo?.CurrencyCode)?.Trim();
+                    var currencySymbol = (storeConfiguration?.CurrencySymbol ?? tenantLevelConfiguration?.CurrencySymbol ?? storeInfo?.CurrencySymbol)?.Trim();
+
                     var tenantIsApproved = TenantApprovalStatus.IsApproved(tenant.ApprovalStatus);
                     var storeInfoStatus = (storeInfo?.Status ?? string.Empty).Trim();
                     var storeInfoIsActive = string.Equals(storeInfoStatus, "Active", StringComparison.OrdinalIgnoreCase)
@@ -1097,6 +1151,8 @@ namespace LMS.Identity.BusinessSerive.Services
                     {
                         StoreCode = code,
                         IsActive = effectiveIsActive,
+                        CurrencyCode = currencyCode,
+                        CurrencySymbol = currencySymbol,
                         ActivatedBy = status?.ActivatedBy,
                         ActivatedDate = status?.ActivatedDate,
                         TenantId = tenant.TenantId,
@@ -1262,7 +1318,25 @@ namespace LMS.Identity.BusinessSerive.Services
         /// </summary>
         public async Task<ActionReturnType> GetAllTenantApprovals()
         {
-            var tenants = await _unitOfWork.DbContext.Tenants.ToListAsync();
+            var tenants = await _unitOfWork.DbContext.Tenants
+                .AsNoTracking()
+                .Select(tenant => new TenantApprovalDto
+                {
+                    TenantId = tenant.TenantId,
+                    TenantName = tenant.TenantName,
+                    Email = tenant.Email,
+                    City = tenant.City,
+                    Country = tenant.Country,
+                    ApprovalStatus = tenant.ApprovalStatus,
+                    ApprovalReason = tenant.ApprovalReason,
+                    ApprovedBy = tenant.ApprovedBy,
+                    ApprovalDate = tenant.ApprovalDate,
+                    CreatedDate = tenant.CreatedDate,
+                    PlanCode = tenant.PlanCode,
+                    SubscriptionStatus = tenant.SubscriptionStatus,
+                    TrialEndUtc = tenant.TrialEndUtc
+                })
+                .ToListAsync();
             var tenantStoreInfos = await _unitOfWork.DbContext.TenantStoreInfos.ToListAsync();
 
             var result = tenants.Select(tenant =>
@@ -1287,6 +1361,9 @@ namespace LMS.Identity.BusinessSerive.Services
                     ApprovedBy = tenant.ApprovedBy,
                     ApprovalDate = tenant.ApprovalDate,
                     CreatedDate = tenant.CreatedDate,
+                    PlanCode = tenant.PlanCode,
+                    SubscriptionStatus = tenant.SubscriptionStatus,
+                    TrialEndUtc = tenant.TrialEndUtc,
                     StoreCount = storeCount
                 };
             })
@@ -1352,11 +1429,13 @@ namespace LMS.Identity.BusinessSerive.Services
                 });
             }
 
+            var normalizedActionedBy = string.IsNullOrWhiteSpace(actionedBy) ? "Super Admin" : actionedBy.Trim();
+
             tenant.ApprovalStatus = isApprove
                 ? TenantApprovalStatus.Approved
                 : isReject ? TenantApprovalStatus.Rejected : TenantApprovalStatus.Pending;
             tenant.ApprovalReason = isReject ? reason.Trim() : null;
-            tenant.ApprovedBy = actionedBy;
+            tenant.ApprovedBy = normalizedActionedBy;
             tenant.ApprovalDate = DateTime.UtcNow;
             tenant.ModifiedDate = DateTime.UtcNow;
 
@@ -1371,8 +1450,26 @@ namespace LMS.Identity.BusinessSerive.Services
 
             await _unitOfWork.SaveChangesAsync();
 
+            var approvalEmailWarning = string.Empty;
+            if (isApprove)
+            {
+                try
+                {
+                    var approvalMailSent = await SendTenantApprovalConfirmationEmailAsync(tenant, normalizedActionedBy);
+                    if (!approvalMailSent)
+                    {
+                        approvalEmailWarning = " Approval confirmation email could not be delivered.";
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger?.LogError(ex, "Failed to send tenant approval confirmation email to {Email} for TenantId={TenantId}", tenant.Email, tenant.TenantId);
+                    approvalEmailWarning = " Approval confirmation email could not be delivered.";
+                }
+            }
+
             var message = isApprove
-                ? $"Tenant {tenant.TenantName} approved successfully."
+                ? $"Tenant {tenant.TenantName} approved successfully.{approvalEmailWarning}"
                 : isReject
                     ? $"Tenant {tenant.TenantName} rejected successfully."
                     : $"Tenant {tenant.TenantName} moved back to pending.";
@@ -1382,6 +1479,133 @@ namespace LMS.Identity.BusinessSerive.Services
                 StatusCode = "200",
                 Message = message
             });
+        }
+
+        private async Task<bool> SendTenantApprovalConfirmationEmailAsync(TenantEntity tenant, string actionedBy)
+        {
+            if (tenant == null || string.IsNullOrWhiteSpace(tenant.Email))
+            {
+                return false;
+            }
+
+            var resolvedTenantName = string.IsNullOrWhiteSpace(tenant.TenantName) ? "Tenant" : tenant.TenantName.Trim();
+            var resolvedEmail = tenant.Email.Trim();
+            var resolvedActionedBy = string.IsNullOrWhiteSpace(actionedBy) ? "Super Admin" : actionedBy.Trim();
+            var loginUrl = ResolveTenantLoginUrl();
+
+            var trialEndUtcText = tenant.TrialEndUtc.HasValue
+                ? tenant.TrialEndUtc.Value.ToUniversalTime().ToString("dd MMM yyyy HH:mm") + " UTC"
+                : "Not available";
+
+            string trialRemainingText;
+            if (!tenant.TrialEndUtc.HasValue)
+            {
+                trialRemainingText = "45-day free trial active";
+            }
+            else
+            {
+                var remainingDays = Math.Ceiling((tenant.TrialEndUtc.Value.ToUniversalTime() - DateTime.UtcNow).TotalDays);
+                trialRemainingText = remainingDays > 0
+                    ? $"{Convert.ToInt32(remainingDays)} day(s) remaining"
+                    : "Trial expired";
+            }
+
+            var encodedTenantName = System.Net.WebUtility.HtmlEncode(resolvedTenantName);
+            var encodedEmail = System.Net.WebUtility.HtmlEncode(resolvedEmail);
+            var encodedApprover = System.Net.WebUtility.HtmlEncode(resolvedActionedBy);
+            var encodedPlan = System.Net.WebUtility.HtmlEncode(string.IsNullOrWhiteSpace(tenant.PlanCode) ? "Standard" : tenant.PlanCode.Trim());
+            var encodedSubscription = System.Net.WebUtility.HtmlEncode(string.IsNullOrWhiteSpace(tenant.SubscriptionStatus) ? "TrialActive" : tenant.SubscriptionStatus.Trim());
+            var encodedTrialEnd = System.Net.WebUtility.HtmlEncode(trialEndUtcText);
+            var encodedTrialRemaining = System.Net.WebUtility.HtmlEncode(trialRemainingText);
+            var hasLoginUrl = !string.IsNullOrWhiteSpace(loginUrl);
+            var encodedLoginUrl = System.Net.WebUtility.HtmlEncode(loginUrl ?? string.Empty);
+
+            StringBuilder sb = new StringBuilder();
+            sb.Append("<div style='font-family:Segoe UI,Arial,sans-serif;color:#1f2937;font-size:14px;line-height:1.6;'>");
+            sb.Append($"<p>Dear <strong>{encodedTenantName}</strong>,</p>");
+            sb.Append("<p>Great news — your Excel Laundry Services tenant account has been <strong>approved</strong> by Super Admin.</p>");
+            sb.Append("<p><strong>Your account summary</strong></p>");
+            sb.Append("<table style='border-collapse:collapse;border:1px solid #d1d5db;min-width:520px;'>");
+            sb.Append("<tr style='background:#f3f4f6;'><th style='text-align:left;padding:8px;border:1px solid #d1d5db;'>Field</th><th style='text-align:left;padding:8px;border:1px solid #d1d5db;'>Value</th></tr>");
+            sb.Append($"<tr><td style='padding:8px;border:1px solid #d1d5db;'>Tenant Name</td><td style='padding:8px;border:1px solid #d1d5db;'>{encodedTenantName}</td></tr>");
+            sb.Append($"<tr><td style='padding:8px;border:1px solid #d1d5db;'>Registered Email</td><td style='padding:8px;border:1px solid #d1d5db;'>{encodedEmail}</td></tr>");
+            sb.Append($"<tr><td style='padding:8px;border:1px solid #d1d5db;'>Approved By</td><td style='padding:8px;border:1px solid #d1d5db;'>{encodedApprover}</td></tr>");
+            sb.Append($"<tr><td style='padding:8px;border:1px solid #d1d5db;'>Approved On</td><td style='padding:8px;border:1px solid #d1d5db;'>{DateTime.UtcNow:dd MMM yyyy HH:mm} UTC</td></tr>");
+            sb.Append($"<tr><td style='padding:8px;border:1px solid #d1d5db;'>Plan</td><td style='padding:8px;border:1px solid #d1d5db;'>{encodedPlan}</td></tr>");
+            sb.Append($"<tr><td style='padding:8px;border:1px solid #d1d5db;'>Subscription</td><td style='padding:8px;border:1px solid #d1d5db;'>{encodedSubscription}</td></tr>");
+            sb.Append($"<tr><td style='padding:8px;border:1px solid #d1d5db;'>Trial End Date</td><td style='padding:8px;border:1px solid #d1d5db;'>{encodedTrialEnd}</td></tr>");
+            sb.Append($"<tr><td style='padding:8px;border:1px solid #d1d5db;'>Days Remaining</td><td style='padding:8px;border:1px solid #d1d5db;'>{encodedTrialRemaining}</td></tr>");
+            sb.Append("</table>");
+            sb.Append("<p>Your 45-day free trial is now active.</p>");
+            if (hasLoginUrl)
+            {
+                sb.Append("<p>Sign in using the login link below:</p>");
+                sb.Append($"<p><a href='{encodedLoginUrl}' style='color:#1d4ed8;font-weight:600;text-decoration:none;'>Login to Excel Laundry Services</a><br/><span style='color:#6b7280;font-size:12px;'>{encodedLoginUrl}</span></p>");
+            }
+            else
+            {
+                sb.Append("<p style='color:#b45309;'><strong>Login URL is currently unavailable.</strong> Please contact your administrator to get the correct sign-in link.</p>");
+            }
+            sb.Append("<p><strong>Getting started checklist</strong></p>");
+            sb.Append("<ul style='margin-top:0;padding-left:20px;'>");
+            sb.Append("<li>Complete your business and store settings.</li>");
+            sb.Append("<li>Review and configure your laundry item prices.</li>");
+            sb.Append("<li>Set up barcode and tag settings for garment tracking.</li>");
+            sb.Append("<li>Create your first laundry order to validate your setup.</li>");
+            sb.Append("</ul>");
+            sb.Append("<p>If you need help, please contact LMS support.</p>");
+            sb.Append("<p>Regards,<br/>Excel Laundry Services</p>");
+            sb.Append("<p style='color:#6b7280;font-size:12px;'>This is an automated email. Please do not reply.</p>");
+            sb.Append("</div>");
+
+            var subject = "Excel Laundry Services - Tenant Approval Confirmation";
+            var tenantIntegrationKey = string.IsNullOrWhiteSpace(tenant.TenantName)
+                ? tenant.Email
+                : tenant.TenantName;
+
+            try
+            {
+                await SendMail(resolvedEmail, string.Empty, subject, sb.ToString(), tenant.TenantId, tenantIntegrationKey);
+                return true;
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogError(ex, "Failed to send tenant approval confirmation email to {Email} for TenantId={TenantId}", resolvedEmail, tenant.TenantId);
+                return false;
+            }
+        }
+
+        private string ResolveTenantLoginUrl()
+        {
+            var configuredUrl = _configuration?["TenantOnboarding:LoginUrl"]
+                ?? _configuration?["Onboarding:LoginUrl"]
+                ?? _configuration?["App:LoginUrl"]
+                ?? _configuration?["AppSettings:LoginUrl"]
+                ?? _configuration?["Website:LoginUrl"]
+                ?? _configuration?["Urls:LoginUrl"]
+                ?? _configuration?["Urls:WebAppBaseUrl"]
+                ?? _configuration?["WebApp:BaseUrl"];
+
+            var loginUrl = (configuredUrl ?? string.Empty).Trim();
+            if (string.IsNullOrWhiteSpace(loginUrl))
+            {
+                _logger?.LogError("Approval email login URL is not configured. Set TenantOnboarding:LoginUrl (or equivalent login URL setting) in environment configuration.");
+                return string.Empty;
+            }
+
+            if (!loginUrl.StartsWith("http://", StringComparison.OrdinalIgnoreCase)
+                && !loginUrl.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+            {
+                loginUrl = "https://" + loginUrl.TrimStart('/');
+            }
+
+            if (!Uri.TryCreate(loginUrl, UriKind.Absolute, out _))
+            {
+                _logger?.LogError("Approval email login URL is invalid: {LoginUrl}.", loginUrl);
+                return string.Empty;
+            }
+
+            return loginUrl;
         }
 
         public async Task<ActionReturnType> CreateStoreUser(StoreUserDto model)
@@ -2029,7 +2253,7 @@ namespace LMS.Identity.BusinessSerive.Services
             message.From.Add(new MailboxAddress("Excel Laundry Services", fromAddress));
             message.To.Add(new MailboxAddress("ELS Tenant", eMail));
             message.Subject = subject;
-            message.Body = new BodyBuilder { HtmlBody = body }.ToMessageBody();
+            message.Body = new BodyBuilder { HtmlBody = EnsureStandardSupportFooter(body) }.ToMessageBody();
 
             var enableSsl = effectiveMail.EnableSsl ?? (port == 465 || port == 587);
             var secureOption = enableSsl
@@ -2041,6 +2265,32 @@ namespace LMS.Identity.BusinessSerive.Services
             await client.AuthenticateAsync(userName, password);
             await client.SendAsync(message);
             await client.DisconnectAsync(true);
+        }
+
+        private static string EnsureStandardSupportFooter(string htmlBody)
+        {
+            var body = htmlBody ?? string.Empty;
+            if (body.IndexOf("data-els-support-footer", StringComparison.OrdinalIgnoreCase) >= 0
+                || (body.IndexOf("mailto:techforgeacademydev@gmail.com", StringComparison.OrdinalIgnoreCase) >= 0
+                    && body.IndexOf("https://wa.me/919059261259", StringComparison.OrdinalIgnoreCase) >= 0))
+            {
+                return body;
+            }
+
+            var hasHelpLine = body.IndexOf("If you need help, please contact LMS support.", StringComparison.OrdinalIgnoreCase) >= 0;
+            var sb = new StringBuilder(body.TrimEnd());
+            sb.Append("<div data-els-support-footer='true' style='margin-top:16px;padding-top:12px;border-top:1px solid #e5e7eb;font-family:Segoe UI,Arial,sans-serif;color:#1f2937;font-size:14px;line-height:1.6;'>");
+            sb.Append("<p style='margin:0 0 8px;font-weight:600;'>Contact Support</p>");
+            sb.Append("<p style='margin:0 0 4px;'>Email: <a href='mailto:techforgeacademydev@gmail.com' style='color:#1d4ed8;text-decoration:none;'>techforgeacademydev@gmail.com</a></p>");
+            sb.Append("<p style='margin:0 0 4px;'>WhatsApp: <a href='https://wa.me/919059261259' style='color:#1d4ed8;text-decoration:none;'>+91 90592 61259</a></p>");
+            sb.Append("<p style='margin:0;'>Website: <a href='https://els.techforgedev.in/' style='color:#1d4ed8;text-decoration:none;'>https://els.techforgedev.in/</a></p>");
+            if (!hasHelpLine)
+            {
+                sb.Append("<p style='margin:10px 0 0;'>If you need help, please contact LMS support.</p>");
+            }
+            sb.Append("</div>");
+
+            return sb.ToString();
         }
 
         private sealed class EffectiveMailSettings
@@ -2615,6 +2865,10 @@ ORDER BY CASE WHEN ISNULL([StoreCode], '') = '' THEN 0 ELSE 1 END, [ModifiedDate
                     Email = em.Email,
                     CreatedDate = em.CreatedDate,
                     ModifiedDate = em.ModifiedDate,
+                    PlanCode = em.PlanCode,
+                    SubscriptionStatus = em.SubscriptionStatus,
+                    TrialStartUtc = em.TrialStartUtc,
+                    TrialEndUtc = em.TrialEndUtc,
                     ApprovalStatus = em.ApprovalStatus,
                     ApprovalReason = em.ApprovalReason,
                     ApprovedBy = em.ApprovedBy,
@@ -2638,6 +2892,10 @@ ORDER BY CASE WHEN ISNULL([StoreCode], '') = '' THEN 0 ELSE 1 END, [ModifiedDate
                     Email = em.Email,
                     CreatedDate = em.CreatedDate,
                     ModifiedDate = em.ModifiedDate,
+                    PlanCode = em.PlanCode,
+                    SubscriptionStatus = em.SubscriptionStatus,
+                    TrialStartUtc = em.TrialStartUtc,
+                    TrialEndUtc = em.TrialEndUtc,
                     ApprovalStatus = em.ApprovalStatus,
                     ApprovalReason = em.ApprovalReason,
                     ApprovedBy = em.ApprovedBy,

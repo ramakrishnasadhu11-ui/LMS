@@ -16,7 +16,7 @@
 
 .admin-setup-page { padding: 20px; }
 .admin-setup-box {
-    max-width: 1100px;
+    max-width: 1280px;
     margin: 0 auto;
     background: var(--els-surface);
     border-radius: 10px;
@@ -26,18 +26,41 @@
 .admin-setup-title {
     background: linear-gradient(90deg, var(--els-primary) 0%, var(--els-primary-dark) 100%);
     color: #fff;
-    padding: 14px 20px;
-    font-size: 20px;
+    padding: 16px 20px;
+    font-size: 22px;
     font-weight: 600;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: flex-start;
 }
 .admin-setup-body { padding: 20px; }
+.tenant-header-meta {
+    margin-top: 8px;
+    font-size: 14px;
+    color: rgba(255, 255, 255, 0.95);
+}
+.tenant-header-meta .tenant-admin-name {
+    font-weight: 700;
+    color: #ffffff;
+}
 .admin-setup-note {
     border: 1px solid var(--els-border);
     border-radius: 8px;
     background: var(--els-accent);
-    padding: 12px;
+    padding: 14px;
     margin-bottom: 16px;
     color: var(--els-text);
+    line-height: 1.55;
+}
+.tenant-approval-note-title {
+    margin: 0 0 6px;
+    font-size: 15px;
+    font-weight: 700;
+}
+.tenant-approval-note-text {
+    margin: 0;
+    font-size: 14px;
 }
 .admin-btn {
     min-width: 110px;
@@ -56,22 +79,80 @@
     background: linear-gradient(180deg, #e2655f 0%, var(--els-danger) 100%);
 }
 .admin-btn + .admin-btn { margin-left: 6px; }
-.tenant-action-cell { display: flex; gap: 8px; justify-content: flex-end; align-items: center; min-width: 180px; }
+.tenant-list-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 10px;
+    flex-wrap: nowrap;
+}
+.tenant-list-title {
+    margin: 0;
+    font-size: 17px;
+    font-weight: 700;
+    color: var(--els-text);
+}
+.tenant-table-wrap {
+    width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+}
+.tenant-action-cell {
+    display: flex;
+    gap: 8px;
+    justify-content: flex-start;
+    align-items: center;
+    flex-wrap: nowrap;
+    min-width: 180px;
+}
 .tenant-action-cell .admin-btn { margin-left: 0; }
 
-/* Responsive: stack buttons vertically on narrow screens */
-@@media (max-width: 640px) {
-    .tenant-action-cell { flex-direction: column; align-items: stretch; justify-content: center; min-width: auto; }
-    .tenant-action-cell .admin-btn { width: 100%; }
+.tenant-status-table {
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: fixed;
+    min-width: 1260px;
 }
-.tenant-status-table { width: 100%; border-collapse: collapse; }
 .tenant-status-table th,
 .tenant-status-table td {
-    padding: 8px;
+    padding: 10px 12px;
     border-bottom: 1px solid var(--els-border);
     text-align: left;
-    vertical-align: top;
+    vertical-align: middle;
+    font-size: 13px;
+    word-break: normal;
+    overflow-wrap: anywhere;
 }
+.tenant-status-table th {
+    background: #f1f5ff;
+    color: var(--els-text);
+    font-weight: 700;
+    white-space: nowrap;
+}
+.tenant-status-table td:nth-child(4),
+.tenant-status-table td:nth-child(8) {
+    white-space: nowrap;
+}
+.tenant-status-table td:nth-child(2),
+.tenant-status-table td:nth-child(7),
+.tenant-status-table td:nth-child(11) {
+    white-space: normal;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+}
+.tenant-status-table col.col-tenant { width: 13%; }
+.tenant-status-table col.col-email { width: 16%; }
+.tenant-status-table col.col-location { width: 12%; }
+.tenant-status-table col.col-stores { width: 6%; }
+.tenant-status-table col.col-plan { width: 8%; }
+.tenant-status-table col.col-subscription { width: 10%; }
+.tenant-status-table col.col-trial-end { width: 11%; }
+.tenant-status-table col.col-trial-days { width: 8%; }
+.tenant-status-table col.col-status { width: 10%; }
+.tenant-status-table col.col-actioned-by { width: 9%; }
+.tenant-status-table col.col-actioned-on { width: 10%; }
+.tenant-status-table col.col-action { width: 12%; }
 .tenant-status-pill {
     display: inline-block;
     padding: 3px 10px;
@@ -100,23 +181,38 @@
     font-size: 11px;
     color: var(--els-text-muted, #6b7280);
 }
+
+@@media (max-width: 768px) {
+    .admin-setup-page,
+    .admin-setup-body {
+        padding: 14px;
+    }
+
+    .tenant-status-table {
+        min-width: 1120px;
+    }
+}
 </style>
 
 <section class="admin-setup-page">
     <div class="admin-setup-box">
-        <div class="admin-setup-title">Tenant Approval</div>
+        <div class="admin-setup-title">
+            Tenant Approval
+            <div class="tenant-header-meta">Signed in as Super Admin: <span class="tenant-admin-name">@tenantName</span></div>
+        </div>
         <div class="admin-setup-body">
             <div class="admin-setup-note">
-                <div><b>Signed in as:</b> @tenantName</div>
-                <div style="margin-top:6px;">
+                <p class="tenant-approval-note-title">Approval Instructions</p>
+                <p class="tenant-approval-note-text">
                     Newly registered tenants stay pending and cannot log in until they are approved here.
-                    Rejecting a tenant blocks their login and records the reason. Pending tenants are listed first.
-                </div>
+                    Rejecting a tenant blocks their login and records the reason.
+                    Pending Approval tenants are listed first.
+                </p>
             </div>
 
             <div class="admin-setup-note">
-                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
-                    <b>Tenants</b>
+                <div class="tenant-list-header">
+                    <h2 class="tenant-list-title">Tenants</h2>
                     <button type="button" class="admin-btn secondary" id="refreshTenantApprovalsBtn">Refresh</button>
                 </div>
                 <div id="tenantApprovalList">Loading tenants...</div>
@@ -129,15 +225,6 @@
 (function () {
     var host = document.getElementById("tenantApprovalList");
 
-    function escapeHtml(value) {
-        return (value == null ? "" : String(value))
-            .replace(/&/g, "&amp;")
-            .replace(/</g, "&lt;")
-            .replace(/>/g, "&gt;")
-            .replace(/"/g, "&quot;")
-            .replace(/'/g, "&#39;");
-    }
-
     function statusPill(status) {
         var normalized = (status || "Approved").toLowerCase();
         var cls = normalized === "pending" ? "pending" : normalized === "rejected" ? "rejected" : "approved";
@@ -146,52 +233,182 @@
         return "<span class='tenant-status-pill " + cls + "'>" + label + "</span>";
     }
 
+    function formatTrialEndUtc(value) {
+        if (!value) {
+            return "-";
+        }
+
+        var parsed = new Date(value);
+        if (isNaN(parsed.getTime())) {
+            return "-";
+        }
+
+        return parsed.toISOString();
+    }
+
+    function getRemainingTrialDays(value) {
+        if (!value) {
+            return "-";
+        }
+
+        var parsed = new Date(value);
+        if (isNaN(parsed.getTime())) {
+            return "-";
+        }
+
+        var diffMs = parsed.getTime() - Date.now();
+        if (diffMs <= 0) {
+            return "Expired";
+        }
+
+        var days = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+        return days + " day" + (days === 1 ? "" : "s");
+    }
+
     function render(tenants) {
         if (!tenants || tenants.length === 0) {
             host.textContent = "No tenants found.";
             return;
         }
 
-        var html = "<table class='tenant-status-table'>"
-            + "<thead><tr><th>Tenant</th><th>Email</th><th>Location</th><th>Stores</th>"
-            + "<th>Status</th><th>Actioned By</th><th>Actioned On</th><th>Action</th></tr></thead><tbody>";
+        var tenantRows = tenants.slice().sort(function (a, b) {
+            function statusRank(value) {
+                var normalized = (value || "Approved").toLowerCase();
+                if (normalized === "pending") {
+                    return 0;
+                }
 
-        tenants.forEach(function (t) {
-            var status = (t.approvalStatus || "Approved").toLowerCase();
-            var location = [t.city, t.country].filter(function (x) { return x; }).join(", ") || "-";
-            var reason = (status === "rejected" && t.approvalReason)
-                ? "<span class='tenant-reason'>Reason: " + escapeHtml(t.approvalReason) + "</span>"
-                : "";
+                if (normalized === "rejected") {
+                    return 1;
+                }
 
-            var actions = "<div class='tenant-action-cell'>";
-            var anyAction = false;
-            if (status !== "approved") {
-                actions += "<button type='button' class='admin-btn tenant-action-btn' data-tenant='"
-                    + escapeHtml(t.tenantId) + "' data-status='Approved'>Approve</button>";
-                anyAction = true;
+                return 2;
             }
-            if (status !== "rejected") {
-                actions += "<button type='button' class='admin-btn danger tenant-action-btn' data-tenant='"
-                    + escapeHtml(t.tenantId) + "' data-status='Rejected'>Reject</button>";
-                anyAction = true;
-            }
-            actions += "</div>";
-            if (!anyAction) { actions = "-"; }
 
-            html += "<tr>"
-                + "<td>" + escapeHtml(t.tenantName || "-") + "</td>"
-                + "<td>" + escapeHtml(t.email || "-") + "</td>"
-                + "<td>" + escapeHtml(location) + "</td>"
-                + "<td>" + (t.storeCount || 0) + "</td>"
-                + "<td>" + statusPill(t.approvalStatus) + reason + "</td>"
-                + "<td>" + escapeHtml(t.approvedBy || "-") + "</td>"
-                + "<td>" + (t.approvalDate ? new Date(t.approvalDate).toLocaleString() : "-") + "</td>"
-                + "<td>" + actions + "</td>"
-                + "</tr>";
+            var rankDiff = statusRank(a && a.approvalStatus) - statusRank(b && b.approvalStatus);
+            if (rankDiff !== 0) {
+                return rankDiff;
+            }
+
+            var aName = ((a && a.tenantName) || "").toLowerCase();
+            var bName = ((b && b.tenantName) || "").toLowerCase();
+            if (aName < bName) {
+                return -1;
+            }
+
+            if (aName > bName) {
+                return 1;
+            }
+
+            return 0;
         });
 
-        html += "</tbody></table>";
-        host.innerHTML = html;
+        var tableWrap = document.createElement("div");
+        tableWrap.className = "tenant-table-wrap";
+
+        var table = document.createElement("table");
+        table.className = "tenant-status-table";
+
+        var colgroup = document.createElement("colgroup");
+        [
+            "col-tenant", "col-email", "col-location", "col-stores", "col-plan", "col-subscription",
+            "col-trial-end", "col-trial-days", "col-status", "col-actioned-by", "col-actioned-on", "col-action"
+        ].forEach(function (cls) {
+            var col = document.createElement("col");
+            col.className = cls;
+            colgroup.appendChild(col);
+        });
+        table.appendChild(colgroup);
+
+        var thead = document.createElement("thead");
+        var headerRow = document.createElement("tr");
+        ["Tenant", "Email", "Location", "Stores", "Plan", "Subscription", "Trial Ends (UTC)", "Trial Days Left", "Status", "Actioned By", "Actioned On", "Action"]
+            .forEach(function (label) {
+                var th = document.createElement("th");
+                th.textContent = label;
+                headerRow.appendChild(th);
+            });
+        thead.appendChild(headerRow);
+        table.appendChild(thead);
+
+        var tbody = document.createElement("tbody");
+
+        tenantRows.forEach(function (t) {
+            var status = (t.approvalStatus || "Approved").toLowerCase();
+            var location = [t.city, t.country].filter(function (x) { return x; }).join(", ") || "-";
+            var tr = document.createElement("tr");
+
+            function appendCell(text) {
+                var td = document.createElement("td");
+                td.textContent = text;
+                tr.appendChild(td);
+                return td;
+            }
+
+            appendCell(t.tenantName || "-");
+            appendCell(t.email || "-");
+            appendCell(location);
+            appendCell(String(t.storeCount || 0));
+            appendCell(t.planCode || "-");
+            appendCell(t.subscriptionStatus || "-");
+            appendCell(formatTrialEndUtc(t.trialEndUtc));
+            appendCell(getRemainingTrialDays(t.trialEndUtc));
+
+            var statusCell = document.createElement("td");
+            statusCell.innerHTML = statusPill(t.approvalStatus);
+            if (status === "rejected" && t.approvalReason) {
+                var reasonEl = document.createElement("span");
+                reasonEl.className = "tenant-reason";
+                reasonEl.textContent = "Reason: " + t.approvalReason;
+                statusCell.appendChild(reasonEl);
+            }
+            tr.appendChild(statusCell);
+
+            appendCell(t.approvedBy || "-");
+            appendCell(t.approvalDate ? new Date(t.approvalDate).toLocaleString() : "-");
+
+            var actionCell = document.createElement("td");
+            var actionWrap = document.createElement("div");
+            actionWrap.className = "tenant-action-cell";
+            var anyAction = false;
+
+            if (status !== "approved") {
+                var approveBtn = document.createElement("button");
+                approveBtn.type = "button";
+                approveBtn.className = "admin-btn tenant-action-btn";
+                approveBtn.setAttribute("data-tenant", t.tenantId || "");
+                approveBtn.setAttribute("data-status", "Approved");
+                approveBtn.textContent = "Approve";
+                actionWrap.appendChild(approveBtn);
+                anyAction = true;
+            }
+
+            if (status !== "rejected") {
+                var rejectBtn = document.createElement("button");
+                rejectBtn.type = "button";
+                rejectBtn.className = "admin-btn danger tenant-action-btn";
+                rejectBtn.setAttribute("data-tenant", t.tenantId || "");
+                rejectBtn.setAttribute("data-status", "Rejected");
+                rejectBtn.textContent = "Reject";
+                actionWrap.appendChild(rejectBtn);
+                anyAction = true;
+            }
+
+            if (anyAction) {
+                actionCell.appendChild(actionWrap);
+            } else {
+                actionCell.textContent = "-";
+            }
+
+            tr.appendChild(actionCell);
+            tbody.appendChild(tr);
+        });
+
+        table.appendChild(tbody);
+        tableWrap.appendChild(table);
+
+        host.innerHTML = "";
+        host.appendChild(tableWrap);
 
         Array.prototype.forEach.call(host.querySelectorAll(".tenant-action-btn"), function (btn) {
             btn.addEventListener("click", function () {

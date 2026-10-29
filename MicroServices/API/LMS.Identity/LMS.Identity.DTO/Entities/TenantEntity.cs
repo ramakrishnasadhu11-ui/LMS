@@ -54,5 +54,15 @@ namespace LMS.Identity.DTO.Entities
 
        public DateTime? ApprovalDate { get; set; }
 
+       [MaxLength(32)]
+       public string PlanCode { get; set; }
+
+       public DateTime? TrialStartUtc { get; set; }
+
+       public DateTime? TrialEndUtc { get; set; }
+
+       [MaxLength(32)]
+       public string SubscriptionStatus { get; set; }
+
     }
 }

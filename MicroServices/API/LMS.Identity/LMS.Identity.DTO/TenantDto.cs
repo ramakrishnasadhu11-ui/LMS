@@ -24,6 +24,10 @@ namespace LMS.Identity.DTO
        public string CurrencySymbol { get; set; }
        public string CurrencyLocale { get; set; }
        public int? CurrencyDecimalDigits { get; set; }
+        public string PlanCode { get; set; }
+        public DateTime? TrialStartUtc { get; set; }
+        public DateTime? TrialEndUtc { get; set; }
+        public string SubscriptionStatus { get; set; }
        public DateTime CreatedDate { get; set; }
     }
 }

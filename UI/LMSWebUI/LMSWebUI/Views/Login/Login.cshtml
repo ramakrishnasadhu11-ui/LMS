@@ -521,6 +521,14 @@
             box-shadow: none;
         }
 
+        .login-card .form-button .ibtn.login-action-disabled,
+        .modal-footer .ibtn.login-action-disabled {
+            opacity: 0.7;
+            cursor: not-allowed;
+            pointer-events: none;
+            box-shadow: none;
+        }
+
         .login-card .form-button a {
             text-align: center;
             font-size: 13px;
@@ -530,6 +538,44 @@
         }
 
         .login-card .form-button a:hover {
+            text-decoration: underline;
+        }
+
+        .login-card .form-button .login-support-links {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            align-items: center;
+            gap: 8px 16px;
+        }
+
+        .login-card .form-button .login-support-links a {
+            margin: 0;
+            line-height: 1.4;
+        }
+
+        .login-card .form-button .login-support-links a.login-action-disabled {
+            color: #94a3b8;
+            pointer-events: none;
+            cursor: not-allowed;
+            text-decoration: none;
+        }
+
+        .login-card .new-business-note {
+            margin: 2px 0 0;
+            font-size: 12px;
+            color: #64748b;
+            text-align: center;
+            line-height: 1.5;
+        }
+
+        .login-card .new-business-note a {
+            color: #1d4ed8;
+            font-weight: 600;
+            text-decoration: none;
+        }
+
+        .login-card .new-business-note a:hover {
             text-decoration: underline;
         }
 
@@ -750,7 +796,6 @@
 
                     <div class="page-links">
                         <a id="loginTab" class="active" href="@Url.Action("Login", "Login")">Login</a>
-                        <a id="registerTab" href="@Url.Action("Register", "Login")">Register</a>
                     </div>
 
                     <!-- Area for inline information and error messages from API -->
@@ -783,8 +828,10 @@
                         </div>
                         <div class="form-button">
                             <button id="LoginCheck" type="button" class="ibtn">Sign In</button>
-                            <a href="javascript:void(0);" data-toggle="modal" data-target="#ChangePassword">Change Password</a>
-                            <a href="javascript:void(0);" data-toggle="modal" data-target="#ForgotPassword">Forgot Your Password?</a>
+                            <div class="login-support-links">
+                                <a href="javascript:void(0);" data-toggle="modal" data-target="#ChangePassword" class="login-action-disabled" aria-disabled="true" tabindex="-1">Change Password</a>
+                                <a href="javascript:void(0);" data-toggle="modal" data-target="#ForgotPassword" class="login-action-disabled" aria-disabled="true" tabindex="-1">Forgot Your Password?</a>
+                            </div>
                         </div>
 
                         @if (TempData["RegistrationServiceUnavailable"] != null)
@@ -821,7 +868,7 @@
                 </div>
                 <!-- Modal footer -->
                 <div class="modal-footer">
-                    <button id="forgotpassword" type="submit" class="ibtn">Reset my Password</button>
+                    <button id="forgotpassword" type="submit" class="ibtn login-action-disabled" disabled aria-disabled="true">Reset my Password</button>
                     <span id="forgotPasswordProgress" style="display:none; margin-left:10px; font-size:12px; color:var(--els-text-muted, #64748b);">
                         Processing your request...
                     </span>
@@ -866,7 +913,7 @@
                 </div>
                 <!-- Modal footer -->
                     <div class="modal-footer">
-                        <button id="changepassword" class="ibtn">Change Password</button>
+                        <button id="changepassword" class="ibtn login-action-disabled" disabled aria-disabled="true">Change Password</button>
                     </div>
                 </div>
             </div>
@@ -1038,9 +1085,59 @@
             clearValidationMessage('#confirmNewPasswordValidation');
         }
 
+        var isPendingApprovalState = false;
+        var isAccountActionsEligibleState = false;
+
+        function applyAccountActionsState() {
+            var isEnabled = isAccountActionsEligibleState && !isPendingApprovalState;
+            var actionLinks = $('a[data-target="#ChangePassword"], a[data-target="#ForgotPassword"]');
+            actionLinks.toggleClass('login-action-disabled', !isEnabled);
+            actionLinks.attr('aria-disabled', isEnabled ? 'false' : 'true');
+
+            if (isEnabled) {
+                actionLinks.removeAttr('tabindex');
+            } else {
+                actionLinks.attr('tabindex', '-1');
+            }
+
+            $('#forgotpassword, #changepassword')
+                .prop('disabled', !isEnabled)
+                .toggleClass('login-action-disabled', !isEnabled)
+                .attr('aria-disabled', isEnabled ? 'false' : 'true');
+
+            if (!isEnabled) {
+                $('#ForgotPassword').modal('hide');
+                $('#ChangePassword').modal('hide');
+            }
+        }
+
+        function setPendingApprovalState(isPendingApproval) {
+            isPendingApprovalState = !!isPendingApproval;
+            applyAccountActionsState();
+        }
+
+        function setAccountActionsEligibilityState(isEligible) {
+            isAccountActionsEligibleState = !!isEligible;
+            applyAccountActionsState();
+        }
+
+        function isSupportActionBlocked(e) {
+            if (isAccountActionsEligibleState && !isPendingApprovalState) {
+                return false;
+            }
+
+            if (e) {
+                e.preventDefault();
+                e.stopImmediatePropagation();
+            }
+            return true;
+        }
+
         $(document).ready(function ()
         {
             $('#information').hide();
+            setPendingApprovalState(false);
+            setAccountActionsEligibilityState(false);
 
             if (!window.location.search) {
                 var loginPageInputs = $('input').not(':button, :submit, :reset, [type=hidden], [type=checkbox], [type=radio]');
@@ -1050,6 +1147,7 @@
 
             let storeLookupTimer;
             $('#tenantEmail').on('input', function () {
+                setAccountActionsEligibilityState(false);
                 clearTimeout(storeLookupTimer);
                 storeLookupTimer = setTimeout(function () {
                     BindTenantStores();
@@ -1057,6 +1155,7 @@
             });
 
             $('#tenantEmail').on('change blur', function () {
+                setAccountActionsEligibilityState(false);
                 clearTimeout(storeLookupTimer);
                 BindTenantStores();
             });
@@ -1075,7 +1174,9 @@
             $('#tenantEmail, #tenantPassword, #Store').on('keydown', function (e) {
                 if (e.key === 'Enter') {
                     e.preventDefault();
-                    $('#LoginCheck').click();
+                    if (!isPendingApprovalState) {
+                        $('#LoginCheck').click();
+                    }
                 }
             });
 
@@ -1093,14 +1194,25 @@
             $('#tenantforgotpasswordEmail').on('keydown', function (e) {
                 if (e.key === 'Enter') {
                     e.preventDefault();
-                    $('#forgotpassword').click();
+                    if (isAccountActionsEligibleState && !isPendingApprovalState) {
+                        $('#forgotpassword').click();
+                    }
                 }
             });
 
             $('#changePasswordEmail, #oldPassword, #newPassword, #confirmNewPassword').on('keydown', function (e) {
                 if (e.key === 'Enter') {
                     e.preventDefault();
-                    $('#changepassword').click();
+                    if (isAccountActionsEligibleState && !isPendingApprovalState) {
+                        $('#changepassword').click();
+                    }
+                }
+            });
+
+            $('#ForgotPassword, #ChangePassword').on('show.bs.modal', function (e) {
+                if (isSupportActionBlocked(e)) {
+                    e.preventDefault();
+                    return false;
                 }
             });
 
@@ -1121,11 +1233,17 @@
                 $('#lblOTPInformation').empty();
             });
 
-            $('a[data-target="#ForgotPassword"]').on('click', function () {
+            $('a[data-target="#ForgotPassword"]').on('click', function (event) {
+                if (isSupportActionBlocked(event)) {
+                    return false;
+                }
                 resetForgotPasswordModalState();
             });
 
-            $('a[data-target="#ChangePassword"]').on('click', function () {
+            $('a[data-target="#ChangePassword"]').on('click', function (event) {
+                if (isSupportActionBlocked(event)) {
+                    return false;
+                }
                 $('#lblOTPInformation').empty();
                 $('#changePasswordEmail').val(($('#tenantEmail').val() || '').trim());
                 resetChangePasswordModalState(false);
@@ -1203,6 +1321,10 @@
         var tenantStoresRequest = null;
         var loginStoresRequest = null;
         $("#forgotpassword").click(function (e) {
+            if (isSupportActionBlocked(e)) {
+                return;
+            }
+
             e.preventDefault();
             clearValidationMessage('#forgotPasswordEmailValidation');
 
@@ -1246,6 +1368,10 @@
       
 
         $("#changepassword").click(function (e) {
+            if (isSupportActionBlocked(e)) {
+                return;
+            }
+
             e.preventDefault();
             clearValidationMessage('#changePasswordEmailValidation');
             clearValidationMessage('#oldPasswordValidation');
@@ -1332,6 +1458,10 @@
         });
         $('#LoginCheck').click(function ()
         {
+            if (isPendingApprovalState) {
+                return;
+            }
+
             var emailElement = $("#tenantEmail").get(0);
             var passwordElement = $("#tenantPassword").get(0);
             var email = emailElement ? emailElement.value : "";
@@ -1354,9 +1484,12 @@
                 data: { email: email, password: password },
                 success: function (resolveData) {
                     if (!resolveData || !resolveData.success) {
+                        setAccountActionsEligibilityState(false);
                         showInfo(((resolveData && resolveData.message) || 'Login failed. Please check your email/password.'), 'danger');
                         return;
                     }
+
+                    setAccountActionsEligibilityState(true);
 
                     var stores = normalizeStores(resolveData.stores);
                     var role = (resolveData.role || "").toLowerCase();
@@ -1419,27 +1552,46 @@
                         data: model,
                         success: function (data) {
                             if (data === "success") {
+                                setPendingApprovalState(false);
+                                setAccountActionsEligibilityState(true);
                                 window.location.href = newUrl;
                             }
                             else if (data === "requirePasswordChange") {
+                                setPendingApprovalState(false);
+                                setAccountActionsEligibilityState(true);
                                 $('#lblOTPInformation').html("<p>An One Time Password(OTP) has been sent to: <br>" + email + "</p>");
                                 $('#changePasswordEmail').val(email);
                                 $("#ChangePassword").modal("show");
                             }
                             else if (data === "storeRequired") {
+                                setPendingApprovalState(false);
+                                setAccountActionsEligibilityState(true);
                                 showInfo('Please select a valid assigned store before login.', 'warning');
                             }
                             else if (data === "storeUserNoAssignment") {
+                                setPendingApprovalState(false);
+                                setAccountActionsEligibilityState(false);
                                 showInfo('No valid active store assignment was found for this StoreUser.', 'danger');
                             }
                             else if (data === "serviceUnavailable") {
+                                setPendingApprovalState(false);
+                                setAccountActionsEligibilityState(false);
                                 showInfo('The login service is unavailable. Please try again shortly.', 'danger');
                             }
                             else if (typeof data === "string" && data.indexOf("notApproved|") === 0) {
+                                setPendingApprovalState(true);
+                                setAccountActionsEligibilityState(false);
                                 var blockedMessage = data.substring("notApproved|".length);
                                 showInfo(blockedMessage, 'warning');
                             }
+                            else if (data === "userNotFound") {
+                                setPendingApprovalState(true);
+                                setAccountActionsEligibilityState(false);
+                                showInfo('User account not found. Please check your email address or contact your administrator.', 'danger');
+                            }
                             else {
+                                setPendingApprovalState(false);
+                                setAccountActionsEligibilityState(false);
                                 var message = "Login failed. Please check your email/password.";
                                 try {
                                     if (data && typeof data === 'string') {
@@ -1452,6 +1604,8 @@
                             }
                         },
                         error: function (jqXHR) {
+                            setPendingApprovalState(false);
+                            setAccountActionsEligibilityState(false);
                             var msg = "Login failed. Please check your email/password.";
                             try {
                                 if (jqXHR && jqXHR.responseJSON && jqXHR.responseJSON.message) {
@@ -1471,6 +1625,8 @@
                     });
                 },
                 error: function (jqXHR, textStatus, errorThrown) {
+                    setPendingApprovalState(false);
+                    setAccountActionsEligibilityState(false);
                     var msg = "Login failed. Please check your email/password.";
                     try {
                         if (jqXHR && jqXHR.responseJSON && jqXHR.responseJSON.message) {
@@ -1490,6 +1646,9 @@
         });
          function BindTenantStores()
          {
+                setPendingApprovalState(false);
+                setAccountActionsEligibilityState(false);
+
                 var tenantEmail = $("#tenantEmail").get(0).value;
                 var emailPattern = /^[^\s\x40]+\x40[^\s\x40]+\.[^\s\x40]+$/;
                 if (!tenantEmail || tenantEmail.trim().length === 0)
@@ -1529,6 +1688,8 @@
 
                         if (data === 'superadmin')
                         {
+                            setPendingApprovalState(false);
+                            setAccountActionsEligibilityState(true);
                             $('#tenantPassword').focus();
                             $('#information').empty();
                             $('#information').hide();
@@ -1539,6 +1700,8 @@
 
                         if (typeof data === 'string' && data.indexOf('inactive|') === 0)
                         {
+                            setPendingApprovalState(true);
+                            setAccountActionsEligibilityState(false);
                             var inactiveMessage = data.substring('inactive|'.length) || 'Your account is inactive or pending approval. Please contact the super admin.';
                             showInfo(inactiveMessage, 'warning');
                             setLoginModeHint(false, "", false);
@@ -1551,6 +1714,8 @@
 
                         if (data && data.length > 0)
                         {
+                            setPendingApprovalState(false);
+                            setAccountActionsEligibilityState(true);
                             $('#tenantPassword').focus();
                             $('#information').empty();
                             $('#information').hide();
@@ -1576,11 +1741,14 @@
                                     data: { email: tenantEmail, password: passwordValue },
                                     success: function (resolveData) {
                                         if (!resolveData || !resolveData.success) {
+                                            setAccountActionsEligibilityState(false);
                                             if (resolveData && resolveData.message) {
                                                 showInfo(resolveData.message, 'warning');
                                             }
                                             return;
                                         }
+
+                                        setAccountActionsEligibilityState(true);
 
                                         var stores = normalizeStores(resolveData.stores);
                                         var role = (resolveData.role || "").toLowerCase();
@@ -1596,6 +1764,7 @@
                                         }
                                     },
                                     error: function () {
+                                        setAccountActionsEligibilityState(false);
                                         showInfo('Unable to load store assignments right now. Please try again.', 'warning');
                                     }
                                 });
@@ -1603,6 +1772,8 @@
                         }
                     },
                     error: function (xhr) {
+                        setPendingApprovalState(false);
+                        setAccountActionsEligibilityState(false);
                         var mySelect = $('#Store');
                         mySelect.empty();
                         mySelect.append($('<option></option>').val('').html('Select a Store...'));

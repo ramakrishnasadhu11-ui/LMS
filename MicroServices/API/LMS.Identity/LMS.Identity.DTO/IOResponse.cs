@@ -138,6 +138,12 @@ namespace LMS.Identity.DTO
 
         public DateTime CreatedDate { get; set; }
 
+        public string PlanCode { get; set; }
+
+        public string SubscriptionStatus { get; set; }
+
+        public DateTime? TrialEndUtc { get; set; }
+
         /// <summary>Number of stores mapped to the tenant, shown for context.</summary>
         public int StoreCount { get; set; }
     }
@@ -148,6 +154,10 @@ namespace LMS.Identity.DTO
     public class TenantStoreStatusDto
     {
         public string StoreCode { get; set; }
+
+        public string CurrencyCode { get; set; }
+
+        public string CurrencySymbol { get; set; }
 
         public bool IsActive { get; set; }
 

@@ -42,6 +42,8 @@ namespace LMS.Identity.BusinessSerive.Data
                 entity.Property(x => x.ApprovalStatus).HasMaxLength(32);
                 entity.Property(x => x.ApprovalReason).HasMaxLength(512);
                 entity.Property(x => x.ApprovedBy).HasMaxLength(256);
+                entity.Property(x => x.PlanCode).HasMaxLength(32);
+                entity.Property(x => x.SubscriptionStatus).HasMaxLength(32);
 
                 entity.HasIndex(x => x.Email).IsUnique();
                 entity.HasIndex(x => x.TenantId).IsUnique();
