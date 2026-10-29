@@ -9,6 +9,7 @@
     var tenantName = Model?.TenantName ?? "-";
     var tenantStore = Model?.TenantStore ?? "-";
     var dashboardTitle = Convert.ToString(ViewData["DashboardTitle"] ?? $"Welcome to {Model?.TenantStore} Store");
+    var canResumeOnboarding = Convert.ToBoolean(ViewData["CanResumeOnboarding"] ?? false);
     var currentController = Convert.ToString(ViewContext.RouteData.Values["controller"]);
     var currentAction = Convert.ToString(ViewContext.RouteData.Values["action"]);
 
@@ -1055,6 +1056,13 @@
                 {
                     <p class="dashboard-header-subtitle">Manage store configuration, pricing policies, operations, and users from one place.</p>
                 }
+            }
+            else if (canResumeOnboarding)
+            {
+                <p class="dashboard-header-subtitle">
+                    Need a refresher?
+                    <a href="@Url.Action("Onboarding", "Dashboard")" style="color:#fff;text-decoration:underline;font-weight:600;">Resume onboarding</a>
+                </p>
             }
         </div>
         <div class="dashboard-body">

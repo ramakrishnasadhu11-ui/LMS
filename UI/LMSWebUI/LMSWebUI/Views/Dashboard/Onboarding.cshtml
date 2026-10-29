@@ -1,0 +1,243 @@
+@model LMSWebUI.Models.DashBoard.TenantOnboardingViewModel
+@{
+    Layout = "~/Views/Shared/_Layout.cshtml";
+    ViewData["HideSidebar"] = true;
+    var plan = string.IsNullOrWhiteSpace(Model?.PlanCode) ? "-" : Model.PlanCode;
+    var subscription = string.IsNullOrWhiteSpace(Model?.SubscriptionStatus) ? "-" : Model.SubscriptionStatus;
+    var trialEndText = Model?.TrialEndUtc.HasValue == true
+        ? Model.TrialEndUtc.Value.ToUniversalTime().ToString("dd MMM yyyy") + " UTC"
+        : "-";
+    var daysRemainingText = "-";
+    if (Model?.TrialDaysRemaining.HasValue == true)
+    {
+        daysRemainingText = Model.TrialDaysRemaining.Value >= 0
+            ? Model.TrialDaysRemaining.Value.ToString()
+            : "Expired";
+    }
+
+    var demoUrl = Convert.ToString(ViewData["OnboardingDemoUrl"] ?? string.Empty);
+    var onboardingError = Convert.ToString(TempData["OnboardingError"] ?? string.Empty);
+}
+
+<style>
+    .onboarding-page {
+        padding: 24px;
+    }
+
+    .onboarding-box {
+        max-width: 1200px;
+        margin: 0 auto;
+        background: var(--els-surface);
+        border: 1px solid var(--els-border);
+        border-radius: 12px;
+        box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+        overflow: hidden;
+    }
+
+    .onboarding-header {
+        background: linear-gradient(90deg, var(--els-primary) 0%, var(--els-primary-dark) 100%);
+        color: #fff;
+        padding: 22px;
+    }
+
+    .onboarding-header h2 {
+        margin: 0;
+        font-size: 26px;
+        font-weight: 600;
+    }
+
+    .onboarding-subtitle {
+        margin-top: 8px;
+        font-size: 14px;
+        opacity: 0.95;
+    }
+
+    .onboarding-content {
+        padding: 22px;
+    }
+
+    .onboarding-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        gap: 12px;
+        margin-bottom: 18px;
+    }
+
+    .onboarding-card {
+        border: 1px solid var(--els-border);
+        border-radius: 10px;
+        padding: 12px;
+        background: #fff;
+    }
+
+    .onboarding-card-label {
+        margin: 0 0 6px;
+        font-size: 12px;
+        font-weight: 600;
+        color: var(--els-text-muted, #64748b);
+        text-transform: uppercase;
+        letter-spacing: .03em;
+    }
+
+    .onboarding-card-value {
+        margin: 0;
+        font-size: 16px;
+        font-weight: 600;
+        color: #1f2937;
+    }
+
+    .checklist {
+        margin: 10px 0 0;
+        padding-left: 0;
+        list-style: none;
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+        gap: 10px;
+    }
+
+    .checklist li {
+        border: 1px solid var(--els-border);
+        border-radius: 8px;
+        padding: 10px;
+        background: #fff;
+    }
+
+    .checklist a {
+        color: var(--els-primary);
+        font-weight: 600;
+        text-decoration: none;
+    }
+
+    .checklist a:hover {
+        text-decoration: underline;
+    }
+
+    .onboarding-actions {
+        margin-top: 22px;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+    }
+
+    .onboarding-btn {
+        border: 1px solid transparent;
+        border-radius: 8px;
+        padding: 10px 14px;
+        font-size: 14px;
+        font-weight: 600;
+        cursor: pointer;
+    }
+
+    .onboarding-btn.primary {
+        background: var(--els-primary);
+        border-color: var(--els-primary);
+        color: #fff;
+    }
+
+    .onboarding-btn.secondary {
+        background: #fff;
+        border-color: var(--els-border);
+        color: #1f2937;
+    }
+
+    .onboarding-support {
+        margin-top: 16px;
+        border-top: 1px solid var(--els-border);
+        padding-top: 14px;
+        font-size: 13px;
+        color: #374151;
+    }
+
+    .onboarding-support a {
+        color: var(--els-primary);
+        text-decoration: none;
+    }
+
+    .onboarding-support a:hover {
+        text-decoration: underline;
+    }
+
+    .onboarding-error {
+        margin: 0 0 16px;
+        border: 1px solid var(--els-danger);
+        border-radius: 8px;
+        background: rgba(201, 48, 44, 0.08);
+        color: var(--els-danger);
+        font-size: 13px;
+        font-weight: 600;
+        padding: 10px 12px;
+    }
+</style>
+
+<section class="content onboarding-page">
+    <div class="onboarding-box">
+        <div class="onboarding-header">
+            <h2>Welcome, @(string.IsNullOrWhiteSpace(Model?.TenantName) ? "Tenant" : Model.TenantName)</h2>
+            <p class="onboarding-subtitle">Let’s quickly review your tenant setup before you start daily operations.</p>
+        </div>
+
+        <div class="onboarding-content">
+            @if (!string.IsNullOrWhiteSpace(onboardingError))
+            {
+                <div class="onboarding-error">@onboardingError</div>
+            }
+
+            <div class="onboarding-grid">
+                <div class="onboarding-card">
+                    <p class="onboarding-card-label">Store</p>
+                    <p class="onboarding-card-value">@(string.IsNullOrWhiteSpace(Model?.TenantStore) ? "-" : Model.TenantStore)</p>
+                </div>
+                <div class="onboarding-card">
+                    <p class="onboarding-card-label">Plan</p>
+                    <p class="onboarding-card-value">@plan</p>
+                </div>
+                <div class="onboarding-card">
+                    <p class="onboarding-card-label">Subscription</p>
+                    <p class="onboarding-card-value">@subscription</p>
+                </div>
+                <div class="onboarding-card">
+                    <p class="onboarding-card-label">Trial Ends</p>
+                    <p class="onboarding-card-value">@trialEndText</p>
+                </div>
+                <div class="onboarding-card">
+                    <p class="onboarding-card-label">Days Remaining</p>
+                    <p class="onboarding-card-value">@daysRemainingText</p>
+                </div>
+            </div>
+
+            <h3 style="margin:0 0 8px; font-size:18px;">Optional setup checklist</h3>
+            <ul class="checklist">
+                <li><a href="@Url.Action("StoreTimings", "Customer")">Business / Store settings</a></li>
+                <li><a href="@Url.Action("ImportExportPricesCsv", "Customer")">Laundry prices</a></li>
+                <li><a href="@Url.Action("BarcodeTagSettings", "Customer")">Barcode tags</a></li>
+                <li><a href="@Url.Action("AddNewCustomer", "Customer")">Add first customer</a></li>
+                <li><a href="@Url.Action("SetupCreateOrder", "Customer")">Create first order</a></li>
+            </ul>
+
+            <div class="onboarding-actions">
+                <form asp-action="CompleteOnboarding" asp-controller="Dashboard" method="post">
+                    @Html.AntiForgeryToken()
+                    <button type="submit" class="onboarding-btn primary">Finish onboarding</button>
+                </form>
+
+                <form asp-action="SkipOnboarding" asp-controller="Dashboard" method="post">
+                    @Html.AntiForgeryToken()
+                    <button type="submit" class="onboarding-btn secondary">Skip for now</button>
+                </form>
+
+                <a class="onboarding-btn secondary" href="@Url.Action("Index", "Dashboard")" style="text-decoration:none; display:inline-flex; align-items:center;">Go to dashboard</a>
+                @if (!string.IsNullOrWhiteSpace(demoUrl))
+                {
+                    <a class="onboarding-btn secondary" href="@demoUrl" target="_blank" rel="noopener" style="text-decoration:none; display:inline-flex; align-items:center;">View demo</a>
+                }
+            </div>
+
+            <div class="onboarding-support">
+                <p style="margin:0 0 8px; font-weight:600;">Need help? Contact support:</p>
+                <p style="margin:0 0 4px;">Email: <a href="mailto:techforgeacademydev@gmail.com">techforgeacademydev@gmail.com</a></p>
+                <p style="margin:0 0 4px;">WhatsApp: <a href="https://wa.me/919059261259" target="_blank" rel="noopener">+91 90592 61259</a></p>
+                <p style="margin:0;">Website: <a href="https://els.techforgedev.in/" target="_blank" rel="noopener">https://els.techforgedev.in/</a></p>
+            </div>
+        </div>
+    </div>
+</section>

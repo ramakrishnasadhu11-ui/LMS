@@ -68,6 +68,12 @@ namespace LMS.Identity.DTO
         /// </summary>
         public DateTime? CreatedDate { get; set; }
 
+        public string PlanCode { get; set; }
+
+        public string SubscriptionStatus { get; set; }
+
+        public DateTime? TrialEndUtc { get; set; }
+
         /// <summary>
         /// UserRole
         /// </summary>
