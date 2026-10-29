@@ -83,16 +83,8 @@ namespace LMSClientFactory.Helper
                     response.Content);
             }
 
-            if (response.StatusCode == HttpStatusCode.NotFound)
+            if (response.StatusCode == HttpStatusCode.NotFound && string.IsNullOrWhiteSpace(response.Content))
             {
-                // RestSharp's ErrorException only says "Request failed with status code NotFound",
-                // which hides the API payload. Callers inspect that payload to tell a genuine
-                // failure apart from a valid "no record yet" response, so the body wins when present.
-                if (!string.IsNullOrWhiteSpace(response.Content))
-                {
-                    throw new Exception(response.Content, response.ErrorException);
-                }
-
                 throw response.ErrorException ?? new Exception("The API returned 404.");
             }
 

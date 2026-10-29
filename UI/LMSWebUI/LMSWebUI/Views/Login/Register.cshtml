@@ -10,12 +10,338 @@
     <link rel="stylesheet" type="text/css" href="~/css/app-theme.css">
     <link href="https://fonts.googleapis.com/css?family=Poppins:100,300,400,500,600,700&display=swap" rel="stylesheet">
     <style>
-        .form-content.register .register-form .register-field {
+        .register-layout {
+            min-height: 100vh;
+            padding: 28px 16px;
+            background: linear-gradient(135deg, #f4f8ff 0%, #e9f2ff 45%, #f8fbff 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .register-shell {
+            width: 100%;
+            max-width: 1120px;
+            background: #ffffff;
+            border-radius: 24px;
+            overflow: hidden;
+            box-shadow: 0 26px 64px rgba(10, 67, 148, 0.16);
+            display: grid;
+            grid-template-columns: minmax(280px, 1fr) minmax(360px, 1.1fr);
+        }
+
+        .register-brand-panel {
+            background: linear-gradient(165deg, #0c4fb0 0%, #0a6be0 52%, #1180ff 100%);
+            color: #ffffff;
+            padding: 44px 36px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            gap: 28px;
+        }
+
+        .register-brand-panel .logo-size {
+            width: 190px;
+            max-width: 100%;
+            height: auto;
+        }
+
+        .register-brand-copy h1 {
+            font-size: 30px;
+            line-height: 1.2;
             margin-bottom: 12px;
+            font-weight: 600;
+        }
+
+        .register-brand-copy p {
+            margin-bottom: 0;
+            font-size: 15px;
+            line-height: 1.7;
+            color: rgba(255, 255, 255, 0.9);
+        }
+
+        .register-brand-highlights {
+            margin-top: 18px;
+            padding: 14px 16px;
+            border-radius: 12px;
+            background: rgba(255, 255, 255, 0.14);
+            border: 1px solid rgba(255, 255, 255, 0.22);
+            font-size: 13px;
+            line-height: 1.5;
+            color: #ffffff;
+        }
+
+        .register-brand-highlights strong {
+            display: block;
+            margin-bottom: 4px;
+            font-size: 14px;
+            letter-spacing: .2px;
+        }
+
+        .register-trial-section {
+            margin-top: 18px;
+            padding: 16px;
+            border-radius: 14px;
+            background: rgba(255, 255, 255, 0.14);
+            border: 1px solid rgba(255, 255, 255, 0.24);
+        }
+
+        .register-trial-section .trial-kicker {
+            margin: 0;
+            font-size: 11px;
+            font-weight: 600;
+            letter-spacing: .14em;
+            color: rgba(239, 245, 255, 0.92);
+            text-transform: uppercase;
+        }
+
+        .register-trial-section .trial-title {
+            margin: 8px 0 6px;
+            font-size: 27px;
+            line-height: 1.2;
+            color: #ffffff;
+            font-weight: 700;
+        }
+
+        .register-trial-section .trial-description {
+            margin: 0;
+            font-size: 13px;
+            line-height: 1.6;
+            color: rgba(242, 247, 255, 0.95);
+        }
+
+        .register-trial-section .trial-feature-list {
+            margin: 12px 0 0;
+            padding: 0;
+            list-style: none;
+            display: grid;
+            gap: 7px;
+        }
+
+        .register-trial-section .trial-feature-list li {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 13px;
+            color: #ffffff;
+        }
+
+        .register-trial-section .trial-feature-list li::before {
+            content: "\2713";
+            width: 18px;
+            height: 18px;
+            border-radius: 999px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            color: #0d4ea7;
+            background: #ffffff;
+            flex: 0 0 auto;
+        }
+
+        .register-trial-section .trial-approval-note {
+            margin: 12px 0 0;
+            font-size: 12px;
+            line-height: 1.55;
+            color: rgba(242, 247, 255, 0.95);
+        }
+
+        .register-trial-cta-wrap {
+            margin-top: 12px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .register-trial-cta {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 40px;
+            padding: 10px 16px;
+            border-radius: 10px;
+            background: #ffffff;
+            color: #0c4fb0;
+            font-size: 13px;
+            font-weight: 700;
+            text-decoration: none;
+        }
+
+        .register-trial-cta:hover {
+            text-decoration: none;
+            color: #093a82;
+        }
+
+        .register-benefits-section {
+            margin-top: 12px;
+            display: grid;
+            gap: 8px;
+        }
+
+        .register-benefit-item {
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            padding: 10px 12px;
+            border-radius: 12px;
+            background: rgba(255, 255, 255, 0.12);
+            border: 1px solid rgba(255, 255, 255, 0.22);
+        }
+
+        .register-benefit-icon {
+            width: 24px;
+            height: 24px;
+            border-radius: 999px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 13px;
+            font-weight: 700;
+            color: #0d4ea7;
+            background: #ffffff;
+            flex: 0 0 auto;
+            margin-top: 1px;
+        }
+
+        .register-benefit-content strong {
+            display: block;
+            font-size: 13px;
+            color: #ffffff;
+            margin-bottom: 2px;
+        }
+
+        .register-benefit-content p {
+            margin: 0;
+            font-size: 12px;
+            line-height: 1.5;
+            color: rgba(241, 247, 255, 0.94);
+        }
+
+        .register-contact-demo {
+            margin-top: 12px;
+            padding: 12px;
+            border-radius: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.24);
+            background: rgba(8, 39, 98, 0.26);
+        }
+
+        .register-contact-demo .demo-title {
+            margin: 0 0 8px;
+            font-size: 13px;
+            font-weight: 600;
+            color: #ffffff;
+        }
+
+        .register-contact-demo .demo-links {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .register-contact-demo .demo-links a {
+            color: #ffffff;
+            text-decoration: underline;
+            font-size: 12px;
+            line-height: 1.5;
+        }
+
+        .register-brand-image img {
+            width: 100%;
+            max-width: 360px;
+            display: block;
+            margin: 0 auto;
+        }
+
+        .register-form-panel {
+            padding: 36px 34px 30px;
+            background: #ffffff;
+        }
+
+        .register-form-panel .register-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 14px;
+        }
+
+        .register-form-panel .register-header img {
+            width: 170px;
+            height: auto;
+        }
+
+        .register-form-panel .register-title {
+            margin: 0 0 8px;
+            font-size: 27px;
+            line-height: 1.2;
+            color: #0c4fae;
+            font-weight: 600;
+        }
+
+        .register-form-panel .register-subtitle {
+            margin: 0 0 18px;
+            color: #5b6b83;
+            font-size: 14px;
+            line-height: 1.6;
+        }
+
+        .form-content.register .page-links {
+            margin-bottom: 18px;
+        }
+
+        .form-content.register .page-links a {
+            margin-right: 14px;
+            font-weight: 500;
+        }
+
+        .form-content.register .register-form {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            column-gap: 14px;
+            row-gap: 13px;
+        }
+
+        .form-content.register .register-form .register-field {
+            margin-bottom: 0;
+        }
+
+        .form-content.register .register-form .register-field.register-full {
+            grid-column: 1 / -1;
+        }
+
+        .form-content.register .register-form .register-field label {
+            display: block;
+            margin: 0 0 6px;
+            font-size: 13px;
+            font-weight: 600;
+            color: #20456e;
         }
 
         .form-content.register .register-form .register-field .form-control {
             margin-bottom: 0;
+            border: 1px solid #cedcf3;
+            border-radius: 10px;
+            min-height: 44px;
+            font-size: 14px;
+            color: #1a3555;
+            background-color: #f9fbff;
+            transition: border-color .18s ease, box-shadow .18s ease, background-color .18s ease;
+        }
+
+        .form-content.register .register-form .register-field .form-control:focus {
+            background: #fff;
+            border-color: #2f7eea;
+            box-shadow: 0 0 0 .2rem rgba(29, 115, 230, .18);
+        }
+
+        .form-content.register .register-form .register-field select.form-control {
+            appearance: none;
+            background-image: linear-gradient(45deg, transparent 50%, #2264c7 50%), linear-gradient(135deg, #2264c7 50%, transparent 50%);
+            background-position: calc(100% - 17px) calc(50% - 3px), calc(100% - 12px) calc(50% - 3px);
+            background-size: 6px 6px, 6px 6px;
+            background-repeat: no-repeat;
+            padding-right: 34px;
         }
 
         .form-content.register .register-form .register-field .text-danger {
@@ -37,9 +363,111 @@
             display: block;
         }
 
-        .form-content.register .register-form .validation-summary-errors,
-        .form-content.register .register-form .validation-summary-valid {
+        .form-content.register .register-form .register-field .register-helper-text {
+            display: block;
+            margin-top: 6px;
+            margin-bottom: 0;
+            font-size: 12px;
+            line-height: 1.4;
+            color: #607b9f;
+        }
+
+        .form-content.register .register-form .register-field.currency-technical-field {
+            display: none;
+        }
+
+        .form-content.register .register-form .register-actions {
+            grid-column: 1 / -1;
+            margin-top: 4px;
+        }
+
+        .form-content.register .register-form .register-submit-btn {
+            width: 100%;
+            min-height: 46px;
+            border: none;
+            border-radius: 12px;
+            background: linear-gradient(135deg, #0a5dc9 0%, #1082ff 100%);
+            color: #fff;
+            font-size: 15px;
+            font-weight: 600;
+            letter-spacing: .2px;
+            box-shadow: 0 12px 24px rgba(17, 93, 194, 0.26);
+            transition: transform .16s ease, box-shadow .16s ease, opacity .16s ease;
+        }
+
+        .form-content.register .register-form .register-submit-btn:hover:not(:disabled) {
+            transform: translateY(-1px);
+            box-shadow: 0 14px 28px rgba(17, 93, 194, 0.3);
+        }
+
+        .form-content.register .register-form .register-submit-btn:disabled {
+            opacity: .7;
+            cursor: not-allowed;
+        }
+
+        .register-login-link {
+            grid-column: 1 / -1;
+            margin: 6px 0 0;
+            font-size: 14px;
+            color: #5a6f8b;
+            text-align: center;
+        }
+
+        .register-login-link a {
+            color: #0d64d7;
+            font-weight: 600;
+        }
+
+        .form-content.register .validation-summary-errors,
+        .form-content.register .validation-summary-valid {
+            margin-top: 12px;
+            font-size: 13px;
+        }
+
+        .register-approval-note {
             margin-top: 10px;
+            margin-bottom: 0;
+            font-size: 13px;
+            color: #1455ad;
+        }
+
+        .register-success-alert {
+            margin-bottom: 16px;
+            border-radius: 12px;
+            border-color: #c9e7d3;
+        }
+
+        @@media (max-width: 991.98px) {
+            .register-shell {
+                grid-template-columns: 1fr;
+            }
+
+            .register-brand-panel {
+                padding: 32px 24px;
+            }
+
+            .register-form-panel {
+                padding: 30px 22px 24px;
+            }
+        }
+
+        @@media (max-width: 575.98px) {
+            .register-layout {
+                padding: 12px;
+            }
+
+            .register-shell {
+                border-radius: 16px;
+            }
+
+            .form-content.register .register-form {
+                grid-template-columns: 1fr;
+                row-gap: 11px;
+            }
+
+            .register-form-panel .register-title {
+                font-size: 24px;
+            }
         }
     </style>
 </head>
@@ -80,84 +508,158 @@
             }
         }
     </script>
-    <div class="form-body">
-        <div class="website-logo">
-            <a href="index.html">
-                <div class="logo">
-                    <img class="logo-size" src="~/Images/els-white.png" alt="">
+    <div class="register-layout">
+        <div class="register-shell">
+            <div class="register-brand-panel">
+                <div>
+                    <a href="index.html" class="d-inline-block mb-4">
+                        <img class="logo-size" src="~/Images/els-white.png" alt="Excel Laundry Services">
+                    </a>
+                    <div class="register-brand-copy">
+                        <h1>Run Your Laundry Smarter</h1>
+                        <p>Create your Excel Laundry Services account to manage customers, orders, billing, garment tags, and multi-store workflows from one secure platform.</p>
+                        <div class="register-trial-section">
+                            <p class="trial-kicker">Try Excel Laundry Services Risk-Free</p>
+                            <h2 class="trial-title">45-Day Free Trial</h2>
+                            <p class="trial-description">Discover a smarter way to manage your laundry business. Explore our software before committing to a subscription.</p>
+                            <ul class="trial-feature-list">
+                                <li>Customer Management</li>
+                                <li>Order Management</li>
+                                <li>Billing and Invoicing</li>
+                                <li>Garment Tags and Barcode Support</li>
+                                <li>Store Workflow Management</li>
+                                <li>Multi-Store Management</li>
+                            </ul>
+                            <p class="trial-approval-note">Registration requests are reviewed by our Super Admin. You can start using your account after approval.</p>
+                            <div class="register-trial-cta-wrap">
+                                <a class="register-trial-cta" href="@Url.Action("Register", "Login")">Request Your Free Trial</a>
+                            </div>
+                        </div>
+
+                        <div class="register-benefits-section" aria-label="Trial benefits">
+                            <div class="register-benefit-item">
+                                <span class="register-benefit-icon" aria-hidden="true">45</span>
+                                <div class="register-benefit-content">
+                                    <strong>45 Days to Explore</strong>
+                                    <p>Experience the software using the existing trial.</p>
+                                </div>
+                            </div>
+                            <div class="register-benefit-item">
+                                <span class="register-benefit-icon" aria-hidden="true">✓</span>
+                                <div class="register-benefit-content">
+                                    <strong>Simple Setup</strong>
+                                    <p>Get started after account approval.</p>
+                                </div>
+                            </div>
+                            <div class="register-benefit-item">
+                                <span class="register-benefit-icon" aria-hidden="true">★</span>
+                                <div class="register-benefit-content">
+                                    <strong>Business-Focused Features</strong>
+                                    <p>Manage customers, orders, billing, garment tags, and store workflows.</p>
+                                </div>
+                            </div>
+                            <div class="register-benefit-item">
+                                <span class="register-benefit-icon" aria-hidden="true">ℹ</span>
+                                <div class="register-benefit-content">
+                                    <strong>Personalized Demo</strong>
+                                    <p>Contact us to see how the software fits your laundry business.</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="register-contact-demo">
+                            <p class="demo-title">Contact Us for a Personalized Demo</p>
+                            <div class="demo-links">
+                                <a href="mailto:techforgeacademydev@gmail.com">techforgeacademydev@gmail.com</a>
+                                <a href="https://wa.me/919059261259" target="_blank" rel="noopener noreferrer">WhatsApp: +91 90592 61259</a>
+                            </div>
+                        </div>
+                    </div>
                 </div>
-            </a>
-        </div>
-        <div class="row">
-            <div class="img-holder">
-                <div class="bg"></div>
-                <div class="info-holder">
-                    <img src="~/Images/loginimage.png" alt="">
+                <div class="register-brand-image">
+                    <img src="~/Images/loginimage.png" alt="Excel Laundry Services registration">
                 </div>
             </div>
-            <div class="form-holder">
+            <div class="register-form-panel">
                 <div class="form-content register">
-                    <div class="form-items" style="width: 340px;">
-                        <div style="text-align:right; margin-bottom:10px;">
-                            <button id="themeToggleRegister" type="button" class="theme-toggle-btn" onclick="toggleTheme()">Dark Theme</button>
-                        </div>
-                        <img class="logo-size" src="~/Images/els-blue-web.png" alt="" style="width: 180px;margin-bottom: 20px;">
+                    <div class="register-header">
+                        <img src="~/Images/els-blue-web.png" alt="Excel Laundry Services">
+                        <button id="themeToggleRegister" type="button" class="theme-toggle-btn" onclick="toggleTheme()">Dark Theme</button>
+                    </div>
+                    <h2 class="register-title">Create your account</h2>
+                    <p class="register-subtitle">Use your business details to request access. A super admin will review and approve your registration.</p>
                         @{
                              bool disablebtn = false;
                         }
                         @if (Model.Message != null)
                         {
-                            <div class="alert alert-success" role="alert"><strong>Well done!</strong><span class="glyphi glyphicon glyphicon-exclamation-sign"></span>@Model.Message <p> <a href="@Url.Action("Login", "Login")">Login</a> </p></div>
+                            <div class="alert alert-success register-success-alert" role="alert">
+                                <strong>Registration request received successfully.</strong>
+                                <div class="mt-1">@Model.Message</div>
+                                <p class="register-approval-note">Your account remains pending until super admin approval. You can sign in after approval.</p>
+                                <p class="mb-0 mt-2"><a href="@Url.Action("Login", "Login")">Go to Login</a></p>
+                            </div>
                             disablebtn=true; 
                         }
-                        <div class="page-links">
-                            <a href="@Url.Action("Login", "Login")">Login</a> <a class="active" href="@Url.Action("Register", "Login")">Register</a>
-                        </div>
                         @using (Html.BeginForm("Register", "Login", FormMethod.Post, new { @class = "form register-form" }))
                         {
                                 <div class="register-field">
+                                    <label for="FamilyName">First Name</label>
                                     @Html.TextBoxFor(m => m.FamilyName, new { @placeholder = "First Name", @class = "form-control" })
                                     @Html.ValidationMessageFor(m => m.FamilyName, null, new { @class = "text-danger" })
                                 </div>
                                 <div class="register-field">
+                                    <label for="MiddleName">Last Name</label>
                                     @Html.TextBoxFor(m => m.MiddleName, new { @placeholder = "Last Name", @class = "form-control" })
                                     @Html.ValidationMessageFor(m => m.MiddleName, null, new { @class = "text-danger" })
                                 </div>
-                                <div class="register-field">
+                                <div class="register-field register-full">
+                                    <label for="TenantName">Company Name</label>
                                     @Html.TextBoxFor(m => m.TenantName, new { @placeholder = "Company Name", @class = "form-control" })
                                     @Html.ValidationMessageFor(m => m.TenantName, null, new { @class = "text-danger" })
                                 </div>
-                                <div class="register-field">
+                                <div class="register-field register-full">
+                                    <label for="Email">Email Address</label>
                                     @Html.TextBoxFor(m => m.Email, new { @placeholder = "E-mail Address", @class = "form-control" })
                                     @Html.ValidationMessageFor(m => m.Email, null, new { @class = "text-danger" })
                                 </div>
                                 <div class="register-field">
+                                    <label for="PhoneNumber">Phone Number</label>
                                     @Html.TextBoxFor(m => m.PhoneNumber, new { @placeholder = "Phone Number", @class = "form-control" })
                                     @Html.ValidationMessageFor(m => m.PhoneNumber, null, new { @class = "text-danger" })
                                 </div>
                                 <div class="register-field">
+                                    <label for="NoOfStores">Number of Stores</label>
                                     @Html.TextBoxFor(m => m.NoOfStores, new { @placeholder = "Number of Stores", @class = "form-control" })
+                                    <small class="register-helper-text">How many laundry outlets do you currently operate?</small>
                                     @Html.ValidationMessageFor(m => m.NoOfStores, null, new { @class = "text-danger" })
                                 </div>
-                                <div class="register-field">
+                                <div class="register-field register-full">
+                                    <label for="countrySelect">Country</label>
                                     @Html.DropDownListFor(m => m.Country, new Microsoft.AspNetCore.Mvc.Rendering.SelectList(LMSWebUI.Services.CountryCurrencyMapping.GetMappings().Keys), "Select Country", new { @class = "form-control", id = "countrySelect" })
                                     @Html.ValidationMessageFor(m => m.Country, null, new { @class = "text-danger" })
                                 </div>
-                                <div class="register-field">
+                                <div class="register-field currency-technical-field">
+                                    <label for="currencyCode">Currency Code</label>
                                     @Html.TextBoxFor(m => m.CurrencyCode, new { @placeholder = "Currency Code (e.g. INR)", @class = "form-control", id = "currencyCode" })
                                     @Html.ValidationMessageFor(m => m.CurrencyCode, null, new { @class = "text-danger" })
                                 </div>
-                                <div class="register-field">
+                                <div class="register-field currency-technical-field">
+                                    <label for="currencySymbol">Currency Symbol</label>
                                     @Html.TextBoxFor(m => m.CurrencySymbol, new { @placeholder = "Currency Symbol", @class = "form-control", id = "currencySymbol" })
                                 </div>
-                                <div class="register-field">
+                                <div class="register-field currency-technical-field">
+                                    <label for="currencyLocale">Currency Locale</label>
                                     @Html.TextBoxFor(m => m.CurrencyLocale, new { @placeholder = "Currency Locale (e.g. en-IN)", @class = "form-control", id = "currencyLocale" })
                                 </div>
-                                <div class="register-field">
+                                <div class="register-field currency-technical-field">
+                                    <label for="currencyDigits">Decimal Digits</label>
                                     @Html.TextBoxFor(m => m.CurrencyDecimalDigits, new { @placeholder = "Decimal Digits (e.g. 2)", @class = "form-control", id = "currencyDigits", type = "number", min = "0", max = "6" })
                                 </div>
-                                <button id="registerBtn" type="submit" class="ibtn" disabled="@(disablebtn ? "disabled" : null)">Register</button>
-                                <p>Already have an account?  <a href="@Url.Action("Login", "Login")">Login</a></p>
+                                <div class="register-actions">
+                                    <button id="registerBtn" type="submit" class="ibtn register-submit-btn" disabled="@(disablebtn ? "disabled" : null)">Register</button>
+                                    <p class="register-login-link">Already have an account? <a href="@Url.Action("Login", "Login")">Login</a></p>
+                                </div>
                         }
                         @Html.ValidationSummary(excludePropertyErrors: true, message: "", htmlAttributes: new { @class = "text-danger" })
 

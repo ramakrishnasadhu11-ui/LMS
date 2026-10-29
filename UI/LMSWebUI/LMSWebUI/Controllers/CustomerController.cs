@@ -2203,6 +2203,9 @@ namespace LMSWebUI.Controllers
                         approvalReason = (x?["ApprovalReason"] ?? x?["approvalReason"])?.ToString(),
                         approvedBy = (x?["ApprovedBy"] ?? x?["approvedBy"])?.ToString(),
                         approvalDate = (x?["ApprovalDate"] ?? x?["approvalDate"])?.ToString(),
+                        planCode = (x?["PlanCode"] ?? x?["planCode"])?.ToString(),
+                        subscriptionStatus = (x?["SubscriptionStatus"] ?? x?["subscriptionStatus"])?.ToString(),
+                        trialEndUtc = (x?["TrialEndUtc"] ?? x?["trialEndUtc"])?.ToString(),
                         storeCount = (int?)(x?["StoreCount"] ?? x?["storeCount"]) ?? 0
                     })
                     .Where(x => !string.IsNullOrWhiteSpace(x.tenantId))

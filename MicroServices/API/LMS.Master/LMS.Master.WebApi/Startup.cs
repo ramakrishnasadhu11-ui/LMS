@@ -15,6 +15,7 @@ using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.Reflection;
 using System.Text;
@@ -63,6 +64,29 @@ namespace LMS.Master.WebApi
                     options.RequireHttpsMetadata = true;
                     options.Events = new JwtBearerEvents
                     {
+                        OnTokenValidated = context =>
+                        {
+                            var subscriptionStatus = context.Principal?.FindFirst("subscriptionStatus")?.Value;
+                            if (!string.Equals(subscriptionStatus, "TrialActive", StringComparison.OrdinalIgnoreCase))
+                            {
+                                return Task.CompletedTask;
+                            }
+
+                            var trialEndRaw = context.Principal?.FindFirst("trialEndUtc")?.Value;
+                            if (string.IsNullOrWhiteSpace(trialEndRaw)
+                                || !DateTime.TryParse(trialEndRaw, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var trialEndUtc))
+                            {
+                                context.Fail("Trial end date is missing or invalid.");
+                                return Task.CompletedTask;
+                            }
+
+                            if (trialEndUtc.ToUniversalTime() <= DateTime.UtcNow)
+                            {
+                                context.Fail("Trial period has expired.");
+                            }
+
+                            return Task.CompletedTask;
+                        },
                         OnAuthenticationFailed = context =>
                         {
                             var logger = context.HttpContext.RequestServices

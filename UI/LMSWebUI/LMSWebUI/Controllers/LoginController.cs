@@ -423,6 +423,13 @@ namespace LMSWebUI.Controllers
                         return "notApproved|" + blockedMessage;
                     }
 
+                    if (responseMessage != null && responseMessage.StatusCode == "404")
+                    {
+                        HttpContext.Session.Remove(AccessTokenSessionKey);
+                        HttpContext.Session.Remove(AccessTokenExpiresAtUtcSessionKey);
+                        return "userNotFound";
+                    }
+
                     if (responseMessage != null && responseMessage.StatusCode == "200")
                     {
                         if (!string.IsNullOrWhiteSpace(responseMessage.AccessToken))
@@ -1040,6 +1047,20 @@ namespace LMSWebUI.Controllers
                 var responseMessage = await _clientApi.SendRequestAsync<LoginIoResponse>("/TenantLogin", parmsLogin, RestSharp.Method.POST);
                 var isSuperAdmin = responseMessage != null
                     && string.Equals(responseMessage.UserRole, "SuperAdmin", StringComparison.OrdinalIgnoreCase);
+
+                if (responseMessage != null && responseMessage.StatusCode == "404")
+                {
+                    return Json(new
+                    {
+                        success = false,
+                        message = string.IsNullOrWhiteSpace(responseMessage.Message)
+                            ? "User account not found. Please check your email address or contact your administrator."
+                            : responseMessage.Message,
+                        stores = new List<string>(),
+                        role = string.Empty,
+                        isStoreUser = false
+                    });
+                }
 
                 // The credentials are valid but the tenant/store is awaiting approval. The API
                 // message explains why, so it must be surfaced instead of a bad-password error.
