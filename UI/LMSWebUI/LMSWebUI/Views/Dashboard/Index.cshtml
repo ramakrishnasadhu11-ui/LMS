@@ -10,6 +10,27 @@
     var tenantStore = Model?.TenantStore ?? "-";
     var dashboardTitle = Convert.ToString(ViewData["DashboardTitle"] ?? $"Welcome to {Model?.TenantStore} Store");
     var canResumeOnboarding = Convert.ToBoolean(ViewData["CanResumeOnboarding"] ?? false);
+    var showSubscriptionSpotlight = Convert.ToBoolean(ViewData["ShowSubscriptionSpotlight"] ?? false);
+    var currentPlanCode = Convert.ToString(ViewData["CurrentPlanCode"] ?? string.Empty);
+    var currentSubscriptionStatus = Convert.ToString(ViewData["CurrentSubscriptionStatus"] ?? string.Empty);
+    var subscriptionSpotlightVisible = showSubscriptionSpotlight;
+    var plansAndTariffUrl = isAdminUser
+        ? Url.Action("PricingRules", "Customer")
+        : Url.Action("Onboarding", "Dashboard");
+    var subscriptionCtaText = isAdminUser ? "Manage Laundry Pricing" : "Explore Plans & Tariff";
+    var isSubscriptionTrial = string.Equals(currentSubscriptionStatus, "Trial", StringComparison.OrdinalIgnoreCase)
+        || string.Equals(currentSubscriptionStatus, "TrialActive", StringComparison.OrdinalIgnoreCase);
+    var subscriptionStatusClass = string.Equals(currentSubscriptionStatus, "Active", StringComparison.OrdinalIgnoreCase)
+        ? "active"
+        : isSubscriptionTrial
+            ? "trial"
+            : string.Equals(currentSubscriptionStatus, "Suspended", StringComparison.OrdinalIgnoreCase)
+                ? "suspended"
+                : string.Equals(currentSubscriptionStatus, "Expired", StringComparison.OrdinalIgnoreCase)
+                    ? "expired"
+                    : "neutral";
+    var dashboardPlanText = string.IsNullOrWhiteSpace(currentPlanCode) ? "Not configured" : currentPlanCode;
+    var dashboardSubscriptionText = string.IsNullOrWhiteSpace(currentSubscriptionStatus) ? "Not configured" : currentSubscriptionStatus;
     var currentController = Convert.ToString(ViewContext.RouteData.Values["controller"]);
     var currentAction = Convert.ToString(ViewContext.RouteData.Values["action"]);
 
@@ -63,6 +84,193 @@
     .dashboard-body {
         padding: 24px;
         background: var(--els-surface);
+    }
+
+    .subscription-spotlight {
+        margin-bottom: 18px;
+        border-radius: 18px;
+        border: 1px solid rgba(227, 188, 92, 0.4);
+        background: linear-gradient(130deg, #081a45 0%, #123b91 58%, #1f57b8 100%);
+        box-shadow: 0 18px 38px rgba(8, 26, 69, 0.2);
+        color: #fff;
+        overflow: hidden;
+        position: relative;
+        animation: subscriptionFadeIn .45s ease;
+    }
+
+    .subscription-spotlight::after {
+        content: "";
+        position: absolute;
+        right: -90px;
+        top: -72px;
+        width: 220px;
+        height: 220px;
+        border-radius: 50%;
+        background: radial-gradient(circle, rgba(227, 188, 92, 0.25) 0%, rgba(227, 188, 92, 0) 70%);
+        pointer-events: none;
+    }
+
+    .subscription-spotlight-body {
+        padding: 22px;
+        position: relative;
+        z-index: 1;
+        display: grid;
+        grid-template-columns: 1.3fr 1fr;
+        gap: 18px;
+    }
+
+    .subscription-spotlight-title {
+        margin: 0;
+        font-size: 27px;
+        font-weight: 700;
+        line-height: 1.2;
+        letter-spacing: .01em;
+    }
+
+    .subscription-spotlight-subtitle {
+        margin: 10px 0 0;
+        font-size: 14px;
+        color: rgba(255, 255, 255, 0.9);
+    }
+
+    .subscription-spotlight-meta {
+        margin-top: 14px;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+    }
+
+    .subscription-meta-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        border-radius: 999px;
+        border: 1px solid rgba(255, 255, 255, 0.28);
+        background: rgba(255, 255, 255, 0.14);
+        color: #fff;
+        font-size: 12px;
+        font-weight: 700;
+        padding: 6px 12px;
+    }
+
+    .subscription-meta-pill.status.active {
+        background: rgba(16, 185, 129, 0.2);
+        border-color: rgba(16, 185, 129, 0.45);
+    }
+
+    .subscription-meta-pill.status.trial {
+        background: rgba(59, 130, 246, 0.22);
+        border-color: rgba(59, 130, 246, 0.46);
+    }
+
+    .subscription-meta-pill.status.suspended,
+    .subscription-meta-pill.status.expired {
+        background: rgba(239, 68, 68, 0.2);
+        border-color: rgba(239, 68, 68, 0.45);
+    }
+
+    .subscription-plans-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 10px;
+    }
+
+    .subscription-plan-card {
+        border-radius: 12px;
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        background: rgba(255, 255, 255, 0.1);
+        padding: 10px 12px;
+    }
+
+    .subscription-plan-title {
+        margin: 0;
+        font-size: 13px;
+        font-weight: 700;
+        color: #f4d17f;
+        text-transform: uppercase;
+        letter-spacing: .04em;
+    }
+
+    .subscription-plan-copy {
+        margin: 4px 0 0;
+        font-size: 12px;
+        color: rgba(255, 255, 255, 0.9);
+    }
+
+    .subscription-spotlight-actions {
+        margin-top: 14px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        flex-wrap: wrap;
+    }
+
+    .subscription-spotlight-cta {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 10px;
+        border: 1px solid #f0cc77;
+        background: linear-gradient(180deg, #f6d786 0%, #e2b959 100%);
+        color: #1f2937;
+        text-decoration: none;
+        font-size: 14px;
+        font-weight: 700;
+        padding: 10px 16px;
+    }
+
+    .subscription-spotlight-cta:hover,
+    .subscription-spotlight-cta:focus {
+        text-decoration: none;
+        color: #111827;
+        box-shadow: 0 8px 18px rgba(227, 188, 92, 0.32);
+    }
+
+    .subscription-spotlight-dismiss {
+        border: 1px solid rgba(255, 255, 255, 0.35);
+        border-radius: 10px;
+        background: rgba(255, 255, 255, 0.08);
+        color: #fff;
+        padding: 9px 12px;
+        font-size: 13px;
+        font-weight: 600;
+        cursor: pointer;
+    }
+
+    .subscription-entry-point {
+        margin-bottom: 16px;
+        border-radius: 10px;
+        border: 1px solid #d7e3ff;
+        background: #f8fbff;
+        color: #123b91;
+        display: none;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 10px 12px;
+        font-size: 13px;
+        font-weight: 600;
+    }
+
+    .subscription-entry-point a {
+        text-decoration: none;
+        color: #0f2f75;
+        font-weight: 700;
+    }
+
+    .subscription-entry-point a:hover {
+        text-decoration: underline;
+    }
+
+    @@keyframes subscriptionFadeIn {
+        from {
+            opacity: 0;
+            transform: translateY(4px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
     }
 
     .dashboard-header-subtitle {
@@ -1038,6 +1246,21 @@
             grid-template-columns: repeat(2, minmax(120px, 1fr));
         }
 
+        .subscription-spotlight-body {
+            grid-template-columns: 1fr;
+            gap: 12px;
+        }
+
+    }
+
+    @@media (max-width: 640px) {
+        .subscription-spotlight-title {
+            font-size: 22px;
+        }
+
+        .subscription-plans-grid {
+            grid-template-columns: 1fr;
+        }
     }
 
 </style>
@@ -1066,6 +1289,41 @@
             }
         </div>
         <div class="dashboard-body">
+            @if (subscriptionSpotlightVisible)
+            {
+                <div class="subscription-spotlight" id="subscriptionSpotlight">
+                    <div class="subscription-spotlight-body">
+                        <div>
+                            <h3 class="subscription-spotlight-title">Grow your laundry business with the right plan.</h3>
+                            <p class="subscription-spotlight-subtitle">Explore plans and features designed for your laundry business.</p>
+                            <div class="subscription-spotlight-meta">
+                                <span class="subscription-meta-pill">Current plan: @dashboardPlanText</span>
+                                <span class="subscription-meta-pill status @subscriptionStatusClass">Status: @dashboardSubscriptionText</span>
+                            </div>
+                            <div class="subscription-spotlight-actions">
+                                <a class="subscription-spotlight-cta" href="@plansAndTariffUrl">@subscriptionCtaText</a>
+                                <button type="button" class="subscription-spotlight-dismiss" id="subscriptionSpotlightDismiss">Dismiss</button>
+                            </div>
+                        </div>
+                        <div class="subscription-plans-grid" aria-label="Available plans">
+                            <div class="subscription-plan-card">
+                                <p class="subscription-plan-title">Standard</p>
+                                <p class="subscription-plan-copy">For growing laundry operations that need reliable daily workflows.</p>
+                            </div>
+                            <div class="subscription-plan-card">
+                                <p class="subscription-plan-title">Premium</p>
+                                <p class="subscription-plan-copy">For advanced stores needing richer controls and scalability.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            }
+
+            <div class="subscription-entry-point" id="subscriptionEntryPoint" @(subscriptionSpotlightVisible ? "style=display:none;" : "style=display:flex;")>
+                <span>Review your subscription plans and tariff options.</span>
+                <a href="@plansAndTariffUrl">@subscriptionCtaText</a>
+            </div>
+
             @if (!isAdminUser)
             {
                 <div class="live-counter-panel" id="liveCounterPanel">
@@ -1692,6 +1950,7 @@
     var isInvoiceAutocompleteRefresh = false;
     var isAdminDashboardUser = @Html.Raw(isAdminUser.ToString().ToLowerInvariant());
     var isSuperAdminDashboardUser = @Html.Raw(isSuperAdminUser.ToString().ToLowerInvariant());
+    var subscriptionSpotlightStorageKey = "els:subscription-spotlight-dismissed:" + (("@tenantName" || "").toLowerCase());
     var adminInsightsIntervalHandle = null;
     var adminInsightsCountdownHandle = null;
     var adminInsightsNextRefreshAt = null;
@@ -1707,6 +1966,48 @@
         orders: [],
         filteredOrders: []
     };
+
+    (function initializeSubscriptionSpotlight() {
+        var spotlight = document.getElementById("subscriptionSpotlight");
+        var entryPoint = document.getElementById("subscriptionEntryPoint");
+        var dismissBtn = document.getElementById("subscriptionSpotlightDismiss");
+        if (!spotlight && !entryPoint) {
+            return;
+        }
+
+        var dismissed = false;
+        try {
+            dismissed = window.localStorage && localStorage.getItem(subscriptionSpotlightStorageKey) === "1";
+        } catch (_) {
+            dismissed = false;
+        }
+
+        if (dismissed) {
+            if (spotlight) {
+                spotlight.style.display = "none";
+            }
+            if (entryPoint) {
+                entryPoint.style.display = "flex";
+            }
+        }
+
+        if (dismissBtn) {
+            dismissBtn.addEventListener("click", function () {
+                if (spotlight) {
+                    spotlight.style.display = "none";
+                }
+                if (entryPoint) {
+                    entryPoint.style.display = "flex";
+                }
+
+                try {
+                    if (window.localStorage) {
+                        localStorage.setItem(subscriptionSpotlightStorageKey, "1");
+                    }
+                } catch (_) { }
+            });
+        }
+    })();
 
     function asNumber(value) {
         var parsed = Number(value);

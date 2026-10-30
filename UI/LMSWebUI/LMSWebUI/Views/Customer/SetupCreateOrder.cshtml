@@ -2004,10 +2004,39 @@
         var entriesByName = {};
         cfgPickerEntriesByKey = {};
 
-        // Build suggestions strictly from configured price rows in this scope.
+        // Build suggestions from store master rows first, then overlay configured
+        // price rows for the same scope. This keeps newly added master items visible
+        // even before a price is configured.
         // Skipped entirely until a scope is chosen, otherwise rows from different
         // service/category combinations would collapse onto the same item name.
         if (scopeSelected) {
+            masterItems.forEach(function (item) {
+                var itemService = (item.ServiceType || item.serviceType || "").trim();
+                var itemCategory = (item.Category || item.category || "").trim();
+                var itemName = (item.ItemName || item.itemName || "").trim();
+                if (!itemName) {
+                    return;
+                }
+
+                if (itemService.toLowerCase() !== serviceTypeLower || itemCategory.toLowerCase() !== categoryLower) {
+                    return;
+                }
+
+                var isActive = !!(item.IsActive ?? item.isActive ?? true);
+                if (includeInactive !== !isActive) {
+                    return;
+                }
+
+                entriesByName[itemName.toLowerCase()] = {
+                    service: itemService,
+                    category: itemCategory,
+                    name: itemName,
+                    price: 0,
+                    isActive: isActive,
+                    hasPrice: false
+                };
+            });
+
             configuredItems.forEach(function (item) {
                 var itemService = (item.ServiceType || item.serviceType || "").trim();
                 var itemCategory = (item.Category || item.category || "").trim();
@@ -2047,9 +2076,9 @@
             var entry = entriesByName[key];
             entry.pickerKey = [entry.service, entry.category, entry.name, entry.isActive ? "1" : "0"].join("|");
 
-            var statusLabel = entry.hasPrice
-                ? (entry.isActive ? "Priced" : "Inactive")
-                : "No price set";
+                var statusLabel = entry.hasPrice
+                    ? (entry.isActive ? "Priced" : "Inactive")
+                    : (entry.isActive ? "No price set" : "Inactive - no price");
 
             var opt = document.createElement("option");
             opt.value = entry.name;

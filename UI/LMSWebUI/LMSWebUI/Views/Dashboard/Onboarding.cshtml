@@ -2,12 +2,30 @@
 @{
     Layout = "~/Views/Shared/_Layout.cshtml";
     ViewData["HideSidebar"] = true;
-    var plan = string.IsNullOrWhiteSpace(Model?.PlanCode) ? "-" : Model.PlanCode;
-    var subscription = string.IsNullOrWhiteSpace(Model?.SubscriptionStatus) ? "-" : Model.SubscriptionStatus;
+    var plan = string.IsNullOrWhiteSpace(Model?.PlanCode) ? "Not configured" : Model.PlanCode;
+    var planName = string.IsNullOrWhiteSpace(Model?.PlanName) ? plan : Model.PlanName;
+    var subscription = string.IsNullOrWhiteSpace(Model?.SubscriptionStatus) ? "Not configured" : Model.SubscriptionStatus;
+    var accountStatus = string.IsNullOrWhiteSpace(Model?.AccountStatus) ? subscription : Model.AccountStatus;
+    var isTrialStatus = accountStatus.Equals("Trial", StringComparison.OrdinalIgnoreCase)
+        || subscription.Equals("Trial", StringComparison.OrdinalIgnoreCase)
+        || subscription.Equals("TrialActive", StringComparison.OrdinalIgnoreCase);
+    var expiryLabel = isTrialStatus ? "Trial Expiry" : "Subscription Expiry";
+    var statusClass = accountStatus.Equals("Active", StringComparison.OrdinalIgnoreCase)
+        ? "active"
+        : accountStatus.Equals("Trial", StringComparison.OrdinalIgnoreCase)
+            ? "trial"
+            : accountStatus.Equals("Suspended", StringComparison.OrdinalIgnoreCase)
+                ? "suspended"
+                : accountStatus.Equals("Expired", StringComparison.OrdinalIgnoreCase)
+                    ? "expired"
+                    : "neutral";
     var trialEndText = Model?.TrialEndUtc.HasValue == true
-        ? Model.TrialEndUtc.Value.ToUniversalTime().ToString("dd MMM yyyy") + " UTC"
-        : "-";
-    var daysRemainingText = "-";
+        ? Model.TrialEndUtc.Value.ToUniversalTime().ToString("dd MMM yyyy")
+        : "Not configured";
+    var subscriptionExpiryText = Model?.SubscriptionExpiryUtc.HasValue == true
+        ? Model.SubscriptionExpiryUtc.Value.ToUniversalTime().ToString("dd MMM yyyy")
+        : "Not configured";
+    var daysRemainingText = "Not configured";
     if (Model?.TrialDaysRemaining.HasValue == true)
     {
         daysRemainingText = Model.TrialDaysRemaining.Value >= 0
@@ -15,141 +33,362 @@
             : "Expired";
     }
 
+    var storePlanText = string.IsNullOrWhiteSpace(Model?.StorePlanCode)
+        ? "Not configured"
+        : Model.StorePlanCode + " (Shared)";
+    var storeSubscriptionText = string.IsNullOrWhiteSpace(Model?.StoreSubscriptionStatus)
+        ? "Not configured"
+        : Model.StoreSubscriptionStatus;
+    var storeTrialEndText = Model?.StoreTrialEndUtc.HasValue == true
+        ? Model.StoreTrialEndUtc.Value.ToUniversalTime().ToString("dd MMM yyyy")
+        : "Not configured";
+    var storeDaysRemainingText = "Not configured";
+    if (Model?.StoreTrialDaysRemaining.HasValue == true)
+    {
+        storeDaysRemainingText = Model.StoreTrialDaysRemaining.Value >= 0
+            ? Model.StoreTrialDaysRemaining.Value.ToString()
+            : "Expired";
+    }
+    else if (storeSubscriptionText.Equals("Active", StringComparison.OrdinalIgnoreCase))
+    {
+        storeDaysRemainingText = "Not applicable";
+    }
+
+    var registeredDomains = string.IsNullOrWhiteSpace(Model?.RegisteredDomains)
+        ? "Not configured"
+        : Model.RegisteredDomains;
+    var backupServiceStatus = string.IsNullOrWhiteSpace(Model?.BackupServiceStatus)
+        ? "Not configured"
+        : Model.BackupServiceStatus;
+
     var demoUrl = Convert.ToString(ViewData["OnboardingDemoUrl"] ?? string.Empty);
     var onboardingError = Convert.ToString(TempData["OnboardingError"] ?? string.Empty);
+
+    var checklistTotalSteps = 5;
+    var businessStoreSettingsCompleted = Model?.IsBusinessStoreSettingsCompleted == true;
+    var laundryPricesCompleted = Model?.IsLaundryPricesCompleted == true;
+    var barcodeTagsCompleted = Model?.IsBarcodeTagsCompleted == true;
+    var firstCustomerCompleted = Model?.IsFirstCustomerCompleted == true;
+    var firstOrderCompleted = Model?.IsFirstOrderCompleted == true;
+    var checklistCompletedSteps = (businessStoreSettingsCompleted ? 1 : 0)
+        + (laundryPricesCompleted ? 1 : 0)
+        + (barcodeTagsCompleted ? 1 : 0)
+        + (firstCustomerCompleted ? 1 : 0)
+        + (firstOrderCompleted ? 1 : 0);
+    var checklistPercentage = (int)Math.Round((double)checklistCompletedSteps * 100 / checklistTotalSteps, MidpointRounding.AwayFromZero);
 }
 
 <style>
     .onboarding-page {
-        padding: 24px;
+        padding: 24px 20px;
+        background: #f5f8ff;
     }
 
     .onboarding-box {
-        max-width: 1200px;
+        max-width: 1160px;
         margin: 0 auto;
-        background: var(--els-surface);
-        border: 1px solid var(--els-border);
-        border-radius: 12px;
-        box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+        background: #ffffff;
+        border: 1px solid #dbe7ff;
+        border-radius: 18px;
+        box-shadow: 0 12px 34px rgba(7, 37, 88, 0.08);
         overflow: hidden;
     }
 
-    .onboarding-header {
-        background: linear-gradient(90deg, var(--els-primary) 0%, var(--els-primary-dark) 100%);
+    .onboarding-hero {
+        background: linear-gradient(130deg, #0a1f4f 0%, #123b91 58%, #1d58c7 100%);
         color: #fff;
-        padding: 22px;
+        padding: 26px 28px;
     }
 
-    .onboarding-header h2 {
+    .hero-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        background: rgba(255, 255, 255, 0.16);
+        border: 1px solid rgba(255, 255, 255, 0.24);
+        border-radius: 999px;
+        padding: 6px 12px;
+        font-size: 12px;
+        font-weight: 700;
+        letter-spacing: .02em;
+        text-transform: uppercase;
+    }
+
+    .hero-title {
+        margin: 14px 0 6px;
+        font-size: 28px;
+        font-weight: 700;
+        line-height: 1.2;
+    }
+
+    .hero-subtitle {
         margin: 0;
-        font-size: 26px;
-        font-weight: 600;
-    }
-
-    .onboarding-subtitle {
-        margin-top: 8px;
+        max-width: 760px;
+        opacity: 0.96;
         font-size: 14px;
-        opacity: 0.95;
+        line-height: 1.6;
     }
 
     .onboarding-content {
-        padding: 22px;
+        padding: 26px;
     }
 
-    .onboarding-grid {
+    .section-card {
+        border: 1px solid #e2eafc;
+        border-radius: 14px;
+        background: #fff;
+        box-shadow: 0 4px 14px rgba(10, 31, 79, 0.04);
+        margin-bottom: 16px;
+        overflow: hidden;
+    }
+
+    .section-head {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin: 0;
+        padding: 14px 16px;
+        border-bottom: 1px solid #edf2ff;
+        color: #0e2a66;
+        font-size: 16px;
+        font-weight: 700;
+    }
+
+    .section-body {
+        padding: 16px;
+    }
+
+    .section-grid {
         display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        grid-template-columns: repeat(2, minmax(0, 1fr));
         gap: 12px;
-        margin-bottom: 18px;
     }
 
-    .onboarding-card {
-        border: 1px solid var(--els-border);
+    .info-item {
+        border: 1px solid #e8efff;
         border-radius: 10px;
         padding: 12px;
-        background: #fff;
+        background: #fdfefe;
     }
 
-    .onboarding-card-label {
+    .info-label {
         margin: 0 0 6px;
-        font-size: 12px;
-        font-weight: 600;
-        color: var(--els-text-muted, #64748b);
+        font-size: 11px;
+        font-weight: 700;
+        color: #6b7ea9;
+        letter-spacing: .05em;
         text-transform: uppercase;
-        letter-spacing: .03em;
     }
 
-    .onboarding-card-value {
+    .info-value {
         margin: 0;
-        font-size: 16px;
+        color: #0f172a;
+        font-size: 15px;
         font-weight: 600;
-        color: #1f2937;
+        line-height: 1.45;
+        word-break: break-word;
+    }
+
+    .status-pill {
+        display: inline-flex;
+        align-items: center;
+        border-radius: 999px;
+        padding: 3px 10px;
+        border: 1px solid;
+        font-size: 12px;
+        font-weight: 700;
+    }
+
+    .status-pill.active {
+        background: rgba(16, 185, 129, 0.14);
+        border-color: rgba(16, 185, 129, 0.38);
+        color: #047857;
+    }
+
+    .status-pill.trial {
+        background: rgba(59, 130, 246, 0.14);
+        border-color: rgba(59, 130, 246, 0.38);
+        color: #1d4ed8;
+    }
+
+    .status-pill.expired,
+    .status-pill.suspended {
+        background: rgba(239, 68, 68, 0.14);
+        border-color: rgba(239, 68, 68, 0.38);
+        color: #b91c1c;
+    }
+
+    .status-pill.neutral {
+        background: rgba(100, 116, 139, 0.14);
+        border-color: rgba(100, 116, 139, 0.38);
+        color: #475569;
+    }
+
+    .onboarding-error {
+        margin: 0 0 16px;
+        border: 1px solid #f3b2b2;
+        border-radius: 10px;
+        background: #fff6f6;
+        color: #be123c;
+        font-size: 13px;
+        font-weight: 600;
+        padding: 10px 12px;
     }
 
     .checklist {
-        margin: 10px 0 0;
-        padding-left: 0;
+        margin: 0;
+        padding: 0;
         list-style: none;
         display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-        gap: 10px;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px;
     }
 
-    .checklist li {
-        border: 1px solid var(--els-border);
-        border-radius: 8px;
-        padding: 10px;
-        background: #fff;
+    .checklist-progress {
+        margin-bottom: 14px;
     }
 
-    .checklist a {
-        color: var(--els-primary);
-        font-weight: 600;
+    .checklist-progress-meta {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 8px;
+        color: #0f2559;
+        font-size: 13px;
+        font-weight: 700;
+    }
+
+    .checklist-progress-bar {
+        height: 9px;
+        border-radius: 999px;
+        background: #e7efff;
+        overflow: hidden;
+        border: 1px solid #d6e3ff;
+    }
+
+    .checklist-progress-fill {
+        height: 100%;
+        border-radius: 999px;
+        background: linear-gradient(90deg, #16a34a 0%, #22c55e 100%);
+        transition: width .2s ease;
+    }
+
+    .checklist-link {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
         text-decoration: none;
+        border: 1px solid #e4ecff;
+        border-radius: 10px;
+        padding: 12px;
+        background: #f9fbff;
+        color: #0f172a;
+        transition: all .2s ease;
     }
 
-    .checklist a:hover {
-        text-decoration: underline;
+    .checklist-link:hover {
+        border-color: #aec8ff;
+        background: #f1f6ff;
+        transform: translateY(-1px);
+    }
+
+    .checklist-link.completed {
+        border-color: #b7e7cc;
+        background: #f5fff9;
+    }
+
+    .checklist-main {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-size: 14px;
+        font-weight: 600;
+        color: #0f2559;
+    }
+
+    .icon-wrap {
+        width: 28px;
+        height: 28px;
+        border-radius: 8px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        background: #e9f1ff;
+        color: #1d4ed8;
+        flex-shrink: 0;
+    }
+
+    .step-status-icon {
+        width: 20px;
+        height: 20px;
+        flex-shrink: 0;
+    }
+
+    .step-status-icon.completed {
+        color: #16a34a;
+    }
+
+    .step-status-icon.pending {
+        color: #94a3b8;
+    }
+
+    .icon-sm {
+        width: 16px;
+        height: 16px;
     }
 
     .onboarding-actions {
-        margin-top: 22px;
-        display: flex;
-        flex-wrap: wrap;
+        margin-top: 18px;
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
         gap: 10px;
     }
 
     .onboarding-btn {
         border: 1px solid transparent;
-        border-radius: 8px;
-        padding: 10px 14px;
+        border-radius: 10px;
+        padding: 11px 14px;
         font-size: 14px;
         font-weight: 600;
         cursor: pointer;
+        text-align: center;
+        transition: all .2s ease;
     }
 
     .onboarding-btn.primary {
-        background: var(--els-primary);
-        border-color: var(--els-primary);
+        background: #0f2f75;
+        border-color: #0f2f75;
         color: #fff;
+    }
+
+    .onboarding-btn.primary:hover {
+        background: #0b2359;
+        border-color: #0b2359;
     }
 
     .onboarding-btn.secondary {
         background: #fff;
-        border-color: var(--els-border);
-        color: #1f2937;
+        border-color: #cddcf8;
+        color: #123b91;
+    }
+
+    .onboarding-btn.secondary:hover {
+        border-color: #9cb9ef;
+        background: #f4f8ff;
     }
 
     .onboarding-support {
         margin-top: 16px;
-        border-top: 1px solid var(--els-border);
+        border-top: 1px solid #e5edff;
         padding-top: 14px;
         font-size: 13px;
-        color: #374151;
+        color: #4b5d87;
     }
 
     .onboarding-support a {
-        color: var(--els-primary);
+        color: #123b91;
         text-decoration: none;
     }
 
@@ -157,23 +396,51 @@
         text-decoration: underline;
     }
 
-    .onboarding-error {
-        margin: 0 0 16px;
-        border: 1px solid var(--els-danger);
-        border-radius: 8px;
-        background: rgba(201, 48, 44, 0.08);
-        color: var(--els-danger);
-        font-size: 13px;
-        font-weight: 600;
-        padding: 10px 12px;
+    .onboarding-footer {
+        border-top: 1px solid #e6edff;
+        background: #fafcff;
+        color: #5b6f98;
+        text-align: center;
+        font-size: 12px;
+        padding: 12px 14px;
+    }
+
+    @@media (max-width: 991px) {
+        .section-grid,
+        .checklist,
+        .onboarding-actions {
+            grid-template-columns: 1fr;
+        }
+    }
+
+    @@media (max-width: 768px) {
+        .onboarding-page {
+            padding: 14px;
+        }
+
+        .onboarding-content {
+            padding: 16px;
+        }
+
+        .onboarding-hero {
+            padding: 20px 16px;
+        }
+
+        .hero-title {
+            font-size: 22px;
+        }
     }
 </style>
 
 <section class="content onboarding-page">
     <div class="onboarding-box">
-        <div class="onboarding-header">
-            <h2>Welcome, @(string.IsNullOrWhiteSpace(Model?.TenantName) ? "Tenant" : Model.TenantName)</h2>
-            <p class="onboarding-subtitle">Let’s quickly review your tenant setup before you start daily operations.</p>
+        <div class="onboarding-hero">
+            <span class="hero-badge">
+                <svg class="icon-sm" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 7h18M6 3h12a2 2 0 012 2v14a2 2 0 01-2 2H6a2 2 0 01-2-2V5a2 2 0 012-2z" /></svg>
+                Excel Laundry Services
+            </span>
+            <h1 class="hero-title">Welcome, @(string.IsNullOrWhiteSpace(Model?.TenantName) ? "Tenant" : Model.TenantName)</h1>
+            <p class="hero-subtitle">Let’s complete your workspace onboarding quickly so your team can start smooth daily laundry operations.</p>
         </div>
 
         <div class="onboarding-content">
@@ -182,37 +449,161 @@
                 <div class="onboarding-error">@onboardingError</div>
             }
 
-            <div class="onboarding-grid">
-                <div class="onboarding-card">
-                    <p class="onboarding-card-label">Store</p>
-                    <p class="onboarding-card-value">@(string.IsNullOrWhiteSpace(Model?.TenantStore) ? "-" : Model.TenantStore)</p>
-                </div>
-                <div class="onboarding-card">
-                    <p class="onboarding-card-label">Plan</p>
-                    <p class="onboarding-card-value">@plan</p>
-                </div>
-                <div class="onboarding-card">
-                    <p class="onboarding-card-label">Subscription</p>
-                    <p class="onboarding-card-value">@subscription</p>
-                </div>
-                <div class="onboarding-card">
-                    <p class="onboarding-card-label">Trial Ends</p>
-                    <p class="onboarding-card-value">@trialEndText</p>
-                </div>
-                <div class="onboarding-card">
-                    <p class="onboarding-card-label">Days Remaining</p>
-                    <p class="onboarding-card-value">@daysRemainingText</p>
+            <div class="section-card">
+                <h2 class="section-head">
+                    <svg class="icon-sm" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m5 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                    Subscription Overview
+                </h2>
+                <div class="section-body">
+                    <div class="section-grid">
+                        <div class="info-item">
+                            <p class="info-label">Tenant / Business Name</p>
+                            <p class="info-value">@(string.IsNullOrWhiteSpace(Model?.TenantName) ? "Not configured" : Model.TenantName)</p>
+                        </div>
+                        <div class="info-item">
+                            <p class="info-label">Account Status</p>
+                            <p class="info-value"><span class="status-pill @statusClass">@accountStatus</span></p>
+                        </div>
+                        <div class="info-item">
+                            <p class="info-label">Plan Name / Plan Code</p>
+                            <p class="info-value">@planName</p>
+                        </div>
+                        <div class="info-item">
+                            <p class="info-label">@expiryLabel</p>
+                            <p class="info-value">@subscriptionExpiryText</p>
+                        </div>
+                        <div class="info-item">
+                            <p class="info-label">Trial Days Remaining</p>
+                            <p class="info-value">@daysRemainingText</p>
+                        </div>
+                        <div class="info-item">
+                            <p class="info-label">Registered Domains</p>
+                            <p class="info-value">@registeredDomains</p>
+                        </div>
+                        <div class="info-item">
+                            <p class="info-label">Backup Service Status</p>
+                            <p class="info-value">@backupServiceStatus</p>
+                        </div>
+                    </div>
                 </div>
             </div>
 
-            <h3 style="margin:0 0 8px; font-size:18px;">Optional setup checklist</h3>
-            <ul class="checklist">
-                <li><a href="@Url.Action("StoreTimings", "Customer")">Business / Store settings</a></li>
-                <li><a href="@Url.Action("ImportExportPricesCsv", "Customer")">Laundry prices</a></li>
-                <li><a href="@Url.Action("BarcodeTagSettings", "Customer")">Barcode tags</a></li>
-                <li><a href="@Url.Action("AddNewCustomer", "Customer")">Add first customer</a></li>
-                <li><a href="@Url.Action("SetupCreateOrder", "Customer")">Create first order</a></li>
-            </ul>
+            <div class="section-card">
+                <h2 class="section-head">
+                    <svg class="icon-sm" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M17 20h5V4H2v16h5m10 0v-8H7v8m10 0H7" /></svg>
+                    Store Subscription Details
+                </h2>
+                <div class="section-body">
+                    <div class="section-grid">
+                        <div class="info-item">
+                            <p class="info-label">Store Code</p>
+                            <p class="info-value">@(string.IsNullOrWhiteSpace(Model?.TenantStore) ? "Not configured" : Model.TenantStore)</p>
+                            <p style="margin:6px 0 0; font-size:12px; color:#5b6f98;">This store is covered by your tenant subscription.</p>
+                        </div>
+                        <div class="info-item">
+                            <p class="info-label">Store Plan</p>
+                            <p class="info-value">@storePlanText</p>
+                        </div>
+                        <div class="info-item">
+                            <p class="info-label">Store Subscription Status</p>
+                            <p class="info-value">@storeSubscriptionText</p>
+                        </div>
+                        <div class="info-item">
+                            <p class="info-label">Trial Expiry</p>
+                            <p class="info-value">@storeTrialEndText</p>
+                        </div>
+                        <div class="info-item">
+                            <p class="info-label">Remaining Days</p>
+                            <p class="info-value">@storeDaysRemainingText</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="section-card">
+                <h2 class="section-head">
+                    <svg class="icon-sm" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" /></svg>
+                    Getting Started Checklist
+                </h2>
+                <div class="section-body">
+                    <div class="checklist-progress">
+                        <div class="checklist-progress-meta">
+                            <span>@checklistCompletedSteps / @checklistTotalSteps completed</span>
+                            <span>@checklistPercentage%</span>
+                        </div>
+                        <div class="checklist-progress-bar">
+                            <div class="checklist-progress-fill" style="width:@checklistPercentage%;"></div>
+                        </div>
+                    </div>
+                    <ul class="checklist">
+                        <li>
+                            <a class="checklist-link @(businessStoreSettingsCompleted ? "completed" : string.Empty)" href="@Url.Action("StoreTimings", "Customer")">
+                                <span class="checklist-main"><span class="icon-wrap"><svg class="icon-sm" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 7h18M8 3v4m8-4v4M5 11h14v8H5z" /></svg></span>Business / Store settings</span>
+                                @if (businessStoreSettingsCompleted)
+                                {
+                                    <svg class="step-status-icon completed" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" /></svg>
+                                }
+                                else
+                                {
+                                    <svg class="step-status-icon pending" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9" /></svg>
+                                }
+                            </a>
+                        </li>
+                        <li>
+                            <a class="checklist-link @(laundryPricesCompleted ? "completed" : string.Empty)" href="@Url.Action("ImportExportPricesCsv", "Customer")">
+                                <span class="checklist-main"><span class="icon-wrap"><svg class="icon-sm" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 7h16M4 12h10M4 17h7" /></svg></span>Laundry prices</span>
+                                @if (laundryPricesCompleted)
+                                {
+                                    <svg class="step-status-icon completed" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" /></svg>
+                                }
+                                else
+                                {
+                                    <svg class="step-status-icon pending" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9" /></svg>
+                                }
+                            </a>
+                        </li>
+                        <li>
+                            <a class="checklist-link @(barcodeTagsCompleted ? "completed" : string.Empty)" href="@Url.Action("BarcodeTagSettings", "Customer")">
+                                <span class="checklist-main"><span class="icon-wrap"><svg class="icon-sm" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 6h2v12H4zm4 0h1v12H8zm3 0h2v12h-2zm4 0h1v12h-1zm3 0h2v12h-2z" /></svg></span>Barcode tags</span>
+                                @if (barcodeTagsCompleted)
+                                {
+                                    <svg class="step-status-icon completed" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" /></svg>
+                                }
+                                else
+                                {
+                                    <svg class="step-status-icon pending" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9" /></svg>
+                                }
+                            </a>
+                        </li>
+                        <li>
+                            <a class="checklist-link @(firstCustomerCompleted ? "completed" : string.Empty)" href="@Url.Action("AddNewCustomer", "Customer")">
+                                <span class="checklist-main"><span class="icon-wrap"><svg class="icon-sm" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M16 11c1.657 0 3-1.567 3-3.5S17.657 4 16 4s-3 1.567-3 3.5 1.343 3.5 3 3.5zM8 11c1.657 0 3-1.567 3-3.5S9.657 4 8 4 5 5.567 5 7.5 6.343 11 8 11zm0 2c-2.761 0-5 1.79-5 4v1h10v-1c0-2.21-2.239-4-5-4zm8 0c-1.174 0-2.253.323-3.125.86A5.35 5.35 0 0115 17v1h6v-1c0-2.21-2.239-4-5-4z" /></svg></span>Add first customer</span>
+                                @if (firstCustomerCompleted)
+                                {
+                                    <svg class="step-status-icon completed" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" /></svg>
+                                }
+                                else
+                                {
+                                    <svg class="step-status-icon pending" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9" /></svg>
+                                }
+                            </a>
+                        </li>
+                        <li>
+                            <a class="checklist-link @(firstOrderCompleted ? "completed" : string.Empty)" href="@Url.Action("SetupCreateOrder", "Customer")">
+                                <span class="checklist-main"><span class="icon-wrap"><svg class="icon-sm" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 7h18M6 3v4m12-4v4M5 11h14v10H5z" /></svg></span>Create first order</span>
+                                @if (firstOrderCompleted)
+                                {
+                                    <svg class="step-status-icon completed" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" /></svg>
+                                }
+                                else
+                                {
+                                    <svg class="step-status-icon pending" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9" /></svg>
+                                }
+                            </a>
+                        </li>
+                    </ul>
+                </div>
+            </div>
 
             <div class="onboarding-actions">
                 <form asp-action="CompleteOnboarding" asp-controller="Dashboard" method="post">
@@ -225,7 +616,7 @@
                     <button type="submit" class="onboarding-btn secondary">Skip for now</button>
                 </form>
 
-                <a class="onboarding-btn secondary" href="@Url.Action("Index", "Dashboard")" style="text-decoration:none; display:inline-flex; align-items:center;">Go to dashboard</a>
+                <a class="onboarding-btn secondary" href="@Url.Action("Index", "Dashboard", new { skipOnboardingGate = true })" style="text-decoration:none; display:inline-flex; align-items:center;">Go to dashboard</a>
                 @if (!string.IsNullOrWhiteSpace(demoUrl))
                 {
                     <a class="onboarding-btn secondary" href="@demoUrl" target="_blank" rel="noopener" style="text-decoration:none; display:inline-flex; align-items:center;">View demo</a>
@@ -239,5 +630,6 @@
                 <p style="margin:0;">Website: <a href="https://els.techforgedev.in/" target="_blank" rel="noopener">https://els.techforgedev.in/</a></p>
             </div>
         </div>
+        <div class="onboarding-footer">© @DateTime.UtcNow.Year Excel Laundry Services. Built for modern laundry operations.</div>
     </div>
 </section>

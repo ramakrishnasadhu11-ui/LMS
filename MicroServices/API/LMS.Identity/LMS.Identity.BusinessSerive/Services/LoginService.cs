@@ -1820,8 +1820,8 @@ namespace LMS.Identity.BusinessSerive.Services
 
         public async Task<ActionReturnType> GetStoreConfiguration(string tenantEmail, string storeCode)
         {
-            // tenantEmail is required; storeCode may be empty string to indicate tenant-level configuration
-            if (string.IsNullOrWhiteSpace(tenantEmail) || storeCode == null)
+            // tenantEmail is required; storeCode may be empty string (or omitted) to indicate tenant-level configuration
+            if (string.IsNullOrWhiteSpace(tenantEmail))
             {
                 return ActionSet.ActionReturnType(HttpStatusCode.BadRequest, new IOResponse
                 {
@@ -1829,6 +1829,8 @@ namespace LMS.Identity.BusinessSerive.Services
                     Message = "Tenant email is required. Store code may be empty for tenant-level configuration."
                 });
             }
+
+            storeCode ??= string.Empty;
 
             var tenant = await GetTenantByEmailAsync(tenantEmail.Trim());
             if (tenant == null)
