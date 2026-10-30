@@ -7127,76 +7127,97 @@ namespace LMSWebUI.Controllers
                 var items = await _clientApi.SendRequestAsync<List<StoreItemMasterDto>>("/GetStoreItemMasters", query, Method.GET)
                             ?? new List<StoreItemMasterDto>();
 
-                if (!services.Any() && !items.Any())
+                var defaultPrices = await _clientApi.SendRequestAsync<List<LaundryItemPriceDto>>("/GetLaundryItemPrices", query, Method.GET)
+                                   ?? new List<LaundryItemPriceDto>();
+
+                if (defaultPrices.Any())
                 {
-                    var defaultPrices = await _clientApi.SendRequestAsync<List<LaundryItemPriceDto>>("/GetLaundryItemPrices", query, Method.GET)
-                                       ?? new List<LaundryItemPriceDto>();
+                    var now = DateTime.UtcNow;
 
-                    if (defaultPrices.Any())
-                    {
-                        var now = DateTime.UtcNow;
+                    var defaultServiceMasters = defaultPrices
+                        .Select(x => (x.ServiceType ?? string.Empty).Trim())
+                        .Where(x => !string.IsNullOrWhiteSpace(x))
+                        .Distinct(StringComparer.OrdinalIgnoreCase)
+                        .Select(x => new StoreServiceMasterDto
+                        {
+                            TenantName = tenantName,
+                            StoreCode = storeCode,
+                            MasterType = "Service",
+                            Name = x,
+                            IsActive = true,
+                            CreatedDate = now,
+                            ModifiedDate = now
+                        })
+                        .ToList();
 
-                        var serviceMasters = defaultPrices
-                            .Select(x => (x.ServiceType ?? string.Empty).Trim())
-                            .Where(x => !string.IsNullOrWhiteSpace(x))
-                            .Distinct(StringComparer.OrdinalIgnoreCase)
-                            .Select(x => new StoreServiceMasterDto
+                    var defaultCategoryMasters = defaultPrices
+                        .Select(x => (x.Category ?? string.Empty).Trim())
+                        .Where(x => !string.IsNullOrWhiteSpace(x))
+                        .Distinct(StringComparer.OrdinalIgnoreCase)
+                        .Select(x => new StoreServiceMasterDto
+                        {
+                            TenantName = tenantName,
+                            StoreCode = storeCode,
+                            MasterType = "Category",
+                            Name = x,
+                            IsActive = true,
+                            CreatedDate = now,
+                            ModifiedDate = now
+                        })
+                        .ToList();
+
+                    var defaultItems = defaultPrices
+                        .Where(x => !string.IsNullOrWhiteSpace(x.ServiceType)
+                                    && !string.IsNullOrWhiteSpace(x.Category)
+                                    && !string.IsNullOrWhiteSpace(x.ItemName))
+                        .GroupBy(x => new
+                        {
+                            ServiceType = x.ServiceType.Trim().ToLowerInvariant(),
+                            Category = x.Category.Trim().ToLowerInvariant(),
+                            ItemName = x.ItemName.Trim().ToLowerInvariant()
+                        })
+                        .Select(g =>
+                        {
+                            var row = g.First();
+                            return new StoreItemMasterDto
                             {
                                 TenantName = tenantName,
                                 StoreCode = storeCode,
-                                MasterType = "Service",
-                                Name = x,
-                                IsActive = true,
+                                ServiceType = row.ServiceType?.Trim(),
+                                Category = row.Category?.Trim(),
+                                ItemName = row.ItemName?.Trim(),
+                                IsActive = g.Any(x => x.IsActive),
                                 CreatedDate = now,
                                 ModifiedDate = now
-                            });
+                            };
+                        })
+                        .ToList();
 
-                        var categoryMasters = defaultPrices
-                            .Select(x => (x.Category ?? string.Empty).Trim())
-                            .Where(x => !string.IsNullOrWhiteSpace(x))
-                            .Distinct(StringComparer.OrdinalIgnoreCase)
-                            .Select(x => new StoreServiceMasterDto
-                            {
-                                TenantName = tenantName,
-                                StoreCode = storeCode,
-                                MasterType = "Category",
-                                Name = x,
-                                IsActive = true,
-                                CreatedDate = now,
-                                ModifiedDate = now
-                            });
+                    var existingServiceKeys = new HashSet<string>(
+                        services
+                            .Where(x => string.Equals(x.MasterType, "Service", StringComparison.OrdinalIgnoreCase))
+                            .Select(x => x.Name ?? string.Empty),
+                        StringComparer.OrdinalIgnoreCase);
 
-                        services = serviceMasters
-                            .Concat(categoryMasters)
-                            .ToList();
+                    var existingCategoryKeys = new HashSet<string>(
+                        services
+                            .Where(x => string.Equals(x.MasterType, "Category", StringComparison.OrdinalIgnoreCase))
+                            .Select(x => x.Name ?? string.Empty),
+                        StringComparer.OrdinalIgnoreCase);
 
-                        items = defaultPrices
-                            .Where(x => !string.IsNullOrWhiteSpace(x.ServiceType)
-                                        && !string.IsNullOrWhiteSpace(x.Category)
-                                        && !string.IsNullOrWhiteSpace(x.ItemName))
-                            .GroupBy(x => new
-                            {
-                                ServiceType = x.ServiceType.Trim().ToLowerInvariant(),
-                                Category = x.Category.Trim().ToLowerInvariant(),
-                                ItemName = x.ItemName.Trim().ToLowerInvariant()
-                            })
-                            .Select(g =>
-                            {
-                                var row = g.First();
-                                return new StoreItemMasterDto
-                                {
-                                    TenantName = tenantName,
-                                    StoreCode = storeCode,
-                                    ServiceType = row.ServiceType?.Trim(),
-                                    Category = row.Category?.Trim(),
-                                    ItemName = row.ItemName?.Trim(),
-                                    IsActive = g.Any(x => x.IsActive),
-                                    CreatedDate = now,
-                                    ModifiedDate = now
-                                };
-                            })
-                            .ToList();
-                    }
+                    var existingItemKeys = new HashSet<string>(
+                        items.Select(x => BuildLaundryItemKey(x.ServiceType, x.Category, x.ItemName)),
+                        StringComparer.OrdinalIgnoreCase);
+
+                    var mergedServices = services.ToList();
+                    mergedServices.AddRange(defaultServiceMasters.Where(x => !existingServiceKeys.Contains(x.Name ?? string.Empty)));
+                    mergedServices.AddRange(defaultCategoryMasters.Where(x => !existingCategoryKeys.Contains(x.Name ?? string.Empty)));
+
+                    var mergedItems = items.ToList();
+                    mergedItems.AddRange(defaultItems.Where(x => !existingItemKeys.Contains(BuildLaundryItemKey(x.ServiceType, x.Category, x.ItemName))));
+
+                    services = mergedServices;
+                    items = mergedItems;
                 }
 
                 return Json(new

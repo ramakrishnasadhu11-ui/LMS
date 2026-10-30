@@ -404,7 +404,6 @@
     }
 
     setStoresState(false, existingStoresLoadError, existingStoreStatuses);
-    bindStoreToggleHandlers();
     loadStoreStatuses();
 
     function showResult(message, isSuccess) {
@@ -473,7 +472,6 @@
             }
 
             setStoresState(false, "", existingStoreStatuses);
-            bindStoreToggleHandlers();
             loadStoreStatuses();
 
             if (storeCodeInput) {

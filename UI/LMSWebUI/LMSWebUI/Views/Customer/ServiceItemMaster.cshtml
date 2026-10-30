@@ -19,72 +19,245 @@
     box-sizing: border-box;
 }
 
-.master-page { padding: 20px; }
+.master-page {
+    padding: 20px;
+    background: linear-gradient(180deg, #f2f6ff 0%, #f8fbff 240px, #f7f9fc 100%);
+}
 .master-box {
-    max-width: 1180px;
+    max-width: 1240px;
     margin: 0 auto;
-    background: var(--els-surface);
-    border-radius: 10px;
-    box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+    background: #ffffff;
+    border-radius: 16px;
+    border: 1px solid #d4e0f6;
+    box-shadow: 0 16px 32px rgba(8, 35, 85, 0.10);
     overflow: hidden;
 }
 .master-title {
-    background: linear-gradient(90deg, var(--els-primary) 0%, var(--els-primary-dark) 100%);
+    background: linear-gradient(125deg, #081f50 0%, #123b91 62%, #1d58bf 100%);
     color: #fff;
-    padding: 14px 20px;
-    font-size: 20px;
-    font-weight: 600;
+    padding: 18px 22px;
+}
+.master-title-content {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+.master-title-main {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 23px;
+    font-weight: 700;
+    letter-spacing: 0.2px;
+}
+.master-title-icon {
+    width: 34px;
+    height: 34px;
+    border-radius: 10px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    background: rgba(255, 255, 255, 0.18);
+    border: 1px solid rgba(255, 255, 255, 0.28);
+}
+.master-title-chip-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    justify-content: flex-end;
 }
 .master-body { padding: 20px; }
-.master-note {
-    border: 1px solid var(--els-border);
-    border-radius: 8px;
-    background: var(--els-accent);
-    padding: 12px;
-    margin-bottom: 16px;
-    color: var(--els-text);
+.master-subtitle {
+    margin: 7px 0 0;
     font-size: 13px;
+    color: rgba(255, 255, 255, 0.95);
+    font-weight: 500;
+}
+.master-context-row {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+    margin-bottom: 14px;
+}
+.master-context-pill {
+    border: 1px solid rgba(255, 255, 255, 0.24);
+    border-radius: 999px;
+    padding: 7px 11px;
+    background: rgba(255, 255, 255, 0.14);
+    font-size: 12px;
+    color: #fff;
+}
+.master-context-pill b {
+    color: rgba(212, 225, 255, 0.95);
+}
+.master-note {
+    border: 1px solid #d8e4fb;
+    border-radius: 12px;
+    background: #f7faff;
+    padding: 12px 14px;
+    margin-bottom: 14px;
+    color: #2a4575;
+    font-size: 13px;
+}
+.master-flow {
+    margin-bottom: 14px;
+    border: 1px solid #d7e3f7;
+    border-radius: 12px;
+    background: #ffffff;
+    padding: 14px;
+}
+.master-flow-title {
+    margin: 0 0 10px;
+    font-size: 13px;
+    font-weight: 700;
+    color: #123a87;
+}
+.master-flow-grid {
+    display: flex;
+    gap: 10px;
+    align-items: stretch;
+    flex-wrap: wrap;
+}
+.master-flow-step {
+    border: 1px solid #d8e3fa;
+    border-radius: 10px;
+    padding: 9px 11px;
+    background: #f7faff;
+    font-size: 12px;
+    color: #2a406d;
+    position: relative;
+    flex: 1 1 220px;
+}
+.master-flow-step:not(:last-child)::after {
+    content: "→";
+    position: absolute;
+    right: -12px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #7c93c0;
+    font-weight: 700;
+}
+.master-flow-step-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px;
+    margin-bottom: 4px;
+}
+.master-flow-step-index {
+    font-weight: 700;
+    color: #123b91;
+}
+.master-flow-step.done {
+    border-color: #b7e1c5;
+    background: #f3fcf6;
+}
+.master-flow-step-status {
+    font-size: 11px;
+    font-weight: 700;
+    border-radius: 999px;
+    padding: 3px 9px;
+    background: #e4ecfc;
+    color: #2c4778;
+}
+.master-flow-step-status.done {
+    background: rgba(22, 163, 74, 0.14);
+    color: #166534;
+}
+.master-summary-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 10px;
+    margin-bottom: 14px;
+}
+.master-summary-card {
+    border: 1px solid #d8e3f7;
+    border-radius: 12px;
+    background: #ffffff;
+    padding: 10px 12px;
+    box-shadow: 0 6px 16px rgba(13, 48, 109, 0.06);
+}
+.master-summary-label {
+    margin: 0;
+    font-size: 12px;
+    color: #4d6289;
+    font-weight: 600;
+}
+.master-summary-value {
+    margin-top: 4px;
+    font-size: 24px;
+    line-height: 1;
+    font-weight: 700;
+    color: #153b88;
+}
+.master-summary-sub {
+    margin-top: 3px;
+    font-size: 11px;
+    color: #6a7fa8;
 }
 .master-toolbar {
     display: flex;
     align-items: center;
-    gap: 10px;
+    justify-content: space-between;
+    gap: 12px;
     margin-bottom: 14px;
     font-size: 12px;
     font-weight: 600;
+    flex-wrap: wrap;
+}
+.master-toolbar-left {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
 }
 .master-import {
-    border: 1px solid var(--els-border);
-    border-radius: 8px;
-    padding: 12px;
+    border: 1px solid #d7e3f7;
+    border-radius: 12px;
+    padding: 0;
     margin-bottom: 14px;
-    background: var(--els-surface);
+    background: #ffffff;
 }
+.master-import summary {
+    cursor: pointer;
+    list-style: none;
+    padding: 12px 14px;
+    font-size: 13px;
+    font-weight: 700;
+    color: #103783;
+    background: #f4f8ff;
+    border-bottom: 1px solid #d7e2f8;
+}
+.master-import summary::-webkit-details-marker { display: none; }
+.master-import-body { padding: 12px 14px 14px; }
 .master-import-row {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
-    gap: 8px;
+    gap: 10px;
     margin-top: 8px;
 }
 .master-import-row input[type="file"] {
-    max-width: 340px;
+    max-width: 380px;
     font-size: 12px;
-    border: 1px solid var(--els-border);
+    border: 1px solid #ccdaef;
     border-radius: 6px;
-    padding: 6px 8px;
-    background: var(--els-surface);
-    color: var(--els-text);
+    padding: 7px 8px;
+    background: #fdfefe;
+    color: #1e335b;
 }
 .master-import-hint {
     font-size: 12px;
-    color: var(--els-muted);
+    color: #5c7097;
     margin-top: 6px;
 }
 .master-import-hint code {
     font-family: Consolas, 'Courier New', monospace;
-    background: #f6f8fa;
-    border: 1px solid var(--els-border);
+    background: #f5f8fd;
+    border: 1px solid #d6e2f6;
     border-radius: 4px;
     padding: 1px 5px;
 }
@@ -94,53 +267,229 @@
     gap: 14px;
 }
 .master-panel {
-    border: 1px solid var(--els-border);
-    border-radius: 8px;
-    padding: 12px;
-    background: var(--els-surface);
+    border: 1px solid #d8e4f8;
+    border-radius: 12px;
+    padding: 13px;
+    background: #ffffff;
+    box-shadow: 0 6px 18px rgba(11, 45, 99, 0.06);
 }
 .master-panel.full { grid-column: 1 / -1; }
 .master-panel-title {
-    font-size: 13px;
+    font-size: 15px;
     font-weight: 700;
-    margin-bottom: 10px;
-    color: var(--els-text);
+    margin-bottom: 8px;
+    color: #143f93;
+}
+.master-panel-subtitle {
+    margin: 0 0 10px;
+    font-size: 12px;
+    color: #6077a1;
 }
 .master-field { display: flex; flex-direction: column; gap: 4px; margin-bottom: 8px; }
-.master-field label { font-size: 12px; font-weight: 600; color: var(--els-text); }
+.master-field label { font-size: 12px; font-weight: 600; color: #2b4678; }
 .master-field input,
 .master-field select {
-    border: 1px solid var(--els-border);
+    border: 1px solid #c9d7ed;
     border-radius: 6px;
-    min-height: 38px;
-    padding: 7px 10px;
-    background: var(--els-surface);
-    color: var(--els-text);
+    min-height: 39px;
+    padding: 8px 10px;
+    background: #ffffff;
+    color: #17335d;
     width: 100%;
+}
+.master-field input:focus,
+.master-field select:focus {
+    outline: none;
+    border-color: #3e78d3;
+    box-shadow: 0 0 0 3px rgba(49, 112, 206, 0.14);
 }
 .master-form-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
 .master-btn {
-    min-height: 38px;
-    border: 1px solid transparent;
+    min-height: 39px;
+    border: 1px solid #1f59bc;
     border-radius: 6px;
-    background: linear-gradient(180deg, var(--els-primary-light) 0%, var(--els-primary) 100%);
+    background: linear-gradient(180deg, #2d6fd0 0%, #215dbb 100%);
     color: #fff;
     font-weight: 600;
     cursor: pointer;
-    padding: 0 16px;
+    padding: 0 14px;
+    transition: transform 0.14s ease, box-shadow 0.14s ease, filter 0.14s ease;
 }
-.master-btn.secondary { background: linear-gradient(180deg, #8f99a4 0%, #6f7a86 100%); }
-.master-table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+.master-btn:hover {
+    filter: brightness(1.02);
+    transform: translateY(-1px);
+    box-shadow: 0 6px 14px rgba(24, 74, 156, 0.18);
+}
+.master-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
+}
+.master-btn.secondary {
+    border-color: #68768a;
+    background: linear-gradient(180deg, #7f8b98 0%, #677383 100%);
+}
+.master-btn.tertiary {
+    border-color: #286f60;
+    background: linear-gradient(180deg, #2f8a76 0%, #266f5f 100%);
+}
+.master-table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    margin-top: 10px;
+}
+.master-table-wrap { overflow-x: auto; }
 .master-table th,
 .master-table td {
-    border-bottom: 1px solid var(--els-border);
-    padding: 7px 8px;
+    border-bottom: 1px solid #e1e9f7;
+    padding: 9px 9px;
     font-size: 12px;
     text-align: left;
-    color: var(--els-text);
+    color: #18345f;
 }
-.master-table th { background: rgba(48, 96, 189, 0.12); font-weight: 700; }
-.master-empty { padding: 12px; font-size: 12px; color: var(--els-muted); }
+.master-table th {
+    background: #eff4ff;
+    color: #1b3c78;
+    font-weight: 700;
+    position: sticky;
+    top: 0;
+    z-index: 1;
+}
+.master-table tr:hover td {
+    background: #fafcff;
+}
+.master-table td { vertical-align: middle; }
+.item-table-toolbar {
+    margin-top: 10px;
+    margin-bottom: 8px;
+    border: 1px solid #d9e4f8;
+    border-radius: 9px;
+    background: #f7faff;
+    padding: 8px 10px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+.item-table-toolbar-left {
+    font-size: 12px;
+    color: #29487b;
+    font-weight: 600;
+}
+.item-table-toolbar-right {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+.item-table-toolbar-right label {
+    font-size: 12px;
+    color: #3b5685;
+    font-weight: 600;
+}
+.item-table-toolbar-right select {
+    min-height: 30px;
+    border: 1px solid #c2d2ed;
+    border-radius: 6px;
+    padding: 4px 8px;
+    font-size: 12px;
+    background: #fff;
+    color: #1c3867;
+}
+.item-page-btn {
+    min-width: 34px;
+    min-height: 30px;
+    border: 1px solid #c2d2ec;
+    background: #fff;
+    color: #1f4284;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 700;
+}
+.item-page-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+.item-page-info {
+    font-size: 12px;
+    font-weight: 700;
+    color: #2a4579;
+    min-width: 64px;
+    text-align: center;
+}
+.item-name-cell {
+    font-weight: 600;
+    color: #142f5d;
+}
+.service-pill,
+.category-pill {
+    display: inline-block;
+    border-radius: 999px;
+    padding: 3px 9px;
+    font-size: 11px;
+    font-weight: 700;
+    border: 1px solid transparent;
+}
+.service-pill.s1 { background: #e8f1ff; color: #1e4f99; border-color: #c6dafc; }
+.service-pill.s2 { background: #e8f7f0; color: #166c53; border-color: #c2e9da; }
+.service-pill.s3 { background: #fff3e8; color: #9b4f14; border-color: #f9d8bb; }
+.service-pill.s4 { background: #f0ebff; color: #5a3ca2; border-color: #d8cbfa; }
+.service-pill.s5 { background: #eaf8ff; color: #1d5d82; border-color: #c7e6f7; }
+.service-pill.s6 { background: #f5f0e7; color: #72552e; border-color: #e3d4bf; }
+.category-pill.c1 { background: #f4f7ff; color: #35578f; border-color: #d7e2f8; }
+.category-pill.c2 { background: #f5fbf8; color: #2d6f59; border-color: #d7efe6; }
+.category-pill.c3 { background: #fff8f2; color: #946035; border-color: #f2ddc8; }
+.category-pill.c4 { background: #f8f3ff; color: #64419a; border-color: #e2d7f7; }
+.category-pill.c5 { background: #f2f7f7; color: #446f74; border-color: #d4e5e7; }
+.table-muted {
+    color: #6f84a7;
+    font-style: italic;
+}
+.item-row-action {
+    border: 1px solid transparent;
+    border-radius: 7px;
+    padding: 5px 9px;
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 1;
+    background: #eef3fd;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+.item-row-action.remove {
+    color: #a73f3f;
+    border-color: #efcaca;
+    background: #fff4f4;
+}
+.item-row-action.restore {
+    color: #206a41;
+    border-color: #c6e9d4;
+    background: #effaf3;
+}
+.item-action-icon {
+    font-size: 12px;
+    line-height: 1;
+}
+.master-table tr.group-service-break td {
+    border-top: 2px solid #c7d8f4;
+}
+.master-table tr.group-category-break td {
+    box-shadow: inset 0 1px 0 #e6edf9;
+}
+.master-empty {
+    padding: 13px;
+    font-size: 12px;
+    color: #62789f;
+    border: 1px dashed #c8d8f1;
+    border-radius: 8px;
+    margin-top: 10px;
+    background: #f7faff;
+}
 .row-action {
     border: none;
     background: transparent;
@@ -160,6 +509,53 @@
 }
 .status-pill.active { background: #e3f4e8; color: #216b36; }
 .status-pill.inactive { background: #f6e3e3; color: #8f2b2b; }
+.master-item-hint {
+    margin: 9px 0 0;
+    font-size: 12px;
+    color: #59729f;
+}
+.master-mapping-preview {
+    margin: 10px 0 0;
+    border: 1px dashed #afc7ee;
+    border-radius: 8px;
+    padding: 9px 11px;
+    font-size: 12px;
+    color: #23497f;
+    background: #f4f8ff;
+}
+.master-item-tools {
+    display: grid;
+    grid-template-columns: 1.2fr 1fr 1fr;
+    gap: 10px;
+    margin-top: 12px;
+}
+.master-item-section {
+    margin-top: 12px;
+    border-top: 1px solid #e1e8f6;
+    padding-top: 12px;
+}
+.master-footer-actions {
+    margin-top: 16px;
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+.master-nav-note {
+    margin-top: 8px;
+    font-size: 12px;
+    color: #5a6f97;
+}
+.import-summary {
+    margin-top: 10px;
+    border-radius: 10px;
+    border: 1px solid #c9daf6;
+    background: #f4f8ff;
+    padding: 9px 10px;
+    font-size: 12px;
+    color: #2a4b7d;
+    font-weight: 600;
+    display: none;
+}
 
 .toast-message {
     position: fixed;
@@ -169,9 +565,9 @@
     min-width: 260px;
     max-width: 380px;
     padding: 12px 16px;
-    border-radius: 8px;
+    border-radius: 10px;
     color: #fff;
-    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.24);
     font-weight: 600;
     display: none;
 }
@@ -181,6 +577,23 @@
 @@media (max-width: 900px) {
     .master-grid { grid-template-columns: 1fr; }
     .master-form-row { grid-template-columns: 1fr; }
+    .master-flow-grid { gap: 8px; }
+    .master-flow-step { flex: 1 1 calc(50% - 8px); }
+    .master-flow-step:not(:last-child)::after { display: none; }
+    .master-item-tools { grid-template-columns: 1fr; }
+    .master-title-chip-row { justify-content: flex-start; }
+    .master-summary-grid { grid-template-columns: 1fr 1fr; }
+    .item-table-toolbar { padding: 8px; }
+}
+
+@@media (max-width: 620px) {
+    .master-page { padding: 12px; }
+    .master-body { padding: 14px; }
+    .master-title { padding: 14px; }
+    .master-title-main { font-size: 20px; }
+    .master-summary-grid { grid-template-columns: 1fr; }
+    .master-flow-step { flex: 1 1 100%; }
+    .item-table-toolbar-right { width: 100%; justify-content: space-between; }
 }
 </style>
 
@@ -188,46 +601,104 @@
 
 <section class="master-page">
     <div class="master-box">
-        <div class="master-title">Service &amp; Item Master</div>
+        <div class="master-title">
+            <div class="master-title-content">
+                <div>
+                    <div class="master-title-main"><span class="master-title-icon">🧺</span>Service &amp; Item Master</div>
+                    <div class="master-subtitle">Enterprise workspace for managing service taxonomy, garment categories and item mappings.</div>
+                </div>
+                <div class="master-title-chip-row">
+                    <div class="master-context-pill"><b>Tenant:</b> @Model.TenantName</div>
+                    <div class="master-context-pill"><b>Store:</b> @Model.StoreCode</div>
+                </div>
+            </div>
+        </div>
         <div class="master-body">
             <div class="master-note">
-                <div><b>Tenant:</b> @Model.TenantName</div>
-                <div><b>Store:</b> @Model.StoreCode</div>
-                <div style="margin-top:6px;">
-                    Service types, categories, and items maintained here belong only to this store.
-                    Add service types and categories first, then map items to them. Prices are set in Store Price Configuration.
+                Service types, categories, and items configured here are isolated to this tenant and store.
+                This workspace helps you organize what you clean and how items are mapped before pricing.
+            </div>
+
+            <div class="master-flow">
+                <p class="master-flow-title">Setup workflow</p>
+                <div class="master-flow-grid">
+                    <div class="master-flow-step">
+                        <div class="master-flow-step-head"><span class="master-flow-step-index">1. Create Service Types</span><span class="master-flow-step-status" id="flowServiceStatus">Pending</span></div>
+                        <div>Add all cleaning service groups first.</div>
+                    </div>
+                    <div class="master-flow-step">
+                        <div class="master-flow-step-head"><span class="master-flow-step-index">2. Create Categories</span><span class="master-flow-step-status" id="flowCategoryStatus">Pending</span></div>
+                        <div>Define category buckets for garments.</div>
+                    </div>
+                    <div class="master-flow-step">
+                        <div class="master-flow-step-head"><span class="master-flow-step-index">3. Add Items</span><span class="master-flow-step-status" id="flowItemStatus">Pending</span></div>
+                        <div>Map each item to service type and category.</div>
+                    </div>
+                    <div class="master-flow-step">
+                        <div class="master-flow-step-head"><span class="master-flow-step-index">4. Configure Prices</span><span class="master-flow-step-status">Next</span></div>
+                        <div>Set prices in Store Price Configuration.</div>
+                    </div>
                 </div>
             </div>
 
-            <div class="master-import">
-                <div class="master-panel-title">Load Service Types &amp; Categories from Excel/CSV</div>
-                <div class="master-import-hint">
-                    Download the default list, open it in Excel, keep or edit the rows, save as CSV, then upload it here.
-                    Names that already exist in this store are skipped, so you can safely re-upload. You can still add
-                    your own entries manually using the panels below.
+            <div class="master-summary-grid">
+                <div class="master-summary-card">
+                    <p class="master-summary-label">Service Types</p>
+                    <div class="master-summary-value" id="summaryServiceTypesCount">0</div>
+                    <div class="master-summary-sub">Active service groups</div>
                 </div>
-                <div class="master-import-row">
-                    <a class="master-btn secondary" style="text-decoration:none; display:inline-flex; align-items:center;"
-                       href="~/templates/StoreServiceCategoryMasterTemplate.csv" download>Download Default List</a>
-                    <input type="file" id="masterCsvFile" accept=".csv,text/csv" autocomplete="off" />
-                    <button type="button" class="master-btn" id="importMastersBtn">Upload &amp; Load</button>
+                <div class="master-summary-card">
+                    <p class="master-summary-label">Categories</p>
+                    <div class="master-summary-value" id="summaryCategoriesCount">0</div>
+                    <div class="master-summary-sub">Active garment buckets</div>
                 </div>
-                <div class="master-import-hint">
-                    Required columns: <code>MasterType,Name,Description</code>. <code>MasterType</code> must be
-                    <code>Service</code> or <code>Category</code>. Description is optional.
+                <div class="master-summary-card">
+                    <p class="master-summary-label">Items</p>
+                    <div class="master-summary-value" id="summaryItemsCount">0</div>
+                    <div class="master-summary-sub">Total mapped items</div>
+                </div>
+                <div class="master-summary-card">
+                    <p class="master-summary-label">Active Items</p>
+                    <div class="master-summary-value" id="summaryActiveItemsCount">0</div>
+                    <div class="master-summary-sub">Currently available items</div>
                 </div>
             </div>
+
+            <details class="master-import" open>
+                <summary>Bulk Import &amp; Export: Service Types and Categories (CSV/Excel)</summary>
+                <div class="master-import-body">
+                    <div class="master-import-hint">
+                        Download the default list, edit in Excel if needed, save as CSV, then upload.
+                        Existing names are skipped to prevent duplicates.
+                    </div>
+                    <div class="master-import-row">
+                        <a class="master-btn secondary" style="text-decoration:none; display:inline-flex; align-items:center;"
+                           href="~/templates/StoreServiceCategoryMasterTemplate.csv" download>Download Default List</a>
+                        <input type="file" id="masterCsvFile" accept=".csv,text/csv" autocomplete="off" />
+                        <button type="button" class="master-btn" id="importMastersBtn">Upload &amp; Load</button>
+                    </div>
+                    <div class="master-import-hint">
+                        Required columns: <code>MasterType,Name,Description</code>.
+                        <code>MasterType</code> must be <code>Service</code> or <code>Category</code>.
+                    </div>
+                    <div id="importSummary" class="import-summary"></div>
+                </div>
+            </details>
 
             <div class="master-toolbar">
-                <label style="display:flex; align-items:center; gap:6px;">
-                    <input type="checkbox" id="showInactiveChk" /> Show removed entries
-                </label>
+                <div class="master-toolbar-left">
+                    <label style="display:flex; align-items:center; gap:6px;">
+                        <input type="checkbox" id="showInactiveChk" /> Show removed entries
+                    </label>
+                    <span style="font-weight:500; color:#5f739c;">Use refresh to pull latest store master changes.</span>
+                </div>
                 <button type="button" class="master-btn secondary" id="refreshMastersBtn">Refresh</button>
             </div>
 
             <div class="master-grid">
                 <div class="master-panel">
                     <div class="master-panel-title">Service Types</div>
+                    <p class="master-panel-subtitle">Create and manage store-specific service groups.</p>
                     <div class="master-field">
                         <label for="serviceNameInput">Service Type Name</label>
                             <input type="text" id="serviceNameInput" maxlength="128" placeholder="e.g. Dry Clean" autocomplete="off" />
@@ -242,6 +713,7 @@
 
                 <div class="master-panel">
                     <div class="master-panel-title">Categories</div>
+                    <p class="master-panel-subtitle">Organize item families by audience or garment class.</p>
                     <div class="master-field">
                         <label for="categoryNameInput">Category Name</label>
                             <input type="text" id="categoryNameInput" maxlength="128" placeholder="e.g. Men" autocomplete="off" />
@@ -255,7 +727,8 @@
                 </div>
 
                 <div class="master-panel full">
-                    <div class="master-panel-title">Items</div>
+                    <div class="master-panel-title">Items Workspace</div>
+                    <p class="master-panel-subtitle">Create item-level mappings by selecting a service type and category.</p>
                     <div class="master-form-row">
                         <div class="master-field">
                             <label for="itemServiceSelect">Service Type</label>
@@ -274,15 +747,36 @@
                         <label for="itemDescInput">Description</label>
                         <input type="text" id="itemDescInput" maxlength="256" placeholder="Optional" autocomplete="off" />
                     </div>
+                    <div class="master-mapping-preview" id="itemMappingPreview">Service Type &rarr; Category &rarr; Item</div>
+                    <div class="master-item-hint" id="itemMasterGuidance">Create at least one active Service Type and Category to add item mappings.</div>
                     <button type="button" class="master-btn" id="addItemBtn">Add Item</button>
+
+                    <div class="master-item-section">
+                        <div class="master-panel-subtitle" style="margin-bottom:8px;">Search and filter existing mappings</div>
+                        <div class="master-item-tools">
+                        <div class="master-field" style="margin-bottom:0;">
+                            <label for="itemSearchInput">Search Item Name</label>
+                            <input type="text" id="itemSearchInput" maxlength="128" placeholder="Type to search items" autocomplete="off" />
+                        </div>
+                        <div class="master-field" style="margin-bottom:0;">
+                            <label for="itemFilterService">Filter by Service Type</label>
+                            <select id="itemFilterService"><option value="">All service types</option></select>
+                        </div>
+                        <div class="master-field" style="margin-bottom:0;">
+                            <label for="itemFilterCategory">Filter by Category</label>
+                            <select id="itemFilterCategory"><option value="">All categories</option></select>
+                        </div>
+                        </div>
+                    </div>
                     <div id="itemTableWrap"></div>
                 </div>
             </div>
 
-            <div style="margin-top:16px; display:flex; gap:10px; flex-wrap:wrap;">
+            <div class="master-footer-actions">
                 <button type="button" class="master-btn secondary" onclick="window.location.href='@Url.Action("Index", "Dashboard")'">Back to Dashboard</button>
-                <button type="button" class="master-btn secondary" onclick="window.location.href='@Url.Action("SetupCreateOrder", "Customer", new { setupOnly = true })'">Go to Store Price Configuration</button>
+                <button type="button" class="master-btn tertiary" onclick="window.location.href='@Url.Action("SetupCreateOrder", "Customer", new { setupOnly = true })'">Go to Store Price Configuration</button>
             </div>
+            <div class="master-nav-note">Price setup is managed separately in Store Price Configuration after your service/category/item structure is ready.</div>
         </div>
     </div>
 </section>
@@ -305,6 +799,213 @@
 
         var masterData = { serviceTypes: [], categories: [], items: [] };
         var toastTimer = null;
+        var itemTablePageIndex = 1;
+        var itemTablePageSize = 10;
+
+        function getActiveCount(rows) {
+            return (rows || []).filter(function (row) {
+                return !!prop(row, "IsActive", "isActive");
+            }).length;
+        }
+
+        function normalizeKeyPart(value) {
+            return (value || "").toString().trim().toLowerCase();
+        }
+
+        function getUniqueActiveNameCount(rows) {
+            var seen = {};
+            (rows || []).forEach(function (row) {
+                if (!prop(row, "IsActive", "isActive")) {
+                    return;
+                }
+
+                var name = normalizeKeyPart(prop(row, "Name", "name"));
+                if (!name) {
+                    return;
+                }
+
+                seen[name] = true;
+            });
+
+            return Object.keys(seen).length;
+        }
+
+        function summarizeUniqueItems(rows) {
+            var byKey = {};
+
+            (rows || []).forEach(function (row) {
+                var serviceType = normalizeKeyPart(prop(row, "ServiceType", "serviceType"));
+                var category = normalizeKeyPart(prop(row, "Category", "category"));
+                var itemName = normalizeKeyPart(prop(row, "ItemName", "itemName"));
+
+                if (!serviceType || !category || !itemName) {
+                    return;
+                }
+
+                var key = serviceType + "|" + category + "|" + itemName;
+                var isActive = !!prop(row, "IsActive", "isActive");
+                if (!byKey[key]) {
+                    byKey[key] = { isActive: isActive };
+                } else if (isActive) {
+                    byKey[key].isActive = true;
+                }
+            });
+
+            var keys = Object.keys(byKey);
+            var total = keys.length;
+            var active = 0;
+            keys.forEach(function (key) {
+                if (byKey[key].isActive) {
+                    active++;
+                }
+            });
+
+            return { total: total, active: active };
+        }
+
+        function setStepStatus(elementId, isDone) {
+            var el = document.getElementById(elementId);
+            if (!el) {
+                return;
+            }
+
+            el.textContent = isDone ? "Done" : "Pending";
+            el.classList.toggle("done", !!isDone);
+
+            var step = el.closest(".master-flow-step");
+            if (step) {
+                step.classList.toggle("done", !!isDone);
+            }
+        }
+
+        function updateSummaryCards() {
+            var serviceCount = getUniqueActiveNameCount(masterData.serviceTypes);
+            var categoryCount = getUniqueActiveNameCount(masterData.categories);
+            var itemSummary = summarizeUniqueItems(masterData.items);
+            var itemCount = itemSummary.total;
+            var activeItemsCount = itemSummary.active;
+
+            var serviceEl = document.getElementById("summaryServiceTypesCount");
+            var categoryEl = document.getElementById("summaryCategoriesCount");
+            var itemEl = document.getElementById("summaryItemsCount");
+            var activeItemEl = document.getElementById("summaryActiveItemsCount");
+
+            if (serviceEl) { serviceEl.textContent = String(serviceCount); }
+            if (categoryEl) { categoryEl.textContent = String(categoryCount); }
+            if (itemEl) { itemEl.textContent = String(itemCount); }
+            if (activeItemEl) { activeItemEl.textContent = String(activeItemsCount); }
+        }
+
+        function updateWorkflowIndicators() {
+            setStepStatus("flowServiceStatus", getActiveCount(masterData.serviceTypes) > 0);
+            setStepStatus("flowCategoryStatus", getActiveCount(masterData.categories) > 0);
+            setStepStatus("flowItemStatus", getActiveCount(masterData.items) > 0);
+        }
+
+        function updateItemMappingPreview() {
+            var previewEl = document.getElementById("itemMappingPreview");
+            if (!previewEl) {
+                return;
+            }
+
+            var serviceType = (document.getElementById("itemServiceSelect")?.value || "Service Type").trim() || "Service Type";
+            var category = (document.getElementById("itemCategorySelect")?.value || "Category").trim() || "Category";
+            var itemName = (document.getElementById("itemNameInput")?.value || "Item").trim() || "Item";
+            previewEl.textContent = serviceType + " → " + category + " → " + itemName;
+        }
+
+        function updateItemGuidance() {
+            var guidanceEl = document.getElementById("itemMasterGuidance");
+            if (!guidanceEl) {
+                return;
+            }
+
+            var hasService = getActiveCount(masterData.serviceTypes) > 0;
+            var hasCategory = getActiveCount(masterData.categories) > 0;
+            if (!hasService || !hasCategory) {
+                guidanceEl.textContent = "Create at least one active Service Type and Category to add item mappings.";
+                return;
+            }
+
+            guidanceEl.textContent = "Pick a Service Type and Category, then add an item name to create a mapping.";
+        }
+
+        function fillFilterSelect(selectId, values, placeholder) {
+            var select = document.getElementById(selectId);
+            if (!select) {
+                return;
+            }
+
+            var previous = select.value;
+            var html = '<option value="">' + placeholder + '</option>';
+            values.forEach(function (value) {
+                html += '<option value="' + escapeHtml(value) + '">' + escapeHtml(value) + '</option>';
+            });
+
+            select.innerHTML = html;
+            if (previous && values.some(function (x) { return x.toLowerCase() === previous.toLowerCase(); })) {
+                select.value = values.find(function (x) { return x.toLowerCase() === previous.toLowerCase(); }) || "";
+            } else {
+                select.value = "";
+            }
+        }
+
+        function refreshItemFilters() {
+            var serviceValues = [];
+            var categoryValues = [];
+            var serviceSeen = {};
+            var categorySeen = {};
+
+            (masterData.items || []).forEach(function (item) {
+                var isActive = !!prop(item, "IsActive", "isActive");
+                if (!showInactive() && !isActive) {
+                    return;
+                }
+
+                var serviceType = (prop(item, "ServiceType", "serviceType") || "").trim();
+                var category = (prop(item, "Category", "category") || "").trim();
+
+                if (serviceType) {
+                    var serviceKey = serviceType.toLowerCase();
+                    if (!serviceSeen[serviceKey]) {
+                        serviceSeen[serviceKey] = true;
+                        serviceValues.push(serviceType);
+                    }
+                }
+
+                if (category) {
+                    var categoryKey = category.toLowerCase();
+                    if (!categorySeen[categoryKey]) {
+                        categorySeen[categoryKey] = true;
+                        categoryValues.push(category);
+                    }
+                }
+            });
+
+            serviceValues.sort(function (a, b) { return a.localeCompare(b); });
+            categoryValues.sort(function (a, b) { return a.localeCompare(b); });
+
+            fillFilterSelect("itemFilterService", serviceValues, "All service types");
+            fillFilterSelect("itemFilterCategory", categoryValues, "All categories");
+        }
+
+        function resetItemPagination() {
+            itemTablePageIndex = 1;
+        }
+
+        function hashValue(value) {
+            var input = (value || "").toString().toLowerCase();
+            var hash = 0;
+            for (var i = 0; i < input.length; i++) {
+                hash = ((hash << 5) - hash) + input.charCodeAt(i);
+                hash |= 0;
+            }
+            return Math.abs(hash);
+        }
+
+        function toneClass(value, prefix, total) {
+            return prefix + ((hashValue(value) % total) + 1);
+        }
 
         function showToast(message, isSuccess) {
             var toast = document.getElementById("masterToast");
@@ -373,7 +1074,11 @@
                 return;
             }
 
-            if (!rows.length) {
+            var displayRows = showInactive()
+                ? (rows || [])
+                : (rows || []).filter(function (row) { return !!prop(row, "IsActive", "isActive"); });
+
+            if (!displayRows.length) {
                 wrap.innerHTML = '<div class="master-empty">' + emptyText + '</div>';
                 return;
             }
@@ -382,7 +1087,7 @@
                 + '<th>Name</th><th>Description</th><th>Status</th><th>Action</th>'
                 + '</tr></thead><tbody>';
 
-            rows.forEach(function (row) {
+            displayRows.forEach(function (row) {
                 var name = prop(row, "Name", "name");
                 var isActive = !!prop(row, "IsActive", "isActive");
                 html += '<tr>'
@@ -395,7 +1100,7 @@
                     + '</tr>';
             });
 
-            wrap.innerHTML = html + '</tbody></table>';
+            wrap.innerHTML = '<div class="master-table-wrap">' + html + '</tbody></table></div>';
 
             Array.prototype.forEach.call(wrap.querySelectorAll(".row-action"), function (button) {
                 button.addEventListener("click", function () {
@@ -410,47 +1115,164 @@
                 return;
             }
 
-            if (!masterData.items.length) {
+            var sourceItems = showInactive()
+                ? (masterData.items || [])
+                : (masterData.items || []).filter(function (row) { return !!prop(row, "IsActive", "isActive"); });
+
+            if (!sourceItems.length) {
                 wrap.innerHTML = '<div class="master-empty">No items added for this store yet.</div>';
                 return;
             }
+
+            var searchTerm = ((document.getElementById("itemSearchInput")?.value || "").trim()).toLowerCase();
+            var filterService = ((document.getElementById("itemFilterService")?.value || "").trim()).toLowerCase();
+            var filterCategory = ((document.getElementById("itemFilterCategory")?.value || "").trim()).toLowerCase();
+
+            var filteredRows = [];
+            sourceItems.forEach(function (row) {
+                var serviceType = prop(row, "ServiceType", "serviceType") || "";
+                var category = prop(row, "Category", "category") || "";
+                var itemName = prop(row, "ItemName", "itemName") || "";
+
+                if (searchTerm && itemName.toLowerCase().indexOf(searchTerm) === -1) {
+                    return;
+                }
+
+                if (filterService && serviceType.toLowerCase() !== filterService) {
+                    return;
+                }
+
+                if (filterCategory && category.toLowerCase() !== filterCategory) {
+                    return;
+                }
+
+                filteredRows.push(row);
+            });
+
+            var visibleCount = filteredRows.length;
+            if (visibleCount === 0) {
+                wrap.innerHTML = '<div class="master-empty">No matching items were found for the selected search and filters.</div>';
+                return;
+            }
+
+            var totalPages = Math.max(1, Math.ceil(visibleCount / itemTablePageSize));
+            if (itemTablePageIndex > totalPages) {
+                itemTablePageIndex = totalPages;
+            }
+            if (itemTablePageIndex < 1) {
+                itemTablePageIndex = 1;
+            }
+
+            var startIndex = (itemTablePageIndex - 1) * itemTablePageSize;
+            var pageRows = filteredRows.slice(startIndex, startIndex + itemTablePageSize);
+
+            var toolbar = '<div class="item-table-toolbar">'
+                + '<div class="item-table-toolbar-left">Displaying <b>' + pageRows.length + '</b> of <b>' + visibleCount + '</b> items</div>'
+                + '<div class="item-table-toolbar-right">'
+                + '<label for="itemPageSizeSelect">Rows</label>'
+                + '<select id="itemPageSizeSelect">'
+                + '<option value="10"' + (itemTablePageSize === 10 ? ' selected' : '') + '>10</option>'
+                + '<option value="25"' + (itemTablePageSize === 25 ? ' selected' : '') + '>25</option>'
+                + '<option value="50"' + (itemTablePageSize === 50 ? ' selected' : '') + '>50</option>'
+                + '<option value="100"' + (itemTablePageSize === 100 ? ' selected' : '') + '>100</option>'
+                + '</select>'
+                + '<button type="button" class="item-page-btn" id="itemPagePrevBtn"' + (itemTablePageIndex <= 1 ? ' disabled' : '') + '>‹</button>'
+                + '<span class="item-page-info">' + itemTablePageIndex + ' / ' + totalPages + '</span>'
+                + '<button type="button" class="item-page-btn" id="itemPageNextBtn"' + (itemTablePageIndex >= totalPages ? ' disabled' : '') + '>›</button>'
+                + '</div></div>';
 
             var html = '<table class="master-table"><thead><tr>'
                 + '<th>Service Type</th><th>Category</th><th>Item Name</th><th>Description</th><th>Status</th><th>Action</th>'
                 + '</tr></thead><tbody>';
 
-            masterData.items.forEach(function (row) {
+            pageRows.forEach(function (row, index) {
                 var serviceType = prop(row, "ServiceType", "serviceType");
                 var category = prop(row, "Category", "category");
                 var itemName = prop(row, "ItemName", "itemName");
                 var isActive = !!prop(row, "IsActive", "isActive");
+                var description = prop(row, "Description", "description") || "";
+                var serviceClass = toneClass(serviceType, "s", 6);
+                var categoryClass = toneClass(category, "c", 5);
+                var globalIndex = startIndex + index;
+                var prevRow = globalIndex > 0 ? filteredRows[globalIndex - 1] : null;
+                var prevServiceType = prevRow ? (prop(prevRow, "ServiceType", "serviceType") || "") : "";
+                var prevCategory = prevRow ? (prop(prevRow, "Category", "category") || "") : "";
+                var rowClasses = [];
 
-                html += '<tr>'
-                    + '<td>' + escapeHtml(serviceType) + '</td>'
-                    + '<td>' + escapeHtml(category) + '</td>'
-                    + '<td>' + escapeHtml(itemName) + '</td>'
-                    + '<td>' + escapeHtml(prop(row, "Description", "description") || "-") + '</td>'
+                if (globalIndex > 0 && serviceType !== prevServiceType) {
+                    rowClasses.push("group-service-break");
+                } else if (globalIndex > 0 && category !== prevCategory) {
+                    rowClasses.push("group-category-break");
+                }
+
+                html += '<tr' + (rowClasses.length ? ' class="' + rowClasses.join(' ') + '"' : '') + '>'
+                    + '<td><span class="service-pill ' + serviceClass + '">' + escapeHtml(serviceType) + '</span></td>'
+                    + '<td><span class="category-pill ' + categoryClass + '">' + escapeHtml(category) + '</span></td>'
+                    + '<td><span class="item-name-cell">' + escapeHtml(itemName) + '</span></td>'
+                    + '<td>' + (description ? escapeHtml(description) : '<span class="table-muted">—</span>') + '</td>'
                     + '<td><span class="status-pill ' + (isActive ? "active" : "inactive") + '">' + (isActive ? "Active" : "Removed") + '</span></td>'
-                    + '<td><button type="button" class="row-action ' + (isActive ? "remove" : "restore") + '"'
+                    + '<td style="text-align:center;"><button type="button" class="row-action item-row-action ' + (isActive ? "remove" : "restore") + '"'
                     + ' data-service="' + escapeHtml(serviceType) + '"'
                     + ' data-category="' + escapeHtml(category) + '"'
                     + ' data-item="' + escapeHtml(itemName) + '"'
                     + ' data-active="' + (isActive ? "false" : "true") + '">'
-                    + (isActive ? "Remove" : "Restore") + '</button></td>'
+                    + (isActive
+                        ? '<span class="item-action-icon" aria-hidden="true">🗄️</span><span>Archive</span>'
+                        : '<span class="item-action-icon" aria-hidden="true">↺</span><span>Restore</span>')
+                    + '</button></td>'
                     + '</tr>';
             });
 
-            wrap.innerHTML = html + '</tbody></table>';
+            wrap.innerHTML = toolbar + '<div class="master-table-wrap">' + html + '</tbody></table></div>';
 
             Array.prototype.forEach.call(wrap.querySelectorAll(".row-action"), function (button) {
                 button.addEventListener("click", function () {
+                    var nextIsActive = button.getAttribute("data-active") === "true";
+                    var itemName = button.getAttribute("data-item") || "this item";
+                    if (!nextIsActive) {
+                        var confirmed = window.confirm('Archive "' + itemName + '"? You can restore it later.');
+                        if (!confirmed) {
+                            return;
+                        }
+                    }
+
                     setItemMasterStatus(
                         button.getAttribute("data-service"),
                         button.getAttribute("data-category"),
-                        button.getAttribute("data-item"),
-                        button.getAttribute("data-active") === "true");
+                        itemName,
+                        nextIsActive);
                 });
             });
+
+            var pageSizeSelect = document.getElementById("itemPageSizeSelect");
+            if (pageSizeSelect) {
+                pageSizeSelect.addEventListener("change", function () {
+                    var nextSize = parseInt(pageSizeSelect.value, 10);
+                    itemTablePageSize = nextSize > 0 ? nextSize : 10;
+                    resetItemPagination();
+                    renderItemsTable();
+                });
+            }
+
+            var prevBtn = document.getElementById("itemPagePrevBtn");
+            if (prevBtn) {
+                prevBtn.addEventListener("click", function () {
+                    if (itemTablePageIndex > 1) {
+                        itemTablePageIndex--;
+                        renderItemsTable();
+                    }
+                });
+            }
+
+            var nextBtn = document.getElementById("itemPageNextBtn");
+            if (nextBtn) {
+                nextBtn.addEventListener("click", function () {
+                    if (itemTablePageIndex < totalPages) {
+                        itemTablePageIndex++;
+                        renderItemsTable();
+                    }
+                });
+            }
         }
 
         function fillSelect(selectId, rows, placeholder) {
@@ -479,14 +1301,19 @@
         function renderAll() {
             renderMasterTable("serviceTableWrap", masterData.serviceTypes, "No service types added for this store yet.", "Service");
             renderMasterTable("categoryTableWrap", masterData.categories, "No categories added for this store yet.", "Category");
-            renderItemsTable();
             fillSelect("itemServiceSelect", masterData.serviceTypes, "Select service type");
             fillSelect("itemCategorySelect", masterData.categories, "Select category");
+            refreshItemFilters();
+            renderItemsTable();
+            updateWorkflowIndicators();
+            updateSummaryCards();
+            updateItemGuidance();
+            updateItemMappingPreview();
         }
 
         function loadMasters() {
             var url = '@Url.Action("GetStoreMasters", "Customer")'
-                + '?includeInactive=' + (showInactive() ? "true" : "false")
+                + '?includeInactive=true'
                 + '&_ts=' + Date.now();
 
             return fetch(url, {
@@ -655,6 +1482,19 @@
             })
             .then(function (data) {
                 showToast(data.message, !!data.success);
+                var summaryBox = document.getElementById("importSummary");
+                if (summaryBox) {
+                    var importedCount = Number(data && data.importedCount || 0);
+                    var skippedCount = Number(data && data.skippedCount || 0);
+                    var failedCount = Number(data && data.failedCount || 0);
+                    if (data && (importedCount || skippedCount || failedCount)) {
+                        summaryBox.textContent = "Imported: " + importedCount + " | Skipped duplicates: " + skippedCount + " | Validation errors: " + failedCount;
+                        summaryBox.style.display = "block";
+                    } else {
+                        summaryBox.style.display = "none";
+                        summaryBox.textContent = "";
+                    }
+                }
                 fileInput.value = "";
                 return loadMasters();
             })
@@ -681,6 +1521,12 @@
             document.getElementById("importMastersBtn").addEventListener("click", importMastersCsv);
             document.getElementById("refreshMastersBtn").addEventListener("click", function () { loadMasters(); });
             document.getElementById("showInactiveChk").addEventListener("change", function () { loadMasters(); });
+            document.getElementById("itemSearchInput")?.addEventListener("input", function () { resetItemPagination(); renderItemsTable(); });
+            document.getElementById("itemFilterService")?.addEventListener("change", function () { resetItemPagination(); renderItemsTable(); });
+            document.getElementById("itemFilterCategory")?.addEventListener("change", function () { resetItemPagination(); renderItemsTable(); });
+            document.getElementById("itemServiceSelect")?.addEventListener("change", updateItemMappingPreview);
+            document.getElementById("itemCategorySelect")?.addEventListener("change", updateItemMappingPreview);
+            document.getElementById("itemNameInput")?.addEventListener("input", updateItemMappingPreview);
 
             loadMasters();
         });

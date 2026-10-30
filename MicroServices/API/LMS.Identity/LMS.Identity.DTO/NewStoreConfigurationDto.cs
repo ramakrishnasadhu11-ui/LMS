@@ -7,7 +7,7 @@ namespace LMS.Identity.DTO
         [Required]
         public string TenantEmail { get; set; }
 
-        [Required]
+        [Required(AllowEmptyStrings = true)]
         public string StoreCode { get; set; }
 
         [Required]
