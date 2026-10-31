@@ -264,24 +264,46 @@
 .master-grid {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 14px;
+    gap: 16px;
 }
 .master-panel {
-    border: 1px solid #d8e4f8;
-    border-radius: 12px;
-    padding: 13px;
-    background: #ffffff;
-    box-shadow: 0 6px 18px rgba(11, 45, 99, 0.06);
+    border: 1px solid #d6e2f6;
+    border-radius: 14px;
+    padding: 14px;
+    background: linear-gradient(180deg, #ffffff 0%, #fbfdff 100%);
+    box-shadow: 0 8px 18px rgba(11, 45, 99, 0.06);
 }
 .master-panel.full { grid-column: 1 / -1; }
+.master-panel.service-panel { border-top: 3px solid #3f6fc0; }
+.master-panel.category-panel { border-top: 3px solid #2b8d73; }
+.master-panel.items-panel { border-top: 3px solid #7b5ab8; }
+.master-panel-head {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    margin-bottom: 10px;
+}
+.master-panel-icon {
+    width: 30px;
+    height: 30px;
+    border-radius: 9px;
+    border: 1px solid #d3dff4;
+    background: #f4f8ff;
+    color: #1f4f9d;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    flex-shrink: 0;
+}
 .master-panel-title {
     font-size: 15px;
     font-weight: 700;
-    margin-bottom: 8px;
+    margin-bottom: 3px;
     color: #143f93;
 }
 .master-panel-subtitle {
-    margin: 0 0 10px;
+    margin: 0;
     font-size: 12px;
     color: #6077a1;
 }
@@ -361,6 +383,10 @@
     background: #fafcff;
 }
 .master-table td { vertical-align: middle; }
+.master-table td.status-cell,
+.master-table td.action-cell {
+    text-align: center;
+}
 .item-table-toolbar {
     margin-top: 10px;
     margin-bottom: 8px;
@@ -491,15 +517,29 @@
     background: #f7faff;
 }
 .row-action {
-    border: none;
-    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 7px;
+    min-height: 30px;
+    background: #eef3fd;
     cursor: pointer;
     font-weight: 700;
-    font-size: 12px;
-    padding: 0 4px;
+    font-size: 11px;
+    padding: 5px 9px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
 }
-.row-action.remove { color: #b63838; }
-.row-action.restore { color: #2f8f46; }
+.row-action.remove {
+    color: #a73f3f;
+    border-color: #efcaca;
+    background: #fff4f4;
+}
+.row-action.restore {
+    color: #206a41;
+    border-color: #c6e9d4;
+    background: #effaf3;
+}
 .status-pill {
     display: inline-block;
     border-radius: 10px;
@@ -688,7 +728,7 @@
             <div class="master-toolbar">
                 <div class="master-toolbar-left">
                     <label style="display:flex; align-items:center; gap:6px;">
-                        <input type="checkbox" id="showInactiveChk" /> Show removed entries
+                        <input type="checkbox" id="showInactiveChk" /> Show Removed Records
                     </label>
                     <span style="font-weight:500; color:#5f739c;">Use refresh to pull latest store master changes.</span>
                 </div>
@@ -696,9 +736,14 @@
             </div>
 
             <div class="master-grid">
-                <div class="master-panel">
-                    <div class="master-panel-title">Service Types</div>
-                    <p class="master-panel-subtitle">Create and manage store-specific service groups.</p>
+                <div class="master-panel service-panel">
+                    <div class="master-panel-head">
+                        <span class="master-panel-icon" aria-hidden="true">🧺</span>
+                        <div>
+                            <div class="master-panel-title">Service Types</div>
+                            <p class="master-panel-subtitle">Define the laundry services offered by your store.</p>
+                        </div>
+                    </div>
                     <div class="master-field">
                         <label for="serviceNameInput">Service Type Name</label>
                             <input type="text" id="serviceNameInput" maxlength="128" placeholder="e.g. Dry Clean" autocomplete="off" />
@@ -711,9 +756,14 @@
                     <div id="serviceTableWrap"></div>
                 </div>
 
-                <div class="master-panel">
-                    <div class="master-panel-title">Categories</div>
-                    <p class="master-panel-subtitle">Organize item families by audience or garment class.</p>
+                <div class="master-panel category-panel">
+                    <div class="master-panel-head">
+                        <span class="master-panel-icon" aria-hidden="true">🗂️</span>
+                        <div>
+                            <div class="master-panel-title">Categories</div>
+                            <p class="master-panel-subtitle">Organize laundry items into manageable groups.</p>
+                        </div>
+                    </div>
                     <div class="master-field">
                         <label for="categoryNameInput">Category Name</label>
                             <input type="text" id="categoryNameInput" maxlength="128" placeholder="e.g. Men" autocomplete="off" />
@@ -726,9 +776,14 @@
                     <div id="categoryTableWrap"></div>
                 </div>
 
-                <div class="master-panel full">
-                    <div class="master-panel-title">Items Workspace</div>
-                    <p class="master-panel-subtitle">Create item-level mappings by selecting a service type and category.</p>
+                <div class="master-panel items-panel full">
+                    <div class="master-panel-head">
+                        <span class="master-panel-icon" aria-hidden="true">👕</span>
+                        <div>
+                            <div class="master-panel-title">Items</div>
+                            <p class="master-panel-subtitle">Manage individual items and their service-wise categories.</p>
+                        </div>
+                    </div>
                     <div class="master-form-row">
                         <div class="master-field">
                             <label for="itemServiceSelect">Service Type</label>
@@ -1046,6 +1101,160 @@
             return value === undefined ? row[camelName] : value;
         }
 
+        function normalizeMasterText(value) {
+            return (value || "").toString().trim().toLowerCase();
+        }
+
+        function resolveItemIsActive(row) {
+            if (!row) {
+                return true;
+            }
+
+            var rawStatus = row.IsActive;
+            if (rawStatus === undefined) { rawStatus = row.isActive; }
+            if (rawStatus === undefined) { rawStatus = row.isactive; }
+            if (rawStatus === undefined) { rawStatus = row.Active; }
+            if (rawStatus === undefined) { rawStatus = row.active; }
+            if (rawStatus === undefined) { rawStatus = row.Status; }
+            if (rawStatus === undefined) { rawStatus = row.status; }
+
+            if (typeof rawStatus === "boolean") {
+                return rawStatus;
+            }
+
+            if (typeof rawStatus === "number") {
+                if (rawStatus === 0) {
+                    return false;
+                }
+
+                if (rawStatus === 1) {
+                    return true;
+                }
+
+                return true;
+            }
+
+            var normalized = (rawStatus || "").toString().trim().toLowerCase();
+            if (!normalized) {
+                return true;
+            }
+
+            if (normalized === "true" || normalized === "1" || normalized === "yes" || normalized === "y" || normalized === "active") {
+                return true;
+            }
+
+            if (normalized === "false" || normalized === "0" || normalized === "no" || normalized === "n" || normalized === "inactive" || normalized === "removed" || normalized === "archived") {
+                return false;
+            }
+
+            return true;
+        }
+
+        function getPersistedItemId(serviceType, category, itemName, id) {
+            var incomingId = Number(id || 0);
+            if (incomingId > 0) {
+                return incomingId;
+            }
+
+            var serviceKey = normalizeKeyPart(serviceType);
+            var categoryKey = normalizeKeyPart(category);
+            var itemKey = normalizeKeyPart(itemName);
+
+            var match = (masterData.items || []).find(function (row) {
+                var rowId = Number(prop(row, "Id", "id") || 0);
+                return rowId > 0
+                    && normalizeKeyPart(prop(row, "ServiceType", "serviceType")) === serviceKey
+                    && normalizeKeyPart(prop(row, "Category", "category")) === categoryKey
+                    && normalizeKeyPart(prop(row, "ItemName", "itemName")) === itemKey;
+            });
+
+            return match ? Number(prop(match, "Id", "id") || 0) : 0;
+        }
+
+        function ensurePersistedItemId(serviceType, category, itemName, id) {
+            var resolvedId = getPersistedItemId(serviceType, category, itemName, id);
+            if (resolvedId > 0) {
+                return Promise.resolve(resolvedId);
+            }
+
+            return loadMasters()
+                .then(function () {
+                    var refreshedId = getPersistedItemId(serviceType, category, itemName, 0);
+                    if (refreshedId > 0) {
+                        return refreshedId;
+                    }
+
+                    return postForm('@Url.Action("SaveStoreItemMaster", "Customer")', {
+                        serviceType: serviceType,
+                        category: category,
+                        itemName: itemName,
+                        description: ""
+                    })
+                    .then(function (data) {
+                        if (!data || !data.success) {
+                            throw new Error((data && data.message) || "Unable to persist item entry for status update.");
+                        }
+
+                        return loadMasters();
+                    })
+                    .then(function () {
+                        var persistedId = getPersistedItemId(serviceType, category, itemName, 0);
+                        if (persistedId <= 0) {
+                            throw new Error("Unable to resolve persisted item ID. Please refresh and try again.");
+                        }
+
+                        return persistedId;
+                    });
+                });
+        }
+
+        function getPersistedMasterId(masterType, name) {
+            var typeKey = normalizeMasterText(masterType);
+            var nameKey = normalizeMasterText(name);
+            var rows = typeKey === "category" ? (masterData.categories || []) : (masterData.serviceTypes || []);
+
+            var match = rows.find(function (row) {
+                var rowName = normalizeMasterText(prop(row, "Name", "name"));
+                var rowId = Number(prop(row, "Id", "id") || 0);
+                return rowId > 0 && rowName === nameKey;
+            });
+
+            return match ? Number(prop(match, "Id", "id") || 0) : 0;
+        }
+
+        function ensurePersistedMasterId(masterType, name, id) {
+            var incomingId = Number(id || 0);
+            if (incomingId > 0) {
+                return Promise.resolve(incomingId);
+            }
+
+            var existingId = getPersistedMasterId(masterType, name);
+            if (existingId > 0) {
+                return Promise.resolve(existingId);
+            }
+
+            return postForm('@Url.Action("SaveStoreServiceMaster", "Customer")', {
+                masterType: masterType,
+                name: name,
+                description: ""
+            })
+            .then(function (data) {
+                if (!data || !data.success) {
+                    throw new Error((data && data.message) || "Unable to persist master entry for status update.");
+                }
+
+                return loadMasters();
+            })
+            .then(function () {
+                var resolvedId = getPersistedMasterId(masterType, name);
+                if (resolvedId <= 0) {
+                    throw new Error("Unable to resolve persisted master ID. Please refresh and try again.");
+                }
+
+                return resolvedId;
+            });
+        }
+
         function postForm(url, fields) {
             var body = new URLSearchParams();
             Object.keys(fields).forEach(function (key) {
@@ -1093,10 +1302,11 @@
                 html += '<tr>'
                     + '<td>' + escapeHtml(name) + '</td>'
                     + '<td>' + escapeHtml(prop(row, "Description", "description") || "-") + '</td>'
-                    + '<td><span class="status-pill ' + (isActive ? "active" : "inactive") + '">' + (isActive ? "Active" : "Removed") + '</span></td>'
-                    + '<td><button type="button" class="row-action ' + (isActive ? "remove" : "restore") + '"'
+                    + '<td class="status-cell"><span class="status-pill ' + (isActive ? "active" : "inactive") + '">' + (isActive ? "Active" : "Removed") + '</span></td>'
+                    + '<td class="action-cell"><button type="button" class="row-action ' + (isActive ? "remove" : "restore") + '"'
+                    + ' data-id="' + Number(prop(row, "Id", "id") || 0) + '"'
                     + ' data-kind="' + kind + '" data-name="' + escapeHtml(name) + '" data-active="' + (isActive ? "false" : "true") + '">'
-                    + (isActive ? "Remove" : "Restore") + '</button></td>'
+                    + (isActive ? "Archive" : "Restore") + '</button></td>'
                     + '</tr>';
             });
 
@@ -1104,7 +1314,18 @@
 
             Array.prototype.forEach.call(wrap.querySelectorAll(".row-action"), function (button) {
                 button.addEventListener("click", function () {
-                    setServiceMasterStatus(button.getAttribute("data-kind"), button.getAttribute("data-name"), button.getAttribute("data-active") === "true");
+                    var kind = button.getAttribute("data-kind") || "Master";
+                    var name = button.getAttribute("data-name") || "this entry";
+                    var nextIsActive = button.getAttribute("data-active") === "true";
+                    var confirmMessage = nextIsActive
+                        ? 'Are you sure you want to restore this record?'
+                        : 'Are you sure you want to archive this record?';
+
+                    if (!window.confirm(confirmMessage)) {
+                        return;
+                    }
+
+                    setServiceMasterStatus(kind, name, nextIsActive, Number(button.getAttribute("data-id") || 0));
                 });
             });
         }
@@ -1117,7 +1338,7 @@
 
             var sourceItems = showInactive()
                 ? (masterData.items || [])
-                : (masterData.items || []).filter(function (row) { return !!prop(row, "IsActive", "isActive"); });
+                : (masterData.items || []).filter(function (row) { return resolveItemIsActive(row); });
 
             if (!sourceItems.length) {
                 wrap.innerHTML = '<div class="master-empty">No items added for this store yet.</div>';
@@ -1189,8 +1410,10 @@
                 var serviceType = prop(row, "ServiceType", "serviceType");
                 var category = prop(row, "Category", "category");
                 var itemName = prop(row, "ItemName", "itemName");
-                var isActive = !!prop(row, "IsActive", "isActive");
+                var isActive = resolveItemIsActive(row);
                 var description = prop(row, "Description", "description") || "";
+                var rowId = Number(prop(row, "Id", "id") || 0);
+                var persistedId = getPersistedItemId(serviceType, category, itemName, rowId);
                 var serviceClass = toneClass(serviceType, "s", 6);
                 var categoryClass = toneClass(category, "c", 5);
                 var globalIndex = startIndex + index;
@@ -1210,8 +1433,9 @@
                     + '<td><span class="category-pill ' + categoryClass + '">' + escapeHtml(category) + '</span></td>'
                     + '<td><span class="item-name-cell">' + escapeHtml(itemName) + '</span></td>'
                     + '<td>' + (description ? escapeHtml(description) : '<span class="table-muted">—</span>') + '</td>'
-                    + '<td><span class="status-pill ' + (isActive ? "active" : "inactive") + '">' + (isActive ? "Active" : "Removed") + '</span></td>'
-                    + '<td style="text-align:center;"><button type="button" class="row-action item-row-action ' + (isActive ? "remove" : "restore") + '"'
+                    + '<td class="status-cell"><span class="status-pill ' + (isActive ? "active" : "inactive") + '">' + (isActive ? "Active" : "Removed") + '</span></td>'
+                    + '<td class="action-cell"><button type="button" class="row-action item-row-action ' + (isActive ? "remove" : "restore") + '"'
+                    + ' data-id="' + persistedId + '"'
                     + ' data-service="' + escapeHtml(serviceType) + '"'
                     + ' data-category="' + escapeHtml(category) + '"'
                     + ' data-item="' + escapeHtml(itemName) + '"'
@@ -1229,18 +1453,20 @@
                 button.addEventListener("click", function () {
                     var nextIsActive = button.getAttribute("data-active") === "true";
                     var itemName = button.getAttribute("data-item") || "this item";
-                    if (!nextIsActive) {
-                        var confirmed = window.confirm('Archive "' + itemName + '"? You can restore it later.');
-                        if (!confirmed) {
-                            return;
-                        }
+                    var confirmed = nextIsActive
+                        ? window.confirm('Are you sure you want to restore this record?')
+                        : window.confirm('Are you sure you want to archive this record?');
+
+                    if (!confirmed) {
+                        return;
                     }
 
                     setItemMasterStatus(
                         button.getAttribute("data-service"),
                         button.getAttribute("data-category"),
                         itemName,
-                        nextIsActive);
+                        nextIsActive,
+                        Number(button.getAttribute("data-id") || 0));
                 });
             });
 
@@ -1380,11 +1606,15 @@
             });
         }
 
-        function setServiceMasterStatus(masterType, name, isActive) {
-            postForm('@Url.Action("SetStoreServiceMasterStatus", "Customer")', {
-                masterType: masterType,
-                name: name,
-                isActive: isActive ? "true" : "false"
+        function setServiceMasterStatus(masterType, name, isActive, id) {
+            ensurePersistedMasterId(masterType, name, id)
+            .then(function (resolvedId) {
+                return postForm('@Url.Action("SetStoreServiceMasterStatus", "Customer")', {
+                    id: resolvedId,
+                    masterType: masterType,
+                    name: name,
+                    isActive: isActive ? "true" : "false"
+                });
             })
             .then(function (data) {
                 showToast(data.message, !!data.success);
@@ -1397,12 +1627,20 @@
             });
         }
 
-        function setItemMasterStatus(serviceType, category, itemName, isActive) {
-            postForm('@Url.Action("SetStoreItemMasterStatus", "Customer")', {
-                serviceType: serviceType,
-                category: category,
-                itemName: itemName,
-                isActive: isActive ? "true" : "false"
+        function setItemMasterStatus(serviceType, category, itemName, isActive, id) {
+            ensurePersistedItemId(serviceType, category, itemName, id)
+            .then(function (resolvedId) {
+                if (Number(resolvedId || 0) <= 0) {
+                    throw new Error("Unable to resolve persisted item ID. Please refresh and try again.");
+                }
+
+                return postForm('@Url.Action("SetStoreItemMasterStatus", "Customer")', {
+                    id: resolvedId || 0,
+                    serviceType: serviceType,
+                    category: category,
+                    itemName: itemName,
+                    isActive: isActive ? "true" : "false"
+                });
             })
             .then(function (data) {
                 showToast(data.message, !!data.success);

@@ -7124,8 +7124,13 @@ namespace LMSWebUI.Controllers
 
                 var services = await _clientApi.SendRequestAsync<List<StoreServiceMasterDto>>("/GetStoreServiceMasters", query, Method.GET)
                                ?? new List<StoreServiceMasterDto>();
-                var items = await _clientApi.SendRequestAsync<List<StoreItemMasterDto>>("/GetStoreItemMasters", query, Method.GET)
-                            ?? new List<StoreItemMasterDto>();
+                if (!services.Any())
+                {
+                    var wrappedServices = await _clientApi.SendRequestAsync<JObject>("/GetStoreServiceMasters", query, Method.GET);
+                    services = ExtractStoreServiceMasters(wrappedServices);
+                }
+
+                var items = await GetScopedStoreItemMastersAsync(tenantName, storeCode, includeInactive);
 
                 var defaultPrices = await _clientApi.SendRequestAsync<List<LaundryItemPriceDto>>("/GetLaundryItemPrices", query, Method.GET)
                                    ?? new List<LaundryItemPriceDto>();
@@ -7205,16 +7210,65 @@ namespace LMSWebUI.Controllers
                             .Select(x => x.Name ?? string.Empty),
                         StringComparer.OrdinalIgnoreCase);
 
-                    var existingItemKeys = new HashSet<string>(
-                        items.Select(x => BuildLaundryItemKey(x.ServiceType, x.Category, x.ItemName)),
-                        StringComparer.OrdinalIgnoreCase);
-
                     var mergedServices = services.ToList();
                     mergedServices.AddRange(defaultServiceMasters.Where(x => !existingServiceKeys.Contains(x.Name ?? string.Empty)));
                     mergedServices.AddRange(defaultCategoryMasters.Where(x => !existingCategoryKeys.Contains(x.Name ?? string.Empty)));
 
-                    var mergedItems = items.ToList();
-                    mergedItems.AddRange(defaultItems.Where(x => !existingItemKeys.Contains(BuildLaundryItemKey(x.ServiceType, x.Category, x.ItemName))));
+                    var mergedItemsByKey = new Dictionary<string, StoreItemMasterDto>(StringComparer.OrdinalIgnoreCase);
+
+                    void MergeItem(StoreItemMasterDto source)
+                    {
+                        if (source == null)
+                        {
+                            return;
+                        }
+
+                        var key = BuildLaundryItemKey(source.ServiceType, source.Category, source.ItemName);
+                        if (string.IsNullOrWhiteSpace(key) || key == "||")
+                        {
+                            return;
+                        }
+
+                        if (!mergedItemsByKey.TryGetValue(key, out var existing))
+                        {
+                            mergedItemsByKey[key] = source;
+                            return;
+                        }
+
+                        if (existing.Id <= 0 && source.Id > 0)
+                        {
+                            existing.Id = source.Id;
+                            existing.IsActive = source.IsActive;
+                        }
+
+                        if (string.IsNullOrWhiteSpace(existing.Description) && !string.IsNullOrWhiteSpace(source.Description))
+                        {
+                            existing.Description = source.Description;
+                        }
+
+                        // Persisted item-master records (Id > 0) are authoritative for status.
+                        // Derived/default rows (Id == 0) must never reactivate an archived persisted row.
+                        if (source.Id > 0)
+                        {
+                            existing.IsActive = source.IsActive;
+                        }
+                        else if (existing.Id <= 0 && !existing.IsActive && source.IsActive)
+                        {
+                            existing.IsActive = true;
+                        }
+                    }
+
+                    foreach (var item in items)
+                    {
+                        MergeItem(item);
+                    }
+
+                    foreach (var item in defaultItems)
+                    {
+                        MergeItem(item);
+                    }
+
+                    var mergedItems = mergedItemsByKey.Values.ToList();
 
                     services = mergedServices;
                     items = mergedItems;
@@ -7431,7 +7485,7 @@ namespace LMSWebUI.Controllers
         }
 
         [HttpPost]
-        public async Task<JsonResult> SetStoreServiceMasterStatus(string masterType, string name, bool isActive)
+        public async Task<JsonResult> SetStoreServiceMasterStatus(string masterType, string name, bool isActive, int? id = null)
         {
             var tenantName = HttpContext.Session.GetString("TenantName");
             var storeCode = HttpContext.Session.GetString("TenantStore");
@@ -7448,12 +7502,72 @@ namespace LMSWebUI.Controllers
 
             try
             {
+                var normalizedMasterType = masterType?.Trim();
+                var normalizedName = name.Trim();
+                var resolvedId = id.GetValueOrDefault();
+
+                if (isActive)
+                {
+                    var existingMasters = await _clientApi.SendRequestAsync<List<StoreServiceMasterDto>>("/GetStoreServiceMasters", new Dictionary<string, string>
+                    {
+                        { "tenantName", tenantName },
+                        { "storeCode", storeCode },
+                        { "includeInactive", "true" }
+                    }, Method.GET) ?? new List<StoreServiceMasterDto>();
+
+                    var hasInactiveTarget = existingMasters.Any(x =>
+                        string.Equals(x.MasterType, normalizedMasterType, StringComparison.OrdinalIgnoreCase)
+                        && string.Equals(x.Name, normalizedName, StringComparison.OrdinalIgnoreCase)
+                        && !x.IsActive);
+
+                    var hasActiveDuplicate = existingMasters.Any(x =>
+                        string.Equals(x.MasterType, normalizedMasterType, StringComparison.OrdinalIgnoreCase)
+                        && string.Equals(x.Name, normalizedName, StringComparison.OrdinalIgnoreCase)
+                        && x.IsActive);
+
+                    if (hasInactiveTarget && hasActiveDuplicate)
+                    {
+                        return Json(new
+                        {
+                            success = false,
+                            message = "An active entry with the same name already exists for this store. Restore is blocked to prevent duplicates."
+                        });
+                    }
+
+                    if (resolvedId <= 0)
+                    {
+                        resolvedId = existingMasters
+                            .Where(x => string.Equals(x.MasterType, normalizedMasterType, StringComparison.OrdinalIgnoreCase)
+                                && string.Equals(x.Name, normalizedName, StringComparison.OrdinalIgnoreCase)
+                                && !x.IsActive)
+                            .Select(x => x.Id)
+                            .FirstOrDefault(x => x > 0);
+                    }
+                }
+                else if (resolvedId <= 0)
+                {
+                    var existingMasters = await _clientApi.SendRequestAsync<List<StoreServiceMasterDto>>("/GetStoreServiceMasters", new Dictionary<string, string>
+                    {
+                        { "tenantName", tenantName },
+                        { "storeCode", storeCode },
+                        { "includeInactive", "true" }
+                    }, Method.GET) ?? new List<StoreServiceMasterDto>();
+
+                    resolvedId = existingMasters
+                        .Where(x => string.Equals(x.MasterType, normalizedMasterType, StringComparison.OrdinalIgnoreCase)
+                            && string.Equals(x.Name, normalizedName, StringComparison.OrdinalIgnoreCase)
+                            && x.IsActive)
+                        .Select(x => x.Id)
+                        .FirstOrDefault(x => x > 0);
+                }
+
                 var request = new StoreServiceMasterDto
                 {
                     TenantName = tenantName,
                     StoreCode = storeCode,
-                    MasterType = masterType,
-                    Name = name.Trim(),
+                    Id = resolvedId,
+                    MasterType = normalizedMasterType,
+                    Name = normalizedName,
                     IsActive = isActive
                 };
 
@@ -7523,7 +7637,7 @@ namespace LMSWebUI.Controllers
         }
 
         [HttpPost]
-        public async Task<JsonResult> SetStoreItemMasterStatus(string serviceType, string category, string itemName, bool isActive)
+        public async Task<JsonResult> SetStoreItemMasterStatus(string serviceType, string category, string itemName, bool isActive, int? id = null)
         {
             var tenantName = HttpContext.Session.GetString("TenantName");
             var storeCode = HttpContext.Session.GetString("TenantStore");
@@ -7542,13 +7656,90 @@ namespace LMSWebUI.Controllers
 
             try
             {
+                var normalizedServiceType = serviceType.Trim();
+                var normalizedCategory = category.Trim();
+                var normalizedItemName = itemName.Trim();
+                var resolvedId = id.GetValueOrDefault();
+
+                List<StoreItemMasterDto> existingItems = null;
+                if (isActive || resolvedId <= 0)
+                {
+                    existingItems = await GetScopedStoreItemMastersAsync(tenantName, storeCode, includeInactive: true);
+                }
+
+                if (isActive)
+                {
+                    var existingServices = await _clientApi.SendRequestAsync<List<StoreServiceMasterDto>>("/GetStoreServiceMasters", new Dictionary<string, string>
+                    {
+                        { "tenantName", tenantName },
+                        { "storeCode", storeCode },
+                        { "includeInactive", "true" }
+                    }, Method.GET) ?? new List<StoreServiceMasterDto>();
+
+                    var hasActiveService = existingServices.Any(x =>
+                        string.Equals(x.MasterType, "Service", StringComparison.OrdinalIgnoreCase)
+                        && string.Equals(x.Name, normalizedServiceType, StringComparison.OrdinalIgnoreCase)
+                        && x.IsActive);
+
+                    var hasActiveCategory = existingServices.Any(x =>
+                        string.Equals(x.MasterType, "Category", StringComparison.OrdinalIgnoreCase)
+                        && string.Equals(x.Name, normalizedCategory, StringComparison.OrdinalIgnoreCase)
+                        && x.IsActive);
+
+                    if (!hasActiveService || !hasActiveCategory)
+                    {
+                        return Json(new
+                        {
+                            success = false,
+                            message = "Cannot restore item while its mapped service type or category is inactive. Restore those masters first."
+                        });
+                    }
+
+                    var inactiveMatches = (existingItems ?? new List<StoreItemMasterDto>()).Where(x =>
+                        string.Equals((x.ServiceType ?? string.Empty).Trim(), normalizedServiceType, StringComparison.OrdinalIgnoreCase)
+                        && string.Equals((x.Category ?? string.Empty).Trim(), normalizedCategory, StringComparison.OrdinalIgnoreCase)
+                        && string.Equals((x.ItemName ?? string.Empty).Trim(), normalizedItemName, StringComparison.OrdinalIgnoreCase)
+                        && !x.IsActive).ToList();
+
+                    var hasActiveDuplicate = (existingItems ?? new List<StoreItemMasterDto>()).Any(x =>
+                        string.Equals((x.ServiceType ?? string.Empty).Trim(), normalizedServiceType, StringComparison.OrdinalIgnoreCase)
+                        && string.Equals((x.Category ?? string.Empty).Trim(), normalizedCategory, StringComparison.OrdinalIgnoreCase)
+                        && string.Equals((x.ItemName ?? string.Empty).Trim(), normalizedItemName, StringComparison.OrdinalIgnoreCase)
+                        && x.IsActive);
+
+                    if (inactiveMatches.Any() && hasActiveDuplicate)
+                    {
+                        return Json(new
+                        {
+                            success = false,
+                            message = "An active item with the same service/category/name already exists. Restore is blocked to prevent duplicates."
+                        });
+                    }
+
+                    if (resolvedId <= 0)
+                    {
+                        resolvedId = inactiveMatches.Select(x => x.Id).FirstOrDefault(x => x > 0);
+                    }
+                }
+                else if (resolvedId <= 0)
+                {
+                    resolvedId = (existingItems ?? new List<StoreItemMasterDto>())
+                        .Where(x => string.Equals((x.ServiceType ?? string.Empty).Trim(), normalizedServiceType, StringComparison.OrdinalIgnoreCase)
+                            && string.Equals((x.Category ?? string.Empty).Trim(), normalizedCategory, StringComparison.OrdinalIgnoreCase)
+                            && string.Equals((x.ItemName ?? string.Empty).Trim(), normalizedItemName, StringComparison.OrdinalIgnoreCase)
+                            && x.IsActive)
+                        .Select(x => x.Id)
+                        .FirstOrDefault(x => x > 0);
+                }
+
                 var request = new StoreItemMasterDto
                 {
                     TenantName = tenantName,
                     StoreCode = storeCode,
-                    ServiceType = serviceType.Trim(),
-                    Category = category.Trim(),
-                    ItemName = itemName.Trim(),
+                    Id = resolvedId,
+                    ServiceType = normalizedServiceType,
+                    Category = normalizedCategory,
+                    ItemName = normalizedItemName,
                     IsActive = isActive
                 };
 
@@ -7630,6 +7821,245 @@ namespace LMSWebUI.Controllers
         private static string BuildLaundryItemKey(string serviceType, string category, string itemName)
         {
             return $"{serviceType?.Trim().ToLowerInvariant()}|{category?.Trim().ToLowerInvariant()}|{itemName?.Trim().ToLowerInvariant()}";
+        }
+
+        private async Task<List<StoreItemMasterDto>> GetScopedStoreItemMastersAsync(string tenantName, string storeCode, bool includeInactive)
+        {
+            var query = new Dictionary<string, string>
+            {
+                { "tenantName", tenantName },
+                { "storeCode", storeCode },
+                { "includeInactive", includeInactive ? "true" : "false" }
+            };
+
+            var directItems = await _clientApi.SendRequestAsync<List<StoreItemMasterDto>>("/GetStoreItemMasters", query, Method.GET)
+                ?? new List<StoreItemMasterDto>();
+
+            var wrappedItemsResponse = await _clientApi.SendRequestAsync<JObject>("/GetStoreItemMasters", query, Method.GET);
+            var wrappedItems = ExtractStoreItemMasters(wrappedItemsResponse);
+
+            if (!wrappedItems.Any())
+            {
+                return directItems;
+            }
+
+            if (!directItems.Any())
+            {
+                return wrappedItems;
+            }
+
+            var mergedByKey = new Dictionary<string, StoreItemMasterDto>(StringComparer.OrdinalIgnoreCase);
+
+            void AddOrMerge(IEnumerable<StoreItemMasterDto> source)
+            {
+                foreach (var item in source ?? Enumerable.Empty<StoreItemMasterDto>())
+                {
+                    var key = BuildLaundryItemKey(item?.ServiceType, item?.Category, item?.ItemName);
+                    if (string.IsNullOrWhiteSpace(key) || key == "||")
+                    {
+                        continue;
+                    }
+
+                    if (!mergedByKey.TryGetValue(key, out var existing))
+                    {
+                        mergedByKey[key] = item;
+                        continue;
+                    }
+
+                    if (existing.Id <= 0 && item.Id > 0)
+                    {
+                        existing.Id = item.Id;
+                    }
+
+                    if (string.IsNullOrWhiteSpace(existing.Description) && !string.IsNullOrWhiteSpace(item.Description))
+                    {
+                        existing.Description = item.Description;
+                    }
+
+                    if (!existing.IsActive && item.IsActive)
+                    {
+                        existing.IsActive = true;
+                    }
+                }
+            }
+
+            AddOrMerge(directItems);
+            AddOrMerge(wrappedItems);
+
+            return mergedByKey.Values.ToList();
+        }
+
+        private static List<StoreServiceMasterDto> ExtractStoreServiceMasters(JObject response)
+        {
+            if (response == null)
+            {
+                return new List<StoreServiceMasterDto>();
+            }
+
+            JToken token = response["serviceTypes"]
+                ?? response["ServiceTypes"]
+                ?? response["categories"]
+                ?? response["Categories"]
+                ?? response["items"]
+                ?? response["Items"]
+                ?? response["result"]
+                ?? response["Result"]
+                ?? response["data"]
+                ?? response["Data"];
+
+            if (token is JObject obj)
+            {
+                token = obj["serviceTypes"]
+                    ?? obj["ServiceTypes"]
+                    ?? obj["categories"]
+                    ?? obj["Categories"]
+                    ?? obj["items"]
+                    ?? obj["Items"]
+                    ?? obj["result"]
+                    ?? obj["Result"]
+                    ?? obj["data"]
+                    ?? obj["Data"]
+                    ?? obj["$values"];
+            }
+
+            var array = token as JArray
+                ?? token?["$values"] as JArray
+                ?? (token != null && token.Type != JTokenType.Null && token.Type != JTokenType.Undefined ? JArray.FromObject(token) : null);
+
+            return array?.ToObject<List<StoreServiceMasterDto>>() ?? new List<StoreServiceMasterDto>();
+        }
+
+        private static List<StoreItemMasterDto> ExtractStoreItemMasters(JObject response)
+        {
+            if (response == null)
+            {
+                return new List<StoreItemMasterDto>();
+            }
+
+            JToken token = response["items"]
+                ?? response["Items"]
+                ?? response["resultSet"]
+                ?? response["ResultSet"]
+                ?? response["result"]
+                ?? response["Result"]
+                ?? response["data"]
+                ?? response["Data"];
+
+            if (token is JObject obj)
+            {
+                token = obj["items"]
+                    ?? obj["Items"]
+                    ?? obj["resultSet"]
+                    ?? obj["ResultSet"]
+                    ?? obj["result"]
+                    ?? obj["Result"]
+                    ?? obj["data"]
+                    ?? obj["Data"]
+                    ?? obj["$values"];
+
+                if (token is JObject nestedObject)
+                {
+                    token = nestedObject["items"]
+                        ?? nestedObject["Items"]
+                        ?? nestedObject["resultSet"]
+                        ?? nestedObject["ResultSet"]
+                        ?? nestedObject["result"]
+                        ?? nestedObject["Result"]
+                        ?? nestedObject["data"]
+                        ?? nestedObject["Data"]
+                        ?? nestedObject["$values"]
+                        ?? nestedObject;
+                }
+            }
+
+            var array = token as JArray
+                ?? token?["$values"] as JArray
+                ?? (token as JObject)?.Descendants().OfType<JArray>().FirstOrDefault()
+                ?? (response as JObject)?.Descendants().OfType<JArray>().FirstOrDefault()
+                ?? (token != null && token.Type != JTokenType.Null && token.Type != JTokenType.Undefined && token.Type != JTokenType.Object
+                    ? JArray.FromObject(token)
+                    : null);
+            if (array == null)
+            {
+                return new List<StoreItemMasterDto>();
+            }
+
+            var items = new List<StoreItemMasterDto>();
+            foreach (var itemToken in array)
+            {
+                var candidateToken = itemToken;
+                if (itemToken is JObject itemObject)
+                {
+                    candidateToken = itemObject["item"]
+                        ?? itemObject["Item"]
+                        ?? itemObject["storeItemMaster"]
+                        ?? itemObject["StoreItemMaster"]
+                        ?? itemObject["result"]
+                        ?? itemObject["Result"]
+                        ?? itemObject["data"]
+                        ?? itemObject["Data"]
+                        ?? itemToken;
+                }
+
+                var dto = candidateToken?.ToObject<StoreItemMasterDto>() ?? new StoreItemMasterDto();
+
+                var idSource = candidateToken as JObject ?? itemToken as JObject;
+                if (dto.Id <= 0 && idSource != null)
+                {
+                    dto.Id = ResolveStoreItemMasterId(idSource);
+                }
+
+                if ((string.IsNullOrWhiteSpace(dto.ServiceType)
+                    || string.IsNullOrWhiteSpace(dto.Category)
+                    || string.IsNullOrWhiteSpace(dto.ItemName))
+                    && itemToken is JObject fallbackObject)
+                {
+                    dto.ServiceType = dto.ServiceType ?? fallbackObject["ServiceType"]?.ToString() ?? fallbackObject["serviceType"]?.ToString();
+                    dto.Category = dto.Category ?? fallbackObject["Category"]?.ToString() ?? fallbackObject["category"]?.ToString();
+                    dto.ItemName = dto.ItemName ?? fallbackObject["ItemName"]?.ToString() ?? fallbackObject["itemName"]?.ToString();
+                    dto.Description = dto.Description ?? fallbackObject["Description"]?.ToString() ?? fallbackObject["description"]?.ToString();
+                }
+
+                items.Add(dto);
+            }
+
+            return items.Where(x => !string.IsNullOrWhiteSpace(x.ServiceType)
+                && !string.IsNullOrWhiteSpace(x.Category)
+                && !string.IsNullOrWhiteSpace(x.ItemName)).ToList();
+        }
+
+        private static int ResolveStoreItemMasterId(JObject itemObject)
+        {
+            if (itemObject == null)
+            {
+                return 0;
+            }
+
+            var idToken = itemObject["Id"]
+                ?? itemObject["id"]
+                ?? itemObject["StoreItemMasterId"]
+                ?? itemObject["storeItemMasterId"]
+                ?? itemObject["ItemMasterId"]
+                ?? itemObject["itemMasterId"]
+                ?? itemObject["ItemId"]
+                ?? itemObject["itemId"];
+
+            if (idToken == null)
+            {
+                return 0;
+            }
+
+            if (idToken.Type == JTokenType.Integer && idToken.Value<int>() > 0)
+            {
+                return idToken.Value<int>();
+            }
+
+            if (int.TryParse(idToken.ToString(), out var parsedId) && parsedId > 0)
+            {
+                return parsedId;
+            }
+
+            return 0;
         }
 
         private static string NormalizeCsvHeader(string headerLine)
