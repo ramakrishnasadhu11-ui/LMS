@@ -57,8 +57,25 @@
     }
 }
 <style>
+    :root {
+        --els-primary: #173B70;
+        --els-primary-dark: #173B70;
+        --els-primary-light: #2878C8;
+        --els-accent: #EAF2FC;
+        --els-background: #F5F7FA;
+        --els-surface: #FFFFFF;
+        --els-text: #1E293B;
+        --els-text-muted: #64748B;
+        --els-border: #E2E8F0;
+        --els-success: #16A36A;
+        --els-warning: #D99520;
+        --els-danger: #D94848;
+        --els-info: #64748B;
+    }
+
     .dashboard-page {
         padding: 24px;
+        background: var(--els-background);
     }
 
     .dashboard-box {
@@ -70,7 +87,7 @@
     }
 
     .dashboard-header {
-        background: linear-gradient(90deg, var(--els-primary) 0%, var(--els-primary-dark) 100%);
+        background: var(--els-primary);
         color: #fff;
         padding: 20px;
     }
@@ -679,6 +696,24 @@
         margin-top: 20px;
     }
 
+    .admin-management-header {
+        margin-top: 18px;
+        margin-bottom: 10px;
+    }
+
+    .admin-management-title {
+        margin: 0;
+        font-size: 16px;
+        font-weight: 700;
+        color: var(--els-primary-dark);
+    }
+
+    .admin-management-subtitle {
+        margin: 4px 0 0;
+        font-size: 12px;
+        color: var(--els-text-muted);
+    }
+
     .admin-menu-section + .admin-menu-section {
         margin-top: 24px;
     }
@@ -793,22 +828,31 @@
     }
 
     .reports-group {
-        border-top: 1px dashed var(--els-border);
-        padding-top: 12px;
-        margin-top: 12px;
+        border: 1px solid var(--els-border);
+        border-radius: 10px;
+        background: var(--els-surface);
+        padding: 12px;
+        margin-top: 10px;
     }
 
     .reports-group:first-of-type {
-        border-top: none;
-        padding-top: 0;
+        border-top: 1px solid var(--els-border);
+        padding-top: 12px;
         margin-top: 0;
     }
 
     .reports-group-title {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
         margin: 0 0 4px;
         font-size: 13px;
         font-weight: 700;
         color: var(--els-primary-dark);
+    }
+
+    .reports-group-title i {
+        color: var(--els-primary);
     }
 
     .reports-group-desc {
@@ -925,9 +969,114 @@
     .admin-insights-panel {
         margin-bottom: 18px;
         border: 1px solid var(--els-border);
-        border-radius: 10px;
-        background: var(--els-background);
+        border-radius: 14px;
+        background: var(--els-surface);
+        padding: 16px;
+        box-shadow: 0 10px 26px rgba(23, 59, 112, 0.08);
+    }
+
+    .admin-store-dashboard-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: stretch;
+        gap: 14px;
+        flex-wrap: wrap;
         padding: 14px;
+        border: 1px solid var(--els-border);
+        border-radius: 12px;
+        background: linear-gradient(120deg, #f8fbff 0%, #edf4fd 100%);
+        margin-bottom: 12px;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .admin-store-dashboard-header::after {
+        content: "";
+        position: absolute;
+        right: -48px;
+        top: -28px;
+        width: 190px;
+        height: 190px;
+        border-radius: 50%;
+        background: radial-gradient(circle, rgba(23, 59, 112, 0.12) 0%, rgba(23, 59, 112, 0) 70%);
+        pointer-events: none;
+    }
+
+    .admin-store-dashboard-title {
+        margin: 0;
+        font-size: 24px;
+        font-weight: 700;
+        color: var(--els-primary);
+        position: relative;
+        z-index: 1;
+    }
+
+    .admin-store-dashboard-subtitle {
+        margin: 6px 0 0;
+        font-size: 13px;
+        color: var(--els-text-muted);
+        position: relative;
+        z-index: 1;
+    }
+
+    .admin-store-dashboard-context {
+        margin-top: 10px;
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+        position: relative;
+        z-index: 1;
+    }
+
+    .admin-context-chip {
+        border: 1px solid var(--els-border);
+        border-radius: 999px;
+        background: #fff;
+        padding: 5px 10px;
+        font-size: 11px;
+        font-weight: 700;
+        color: var(--els-primary);
+    }
+
+    .admin-header-actions {
+        display: flex;
+        align-items: flex-start;
+        gap: 8px;
+        flex-wrap: wrap;
+        position: relative;
+        z-index: 1;
+    }
+
+    .admin-compact-action {
+        border: 1px solid #1f67b0;
+        border-radius: 8px;
+        background: var(--els-primary-light);
+        color: #fff;
+        font-size: 12px;
+        font-weight: 700;
+        min-height: 34px;
+        padding: 0 12px;
+        text-decoration: none;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .admin-compact-action:hover,
+    .admin-compact-action:focus {
+        color: #fff;
+        text-decoration: none;
+        filter: brightness(0.95);
+    }
+
+    .admin-refresh-chip {
+        border: 1px solid var(--els-border);
+        border-radius: 999px;
+        padding: 5px 10px;
+        font-size: 11px;
+        font-weight: 700;
+        color: var(--els-text-muted);
+        background: #fff;
     }
 
     .admin-insights-title {
@@ -1009,16 +1158,78 @@
 
     .admin-kpi-grid {
         display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
         gap: 10px;
         margin-bottom: 12px;
     }
 
-    .admin-kpi-card {
+    .admin-kpi-summary-grid {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(160px, 1fr));
+        gap: 8px;
+        margin-bottom: 12px;
+    }
+
+    .admin-kpi-summary-item {
         border: 1px solid var(--els-border);
         border-radius: 8px;
+        background: var(--els-background);
+        padding: 8px 10px;
+    }
+
+    .admin-kpi-summary-label {
+        display: block;
+        font-size: 11px;
+        color: var(--els-text-muted);
+        margin-bottom: 2px;
+    }
+
+    .admin-kpi-summary-value {
+        display: block;
+        font-size: 16px;
+        font-weight: 700;
+        color: var(--els-text);
+    }
+
+    .admin-kpi-card {
+        border: 1px solid var(--els-border);
+        border-radius: 10px;
         background: var(--els-surface);
-        padding: 10px;
+        padding: 12px;
+        transition: transform .18s ease, box-shadow .18s ease;
+    }
+
+    .admin-kpi-card:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 8px 16px rgba(23, 59, 112, 0.1);
+    }
+
+    .admin-kpi-card.primary {
+        border-left: 4px solid var(--els-primary-light);
+    }
+
+    .admin-kpi-card-head {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 4px;
+    }
+
+    .admin-kpi-icon {
+        width: 26px;
+        height: 26px;
+        border-radius: 8px;
+        background: var(--els-accent);
+        border: 1px solid var(--els-border);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 13px;
+        color: var(--els-primary);
+    }
+
+    .admin-kpi-icon i {
+        font-size: 13px;
     }
 
     .admin-kpi-label {
@@ -1033,6 +1244,13 @@
         font-size: 20px;
         font-weight: 700;
         color: var(--els-text);
+    }
+
+    .admin-kpi-support {
+        display: block;
+        margin-top: 4px;
+        font-size: 11px;
+        color: var(--els-text-muted);
     }
 
     .admin-chart-grid {
@@ -1138,6 +1356,7 @@
         display: grid;
         grid-template-columns: repeat(4, minmax(120px, 1fr));
         gap: 10px;
+        margin-bottom: 10px;
     }
 
     .admin-sla-card {
@@ -1160,9 +1379,52 @@
         color: var(--els-text);
     }
 
-    .admin-sla-value.alert { color: #b63838; }
-    .admin-sla-value.warn { color: #8a5a00; }
-    .admin-sla-value.success { color: #2f8f46; }
+    .admin-sla-value.alert { color: var(--els-danger); }
+    .admin-sla-value.warn { color: var(--els-warning); }
+    .admin-sla-value.success { color: var(--els-success); }
+
+    .admin-sla-health-wrap {
+        border: 1px solid var(--els-border);
+        border-radius: 10px;
+        background: var(--els-surface);
+        padding: 10px;
+    }
+
+    .admin-sla-health-bar {
+        display: flex;
+        width: 100%;
+        height: 12px;
+        border-radius: 999px;
+        overflow: hidden;
+        background: #eef3f9;
+    }
+
+    .admin-sla-health-segment {
+        height: 100%;
+        min-width: 3px;
+    }
+
+    .admin-sla-health-segment.s0 { background: var(--els-success); }
+    .admin-sla-health-segment.s1 { background: #69b98e; }
+    .admin-sla-health-segment.s2 { background: var(--els-warning); }
+    .admin-sla-health-segment.s3 { background: var(--els-danger); }
+
+    .admin-sla-health-text {
+        margin-top: 8px;
+        font-size: 12px;
+        color: var(--els-text-muted);
+        font-weight: 600;
+    }
+
+    .admin-sla-empty {
+        border: 1px dashed var(--els-border);
+        border-radius: 8px;
+        background: var(--els-surface);
+        padding: 12px;
+        font-size: 12px;
+        color: var(--els-text-muted);
+        margin-top: 10px;
+    }
 
     .admin-ebj-summary {
         margin-top: 8px;
@@ -1201,6 +1463,7 @@
     .admin-list-row {
         display: flex;
         justify-content: space-between;
+        align-items: center;
         gap: 10px;
         padding: 7px 8px;
         border: 1px solid var(--els-border);
@@ -1212,6 +1475,21 @@
 
     .admin-list-label {
         color: #475467;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+    }
+
+    .admin-list-label-icon {
+        font-size: 12px;
+        width: 14px;
+        text-align: center;
+        color: var(--els-primary);
+        opacity: 0.9;
+    }
+
+    .admin-list-label-icon i {
+        font-size: 12px;
     }
 
     .admin-list-value {
@@ -1224,7 +1502,31 @@
     }
 
     .admin-list-value.success {
-        color: #2f8f46;
+        color: var(--els-success);
+    }
+
+    .admin-list-value.warn {
+        color: var(--els-warning);
+    }
+
+    .admin-list-value.info {
+        color: var(--els-info);
+    }
+
+    .admin-list-row-link {
+        display: block;
+        text-decoration: none;
+        color: inherit;
+    }
+
+    .admin-list-row-link:hover {
+        background: var(--els-accent);
+        border-color: #c7d7ee;
+    }
+
+    .admin-list-row-link:hover .admin-list-row {
+        background: var(--els-accent);
+        border-color: #c7d7ee;
     }
 
     .admin-insights-empty {
@@ -1240,6 +1542,10 @@
         .admin-insights-sections-grid,
         .admin-chart-grid {
             grid-template-columns: 1fr;
+        }
+
+        .admin-kpi-summary-grid {
+            grid-template-columns: repeat(2, minmax(140px, 1fr));
         }
 
         .admin-sla-grid {
@@ -1261,6 +1567,10 @@
         .subscription-plans-grid {
             grid-template-columns: 1fr;
         }
+
+        .admin-kpi-summary-grid {
+            grid-template-columns: 1fr;
+        }
     }
 
 </style>
@@ -1268,17 +1578,10 @@
 <section class="content dashboard-page">
     <div class="box dashboard-box">
         <div class="dashboard-header">
-            <h2>@dashboardTitle</h2>
+            <h2>@(isAdminUser ? "Store Dashboard" : dashboardTitle)</h2>
             @if (isAdminUser)
             {
-                @if (isSuperAdminUser)
-                {
-                    <p class="dashboard-header-subtitle">Review and approve tenant stores awaiting activation.</p>
-                }
-                else
-                {
-                    <p class="dashboard-header-subtitle">Manage store configuration, pricing policies, operations, and users from one place.</p>
-                }
+                <p class="dashboard-header-subtitle">Your business performance, daily operations and store insights in one place.</p>
             }
             else if (canResumeOnboarding)
             {
@@ -1289,7 +1592,7 @@
             }
         </div>
         <div class="dashboard-body">
-            @if (subscriptionSpotlightVisible)
+            @if (!isAdminUser && subscriptionSpotlightVisible)
             {
                 <div class="subscription-spotlight" id="subscriptionSpotlight">
                     <div class="subscription-spotlight-body">
@@ -1319,10 +1622,13 @@
                 </div>
             }
 
-            <div class="subscription-entry-point" id="subscriptionEntryPoint" @(subscriptionSpotlightVisible ? "style=display:none;" : "style=display:flex;")>
-                <span>Review your subscription plans and tariff options.</span>
-                <a href="@plansAndTariffUrl">@subscriptionCtaText</a>
-            </div>
+            @if (!isAdminUser)
+            {
+                <div class="subscription-entry-point" id="subscriptionEntryPoint" @(subscriptionSpotlightVisible ? "style=display:none;" : "style=display:flex;")>
+                    <span>Review your subscription plans and tariff options.</span>
+                    <a href="@plansAndTariffUrl">@subscriptionCtaText</a>
+                </div>
+            }
 
             @if (!isAdminUser)
             {
@@ -1613,8 +1919,24 @@
             else
             {
                 <div class="admin-insights-panel" id="adminInsightsPanel">
-                    <h3 class="admin-insights-title">Store Business Snapshot</h3>
-                    <p class="admin-insights-subtitle">Current store analytics: action queue, revenue, operations, customer trends, alerts and productivity.</p>
+                    <div class="admin-store-dashboard-header">
+                        <div>
+                            <div class="admin-store-dashboard-context">
+                                <span class="admin-context-chip">Tenant: @tenantName</span>
+                                <span class="admin-context-chip">Store: @tenantStore</span>
+                                <span class="admin-context-chip">Context: Current Store</span>
+                            </div>
+                        </div>
+                        <div class="admin-header-actions">
+                            <a class="admin-compact-action" href="@Url.Action("PricingRules", "Customer")">Manage Laundry Pricing</a>
+                            <span class="admin-refresh-chip">Period: <span id="adminHeaderPeriod">Month to Date</span></span>
+                            <span class="admin-refresh-chip">Last refreshed: <span id="adminHeaderLastRefreshed">--</span></span>
+                            <span class="admin-refresh-chip">Auto refresh: <span id="adminHeaderRefreshStatus">On</span></span>
+                        </div>
+                    </div>
+
+                    <h3 class="admin-insights-title">Business at a glance</h3>
+                    <p class="admin-insights-subtitle">Real-time visibility into orders, revenue, payments, and operational health.</p>
                     <div class="admin-insights-toolbar">
                         <div class="admin-insights-toolbar-left">
                             <label for="adminRangeFilter" class="admin-toolbar-label">Range</label>
@@ -1638,54 +1960,67 @@
                     <div class="admin-ebj-suite" id="adminEbjSuite">
                         <div class="admin-ebj-suite-header">
                             <div>
-                                <h4 class="admin-ebj-suite-title">Admin Dashboard - EBJ Store</h4>
-                                <p class="admin-ebj-suite-subtitle">Daily KPI focus, SLA monitor, and reporting actions for quick business decisions.</p>
+                                <h4 class="admin-ebj-suite-title">SLA Health</h4>
+                                <p class="admin-ebj-suite-subtitle">Track order turnaround times and identify at-risk orders quickly.</p>
                             </div>
                             <div class="admin-report-actions">
                                 <button type="button" class="btn btn-default" id="adminPrintSummaryBtn">Print Summary</button>
                                 <button type="button" class="btn btn-default" id="adminEmailSummaryBtn">Email Summary</button>
                             </div>
                         </div>
-                        <div class="admin-sla-grid">
+                        <div class="admin-sla-grid" id="adminSlaGrid">
                             <div class="admin-sla-card">
-                                <span class="admin-sla-label">SLA &lt; 4h</span>
+                                <span class="admin-sla-label">Under 4 hours</span>
                                 <span class="admin-sla-value success" id="adminSla0to4">--</span>
                             </div>
                             <div class="admin-sla-card">
-                                <span class="admin-sla-label">SLA 4-12h</span>
+                                <span class="admin-sla-label">4–12 hours</span>
                                 <span class="admin-sla-value" id="adminSla4to12">--</span>
                             </div>
                             <div class="admin-sla-card">
-                                <span class="admin-sla-label">SLA 12-24h</span>
+                                <span class="admin-sla-label">12–24 hours</span>
                                 <span class="admin-sla-value warn" id="adminSla12to24">--</span>
                             </div>
                             <div class="admin-sla-card">
-                                <span class="admin-sla-label">SLA &gt; 24h (At Risk)</span>
+                                <span class="admin-sla-label">Over 24 hours (At Risk)</span>
                                 <span class="admin-sla-value alert" id="adminSla24Plus">--</span>
                             </div>
                         </div>
+                        <div class="admin-sla-health-wrap" id="adminSlaHealthWrap">
+                            <div class="admin-sla-health-bar" aria-label="SLA health distribution">
+                                <span class="admin-sla-health-segment s0" id="adminSlaSeg0to4"></span>
+                                <span class="admin-sla-health-segment s1" id="adminSlaSeg4to12"></span>
+                                <span class="admin-sla-health-segment s2" id="adminSlaSeg12to24"></span>
+                                <span class="admin-sla-health-segment s3" id="adminSlaSeg24Plus"></span>
+                            </div>
+                            <div class="admin-sla-health-text" id="adminSlaHealthMessage">SLA health will appear when orders are available.</div>
+                        </div>
                         <div class="admin-ebj-summary" id="adminEbjSummaryText">Loading admin summary...</div>
+                        <div class="admin-sla-empty" id="adminSlaEmptyState" style="display:none;">No active orders yet. Your SLA performance will appear here once orders enter the workflow.</div>
                     </div>
 
                     <div class="admin-kpi-grid">
-                        <div class="admin-kpi-card"><span class="admin-kpi-label">Today Orders</span><span class="admin-kpi-value" id="adminKpiTodayOrders">--</span></div>
-                        <div class="admin-kpi-card"><span class="admin-kpi-label">Today Sales</span><span class="admin-kpi-value" id="adminKpiTodaySales">--</span></div>
-                        <div class="admin-kpi-card"><span class="admin-kpi-label">Month Orders</span><span class="admin-kpi-value" id="adminKpiMonthOrders">--</span></div>
-                        <div class="admin-kpi-card"><span class="admin-kpi-label">Month Sales</span><span class="admin-kpi-value" id="adminKpiMonthSales">--</span></div>
-                        <div class="admin-kpi-card"><span class="admin-kpi-label">Pending Payments</span><span class="admin-kpi-value" id="adminKpiPendingPayments">--</span></div>
-                        <div class="admin-kpi-card"><span class="admin-kpi-label">Pending Amount</span><span class="admin-kpi-value" id="adminKpiPendingAmount">--</span></div>
-                        <div class="admin-kpi-card"><span class="admin-kpi-label">Collected (Range)</span><span class="admin-kpi-value" id="adminKpiCollectedAmount">--</span></div>
-                        <div class="admin-kpi-card"><span class="admin-kpi-label">Avg Order Value</span><span class="admin-kpi-value" id="adminKpiAvgOrderValue">--</span></div>
+                        <div class="admin-kpi-card primary"><div class="admin-kpi-card-head"><span class="admin-kpi-icon" aria-hidden="true"><i class="fa fa-shopping-basket"></i></span><span class="admin-kpi-label">Today's Orders</span></div><span class="admin-kpi-value" id="adminKpiTodayOrders">--</span><span class="admin-kpi-support" id="adminKpiTodayOrdersSupport"></span></div>
+                        <div class="admin-kpi-card primary"><div class="admin-kpi-card-head"><span class="admin-kpi-icon" aria-hidden="true"><i class="fa fa-line-chart"></i></span><span class="admin-kpi-label">Today's Sales</span></div><span class="admin-kpi-value" id="adminKpiTodaySales">--</span><span class="admin-kpi-support" id="adminKpiTodaySalesSupport"></span></div>
+                        <div class="admin-kpi-card primary"><div class="admin-kpi-card-head"><span class="admin-kpi-icon" aria-hidden="true"><i class="fa fa-credit-card"></i></span><span class="admin-kpi-label">Pending Payments</span></div><span class="admin-kpi-value" id="adminKpiPendingPayments">--</span><span class="admin-kpi-support" id="adminKpiPendingPaymentsSupport"></span></div>
+                        <div class="admin-kpi-card primary"><div class="admin-kpi-card-head"><span class="admin-kpi-icon" aria-hidden="true"><i class="fa fa-truck"></i></span><span class="admin-kpi-label">Ready for Delivery</span></div><span class="admin-kpi-value" id="adminKpiReadyForDelivery">--</span><span class="admin-kpi-support" id="adminKpiReadyForDeliverySupport"></span></div>
+                    </div>
+
+                    <div class="admin-kpi-summary-grid">
+                        <div class="admin-kpi-summary-item"><span class="admin-kpi-summary-label">Orders this month</span><span class="admin-kpi-summary-value" id="adminKpiMonthOrders">--</span></div>
+                        <div class="admin-kpi-summary-item"><span class="admin-kpi-summary-label">Sales this month</span><span class="admin-kpi-summary-value" id="adminKpiMonthSales">--</span></div>
+                        <div class="admin-kpi-summary-item"><span class="admin-kpi-summary-label">Payments received (selected period)</span><span class="admin-kpi-summary-value" id="adminKpiCollectedAmount">--</span></div>
+                        <div class="admin-kpi-summary-item"><span class="admin-kpi-summary-label">Average order value</span><span class="admin-kpi-summary-value" id="adminKpiAvgOrderValue">--</span></div>
                     </div>
 
                     <div class="admin-insights-sections-grid">
                         <div class="admin-insight-card">
-                            <h4 class="admin-insight-card-title">Today Action Queue</h4>
+                            <h4 class="admin-insight-card-title">Needs Your Attention</h4>
                             <div class="admin-insight-card-body" id="adminActionQueueRows"></div>
                         </div>
 
                         <div class="admin-insight-card">
-                            <h4 class="admin-insight-card-title">Revenue &amp; Payment Split</h4>
+                            <h4 class="admin-insight-card-title">Revenue and Payment Overview</h4>
                             <div class="admin-insight-card-body" id="adminRevenueRows"></div>
                         </div>
 
@@ -1713,11 +2048,11 @@
 
                     <div class="admin-chart-grid">
                         <div class="admin-chart-card">
-                            <h4 class="admin-chart-title">Order Status Split</h4>
+                            <h4 class="admin-chart-title">Order Status Distribution</h4>
                             <div class="admin-chart-list" id="adminStatusChartRows"></div>
                         </div>
                         <div class="admin-chart-card">
-                            <h4 class="admin-chart-title">Last 7 Days Orders</h4>
+                            <h4 class="admin-chart-title" id="adminTrendChartTitle">Daily Orders – Month to Date</h4>
                             <div class="admin-chart-list" id="adminTrendChartRows"></div>
                         </div>
                     </div>
@@ -1731,6 +2066,10 @@
                 </div>
 
                 <div class="admin-menu-wrap">
+                    <div class="admin-management-header">
+                        <h3 class="admin-management-title">Store Management</h3>
+                        <p class="admin-management-subtitle">Configure store setup, catalogue, billing, operations, and integrations.</p>
+                    </div>
                     <section class="admin-menu-section" aria-labelledby="adminGroupStoreSetup">
                         <h3 class="admin-menu-section-title" id="adminGroupStoreSetup">1. Store Setup &amp; Access</h3>
                         <p class="admin-menu-section-desc">Start here when onboarding a store or granting staff access.</p>
@@ -1850,7 +2189,7 @@
                         <p class="reports-panel-desc">Use grouped reports to avoid confusion. Start with Operations and Finance, then drill down.</p>
 
                         <div class="reports-group">
-                            <h4 class="reports-group-title">Operations</h4>
+                            <h4 class="reports-group-title"><i class="fa fa-gears" aria-hidden="true"></i> Operations</h4>
                             <p class="reports-group-desc">Track order movement and delivery bottlenecks.</p>
                             <div class="reports-link-grid">
                                 <a class="reports-link" href="@Url.Action("Index", "Reports")">
@@ -1869,7 +2208,7 @@
                         </div>
 
                         <div class="reports-group">
-                            <h4 class="reports-group-title">Finance</h4>
+                            <h4 class="reports-group-title"><i class="fa fa-inr" aria-hidden="true"></i> Finance</h4>
                             <p class="reports-group-desc">Review sales, collections, and outstanding amounts.</p>
                             <div class="reports-link-grid">
                                 <a class="reports-link" href="@Url.Action("MyDashboard", "Dashboard")">
@@ -1911,7 +2250,7 @@
                         </div>
 
                         <div class="reports-group">
-                            <h4 class="reports-group-title">Exceptions &amp; Controls</h4>
+                            <h4 class="reports-group-title"><i class="fa fa-shield" aria-hidden="true"></i> Exceptions &amp; Controls</h4>
                             <p class="reports-group-desc">Monitor high-risk and unusual transactions.</p>
                             <div class="reports-link-grid">
                                 <a class="reports-link" href="@Url.Action("MyDashboard", "Dashboard")">
@@ -2708,8 +3047,13 @@
             return;
         }
 
+        var emptyMessagesByContainer = {
+            adminStatusChartRows: "No order status updates yet.",
+            adminTrendChartRows: "No orders received in the selected period."
+        };
+
         if (!rows || rows.length === 0) {
-            container.innerHTML = "<div class='admin-insights-empty'>No data available.</div>";
+            container.innerHTML = "<div class='admin-insights-empty'>" + (emptyMessagesByContainer[containerId] || "No data available.") + "</div>";
             return;
         }
 
@@ -2736,17 +3080,42 @@
             return;
         }
 
-        if (!rows || rows.length === 0) {
-            container.innerHTML = "<div class='admin-insights-empty'>No data available.</div>";
+        var emptyMessagesByContainer = {
+            adminActionQueueRows: "All orders are within the expected workflow.",
+            adminRevenueRows: "Revenue details will appear when billing starts.",
+            adminOperationsRows: "No operations backlog at the moment.",
+            adminCustomerRows: "Customer insights will appear as your business grows.",
+            adminServiceRows: "Service mix will appear once orders are received.",
+            adminAlertRows: "No pending operational alerts."
+        };
+
+        var visibleRows = (rows || []).filter(function (row) {
+            if (!row || !row.hideWhenZero) {
+                return true;
+            }
+
+            return asNumber(row.value) !== 0;
+        });
+
+        if (!visibleRows.length) {
+            container.innerHTML = "<div class='admin-insights-empty'>" + (emptyMessagesByContainer[containerId] || "No data available.") + "</div>";
             return;
         }
 
-        container.innerHTML = rows.map(function (row) {
+        container.innerHTML = visibleRows.map(function (row) {
             var valueClass = row.valueClass ? ("admin-list-value " + row.valueClass) : "admin-list-value";
-            return "<div class='admin-list-row'>"
-                + "<span class='admin-list-label'>" + row.label + "</span>"
+            var iconMarkup = row.icon ? ("<span class='admin-list-label-icon' aria-hidden='true'><i class='" + row.icon + "'></i></span>") : "";
+            var rowClass = "admin-list-row";
+            var html = "<div class='" + rowClass + "'>"
+                + "<span class='admin-list-label'>" + iconMarkup + row.label + "</span>"
                 + "<span class='" + valueClass + "'>" + row.value + "</span>"
                 + "</div>";
+
+            if (row.href) {
+                return "<a class='admin-list-row-link' href='" + row.href + "'>" + html + "</a>";
+            }
+
+            return html;
         }).join("");
     }
 
@@ -2854,11 +3223,11 @@
 
     function buildAdminEbjReportText() {
         if (!adminLastComputedMetrics) {
-            return "Admin Dashboard - EBJ Store summary is not available yet.";
+            return "Store dashboard summary is not available yet.";
         }
 
         var m = adminLastComputedMetrics;
-        return "EBJ Store Admin Summary"
+        return "Store Dashboard Summary (@tenantStore)"
             + "\nRange: " + (m.rangeLabel || "Selected")
             + "\nToday Orders: " + m.todayOrders
             + "\nToday Sales: " + m.todaySales
@@ -2878,7 +3247,7 @@
 
         popup.document.open();
         var safeText = reportText.replace(/</g, "&lt;").replace(/>/g, "&gt;");
-        var html = "<html><head><title>EBJ Admin Summary</title></head>"
+        var html = "<html><head><title>Store Dashboard Summary</title></head>"
             + "<body style='font-family:Segoe UI,Arial,sans-serif;padding:20px;white-space:pre-wrap;'>"
             + safeText
             + "</bo" + "dy></ht" + "ml>";
@@ -2889,7 +3258,7 @@
     }
 
     function emailAdminEbjSummary() {
-        var subject = encodeURIComponent("EBJ Store Admin Dashboard Summary");
+        var subject = encodeURIComponent("Store Dashboard Summary - @tenantStore");
         var body = encodeURIComponent(buildAdminEbjReportText());
         window.location.href = "mailto:?subject=" + subject + "&body=" + body;
     }
@@ -3082,6 +3451,11 @@
                 var source = (refreshSource || "auto").toString();
                 var sourceLabel = source === "manual" ? "Manual" : (source === "filter" ? "Filter" : "Auto");
                 refreshedEl.textContent = formatDateTime(nowRefreshed) + " (" + sourceLabel + ")";
+
+                var headerRefreshEl = document.getElementById("adminHeaderLastRefreshed");
+                if (headerRefreshEl) {
+                    headerRefreshEl.textContent = formatDateTime(nowRefreshed);
+                }
             }
 
             var inlineEl = document.getElementById("adminToolbarRefreshInfo");
@@ -3097,17 +3471,105 @@
                 updateAdminNextRefreshLabel();
             }
 
+            var readyForDeliveryEl = document.getElementById("adminKpiReadyForDelivery");
+            if (readyForDeliveryEl) {
+                readyForDeliveryEl.textContent = String(readyForDeliveryCount);
+            }
+
+            var headerPeriodEl = document.getElementById("adminHeaderPeriod");
+            if (headerPeriodEl) {
+                headerPeriodEl.textContent = getAdminSelectedRangeKey() === "today"
+                    ? "Today"
+                    : (getAdminSelectedRangeKey() === "7d" ? "Last 7 Days" : "Month to Date");
+            }
+
+            var trendTitleEl = document.getElementById("adminTrendChartTitle");
+            if (trendTitleEl) {
+                trendTitleEl.textContent = getAdminSelectedRangeKey() === "7d"
+                    ? "Last 7 Days Orders"
+                    : "Daily Orders – Month to Date";
+            }
+
+            var todayOrdersSupportEl = document.getElementById("adminKpiTodayOrdersSupport");
+            if (todayOrdersSupportEl) {
+                todayOrdersSupportEl.textContent = todayOrders > 0
+                    ? ("Open today: " + (statusMap.Received + statusMap.Processing + statusMap.Ready))
+                    : "Your daily orders will appear here once customers start placing orders.";
+            }
+
+            var todaySalesSupportEl = document.getElementById("adminKpiTodaySalesSupport");
+            if (todaySalesSupportEl) {
+                todaySalesSupportEl.textContent = todaySales > 0
+                    ? ("Average ticket: " + formatCurrency(avgOrderValue))
+                    : "Sales for new orders will reflect here today.";
+            }
+
+            var pendingPaymentsSupportEl = document.getElementById("adminKpiPendingPaymentsSupport");
+            if (pendingPaymentsSupportEl) {
+                pendingPaymentsSupportEl.textContent = pendingPayments > 0
+                    ? ("Pending amount: " + formatCurrency(pendingAmount))
+                    : "Great! There are no pending payments.";
+            }
+
+            var readyForDeliverySupportEl = document.getElementById("adminKpiReadyForDeliverySupport");
+            if (readyForDeliverySupportEl) {
+                readyForDeliverySupportEl.textContent = readyForDeliveryCount > 0
+                    ? "Orders are ready for customer handover."
+                    : "No orders are waiting for delivery right now.";
+            }
+
             setAdminSlaText("adminSla0to4", sla0to4);
             setAdminSlaText("adminSla4to12", sla4to12);
             setAdminSlaText("adminSla12to24", sla12to24);
             setAdminSlaText("adminSla24Plus", sla24Plus);
 
+            var totalSlaCount = sla0to4 + sla4to12 + sla12to24 + sla24Plus;
+            var slaDivisor = totalSlaCount > 0 ? totalSlaCount : 1;
+            var seg0to4 = document.getElementById("adminSlaSeg0to4");
+            var seg4to12 = document.getElementById("adminSlaSeg4to12");
+            var seg12to24 = document.getElementById("adminSlaSeg12to24");
+            var seg24Plus = document.getElementById("adminSlaSeg24Plus");
+            var slaGridEl = document.getElementById("adminSlaGrid");
+            var slaWrapEl = document.getElementById("adminSlaHealthWrap");
+            var slaEmptyEl = document.getElementById("adminSlaEmptyState");
+            if (seg0to4) seg0to4.style.width = ((sla0to4 / slaDivisor) * 100).toFixed(2) + "%";
+            if (seg4to12) seg4to12.style.width = ((sla4to12 / slaDivisor) * 100).toFixed(2) + "%";
+            if (seg12to24) seg12to24.style.width = ((sla12to24 / slaDivisor) * 100).toFixed(2) + "%";
+            if (seg24Plus) seg24Plus.style.width = ((sla24Plus / slaDivisor) * 100).toFixed(2) + "%";
+
+            if (slaGridEl) {
+                slaGridEl.style.display = totalSlaCount === 0 ? "none" : "grid";
+            }
+
+            if (slaWrapEl) {
+                slaWrapEl.style.display = totalSlaCount === 0 ? "none" : "block";
+            }
+
+            if (slaEmptyEl) {
+                slaEmptyEl.style.display = totalSlaCount === 0 ? "block" : "none";
+            }
+
+            var slaHealthMessageEl = document.getElementById("adminSlaHealthMessage");
+            if (slaHealthMessageEl) {
+                if (totalSlaCount === 0) {
+                    slaHealthMessageEl.textContent = "";
+                } else if (sla24Plus > 0) {
+                    slaHealthMessageEl.textContent = "Orders waiting over 24 hours need immediate attention.";
+                } else {
+                    slaHealthMessageEl.textContent = "SLA health is stable. Most orders are moving within the target time.";
+                }
+            }
+
             var summaryEl = document.getElementById("adminEbjSummaryText");
             if (summaryEl) {
-                var priorityText = sla24Plus > 0
-                    ? ("Immediate action: " + sla24Plus + " order(s) are above 24h SLA.")
-                    : ("SLA is stable. Keep processing and ready queues within target.");
-                summaryEl.textContent = priorityText + " Pending amount: " + formatCurrency(pendingAmount) + ".";
+                var priorityText = totalSlaCount === 0
+                    ? ""
+                    : (sla24Plus > 0
+                        ? ("Immediate action: " + sla24Plus + " order(s) are above 24h SLA.")
+                        : ("SLA is stable. Keep processing and ready queues within target."));
+                summaryEl.textContent = totalSlaCount === 0
+                    ? ""
+                    : (priorityText + " Pending amount: " + formatCurrency(pendingAmount) + ".");
             }
 
             var rangeKeyLabel = getAdminSelectedRangeKey();
@@ -3124,24 +3586,26 @@
             };
 
             renderAdminListRows("adminActionQueueRows", [
-                { label: "Ready for Delivery", value: String(readyForDeliveryCount) },
-                { label: "Pending Delivery", value: String(pendingDeliveryCount) },
-                { label: "High Pending Payments", value: String(highUnpaidOrders), valueClass: highUnpaidOrders > 0 ? "alert" : "success" },
-                { label: "Processing Backlog", value: String(statusMap.Processing) }
+                { label: "Ready for delivery", value: String(readyForDeliveryCount), icon: "fa fa-truck", href: '@Url.Action("OrderWorkflow", "Customer")?status=Ready' },
+                { label: "Pending delivery", value: String(pendingDeliveryCount), icon: "fa fa-cube", href: '@Url.Action("OrderWorkflow", "Customer")?status=Ready' },
+                { label: "High pending payments", value: String(highUnpaidOrders), icon: "fa fa-credit-card", valueClass: highUnpaidOrders > 0 ? "warn" : "success" },
+                { label: "Processing backlog", value: String(statusMap.Processing), icon: "fa fa-cogs", valueClass: statusMap.Processing > 0 ? "info" : "success" },
+                { label: "Orders not updated for more than 24 hours", value: String(stuckOrders), icon: "fa fa-clock-o", valueClass: stuckOrders > 0 ? "alert" : "success" }
             ]);
 
             renderAdminListRows("adminRevenueRows", [
-                { label: "Sales (Selected Range)", value: formatCurrency(selectedSales) },
-                { label: "Collected (Selected Range)", value: formatCurrency(selectedPaid) },
-                { label: "Pending Amount", value: formatCurrency(pendingAmount), valueClass: pendingAmount > 0 ? "alert" : "success" },
-                { label: "Payment Split", value: "Cash " + paymentModeCounts.Cash + " | UPI " + paymentModeCounts.UPI + " | Card " + paymentModeCounts.Card + " | Wallet " + paymentModeCounts.Wallet }
+                { label: "Sales (Selected Range)", value: formatCurrency(selectedSales), icon: "fa fa-line-chart" },
+                { label: "Payments received during the selected period", value: formatCurrency(selectedPaid), icon: "fa fa-check-circle" },
+                { label: "Pending amount", value: formatCurrency(pendingAmount), icon: "fa fa-file-text-o", valueClass: pendingAmount > 0 ? "alert" : "success" },
+                { label: "Average order value", value: formatCurrency(avgOrderValue), icon: "fa fa-calculator" },
+                { label: "Payment split", value: "Cash " + paymentModeCounts.Cash + " • UPI " + paymentModeCounts.UPI + " • Card " + paymentModeCounts.Card + " • Wallet " + paymentModeCounts.Wallet, icon: "fa fa-credit-card" }
             ]);
 
             renderAdminListRows("adminOperationsRows", [
-                { label: "Open Orders", value: String(openAgeOrders) },
-                { label: "Avg Open Order Age", value: openAvgHours.toFixed(1) + " hrs" },
-                { label: "Stuck Orders (>24h)", value: String(stuckOrders), valueClass: stuckOrders > 0 ? "alert" : "success" },
-                { label: "Cancellations", value: String(cancelCount) }
+                { label: "Open orders", value: String(openAgeOrders), icon: "fa fa-inbox" },
+                { label: "Average time orders have been waiting", value: openAvgHours.toFixed(1) + " hrs", icon: "fa fa-hourglass-half" },
+                { label: "Orders not updated for more than 24 hours", value: String(stuckOrders), icon: "fa fa-exclamation-triangle", valueClass: stuckOrders > 0 ? "alert" : "success" },
+                { label: "Cancellations", value: String(cancelCount), icon: "fa fa-times-circle" }
             ]);
 
             var topCustomerText = topCustomers.length
@@ -3149,10 +3613,10 @@
                 : "N/A";
 
             renderAdminListRows("adminCustomerRows", [
-                { label: "Active Customers (Range)", value: String(Object.keys(customerCountsInRange).length) },
-                { label: "Repeat Customer %", value: repeatPercent.toFixed(0) + "%" },
-                { label: "Top Customers", value: topCustomerText },
-                { label: "Low Engagement (>30d)", value: String(lowEngagementCount), valueClass: lowEngagementCount > 0 ? "alert" : "success" }
+                { label: "Active customers", value: String(Object.keys(customerCountsInRange).length), icon: "fa fa-users" },
+                { label: "Customers who placed more than one order", value: repeatPercent.toFixed(0) + "%", icon: "fa fa-refresh" },
+                { label: "Top customers", value: topCustomerText, icon: "fa fa-star" },
+                { label: "Low engagement customers (>30 days)", value: String(lowEngagementCount), icon: "fa fa-line-chart", valueClass: lowEngagementCount > 0 ? "warn" : "success" }
             ]);
 
             var topServiceText = topServices.length
@@ -3160,17 +3624,17 @@
                 : "N/A";
 
             renderAdminListRows("adminServiceRows", [
-                { label: "Top Service Mix", value: topServiceText },
-                { label: "Unique Services", value: String(Object.keys(serviceSales).length) },
-                { label: "Top Service Revenue", value: topServices.length ? formatCurrency(topServices[0].value) : formatCurrency(0) },
-                { label: "Service Coverage", value: selectedOrders > 0 ? (Object.keys(serviceSales).length + " types") : "N/A" }
+                { label: "Top service mix", value: topServiceText, icon: "fa fa-tint" },
+                { label: "Unique services", value: String(Object.keys(serviceSales).length), icon: "fa fa-tags" },
+                { label: "Top service revenue", value: topServices.length ? formatCurrency(topServices[0].value) : formatCurrency(0), icon: "fa fa-money" },
+                { label: "Service coverage", value: selectedOrders > 0 ? (Object.keys(serviceSales).length + " types") : "No orders yet", icon: "fa fa-pie-chart" }
             ]);
 
             renderAdminListRows("adminAlertRows", [
-                { label: "Stuck Orders", value: String(stuckOrders), valueClass: stuckOrders > 0 ? "alert" : "success" },
-                { label: "Large Unpaid Orders", value: String(highUnpaidOrders), valueClass: highUnpaidOrders > 0 ? "alert" : "success" },
-                { label: "Pending Payments", value: String(pendingPayments), valueClass: pendingPayments > 0 ? "alert" : "success" },
-                { label: "Email/Notification Failures", value: "N/A" }
+                { label: "Critical • Stuck orders", value: String(stuckOrders), icon: "fa fa-bell", valueClass: stuckOrders > 0 ? "alert" : "success", hideWhenZero: true },
+                { label: "Warning • Large unpaid orders", value: String(highUnpaidOrders), icon: "fa fa-exclamation-circle", valueClass: highUnpaidOrders > 0 ? "warn" : "success", hideWhenZero: true },
+                { label: "Informational • Pending payments", value: String(pendingPayments), icon: "fa fa-info-circle", valueClass: pendingPayments > 0 ? "info" : "success" },
+                { label: "Resolved • Email/notification failures", value: "0", icon: "fa fa-check-circle", valueClass: "success", hideWhenZero: true }
             ]);
 
             renderAdminBarRows("adminStatusChartRows", [
@@ -3292,6 +3756,11 @@
         }
 
         updateAdminRefreshModeLabel(enabled);
+
+        var headerRefreshStatusEl = document.getElementById("adminHeaderRefreshStatus");
+        if (headerRefreshStatusEl) {
+            headerRefreshStatusEl.textContent = enabled ? "On" : "Off";
+        }
 
         if (enabled) {
             adminInsightsNextRefreshAt = new Date(Date.now() + adminInsightsIntervalMs);

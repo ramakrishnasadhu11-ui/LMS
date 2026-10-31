@@ -35,6 +35,43 @@
 .setup-box { max-width: 1260px; margin: 0 auto; background: var(--els-surface); border-radius: 10px; box-shadow: 0 2px 12px rgba(0,0,0,0.08); overflow: hidden; }
 .setup-title { background: linear-gradient(90deg, var(--els-primary) 0%, var(--els-primary-dark) 100%); color: #fff; padding: 14px 20px; font-size: 20px; font-weight: 600; }
 .setup-body { padding: 16px; }
+.setup-only-header {
+    border: 1px solid var(--els-border);
+    border-radius: 14px;
+    background: linear-gradient(120deg, #f8fbff 0%, #edf4fd 100%);
+    box-shadow: 0 8px 22px rgba(23, 59, 112, 0.08);
+    padding: 18px 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-bottom: 14px;
+}
+.setup-only-title {
+    margin: 0;
+    color: var(--els-primary);
+    font-size: 24px;
+    font-weight: 700;
+    display: inline-flex;
+    align-items: center;
+    gap: 9px;
+}
+.setup-only-subtitle {
+    margin: 6px 0 0;
+    color: var(--els-text-muted);
+    font-size: 13px;
+}
+.setup-only-context-wrap { display:flex; gap:8px; flex-wrap:wrap; }
+.setup-only-context-chip {
+    border: 1px solid var(--els-border);
+    border-radius: 999px;
+    background: #fff;
+    color: var(--els-primary);
+    font-size: 11px;
+    font-weight: 700;
+    padding: 5px 10px;
+}
 .setup-toolbar { display: grid; grid-template-columns: 1.5fr 1fr 1fr 1fr auto; gap: 10px; margin-bottom: 12px; }
 .setup-field label { display: block; font-size: 12px; font-weight: 600; margin-bottom: 4px; color: var(--els-text); }
 .setup-field input, .setup-field select, .setup-field textarea { width: 100%; border: 1px solid var(--els-border); border-radius: 6px; padding: 8px 10px; background: var(--els-surface); color: var(--els-text); }
@@ -114,6 +151,9 @@
 .price-config-actions { display:flex; flex-direction:column; gap:6px; margin-top:8px; }
 .price-config-btn-row { display:grid; grid-template-columns: repeat(3, minmax(140px, 1fr)); gap:8px; }
 .price-config-actions .setup-btn { width: 100%; min-width: 0; margin-bottom: 0; }
+.price-config-card { border: 1px solid var(--els-border); border-radius: 10px; background: #fff; padding: 12px; margin-top: 8px; }
+.price-config-card-title { font-size: 13px; font-weight: 700; margin-bottom: 8px; color: var(--els-text); }
+.price-config-nav { margin-top: 8px; display:flex; gap:8px; flex-wrap:wrap; }
 .setup-btn.danger { background: linear-gradient(180deg, #c94b4b 0%, #9f2f2f 100%); }
 .setup-btn.success { background: linear-gradient(180deg, #2ea66a 0%, #238554 100%); }
 .bulk-import-row { display:flex; gap:8px; margin-top:8px; flex-wrap:wrap; align-items:center; }
@@ -173,6 +213,20 @@
                 @Html.HiddenFor(m => m.PendingAmount, new { id = "pendingAmountInput" })
                 @Html.HiddenFor(m => m.OrderMode, new { id = "orderMode" })
                 @Html.HiddenFor(m => m.OrderItemsJson, new { id = "orderItemsJson" })
+
+                @if (setupOnly)
+                {
+                    <div class="setup-only-header">
+                        <div>
+                            <h2 class="setup-only-title"><i class="fa fa-tags" aria-hidden="true"></i> Store Price Configuration</h2>
+                            <p class="setup-only-subtitle">Manage service and item prices for this store.</p>
+                        </div>
+                        <div class="setup-only-context-wrap">
+                            <span class="setup-only-context-chip">Tenant: @Model.TenantName</span>
+                            <span class="setup-only-context-chip">Store: @Model.StoreCode</span>
+                        </div>
+                    </div>
+                }
 
                 @if (!setupOnly)
                 {
@@ -256,51 +310,60 @@
                     <div class="side-block" id="storePriceConfigBlock">
                         <div class="side-title">Store Price Configuration (Admin Setup)</div>
                         <div class="store-scope-note">
-                            <div><b>Tenant:</b> @Model.TenantName</div>
-                            <div><b>Store:</b> @Model.StoreCode</div>
                             <div style="margin-top:6px;">Item prices below apply only to this store. Other stores keep their own catalog and prices.</div>
                         </div>
-                        <div class="price-config-grid">
-                            <div class="setup-field">
-                                <label for="cfgServiceType">Service Type</label>
-                                <select id="cfgServiceType">
-                                    <option value="">Loading service types...</option>
-                                </select>
-                                <div class="field-hint">Maintained in <a href="@Url.Action("ServiceItemMaster", "Customer")">Service &amp; Item Master</a>.</div>
+                        <div class="price-config-card">
+                            <div class="price-config-card-title"><i class="fa fa-sliders" aria-hidden="true"></i> Service &amp; Item Selection</div>
+                            <div class="price-config-grid">
+                                <div class="setup-field">
+                                    <label for="cfgServiceType">Service Type</label>
+                                    <select id="cfgServiceType">
+                                        <option value="">Loading service types...</option>
+                                    </select>
+                                    <div class="field-hint">Maintained in <a href="https://app.techforgedev.in/Customer/ServiceItemMaster">Service &amp; Item Master</a>.</div>
+                                </div>
+                                <div class="setup-field">
+                                    <label for="cfgCategory">Category</label>
+                                    <select id="cfgCategory">
+                                        <option value="">Loading categories...</option>
+                                    </select>
+                                    <div class="field-hint">Maintained in <a href="https://app.techforgedev.in/Customer/ServiceItemMaster">Service &amp; Item Master</a>.</div>
+                                </div>
+                                <div class="setup-field">
+                                    <label for="cfgItemName">Item Name</label>
+                                    <input type="text" id="cfgItemName" list="cfgItemNameSuggestions" placeholder="Select or type item" />
+                                    <select id="cfgItemPicker" style="margin-top:6px;">
+                                        <option value="">Select item from list</option>
+                                    </select>
+                                    <datalist id="cfgItemNameSuggestions"></datalist>
+                                    <div class="field-hint" id="cfgItemNameHint">Select a service type and category to see its items.</div>
+                                </div>
                             </div>
-                            <div class="setup-field">
-                                <label for="cfgCategory">Category</label>
-                                <select id="cfgCategory">
-                                    <option value="">Loading categories...</option>
-                                </select>
-                                <div class="field-hint">Maintained in <a href="@Url.Action("ServiceItemMaster", "Customer")">Service &amp; Item Master</a>.</div>
-                            </div>
-                            <div class="setup-field">
-                                <label for="cfgItemName">Item Name</label>
-                                <input type="text" id="cfgItemName" list="cfgItemNameSuggestions" placeholder="Select or type item" />
-                                <label style="margin-top:6px; display:flex; align-items:center; gap:6px; font-size:12px; font-weight:500;">
-                                    <input type="checkbox" id="showInactiveItemsChk" /> Show inactive items (for restore)
-                                </label>
-                                <select id="cfgItemPicker" style="margin-top:6px;">
-                                    <option value="">Select item from list</option>
-                                </select>
-                                <datalist id="cfgItemNameSuggestions"></datalist>
-                                <div class="field-hint" id="cfgItemNameHint">Select a service type and category to see its items.</div>
-                            </div>
-                            <div class="setup-field">
-                                <label for="cfgUnitPrice">Unit Price</label>
-                                <input type="number" id="cfgUnitPrice" min="0" step="0.01" />
-                                <div class="field-hint">Example: 25 for Shirt, 30 for Pant, 70 for Saree.</div>
+                        </div>
+
+                        <div class="price-config-card">
+                            <div class="price-config-card-title"><i class="fa fa-inr" aria-hidden="true"></i> Price Configuration</div>
+                            <div class="price-config-grid">
+                                <div class="setup-field">
+                                    <label for="cfgUnitPrice">Unit Price</label>
+                                    <input type="number" id="cfgUnitPrice" min="0" step="0.01" />
+                                    <div class="field-hint">Example: 25 for Shirt, 30 for Pant, 70 for Saree.</div>
+                                </div>
                             </div>
                             <div class="price-config-actions">
                                 <div class="price-config-btn-row">
                                     <button type="button" class="setup-btn" id="savePriceConfigBtn">Save Price</button>
-                                    <button type="button" class="setup-btn danger" id="removePriceConfigBtn">Remove Item</button>
-                                    <button type="button" class="setup-btn success" id="restorePriceConfigBtn">Restore Item</button>
                                 </div>
-                                <div class="field-hint">Save updates price, Remove hides item from catalog, Restore makes removed item active again.</div>
+                                <div class="field-hint">Save updates the item price for the selected store.</div>
                             </div>
                         </div>
+
+                        @if (setupOnly)
+                        {
+                            <div class="price-config-nav">
+                                <button type="button" class="setup-btn secondary" style="margin-bottom:0; max-width:260px;" onclick="window.location.href='@Url.Action("MyDashboard", "Dashboard")'"><i class="fa fa-arrow-left" aria-hidden="true"></i> Back to Dashboard</button>
+                            </div>
+                        }
 
                     </div>
                 }
@@ -791,21 +854,6 @@
         });
     }
 
-    function onInactiveToggleChanged() {
-        var chk = document.getElementById("showInactiveItemsChk");
-        var includeInactive = !!(chk && chk.checked);
-        document.getElementById("cfgItemName").value = "";
-        document.getElementById("cfgUnitPrice").value = "";
-        var picker = document.getElementById("cfgItemPicker");
-        if (picker) {
-            picker.value = "";
-        }
-
-        var modeText = includeInactive ? "ON" : "OFF";
-        showToast("Inactive toggle " + modeText + ". Reloading items...", true);
-        loadConfiguredItems(true, includeInactive);
-    }
-
     function renderCategoryTabs() {
         if (setupOnly) {
             return;
@@ -855,8 +903,6 @@
 
         var groups = groupConfiguredItems(configuredItems);
         var totalItems = configuredItems.length;
-        var inactiveItems = configuredItems.filter(function (x) { return !(x.IsActive ?? x.isActive ?? true); }).length;
-        var includeInactive = !!(document.getElementById("showInactiveItemsChk") && document.getElementById("showInactiveItemsChk").checked);
         var serviceItems = 0;
         if (groups[selectedService]) {
             Object.keys(groups[selectedService]).forEach(function (cat) {
@@ -864,8 +910,8 @@
             });
         }
 
-        var modeText = includeInactive ? " | View: Active + Inactive" : " | View: Active only";
-        var inactiveText = includeInactive ? (" | Inactive: " + inactiveItems) : "";
+        var modeText = " | View: Active only";
+        var inactiveText = "";
 
         if (selectedCategory === "__ALL__") {
             stats.textContent = "Loaded from DB: " + totalItems + " items" + inactiveText + modeText + " | " + selectedService + ": " + serviceItems + " items (All categories)";
@@ -1749,19 +1795,11 @@
         }
     }
 
-    function loadConfiguredItems(showModeToast, includeInactiveOverride) {
+    function loadConfiguredItems() {
         var requestId = ++loadItemsRequestId;
-        var includeInactive = !!(document.getElementById("showInactiveItemsChk") && document.getElementById("showInactiveItemsChk").checked);
-        if (typeof includeInactiveOverride === "boolean") {
-            includeInactive = includeInactiveOverride;
-            var inactiveToggleEl = document.getElementById("showInactiveItemsChk");
-            if (inactiveToggleEl) {
-                inactiveToggleEl.checked = includeInactive;
-            }
-        }
 
         var itemsUrl = '@Url.Action("GetLaundryItemPrices", "Customer")'
-            + '?includeInactive=' + (includeInactive ? 'true' : 'false')
+            + '?includeInactive=false'
             + '&_ts=' + Date.now();
 
         return fetch(itemsUrl, {
@@ -1855,35 +1893,32 @@
 
         var selectedService = (serviceTypeEl.value || "").trim().toLowerCase();
         var previousCategory = (categoryEl.value || "").trim();
-        var includeInactive = !!(document.getElementById("showInactiveItemsChk") && document.getElementById("showInactiveItemsChk").checked);
         var categories = [];
         var seen = {};
 
-        if (!includeInactive) {
-            (masterItems || []).forEach(function (item) {
-                if (!(item.IsActive ?? item.isActive ?? true)) {
-                    return;
-                }
+        (masterItems || []).forEach(function (item) {
+            if (!(item.IsActive ?? item.isActive ?? true)) {
+                return;
+            }
 
-                var itemService = (item.ServiceType || item.serviceType || "").trim().toLowerCase();
-                var itemCategory = (item.Category || item.category || "").trim();
-                if (!itemCategory) {
-                    return;
-                }
+            var itemService = (item.ServiceType || item.serviceType || "").trim().toLowerCase();
+            var itemCategory = (item.Category || item.category || "").trim();
+            if (!itemCategory) {
+                return;
+            }
 
-                if (selectedService && itemService !== selectedService) {
-                    return;
-                }
+            if (selectedService && itemService !== selectedService) {
+                return;
+            }
 
-                var key = itemCategory.toLowerCase();
-                if (seen[key]) {
-                    return;
-                }
+            var key = itemCategory.toLowerCase();
+            if (seen[key]) {
+                return;
+            }
 
-                seen[key] = true;
-                categories.push(itemCategory);
-            });
-        }
+            seen[key] = true;
+            categories.push(itemCategory);
+        });
 
         (configuredItems || []).forEach(function (item) {
             var itemService = (item.ServiceType || item.serviceType || "").trim().toLowerCase();
@@ -1897,7 +1932,7 @@
             }
 
             var isActive = !!(item.IsActive ?? item.isActive ?? true);
-            if (includeInactive !== !isActive) {
+            if (!isActive) {
                 return;
             }
 
@@ -1998,7 +2033,6 @@
         var category = (categoryEl.value || "").trim();
         var serviceTypeLower = serviceType.toLowerCase();
         var categoryLower = category.toLowerCase();
-        var includeInactive = !!(document.getElementById("showInactiveItemsChk") && document.getElementById("showInactiveItemsChk").checked);
 
         var scopeSelected = !!serviceType && !!category;
         var entriesByName = {};
@@ -2023,7 +2057,7 @@
                 }
 
                 var isActive = !!(item.IsActive ?? item.isActive ?? true);
-                if (includeInactive !== !isActive) {
+                if (!isActive) {
                     return;
                 }
 
@@ -2050,7 +2084,7 @@
                 }
 
                 var isActive = !!(item.IsActive ?? item.isActive ?? true);
-                if (includeInactive !== !isActive) {
+                if (!isActive) {
                     return;
                 }
 
@@ -2102,13 +2136,9 @@
         if (!scopeSelected) {
             hintText = "Select a service type and category to see its items.";
         } else if (!Object.keys(entriesByName).length) {
-            hintText = includeInactive
-                ? ("No inactive items for " + serviceType + " / " + category + ".")
-                : ("No active priced items found for " + serviceType + " / " + category + ".");
+            hintText = "No active priced items found for " + serviceType + " / " + category + ".";
         } else {
-            hintText = includeInactive
-                ? ("Showing inactive items for " + serviceType + " / " + category + ".")
-                : ("Showing active priced items for " + serviceType + " / " + category + ".");
+            hintText = "Showing active priced items for " + serviceType + " / " + category + ".";
         }
 
         var hintEl = document.getElementById("cfgItemNameHint");
@@ -2191,84 +2221,6 @@
         })
         .catch(function (error) {
             showToast((error && error.message) || "Unable to save laundry item price.", false);
-        });
-    }
-
-    function removeConfiguredItemPrice() {
-        var serviceType = (document.getElementById("cfgServiceType").value || "").trim();
-        var category = (document.getElementById("cfgCategory").value || "").trim();
-        var itemName = (document.getElementById("cfgItemName").value || "").trim();
-
-        if (!serviceType || !category || !itemName) {
-            showToast("Select service, category, and item name to remove.", false);
-            return;
-        }
-
-        if (!window.confirm("Remove this item from store pricing?")) {
-            return;
-        }
-
-        var body = new URLSearchParams();
-        body.append("serviceType", serviceType);
-        body.append("category", category);
-        body.append("itemName", itemName);
-
-        fetch('@Url.Action("DeactivateLaundryItemPrice", "Customer")', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8', 'X-Requested-With': 'XMLHttpRequest' },
-            body: body.toString()
-        })
-        .then(function (response) { return response.json(); })
-        .then(function (data) {
-            if (!data || !data.success) {
-                showToast((data && data.message) || "Unable to remove laundry item.", false);
-                return;
-            }
-
-            showToast(data.message || "Laundry item removed successfully.", true);
-            document.getElementById("cfgItemName").value = "";
-            document.getElementById("cfgUnitPrice").value = "";
-            return loadConfiguredItems();
-        })
-        .catch(function (error) {
-            showToast((error && error.message) || "Unable to remove laundry item.", false);
-        });
-    }
-
-    function restoreConfiguredItemPrice() {
-        var serviceType = (document.getElementById("cfgServiceType").value || "").trim();
-        var category = (document.getElementById("cfgCategory").value || "").trim();
-        var itemName = (document.getElementById("cfgItemName").value || "").trim();
-
-        if (!serviceType || !category || !itemName) {
-            showToast("Select service, category, and item name to restore.", false);
-            return;
-        }
-
-        var body = new URLSearchParams();
-        body.append("serviceType", serviceType);
-        body.append("category", category);
-        body.append("itemName", itemName);
-
-        fetch('@Url.Action("ReactivateLaundryItemPrice", "Customer")', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8', 'X-Requested-With': 'XMLHttpRequest' },
-            body: body.toString()
-        })
-        .then(function (response) { return response.json(); })
-        .then(function (data) {
-            if (!data || !data.success) {
-                showToast((data && data.message) || "Unable to restore laundry item.", false);
-                return;
-            }
-
-            showToast(data.message || "Laundry item restored successfully.", true);
-            document.getElementById("cfgItemName").value = "";
-            document.getElementById("cfgUnitPrice").value = "";
-            return loadConfiguredItems();
-        })
-        .catch(function (error) {
-            showToast((error && error.message) || "Unable to restore laundry item.", false);
         });
     }
 
@@ -2583,8 +2535,6 @@
                 // hide admin buttons
                 var hideBtn = function (id) { var el = document.getElementById(id); if (el) el.style.display = 'none'; };
                 hideBtn('savePriceConfigBtn');
-                hideBtn('removePriceConfigBtn');
-                hideBtn('restorePriceConfigBtn');
 
                 // disable inputs that allow editing configuration
                 var disableEl = function (id) { var e = document.getElementById(id); if (e) e.disabled = true; };
@@ -2592,7 +2542,6 @@
                 disableEl('cfgCategory');
                 disableEl('cfgItemName');
                 disableEl('cfgItemPicker');
-                disableEl('showInactiveItemsChk');
             }
         } catch (ex) {
             // ignore
@@ -2871,8 +2820,6 @@
         }
 
         document.getElementById("savePriceConfigBtn")?.addEventListener("click", function (e) { e.preventDefault(); saveConfiguredItemPrice(); });
-        document.getElementById("removePriceConfigBtn")?.addEventListener("click", function (e) { e.preventDefault(); removeConfiguredItemPrice(); });
-        document.getElementById("restorePriceConfigBtn")?.addEventListener("click", function (e) { e.preventDefault(); restoreConfiguredItemPrice(); });
         document.getElementById("cfgServiceType")?.addEventListener("change", function () {
             refreshCategoryOptionsForSelectedService();
             resetConfigItemSelection();
@@ -2884,10 +2831,6 @@
             updateConfigItemSuggestions();
             applySuggestedPrice();
         });
-        var inactiveChk = document.getElementById("showInactiveItemsChk");
-        if (inactiveChk) {
-            inactiveChk.addEventListener("change", onInactiveToggleChanged);
-        }
         document.getElementById("cfgItemName")?.addEventListener("input", applySuggestedPrice);
         document.getElementById("cfgItemName")?.addEventListener("change", applySuggestedPrice);
         document.getElementById("cfgItemPicker")?.addEventListener("change", function () {

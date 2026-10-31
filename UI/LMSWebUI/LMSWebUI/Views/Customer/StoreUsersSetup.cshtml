@@ -12,6 +12,21 @@
 }
 
 <style>
+:root {
+    --els-primary: #173B70;
+    --els-primary-dark: #173B70;
+    --els-primary-light: #2878C8;
+    --els-accent: #EAF2FC;
+    --els-background: #F5F7FA;
+    --els-surface: #FFFFFF;
+    --els-text: #1E293B;
+    --els-text-muted: #64748B;
+    --els-border: #E2E8F0;
+    --els-success: #16A36A;
+    --els-warning: #D99520;
+    --els-danger: #D94848;
+}
+
 .admin-setup-page,
 .admin-setup-page input,
 .admin-setup-page button,
@@ -21,113 +36,404 @@
     font-family: Arial, Helvetica, sans-serif;
 }
 
-.admin-setup-page { padding: 20px; }
+.admin-setup-page {
+    padding: 24px;
+    background: var(--els-background);
+}
+
 .admin-setup-box {
-    max-width: 980px;
+    max-width: 1080px;
     margin: 0 auto;
-    background: var(--els-surface);
-    border-radius: 10px;
-    box-shadow: 0 2px 12px rgba(0,0,0,0.08);
-    overflow: hidden;
 }
-.admin-setup-title {
-    background: linear-gradient(90deg, var(--els-primary) 0%, var(--els-primary-dark) 100%);
-    color: #fff;
-    padding: 14px 20px;
-    font-size: 20px;
-    font-weight: 600;
-}
-.admin-setup-body { padding: 20px; }
-.admin-setup-note {
+
+.admin-page-header {
     border: 1px solid var(--els-border);
-    border-radius: 8px;
-    background: var(--els-accent);
-    padding: 12px;
-    margin-bottom: 16px;
+    border-radius: 14px;
+    background: linear-gradient(120deg, #f8fbff 0%, #edf4fd 100%);
+    box-shadow: 0 8px 22px rgba(23, 59, 112, 0.08);
+    padding: 18px 20px;
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-bottom: 14px;
+}
+
+.admin-page-header-title {
+    margin: 0;
+    color: var(--els-primary);
+    font-size: 24px;
+    font-weight: 700;
+    display: inline-flex;
+    align-items: center;
+    gap: 9px;
+}
+
+.admin-page-header-subtitle {
+    margin: 6px 0 0;
+    color: var(--els-text-muted);
+    font-size: 13px;
+}
+
+.admin-context-wrap {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    align-items: flex-start;
+}
+
+.admin-context-chip {
+    border: 1px solid var(--els-border);
+    border-radius: 999px;
+    background: #fff;
+    color: var(--els-primary);
+    font-size: 11px;
+    font-weight: 700;
+    padding: 5px 10px;
+}
+
+.admin-setup-card {
+    border: 1px solid var(--els-border);
+    border-radius: 12px;
+    background: var(--els-surface);
+    box-shadow: 0 6px 18px rgba(15, 23, 42, 0.06);
+    padding: 16px;
+    margin-bottom: 14px;
+}
+
+.admin-card-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 10px;
+}
+
+.admin-card-title {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 700;
     color: var(--els-text);
 }
-.admin-setup-actions { display: flex; gap: 10px; flex-wrap: wrap; }
-.admin-btn {
-    min-width: 180px;
-    min-height: 42px;
-    border: 1px solid transparent;
+
+.admin-card-subtitle {
+    margin: 3px 0 0;
+    font-size: 12px;
+    color: var(--els-text-muted);
+}
+
+.store-user-form-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+}
+
+.store-user-form-field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.store-user-form-field.full {
+    grid-column: 1 / -1;
+}
+
+.store-user-label {
+    margin: 0;
+    font-size: 12px;
+    color: var(--els-text);
+    font-weight: 700;
+}
+
+.store-user-input-wrap {
+    position: relative;
+}
+
+.store-user-input {
+    width: 100%;
+    height: 40px;
+    border: 1px solid var(--els-border);
     border-radius: 8px;
-    background: linear-gradient(180deg, var(--els-primary-light) 0%, var(--els-primary) 100%);
-    color: #fff;
-    font-weight: 600;
+    padding: 0 12px;
+    color: var(--els-text);
+    background: #fff;
+}
+
+.store-user-input:focus {
+    outline: none;
+    border-color: var(--els-primary-light);
+    box-shadow: 0 0 0 3px rgba(40, 120, 200, 0.16);
+}
+
+.store-user-input.with-toggle {
+    padding-right: 42px;
+}
+
+.store-user-password-toggle {
+    position: absolute;
+    right: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 28px;
+    height: 28px;
+    border: 1px solid var(--els-border);
+    border-radius: 6px;
+    background: #fff;
+    color: var(--els-text-muted);
     cursor: pointer;
 }
+
+.store-user-password-toggle:hover {
+    background: var(--els-accent);
+}
+
+.store-assignment-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.store-choice {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    border: 1px solid var(--els-border);
+    border-radius: 8px;
+    background: #fff;
+    padding: 6px 10px;
+    font-size: 12px;
+    color: var(--els-text);
+    transition: border-color .18s ease, background .18s ease, box-shadow .18s ease;
+}
+
+.store-choice.selected {
+    border-color: var(--els-primary-light);
+    background: var(--els-accent);
+    box-shadow: 0 0 0 1px rgba(40, 120, 200, 0.15);
+}
+
+.store-choice input {
+    margin: 0;
+}
+
+.admin-inline-message {
+    margin-top: 8px;
+    font-size: 12px;
+    border: 1px solid var(--els-border);
+    border-radius: 8px;
+    padding: 8px 10px;
+    display: none;
+}
+
+.admin-inline-message.success {
+    color: var(--els-success);
+    background: #f1fbf6;
+    border-color: #c5efd8;
+    display: block;
+}
+
+.admin-inline-message.error {
+    color: var(--els-danger);
+    background: #fff4f4;
+    border-color: #f2c7c7;
+    display: block;
+}
+
+.store-users-table-wrap {
+    border: 1px solid var(--els-border);
+    border-radius: 10px;
+    overflow: auto;
+    background: #fff;
+}
+
+.store-users-table {
+    width: 100%;
+    border-collapse: collapse;
+    min-width: 720px;
+}
+
+.store-users-table th,
+.store-users-table td {
+    padding: 8px 10px;
+    border-bottom: 1px solid var(--els-border);
+    text-align: left;
+    font-size: 12px;
+    color: var(--els-text);
+}
+
+.store-users-table th {
+    background: #f8fbff;
+    color: var(--els-text-muted);
+    font-weight: 700;
+}
+
+.store-users-empty {
+    border: 1px dashed var(--els-border);
+    border-radius: 8px;
+    background: #fff;
+    padding: 12px;
+    color: var(--els-text-muted);
+    font-size: 12px;
+}
+
+.admin-setup-actions {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.admin-btn {
+    min-width: 170px;
+    min-height: 40px;
+    border: 1px solid transparent;
+    border-radius: 8px;
+    background: var(--els-primary-light);
+    color: #fff;
+    font-weight: 700;
+    cursor: pointer;
+    padding: 0 14px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+}
+
+.admin-btn:hover:not(:disabled) {
+    filter: brightness(0.96);
+}
+
+.admin-btn:focus {
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(40, 120, 200, 0.18);
+}
+
 .admin-btn.secondary {
-    background: linear-gradient(180deg, #8f99a4 0%, #6f7a86 100%);
+    background: #fff;
+    border-color: var(--els-border);
+    color: var(--els-primary-dark);
+}
+
+.admin-btn:disabled {
+    opacity: .6;
+    cursor: not-allowed;
+}
+
+.admin-users-count {
+    font-size: 12px;
+    color: var(--els-text-muted);
+    font-weight: 700;
+}
+
+.store-users-card-head-right {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.admin-warning-text {
+    margin-top: 6px;
+    font-size: 12px;
+    color: var(--els-danger);
+}
+
+@@media (max-width: 900px) {
+    .store-user-form-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .admin-page-header {
+        padding: 14px;
+    }
 }
 </style>
 
 <section class="admin-setup-page">
     <div class="admin-setup-box">
-        <div class="admin-setup-title">Store Users Setup</div>
-        <div class="admin-setup-body">
-            <div class="admin-setup-note">
-                <div><b>Tenant:</b> @tenantName</div>
-                <div><b>Store:</b> @storeCode</div>
-                <div style="margin-top:6px;">This page is reserved for store user and role configuration.</div>
+        <div class="admin-page-header">
+            <div>
+                <h2 class="admin-page-header-title"><i class="fa fa-users" aria-hidden="true"></i> Store Users</h2>
+                <p class="admin-page-header-subtitle">Manage staff access and store assignments.</p>
+            </div>
+            <div class="admin-context-wrap">
+                <span class="admin-context-chip">Tenant: @tenantName</span>
+                <span class="admin-context-chip">Store: @storeCode</span>
+            </div>
+        </div>
+
+        <div class="admin-setup-card">
+            <div class="admin-card-head">
+                <div>
+                    <h3 class="admin-card-title">Create Store User</h3>
+                    <p class="admin-card-subtitle">Add a staff account and assign one or more stores.</p>
+                </div>
             </div>
 
-            <div class="admin-setup-note" style="margin-top:12px;">
-                <label><b>Assign Stores</b></label>
-                @if (noActiveStores)
-                {
-                    <div style="margin-top:6px; color:#b34848;">No active stores are available. Create a store before creating store users.</div>
-                    <div style="margin-top:8px;">
-                        <a href="@Url.Action("NewStoreCreation", "Customer")">Go to New Store Creation</a>
-                    </div>
-                }
-                else
-                {
-                    <div id="targetStoreCodes" style="display:flex; flex-wrap:wrap; gap:10px; margin-top:6px;">
-                        @foreach (var code in allowedStores)
-                        {
-                            var isDefaultChecked = string.Equals(code, storeCode, StringComparison.OrdinalIgnoreCase);
-                            <label style="display:inline-flex; align-items:center; gap:6px; border:1px solid var(--els-border); border-radius:6px; padding:6px 10px; background:var(--els-surface);">
-                                <input type="checkbox" class="target-store-code" value="@code" @(isDefaultChecked ? "checked" : null) />
-                                <span>@code</span>
-                            </label>
-                        }
-                    </div>
-                }
-                @if (!string.IsNullOrWhiteSpace(storesLoadError))
-                {
-                    <div style="margin-top:6px; font-size:12px; color:#b34848;">@storesLoadError</div>
-                }
-            </div>
+            <div class="store-user-form-grid">
+                <div class="store-user-form-field full">
+                    <label class="store-user-label"><b>Assign Stores</b></label>
+                    @if (noActiveStores)
+                    {
+                        <div class="admin-warning-text">No active stores are available. Create a store before creating store users.</div>
+                        <div style="margin-top:8px;">
+                            <a href="@Url.Action("NewStoreCreation", "Customer")">Go to New Store Creation</a>
+                        </div>
+                    }
+                    else
+                    {
+                        <div id="targetStoreCodes" class="store-assignment-grid">
+                            @foreach (var code in allowedStores)
+                            {
+                                var isDefaultChecked = string.Equals(code, storeCode, StringComparison.OrdinalIgnoreCase);
+                                <label class="store-choice @(isDefaultChecked ? "selected" : string.Empty)">
+                                    <input type="checkbox" class="target-store-code" value="@code" @(isDefaultChecked ? "checked" : null) />
+                                    <span>@code</span>
+                                </label>
+                            }
+                        </div>
+                    }
+                    @if (!string.IsNullOrWhiteSpace(storesLoadError))
+                    {
+                        <div class="admin-warning-text">@storesLoadError</div>
+                    }
+                </div>
 
-            <div class="admin-setup-note" style="margin-top:12px;">
-                <div style="display:grid; grid-template-columns: 1fr 1fr auto; gap:10px; align-items:end;">
-                    <div>
-                        <label for="storeUserEmail"><b>Store User Email</b></label>
-                        <input type="email" id="storeUserEmail" class="form-control" style="width:100%; padding:8px; border:1px solid var(--els-border); border-radius:6px;" placeholder="store.user@domain.com" />
-                    </div>
-                    <div>
-                        <label for="storeUserPassword"><b>Password</b></label>
-                        <input type="password" id="storeUserPassword" class="form-control" style="width:100%; padding:8px; border:1px solid var(--els-border); border-radius:6px;" placeholder="Enter password" />
-                    </div>
-                    <div>
-                        <button type="button" class="admin-btn" id="createStoreUserBtn" @(noActiveStores ? "disabled" : null)>Create Store User</button>
+                <div class="store-user-form-field">
+                    <label class="store-user-label" for="storeUserEmail"><b>Store User Email</b></label>
+                    <input type="email" id="storeUserEmail" class="form-control store-user-input" placeholder="name@yourstore.com" />
+                </div>
+
+                <div class="store-user-form-field">
+                    <label class="store-user-label" for="storeUserPassword"><b>Password</b></label>
+                    <div class="store-user-input-wrap">
+                        <input type="password" id="storeUserPassword" class="form-control store-user-input with-toggle" placeholder="Enter password" />
+                        <button type="button" class="store-user-password-toggle" id="toggleStoreUserPasswordBtn" aria-label="Show password"><i class="fa fa-eye" aria-hidden="true"></i></button>
                     </div>
                 </div>
             </div>
 
-            <div class="admin-setup-note" style="margin-top:12px;">
-                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
-                    <b>Existing Store Users</b>
-                    <button type="button" class="admin-btn secondary" id="refreshStoreUsersBtn" style="min-width:140px; min-height:36px;">Refresh</button>
-                </div>
-                <div id="storeUsersList">No store users found.</div>
+            <div style="margin-top:12px; display:flex; justify-content:flex-end;">
+                <button type="button" class="admin-btn" id="createStoreUserBtn" @(noActiveStores ? "disabled" : null)><i class="fa fa-user-plus" aria-hidden="true"></i> Create Store User</button>
             </div>
+            <div id="storeUserCreateStatus" class="admin-inline-message" role="status" aria-live="polite"></div>
+        </div>
 
-            <div class="admin-setup-actions">
-                <button type="button" class="admin-btn" onclick="window.location.href='@Url.Action("SetupCreateOrder", "Customer", new { setupOnly = true })'">Go to Store Price Configuration</button>
-                <button type="button" class="admin-btn secondary" onclick="window.location.href='@Url.Action("Index", "Dashboard")'">Back to Dashboard</button>
+        <div class="admin-setup-card">
+            <div class="admin-card-head">
+                <div>
+                    <h3 class="admin-card-title">Existing Store Users</h3>
+                    <p class="admin-card-subtitle">View and refresh store-level user access.</p>
+                </div>
+                <div class="store-users-card-head-right">
+                    <span class="admin-users-count" id="storeUsersCount">0 users</span>
+                    <button type="button" class="admin-btn secondary" id="refreshStoreUsersBtn"><i class="fa fa-refresh" aria-hidden="true"></i> Refresh</button>
+                </div>
             </div>
+            <div id="storeUsersList" class="store-users-empty">No store users yet. Create your first store user to start managing staff access.</div>
+        </div>
+
+        <div class="admin-setup-actions">
+            <button type="button" class="admin-btn secondary" onclick="window.location.href='@Url.Action("SetupCreateOrder", "Customer", new { setupOnly = true })'"><i class="fa fa-tags" aria-hidden="true"></i> Go to Store Price Configuration</button>
+            <button type="button" class="admin-btn secondary" onclick="window.location.href='@Url.Action("Index", "Dashboard")'"><i class="fa fa-arrow-left" aria-hidden="true"></i> Back to Dashboard</button>
         </div>
     </div>
 </section>
@@ -136,6 +442,40 @@
 (function () {
     var createRequestInProgress = false;
     var statusRequestsInProgressByUser = new Set();
+
+    function setCreateStatus(type, text) {
+        var statusEl = document.getElementById("storeUserCreateStatus");
+        if (!statusEl) {
+            return;
+        }
+
+        statusEl.className = "admin-inline-message" + (type ? (" " + type) : "");
+        statusEl.textContent = text || "";
+    }
+
+    function updateStoreChoiceVisual() {
+        var wrappers = document.querySelectorAll('#targetStoreCodes .store-choice');
+        wrappers.forEach(function (wrapper) {
+            var input = wrapper.querySelector('input.target-store-code');
+            if (!input) {
+                return;
+            }
+            if (input.checked) {
+                wrapper.classList.add('selected');
+            } else {
+                wrapper.classList.remove('selected');
+            }
+        });
+    }
+
+    function updateUsersCount(users) {
+        var countEl = document.getElementById("storeUsersCount");
+        if (!countEl) {
+            return;
+        }
+        var count = (users && users.length) ? users.length : 0;
+        countEl.textContent = count + (count === 1 ? " user" : " users");
+    }
 
     function getSelectedStoreCodes() {
         var selected = [];
@@ -156,17 +496,22 @@
         if (!host) return;
 
         if (!users || !users.length) {
-            host.textContent = "No store users found.";
+            updateUsersCount([]);
+            host.className = "store-users-empty";
+            host.textContent = "No store users yet. Create your first store user to start managing staff access.";
             return;
         }
 
-        var html = "<table style='width:100%; border-collapse:collapse;'><thead><tr>"
-            + "<th style='text-align:left; border-bottom:1px solid var(--els-border); padding:6px;'>Email</th>"
-            + "<th style='text-align:left; border-bottom:1px solid var(--els-border); padding:6px;'>Role</th>"
-            + "<th style='text-align:left; border-bottom:1px solid var(--els-border); padding:6px;'>Active</th>"
-            + "<th style='text-align:left; border-bottom:1px solid var(--els-border); padding:6px;'>Created Date</th>"
-            + "<th style='text-align:left; border-bottom:1px solid var(--els-border); padding:6px;'>Assigned Store</th>"
-            + "<th style='text-align:left; border-bottom:1px solid var(--els-border); padding:6px;'>Action</th>"
+        updateUsersCount(users);
+        host.className = "store-users-table-wrap";
+
+        var html = "<table class='store-users-table'><thead><tr>"
+            + "<th>Email</th>"
+            + "<th>Role</th>"
+            + "<th>Active</th>"
+            + "<th>Created Date</th>"
+            + "<th>Assigned Store</th>"
+            + "<th>Action</th>"
             + "</tr></thead><tbody>";
 
         users.forEach(function (u) {
@@ -175,12 +520,12 @@
             var actionText = isActive ? "Deactivate" : "Activate";
 
             html += "<tr>"
-                + "<td style='padding:6px; border-bottom:1px solid var(--els-border);'>" + email + "</td>"
-                + "<td style='padding:6px; border-bottom:1px solid var(--els-border);'>" + (u.role || u.Role || "StoreUser") + "</td>"
-                + "<td style='padding:6px; border-bottom:1px solid var(--els-border);'>" + (isActive ? "Yes" : "No") + "</td>"
-                + "<td style='padding:6px; border-bottom:1px solid var(--els-border);'>" + (u.createdDate || u.CreatedDate || "") + "</td>"
-                + "<td style='padding:6px; border-bottom:1px solid var(--els-border);'>" + (u.storeCode || u.StoreCode || "") + "</td>"
-                + "<td style='padding:6px; border-bottom:1px solid var(--els-border);'>"
+                + "<td>" + email + "</td>"
+                + "<td>" + (u.role || u.Role || "StoreUser") + "</td>"
+                + "<td>" + (isActive ? "Yes" : "No") + "</td>"
+                + "<td>" + (u.createdDate || u.CreatedDate || "") + "</td>"
+                + "<td>" + (u.storeCode || u.StoreCode || "") + "</td>"
+                + "<td>"
                 + "<button type='button' class='admin-btn secondary toggle-store-user-status-btn'"
                 + " data-email='" + encodeURIComponent(email) + "'"
                 + " data-active='" + (isActive ? "true" : "false") + "'"
@@ -202,7 +547,7 @@
                 var normalizedEmail = (userEmail || '').trim().toLowerCase();
 
                 if (!userEmail) {
-                    window.alert('User email is required.');
+                    setCreateStatus("error", 'User email is required.');
                     return;
                 }
 
@@ -233,15 +578,15 @@
                 .then(function (r) { return r.json(); })
                 .then(function (data) {
                     if (!data || !data.success) {
-                        window.alert((data && data.message) || 'Unable to update store user status.');
+                        setCreateStatus("error", (data && data.message) || 'Unable to update store user status.');
                         return;
                     }
 
-                    window.alert(data.message || 'Store user status updated successfully.');
+                    setCreateStatus("success", data.message || 'Store user status updated successfully.');
                     loadUsers();
                 })
                 .catch(function () {
-                    window.alert('Unable to update store user status.');
+                    setCreateStatus("error", 'Unable to update store user status.');
                 })
                 .finally(function () {
                     statusRequestsInProgressByUser.delete(normalizedEmail);
@@ -294,12 +639,12 @@
             var selectedStores = getSelectedStoreCodes();
 
             if (selectedStores.length === 0) {
-                window.alert("Please select at least one active store.");
+                setCreateStatus("error", "Please select at least one active store.");
                 return;
             }
 
             if (!email.trim()) {
-                window.alert("Store user email is required.");
+                setCreateStatus("error", "Store user email is required.");
                 if (emailInput) {
                     emailInput.focus();
                 }
@@ -307,13 +652,13 @@
             }
 
             if (emailInput && !emailInput.checkValidity()) {
-                window.alert("Enter a valid email address.");
+                setCreateStatus("error", "Enter a valid email address.");
                 emailInput.focus();
                 return;
             }
 
             if (!password.trim()) {
-                window.alert("Password is required.");
+                setCreateStatus("error", "Password is required.");
                 if (passwordInput) {
                     passwordInput.focus();
                 }
@@ -332,7 +677,8 @@
             var originalText = createBtn.textContent;
             createRequestInProgress = true;
             createBtn.disabled = true;
-            createBtn.textContent = "Creating...";
+            createBtn.innerHTML = "<i class='fa fa-spinner fa-spin' aria-hidden='true'></i> Creating...";
+            setCreateStatus("", "");
 
             fetch('@Url.Action("CreateStoreUser", "Customer")', {
                 method: 'POST',
@@ -345,15 +691,15 @@
             .then(function (r) { return r.json(); })
             .then(function (data) {
                 if (!data || !data.success) {
-                    window.alert((data && data.message) || "Unable to create store user.");
+                    setCreateStatus("error", (data && data.message) || "Unable to create store user.");
                     return;
                 }
-                window.alert(data.message || "Store user created successfully.");
+                setCreateStatus("success", data.message || "Store user created successfully.");
                 var pwd = document.getElementById("storeUserPassword");
                 if (pwd) pwd.value = "";
                 loadUsers();
             })
-            .catch(function () { window.alert("Unable to create store user."); })
+            .catch(function () { setCreateStatus("error", "Unable to create store user."); })
             .finally(function () {
                 createRequestInProgress = false;
                 createBtn.disabled = false;
@@ -371,8 +717,22 @@
     if (storeCheckboxes && storeCheckboxes.length > 0) {
         storeCheckboxes.forEach(function (cb) {
             cb.addEventListener("change", function () {
+                updateStoreChoiceVisual();
                 loadUsers();
             });
+        });
+    }
+
+    var togglePasswordBtn = document.getElementById("toggleStoreUserPasswordBtn");
+    var passwordInputEl = document.getElementById("storeUserPassword");
+    if (togglePasswordBtn && passwordInputEl) {
+        togglePasswordBtn.addEventListener("click", function () {
+            var visible = passwordInputEl.type === "text";
+            passwordInputEl.type = visible ? "password" : "text";
+            togglePasswordBtn.innerHTML = visible
+                ? "<i class='fa fa-eye' aria-hidden='true'></i>"
+                : "<i class='fa fa-eye-slash' aria-hidden='true'></i>";
+            togglePasswordBtn.setAttribute("aria-label", visible ? "Show password" : "Hide password");
         });
     }
 
@@ -411,13 +771,7 @@
 
             distinctStores.forEach(function (code) {
                 var wrapper = document.createElement("label");
-                wrapper.style.display = "inline-flex";
-                wrapper.style.alignItems = "center";
-                wrapper.style.gap = "6px";
-                wrapper.style.border = "1px solid var(--els-border)";
-                wrapper.style.borderRadius = "6px";
-                wrapper.style.padding = "6px 10px";
-                wrapper.style.background = "var(--els-surface)";
+                wrapper.className = "store-choice";
 
                 var input = document.createElement("input");
                 input.type = "checkbox";
@@ -425,6 +779,7 @@
                 input.value = code;
                 input.checked = currentSelected.indexOf(code) >= 0;
                 input.addEventListener("change", function () {
+                    updateStoreChoiceVisual();
                     loadUsers();
                 });
 
@@ -435,6 +790,8 @@
                 wrapper.appendChild(span);
                 storeContainer.appendChild(wrapper);
             });
+
+            updateStoreChoiceVisual();
 
             var createButton = document.getElementById("createStoreUserBtn");
             if (createButton) {
@@ -449,5 +806,6 @@
     }
 
     refreshStoresAndUsers();
+    updateStoreChoiceVisual();
 })();
 </script>

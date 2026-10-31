@@ -6,6 +6,21 @@
 }
 
 <style>
+:root {
+    --els-primary: #173B70;
+    --els-primary-dark: #173B70;
+    --els-primary-light: #2878C8;
+    --els-accent: #EAF2FC;
+    --els-background: #F5F7FA;
+    --els-surface: #FFFFFF;
+    --els-text: #1E293B;
+    --els-text-muted: #64748B;
+    --els-border: #E2E8F0;
+    --els-success: #16A36A;
+    --els-warning: #D99520;
+    --els-danger: #D94848;
+}
+
 .pricing-rules-page,
 .pricing-rules-page input,
 .pricing-rules-page button,
@@ -15,53 +30,165 @@
     font-family: Arial, Helvetica, sans-serif;
 }
 
-.pricing-rules-page { padding: 20px; }
+ .pricing-rules-page {
+    padding: 24px;
+    background: var(--els-background);
+ }
 .pricing-rules-box {
-    max-width: 980px;
+    max-width: 1080px;
     margin: 0 auto;
-    background: var(--els-surface);
-    border-radius: 10px;
-    box-shadow: 0 2px 12px rgba(0,0,0,0.08);
-    overflow: hidden;
+ }
+
+.pricing-rules-header {
+    border: 1px solid var(--els-border);
+    border-radius: 14px;
+    background: linear-gradient(120deg, #f8fbff 0%, #edf4fd 100%);
+    box-shadow: 0 8px 22px rgba(23, 59, 112, 0.08);
+    padding: 18px 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-bottom: 14px;
 }
+
 .pricing-rules-title {
-    background: linear-gradient(90deg, var(--els-primary) 0%, var(--els-primary-dark) 100%);
-    color: #fff;
-    padding: 14px 20px;
-    font-size: 20px;
-    font-weight: 600;
+    margin: 0;
+    color: var(--els-primary);
+    font-size: 24px;
+    font-weight: 700;
+    display: inline-flex;
+    align-items: center;
+    gap: 9px;
 }
-.pricing-rules-body { padding: 20px; }
+
+.pricing-rules-subtitle {
+    margin: 6px 0 0;
+    color: var(--els-text-muted);
+    font-size: 13px;
+}
+
+.pricing-context-wrap {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.pricing-context-chip {
+    border: 1px solid var(--els-border);
+    border-radius: 999px;
+    background: #fff;
+    color: var(--els-primary);
+    font-size: 11px;
+    font-weight: 700;
+    padding: 5px 10px;
+}
+
+.pricing-rules-body {
+    display: grid;
+    gap: 14px;
+}
+
 .pricing-rules-note {
     border: 1px solid var(--els-border);
-    border-radius: 8px;
+    border-radius: 12px;
     background: var(--els-accent);
     padding: 12px;
-    margin-bottom: 16px;
     color: var(--els-text);
 }
+
+.pricing-card {
+    border: 1px solid var(--els-border);
+    border-radius: 12px;
+    background: var(--els-surface);
+    box-shadow: 0 6px 18px rgba(15, 23, 42, 0.06);
+    padding: 16px;
+}
+
+.pricing-card-title {
+    margin: 0 0 10px;
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--els-text);
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.pricing-card-title i {
+    color: var(--els-primary);
+}
+
 .pricing-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-    gap: 14px;
+    gap: 12px;
 }
 .pricing-field {
     display: flex;
     flex-direction: column;
     gap: 6px;
 }
-.pricing-field label { font-weight: 600; color: var(--els-text); }
+.pricing-field label {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--els-text);
+}
+
 .pricing-input,
 .pricing-textarea {
     border: 1px solid var(--els-border);
     border-radius: 8px;
     min-height: 40px;
     padding: 8px 10px;
-    background: var(--els-background);
+    background: #fff;
     color: var(--els-text);
 }
+
+.pricing-input:focus,
+.pricing-textarea:focus {
+    outline: none;
+    border-color: var(--els-primary-light);
+    box-shadow: 0 0 0 3px rgba(40, 120, 200, 0.16);
+}
+
+.pricing-helper-text {
+    font-size: 11px;
+    color: var(--els-text-muted);
+}
+
 .pricing-textarea { min-height: 88px; resize: vertical; }
-.pricing-check { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
+
+.pricing-options-grid {
+    display: grid;
+    gap: 10px;
+}
+
+.pricing-check {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    border: 1px solid var(--els-border);
+    border-radius: 8px;
+    background: #fff;
+    padding: 10px 12px;
+}
+
+.pricing-check label {
+    margin: 0;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--els-text);
+}
+
+.pricing-check input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    accent-color: var(--els-primary-light);
+}
+
 .validation-summary-errors,
 .field-validation-error { color: #b91c1c; font-size: 13px; }
 .pricing-actions {
@@ -75,12 +202,31 @@
     min-height: 42px;
     border: 1px solid transparent;
     border-radius: 8px;
-    background: linear-gradient(180deg, var(--els-primary-light) 0%, var(--els-primary) 100%);
+    background: var(--els-primary-light);
     color: #fff;
-    font-weight: 600;
+    font-weight: 700;
     cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    padding: 0 14px;
 }
-.pricing-btn.secondary { background: linear-gradient(180deg, #8f99a4 0%, #6f7a86 100%); }
+
+.pricing-btn:hover:not(:disabled) {
+    filter: brightness(0.96);
+}
+
+.pricing-btn:focus {
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(40, 120, 200, 0.18);
+}
+
+.pricing-btn.secondary {
+    background: #fff;
+    border-color: var(--els-border);
+    color: var(--els-primary-dark);
+}
 
 .toast-message {
     position: fixed;
@@ -128,6 +274,20 @@
     font-weight: 600;
     box-shadow: 0 8px 20px rgba(0, 0, 0, 0.16);
 }
+
+@@media (max-width: 900px) {
+    .pricing-rules-page {
+        padding: 16px;
+    }
+
+    .pricing-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .pricing-btn {
+        width: 100%;
+    }
+}
 </style>
 
 @if (TempData["UserMessage"] != null)
@@ -152,68 +312,91 @@
 
 <section class="pricing-rules-page">
     <div class="pricing-rules-box">
-        <div class="pricing-rules-title">Pricing Rules</div>
+        <div class="pricing-rules-header">
+            <div>
+                <h2 class="pricing-rules-title"><i class="fa fa-sliders" aria-hidden="true"></i> Pricing Rules</h2>
+                <p class="pricing-rules-subtitle">Configure pricing, minimum order requirements and turnaround options for this store.</p>
+            </div>
+            <div class="pricing-context-wrap">
+                <span class="pricing-context-chip">Tenant: @Model.TenantName</span>
+                <span class="pricing-context-chip">Store: @Model.StoreCode</span>
+            </div>
+        </div>
+
         <div class="pricing-rules-body">
             <div class="pricing-rules-note">
-                <div><b>Tenant:</b> @Model.TenantName</div>
-                <div><b>Store:</b> @Model.StoreCode</div>
-                <div style="margin-top:6px;">Set surcharge, minimum order, turnaround and rounding behavior for this store.</div>
+                Set surcharge, minimum order, turnaround and rounding behavior for this store.
             </div>
 
             <form asp-action="PricingRules" asp-controller="Customer" method="post">
                 @Html.AntiForgeryToken()
                 <div asp-validation-summary="ModelOnly" class="validation-summary-errors"></div>
 
-                <div class="pricing-grid">
-                    <div class="pricing-field">
-                        <label asp-for="ExpressSurchargePercent"></label>
-                        <input asp-for="ExpressSurchargePercent" class="pricing-input" type="number" step="0.01" min="0" max="100" />
-                        <span asp-validation-for="ExpressSurchargePercent"></span>
-                    </div>
+                <div class="pricing-card">
+                    <h3 class="pricing-card-title"><i class="fa fa-line-chart" aria-hidden="true"></i> Pricing &amp; Turnaround</h3>
+                    <div class="pricing-grid">
+                        <div class="pricing-field">
+                            <label asp-for="ExpressSurchargePercent"></label>
+                            <input asp-for="ExpressSurchargePercent" class="pricing-input" type="number" step="0.01" min="0" max="100" placeholder="For example: 10" />
+                            <span class="pricing-helper-text">Applied when express service surcharge is enabled.</span>
+                            <span asp-validation-for="ExpressSurchargePercent"></span>
+                        </div>
 
-                    <div class="pricing-field">
-                        <label asp-for="MinimumOrderAmount"></label>
-                        <input asp-for="MinimumOrderAmount" class="pricing-input" type="number" step="0.01" min="0" />
-                        <span asp-validation-for="MinimumOrderAmount"></span>
-                    </div>
+                        <div class="pricing-field">
+                            <label asp-for="MinimumOrderAmount"></label>
+                            <input asp-for="MinimumOrderAmount" class="pricing-input" type="number" step="0.01" min="0" placeholder="For example: 100" />
+                            <span class="pricing-helper-text">Minimum invoice value required per order.</span>
+                            <span asp-validation-for="MinimumOrderAmount"></span>
+                        </div>
 
-                    <div class="pricing-field">
-                        <label asp-for="StandardTurnaroundHours"></label>
-                        <input asp-for="StandardTurnaroundHours" class="pricing-input" type="number" min="1" max="240" />
-                        <span asp-validation-for="StandardTurnaroundHours"></span>
-                    </div>
+                        <div class="pricing-field">
+                            <label asp-for="StandardTurnaroundHours"></label>
+                            <input asp-for="StandardTurnaroundHours" class="pricing-input" type="number" min="1" max="240" placeholder="For example: 24" />
+                            <span class="pricing-helper-text">Regular processing turnaround time in hours.</span>
+                            <span asp-validation-for="StandardTurnaroundHours"></span>
+                        </div>
 
-                    <div class="pricing-field">
-                        <label asp-for="ExpressTurnaroundHours"></label>
-                        <input asp-for="ExpressTurnaroundHours" class="pricing-input" type="number" min="1" max="240" />
-                        <span asp-validation-for="ExpressTurnaroundHours"></span>
+                        <div class="pricing-field">
+                            <label asp-for="ExpressTurnaroundHours"></label>
+                            <input asp-for="ExpressTurnaroundHours" class="pricing-input" type="number" min="1" max="240" placeholder="For example: 8" />
+                            <span class="pricing-helper-text">Faster turnaround time in hours for express orders.</span>
+                            <span asp-validation-for="ExpressTurnaroundHours"></span>
+                        </div>
                     </div>
                 </div>
 
-                <div class="pricing-check">
-                    <input asp-for="EnableExpressSurcharge" />
-                    <label asp-for="EnableExpressSurcharge"></label>
+                <div class="pricing-card">
+                    <h3 class="pricing-card-title"><i class="fa fa-toggle-on" aria-hidden="true"></i> Pricing Options</h3>
+                    <div class="pricing-options-grid">
+                        <div class="pricing-check">
+                            <label asp-for="EnableExpressSurcharge"></label>
+                            <input asp-for="EnableExpressSurcharge" />
+                        </div>
+
+                        <div class="pricing-check">
+                            <label asp-for="EnableMinimumOrder"></label>
+                            <input asp-for="EnableMinimumOrder" />
+                        </div>
+
+                        <div class="pricing-check">
+                            <label asp-for="RoundOffInvoiceTotal"></label>
+                            <input asp-for="RoundOffInvoiceTotal" />
+                        </div>
+                    </div>
                 </div>
 
-                <div class="pricing-check">
-                    <input asp-for="EnableMinimumOrder" />
-                    <label asp-for="EnableMinimumOrder"></label>
-                </div>
-
-                <div class="pricing-check">
-                    <input asp-for="RoundOffInvoiceTotal" />
-                    <label asp-for="RoundOffInvoiceTotal"></label>
-                </div>
-
-                <div class="pricing-field" style="margin-top:12px;">
-                    <label asp-for="Notes"></label>
-                    <textarea asp-for="Notes" class="pricing-textarea" maxlength="300"></textarea>
-                    <span asp-validation-for="Notes"></span>
+                <div class="pricing-card">
+                    <h3 class="pricing-card-title"><i class="fa fa-sticky-note-o" aria-hidden="true"></i> Additional Notes</h3>
+                    <div class="pricing-field">
+                        <label asp-for="Notes"></label>
+                        <textarea asp-for="Notes" class="pricing-textarea" maxlength="300"></textarea>
+                        <span asp-validation-for="Notes"></span>
+                    </div>
                 </div>
 
                 <div class="pricing-actions">
-                    <button type="submit" class="pricing-btn">Save Pricing Rules</button>
-                    <button type="button" class="pricing-btn secondary" onclick="window.location.href='@Url.Action("MyDashboard", "Dashboard")'">Back to My Dashboard</button>
+                    <button type="submit" class="pricing-btn"><i class="fa fa-save" aria-hidden="true"></i> Save Pricing Rules</button>
+                    <button type="button" class="pricing-btn secondary" onclick="window.location.href='@Url.Action("MyDashboard", "Dashboard")'"><i class="fa fa-arrow-left" aria-hidden="true"></i> Back to My Dashboard</button>
                 </div>
             </form>
         </div>
