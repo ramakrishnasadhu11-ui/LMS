@@ -7,37 +7,61 @@
 
 <section class="customer-page">
     <div class="customer-box">
-        <div class="customer-title">Import/Export Prices (CSV)</div>
+        <div class="customer-header">
+            <div class="customer-header-copy">
+                <h2 class="customer-title"><i class="fa fa-file-text-o" aria-hidden="true"></i> Import/Export Prices (CSV)</h2>
+                <p class="customer-subtitle">Manage your store price catalog using CSV files.</p>
+            </div>
+            <div class="customer-context-wrap">
+                <span class="customer-context-chip">Tenant: @tenantName</span>
+                <span class="customer-context-chip">Store: @storeCode</span>
+            </div>
+        </div>
         <div class="customer-body">
-            <div class="meta-line">Tenant: <b>@tenantName</b> | Store: <b>@storeCode</b></div>
-
-            <div id="catalogStatusBox" class="catalog-status-box loading">
-                <div class="catalog-status-title">Current Price Catalog For This Store</div>
-                <div id="catalogStatusText" class="catalog-status-text">Checking whether this store already has prices...</div>
-                <div id="catalogStatusCounts" class="import-summary-grid" style="display:none;">
-                    <div class="import-summary-chip"><span>Priced Items</span><b id="statActive">0</b></div>
-                    <div class="import-summary-chip"><span>Removed Items</span><b id="statInactive">0</b></div>
-                    <div class="import-summary-chip"><span>Service Types</span><b id="statServices">0</b></div>
+            <div class="customer-card">
+                <div class="customer-card-title"><i class="fa fa-bar-chart" aria-hidden="true"></i> Current Price Catalog</div>
+                <div id="catalogStatusBox" class="catalog-status-box loading">
+                    <div id="catalogStatusText" class="catalog-status-text">Checking whether this store already has prices...</div>
+                    <div id="catalogStatusCounts" class="import-summary-grid" style="display:none;">
+                        <div class="import-summary-chip"><span>Priced Items</span><b id="statActive">0</b></div>
+                        <div class="import-summary-chip"><span>Removed Items</span><b id="statInactive">0</b></div>
+                        <div class="import-summary-chip"><span>Service Types</span><b id="statServices">0</b></div>
+                    </div>
+                    <div id="catalogStatusBreakdown" class="catalog-status-breakdown"></div>
                 </div>
-                <div id="catalogStatusBreakdown" class="catalog-status-breakdown"></div>
             </div>
 
-            <div class="bulk-import-row">
-                <input type="file" id="customItemsCsvFile" accept=".csv,text/csv" />
-                <button type="button" class="action-btn tertiary" id="importUploadedItemsBtn">Import CSV File</button>
-                <button type="button" class="action-btn" id="downloadItemsTemplateBtn">Export CSV File</button>
-                <button type="button" class="action-btn secondary" id="openCsvRulesBtn">CSV Format Rules</button>
+            <div class="customer-card">
+                <div class="customer-card-title"><i class="fa fa-exchange" aria-hidden="true"></i> CSV Import/Export</div>
+                <div class="bulk-import-grid">
+                    <div class="bulk-import-file-wrap">
+                        <label class="bulk-import-label" for="customItemsCsvFile">Import CSV File</label>
+                        <input type="file" id="customItemsCsvFile" accept=".csv,text/csv" />
+                        <div id="selectedCsvFileLabel" class="bulk-file-label">No file selected.</div>
+                    </div>
+                    <div class="bulk-import-actions">
+                        <button type="button" class="action-btn tertiary" id="importUploadedItemsBtn"><i class="fa fa-upload" aria-hidden="true"></i> Import CSV File</button>
+                        <button type="button" class="action-btn" id="downloadItemsTemplateBtn"><i class="fa fa-download" aria-hidden="true"></i> Export CSV File</button>
+                        <button type="button" class="action-btn secondary" id="openCsvRulesBtn"><i class="fa fa-info-circle" aria-hidden="true"></i> CSV Format Rules</button>
+                    </div>
+                </div>
+
+                <div class="bulk-import-row" style="margin-top:8px;">
+                    <label for="overwriteExistingPricesChk" class="overwrite-check-label">
+                        <input type="checkbox" id="overwriteExistingPricesChk" />
+                        Overwrite existing prices when <b>ServiceType + Category + ItemName</b> matches.
+                    </label>
+                </div>
             </div>
 
-            <div class="bulk-import-row" style="margin-top:8px;">
-                <label for="overwriteExistingPricesChk" style="font-size:12px; color:var(--els-text); display:inline-flex; align-items:center; gap:8px;">
-                    <input type="checkbox" id="overwriteExistingPricesChk" />
-                    Overwrite existing prices for matching ServiceType + Category + ItemName
-                </label>
-            </div>
-
-            <div class="field-hint">
-                Export template, edit in your system, then import back. Required columns: <b>ServiceType,Category,ItemName,UnitPrice</b>.
+            <div class="customer-card info-card">
+                <div class="customer-card-title"><i class="fa fa-list-alt" aria-hidden="true"></i> CSV Format Rules</div>
+                <ul class="csv-rules-list">
+                    <li>Exporting downloads the existing price rows for this store.</li>
+                    <li><b>Importing overwrites item price</b> when <span class="csv-rules-code">ServiceType + Category + ItemName</span> matches.</li>
+                    <li>Required columns: <span class="csv-rules-code">ServiceType</span>, <span class="csv-rules-code">Category</span>, <span class="csv-rules-code">ItemName</span>, <span class="csv-rules-code">UnitPrice</span>.</li>
+                    <li>Export the template, edit values, then import it back.</li>
+                </ul>
             </div>
 
             <div id="csvImportSummary" class="import-summary-box">
@@ -55,6 +79,10 @@
                     <ul class="import-summary-issues-list" id="sumRowIssuesList"></ul>
                     <div class="import-summary-issues-more" id="sumRowIssuesMore"></div>
                 </div>
+            </div>
+
+            <div class="customer-page-actions">
+                <button type="button" class="action-btn secondary" onclick="window.location.href='@Url.Action("Index", "Dashboard")'"><i class="fa fa-arrow-left" aria-hidden="true"></i> Back to Dashboard</button>
             </div>
         </div>
     </div>
@@ -82,6 +110,21 @@
 <div id="csvToast" class="toast-message"></div>
 
 <style>
+:root {
+    --els-primary: #173B70;
+    --els-primary-dark: #173B70;
+    --els-primary-light: #2878C8;
+    --els-accent: #EAF2FC;
+    --els-background: #F5F7FA;
+    --els-surface: #FFFFFF;
+    --els-text: #1E293B;
+    --els-text-muted: #64748B;
+    --els-border: #E2E8F0;
+    --els-success: #16A36A;
+    --els-warning: #D99520;
+    --els-danger: #D94848;
+}
+
 .customer-page,
 .customer-page input,
 .customer-page button,
@@ -91,34 +134,103 @@
 }
 
 .customer-page {
-    padding: 20px;
+    padding: 24px;
+    background: var(--els-background);
 }
 
 .customer-box {
     max-width: 1100px;
     margin: 0 auto;
-    background: var(--els-surface);
-    border-radius: 10px;
-    box-shadow: 0 2px 12px rgba(0,0,0,0.08);
-    overflow: hidden;
 }
 
-.customer-title {
-    background: linear-gradient(90deg, var(--els-primary) 0%, var(--els-primary-dark) 100%);
-    color: #fff;
-    padding: 14px 20px;
-    font-size: 20px;
-    font-weight: 600;
+.customer-header {
+    border: 1px solid var(--els-border);
+    border-radius: 14px;
+    background: linear-gradient(120deg, #f8fbff 0%, #edf4fd 100%);
+    box-shadow: 0 8px 22px rgba(23, 59, 112, 0.08);
+    padding: 18px 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-bottom: 14px;
+}
+
+.customer-header-copy {
+    display: flex;
+    flex-direction: column;
+    min-width: 280px;
+    flex: 1 1 420px;
+}
+
+.customer-header .customer-title {
+    margin: 0;
+    color: var(--els-primary);
+    font-size: 24px;
+    font-weight: 700;
+    display: inline-flex;
+    align-items: center;
+    gap: 9px;
+    background: transparent !important;
+    line-height: 1.25;
+    position: relative;
+    z-index: 1;
+}
+
+.customer-subtitle {
+    margin: 6px 0 0;
+    color: var(--els-text-muted);
+    font-size: 13px;
+    line-height: 1.4;
+    white-space: normal;
+}
+
+.customer-context-wrap {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.customer-context-chip {
+    border: 1px solid var(--els-border);
+    border-radius: 999px;
+    background: #fff;
+    color: var(--els-primary);
+    font-size: 11px;
+    font-weight: 700;
+    padding: 5px 10px;
 }
 
 .customer-body {
-    padding: 20px;
+    display: grid;
+    gap: 14px;
 }
 
-.meta-line {
-    font-size: 13px;
+.customer-card {
+    border: 1px solid var(--els-border);
+    border-radius: 12px;
+    background: var(--els-surface);
+    box-shadow: 0 6px 18px rgba(15, 23, 42, 0.06);
+    padding: 16px;
+}
+
+.customer-card-title {
+    margin: 0 0 10px;
+    font-size: 16px;
+    font-weight: 700;
     color: var(--els-text);
-    margin-bottom: 12px;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.customer-card-title i {
+    color: var(--els-primary);
+}
+
+.info-card {
+    background: var(--els-accent);
 }
 
 .bulk-import-row {
@@ -128,29 +240,80 @@
     align-items: center;
 }
 
-.bulk-import-row input[type="file"] {
-    max-width: 360px;
+.bulk-import-grid {
+    display: grid;
+    grid-template-columns: minmax(280px, 1fr) minmax(320px, auto);
+    gap: 12px;
+    align-items: end;
+}
+
+.bulk-import-file-wrap {
+    display: grid;
+    gap: 6px;
+}
+
+.bulk-import-label {
     font-size: 12px;
+    font-weight: 700;
+    color: var(--els-text);
+}
+
+.bulk-import-row input[type="file"] {
+    width: 100%;
+    max-width: 420px;
+    font-size: 12px;
+    border: 1px solid var(--els-border);
+    border-radius: 8px;
+    background: #fff;
+    padding: 8px;
+}
+
+.bulk-file-label {
+    font-size: 12px;
+    color: var(--els-text-muted);
+}
+
+.bulk-import-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
 }
 
 .action-btn {
     min-width: 180px;
     min-height: 40px;
     border: 1px solid transparent;
-    border-radius: 6px;
-    background: linear-gradient(180deg, var(--els-primary-light) 0%, var(--els-primary) 100%);
+    border-radius: 8px;
+    background: var(--els-primary-light);
     color: #fff;
-    font-weight: 600;
+    font-weight: 700;
     cursor: pointer;
     padding: 8px 14px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
 }
 
 .action-btn.secondary {
-    background: linear-gradient(180deg, #8f99a4 0%, #6f7a86 100%);
+    background: #fff;
+    border-color: var(--els-border);
+    color: var(--els-primary-dark);
 }
 
 .action-btn.tertiary {
-    background: linear-gradient(180deg, #3f8f7b 0%, #2b6f5e 100%);
+    background: #fff;
+    border-color: var(--els-primary-light);
+    color: var(--els-primary-light);
+}
+
+.action-btn:hover:not(:disabled) {
+    filter: brightness(0.96);
+}
+
+.action-btn:focus {
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(40, 120, 200, 0.18);
 }
 
 .action-btn:disabled {
@@ -331,10 +494,9 @@
 .catalog-status-box {
     border: 1px solid var(--els-border);
     border-left-width: 4px;
-    border-radius: 8px;
+    border-radius: 10px;
     padding: 12px 14px;
-    margin-bottom: 14px;
-    background: var(--els-accent);
+    background: #fff;
     color: var(--els-text);
 }
 
@@ -356,8 +518,52 @@
 
 .catalog-status-breakdown {
     font-size: 12px;
-    color: var(--els-muted);
+    color: var(--els-text-muted);
     margin-top: 8px;
+}
+
+.overwrite-check-label {
+    font-size: 12px;
+    color: var(--els-text);
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.csv-rules-list {
+    margin: 0;
+    padding-left: 18px;
+    color: var(--els-text);
+    font-size: 12px;
+}
+
+.csv-rules-list li {
+    margin-bottom: 6px;
+}
+
+.customer-page-actions {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-top: 4px;
+}
+
+@@media (max-width: 900px) {
+    .customer-page {
+        padding: 16px;
+    }
+
+    .bulk-import-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .action-btn {
+        width: 100%;
+    }
+
+    .customer-page-actions {
+        margin-top: 0;
+    }
 }
 </style>
 
@@ -527,7 +733,15 @@
     function updateImportActionState() {
         var fileInput = document.getElementById("customItemsCsvFile");
         var uploadBtn = document.getElementById("importUploadedItemsBtn");
+        var fileLabel = document.getElementById("selectedCsvFileLabel");
         var hasFile = !!(fileInput && fileInput.files && fileInput.files.length);
+
+        if (fileLabel) {
+            fileLabel.textContent = hasFile
+                ? ("Selected file: " + (fileInput.files[0].name || "CSV file"))
+                : "No file selected.";
+        }
+
         if (uploadBtn) {
             uploadBtn.disabled = importInProgress || !hasFile;
         }
@@ -712,6 +926,7 @@
 
         var fileInput = document.getElementById("customItemsCsvFile");
         var uploadBtn = document.getElementById("importUploadedItemsBtn");
+        var exportBtn = document.getElementById("downloadItemsTemplateBtn");
         var overwriteChk = document.getElementById("overwriteExistingPricesChk");
         var selectedFile = fileInput && fileInput.files && fileInput.files.length ? fileInput.files[0] : null;
         if (!selectedFile) {
@@ -753,7 +968,10 @@
                 importInProgress = true;
                 if (uploadBtn) {
                     uploadBtn.disabled = true;
-                    uploadBtn.textContent = "Importing CSV...";
+                    uploadBtn.innerHTML = "<i class='fa fa-spinner fa-spin' aria-hidden='true'></i> Importing CSV...";
+                }
+                if (exportBtn) {
+                    exportBtn.disabled = true;
                 }
                 if (fileInput) {
                     fileInput.disabled = true;
@@ -790,7 +1008,10 @@
                     .finally(function () {
                         importInProgress = false;
                         if (uploadBtn) {
-                            uploadBtn.textContent = "Import CSV File";
+                            uploadBtn.innerHTML = "<i class='fa fa-upload' aria-hidden='true'></i> Import CSV File";
+                        }
+                        if (exportBtn) {
+                            exportBtn.disabled = false;
                         }
                         if (fileInput) {
                             fileInput.disabled = false;

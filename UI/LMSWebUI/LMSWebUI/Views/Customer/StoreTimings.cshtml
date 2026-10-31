@@ -6,6 +6,21 @@
 }
 
 <style>
+:root {
+    --els-primary: #173B70;
+    --els-primary-dark: #173B70;
+    --els-primary-light: #2878C8;
+    --els-accent: #EAF2FC;
+    --els-background: #F5F7FA;
+    --els-surface: #FFFFFF;
+    --els-text: #1E293B;
+    --els-text-muted: #64748B;
+    --els-border: #E2E8F0;
+    --els-success: #16A36A;
+    --els-warning: #D99520;
+    --els-danger: #D94848;
+}
+
 .store-config-page,
 .store-config-page input,
 .store-config-page button,
@@ -15,42 +30,115 @@
     font-family: Arial, Helvetica, sans-serif;
 }
 
-.store-config-page { padding: 20px; }
+.store-config-page {
+    padding: 24px;
+    background: var(--els-background);
+}
+
 .store-config-box {
-    max-width: 980px;
+    max-width: 1080px;
     margin: 0 auto;
-    background: var(--els-surface);
-    border-radius: 10px;
-    box-shadow: 0 2px 12px rgba(0,0,0,0.08);
-    overflow: hidden;
 }
+
+.store-config-header {
+    border: 1px solid var(--els-border);
+    border-radius: 14px;
+    background: linear-gradient(120deg, #f8fbff 0%, #edf4fd 100%);
+    box-shadow: 0 8px 22px rgba(23, 59, 112, 0.08);
+    padding: 18px 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-bottom: 14px;
+}
+
 .store-config-title {
-    background: linear-gradient(90deg, var(--els-primary) 0%, var(--els-primary-dark) 100%);
-    color: #fff;
-    padding: 14px 20px;
-    font-size: 20px;
-    font-weight: 600;
+    margin: 0;
+    color: var(--els-primary);
+    font-size: 24px;
+    font-weight: 700;
+    display: inline-flex;
+    align-items: center;
+    gap: 9px;
 }
-.store-config-body { padding: 20px; }
+
+.store-config-subtitle {
+    margin: 6px 0 0;
+    color: var(--els-text-muted);
+    font-size: 13px;
+}
+
+.store-config-context {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.store-context-chip {
+    border: 1px solid var(--els-border);
+    border-radius: 999px;
+    background: #fff;
+    color: var(--els-primary);
+    font-size: 11px;
+    font-weight: 700;
+    padding: 5px 10px;
+}
+
+.store-config-body {
+    display: grid;
+    gap: 14px;
+}
+
 .store-config-note {
     border: 1px solid var(--els-border);
-    border-radius: 8px;
+    border-radius: 12px;
     background: var(--els-accent);
     padding: 12px;
-    margin-bottom: 16px;
     color: var(--els-text);
 }
+
+.store-config-card {
+    border: 1px solid var(--els-border);
+    border-radius: 12px;
+    background: var(--els-surface);
+    box-shadow: 0 6px 18px rgba(15, 23, 42, 0.06);
+    padding: 16px;
+}
+
+.store-config-card-title {
+    margin: 0 0 10px;
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--els-text);
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.store-config-card-title i {
+    color: var(--els-primary);
+}
+
 .store-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-    gap: 14px;
+    gap: 12px;
 }
+
 .store-field {
     display: flex;
     flex-direction: column;
     gap: 6px;
 }
-.store-field label { font-weight: 600; color: var(--els-text); }
+
+.store-field label {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--els-text);
+}
+
 .store-input,
 .store-textarea,
 .store-select {
@@ -58,32 +146,71 @@
     border-radius: 8px;
     min-height: 40px;
     padding: 8px 10px;
-    background: var(--els-background);
+    background: #fff;
     color: var(--els-text);
 }
+
+.store-input:focus,
+.store-textarea:focus,
+.store-select:focus {
+    outline: none;
+    border-color: var(--els-primary-light);
+    box-shadow: 0 0 0 3px rgba(40, 120, 200, 0.16);
+}
+
 .store-textarea {
     min-height: 88px;
     resize: vertical;
 }
+
 .validation-summary-errors,
-.field-validation-error { color: #b91c1c; font-size: 13px; }
+.field-validation-error {
+    color: #b91c1c;
+    font-size: 13px;
+}
+
 .store-actions {
     display: flex;
     gap: 10px;
     flex-wrap: wrap;
     margin-top: 18px;
 }
+
 .store-btn {
     min-width: 180px;
     min-height: 42px;
     border: 1px solid transparent;
     border-radius: 8px;
-    background: linear-gradient(180deg, var(--els-primary-light) 0%, var(--els-primary) 100%);
+    background: var(--els-primary-light);
     color: #fff;
-    font-weight: 600;
+    font-weight: 700;
     cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    padding: 0 14px;
 }
-.store-btn.secondary { background: linear-gradient(180deg, #8f99a4 0%, #6f7a86 100%); }
+
+.store-btn:hover:not(:disabled) {
+    filter: brightness(0.96);
+}
+
+.store-btn:focus {
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(40, 120, 200, 0.18);
+}
+
+.store-btn.secondary {
+    background: #fff;
+    border-color: var(--els-border);
+    color: var(--els-primary-dark);
+}
+
+.store-btn:disabled {
+    opacity: .65;
+    cursor: not-allowed;
+}
 
 .toast-message {
     position: fixed;
@@ -107,6 +234,16 @@
 .toast-message.error {
     background: #b63838;
 }
+
+@@media (max-width: 900px) {
+    .store-config-page {
+        padding: 16px;
+    }
+
+    .store-grid {
+        grid-template-columns: 1fr;
+    }
+}
 </style>
 
 @if (TempData["UserMessage"] != null)
@@ -128,7 +265,17 @@
 
 <section class="store-config-page">
     <div class="store-config-box">
-        <div class="store-config-title">Store Configuration</div>
+        <div class="store-config-header">
+            <div>
+                <h2 class="store-config-title"><i class="fa fa-sliders" aria-hidden="true"></i> Store Configuration</h2>
+                <p class="store-config-subtitle">Configure store details, business hours and weekly holidays.</p>
+            </div>
+            <div class="store-config-context">
+                <span class="store-context-chip">Tenant: @Model.TenantName</span>
+                <span class="store-context-chip">Store: @Model.StoreCode</span>
+            </div>
+        </div>
+
         <div class="store-config-body">
             <div class="store-config-note">
                 <div><b>Tenant:</b> @Model.TenantName</div>
@@ -141,98 +288,114 @@
                 <input asp-for="IsExistingRecord" type="hidden" />
                 <div asp-validation-summary="All" class="validation-summary-errors"></div>
 
-                <div class="store-grid">
-                    <div class="store-field">
-                        <label for="StoreName">Store Name</label>
-                        <input asp-for="StoreName" class="store-input" maxlength="120" required />
-                        <span asp-validation-for="StoreName"></span>
-                    </div>
+                <div class="store-config-card">
+                    <h3 class="store-config-card-title"><i class="fa fa-building-o" aria-hidden="true"></i> Store Details</h3>
+                    <div class="store-grid">
+                        <div class="store-field">
+                            <label for="StoreName">Store Name</label>
+                            <input asp-for="StoreName" class="store-input" maxlength="120" required />
+                            <span asp-validation-for="StoreName"></span>
+                        </div>
 
-                    <div class="store-field">
-                        <label for="ContactPerson">Contact Person</label>
-                        <input asp-for="ContactPerson" class="store-input" maxlength="100" required />
-                        <span asp-validation-for="ContactPerson"></span>
-                    </div>
+                        <div class="store-field">
+                            <label for="ContactPerson">Contact Person</label>
+                            <input asp-for="ContactPerson" class="store-input" maxlength="100" required />
+                            <span asp-validation-for="ContactPerson"></span>
+                        </div>
 
-                    <div class="store-field">
-                        <label for="PhoneNumber">Phone Number</label>
-                        <input asp-for="PhoneNumber" class="store-input" maxlength="20" required pattern="[0-9+()\-\s]{7,20}" />
-                        <span asp-validation-for="PhoneNumber"></span>
-                    </div>
+                        <div class="store-field">
+                            <label for="PhoneNumber">Phone Number</label>
+                            <input asp-for="PhoneNumber" class="store-input" maxlength="20" required pattern="[0-9+()\-\s]{7,20}" />
+                            <span asp-validation-for="PhoneNumber"></span>
+                        </div>
 
-                    <div class="store-field">
-                        <label for="Email">Email</label>
-                        <input asp-for="Email" class="store-input" type="email" maxlength="150" />
-                        <span asp-validation-for="Email"></span>
-                    </div>
-
-                    <div class="store-field">
-                        <label for="AddressLine1">Address Line 1</label>
-                        <input asp-for="AddressLine1" class="store-input" maxlength="200" required />
-                        <span asp-validation-for="AddressLine1"></span>
-                    </div>
-
-                    <div class="store-field">
-                        <label for="AddressLine2">Address Line 2</label>
-                        <input asp-for="AddressLine2" class="store-input" maxlength="200" />
-                        <span asp-validation-for="AddressLine2"></span>
-                    </div>
-
-                    <div class="store-field">
-                        <label for="City">City</label>
-                        <input asp-for="City" class="store-input" maxlength="80" required />
-                        <span asp-validation-for="City"></span>
-                    </div>
-
-                    <div class="store-field">
-                        <label for="State">State</label>
-                        <input asp-for="State" class="store-input" maxlength="80" required />
-                        <span asp-validation-for="State"></span>
-                    </div>
-
-                    <div class="store-field">
-                        <label for="PostalCode">Postal Code</label>
-                        <input asp-for="PostalCode" class="store-input" maxlength="20" required pattern="[A-Za-z0-9\-\s]{4,12}" />
-                        <span asp-validation-for="PostalCode"></span>
-                    </div>
-
-                    <div class="store-field">
-                        <label for="OpeningTime">Opening Time</label>
-                        <input asp-for="OpeningTime" class="store-input" type="time" required />
-                        <span asp-validation-for="OpeningTime"></span>
-                    </div>
-
-                    <div class="store-field">
-                        <label for="ClosingTime">Closing Time</label>
-                        <input asp-for="ClosingTime" class="store-input" type="time" required />
-                        <span asp-validation-for="ClosingTime"></span>
-                    </div>
-
-                    <div class="store-field">
-                        <label for="WeeklyOffDay">Weekly Off Day</label>
-                        <select asp-for="WeeklyOffDay" class="store-select">
-                            <option value="">None</option>
-                            <option value="Sunday">Sunday</option>
-                            <option value="Monday">Monday</option>
-                            <option value="Tuesday">Tuesday</option>
-                            <option value="Wednesday">Wednesday</option>
-                            <option value="Thursday">Thursday</option>
-                            <option value="Friday">Friday</option>
-                            <option value="Saturday">Saturday</option>
-                        </select>
-                        <span asp-validation-for="WeeklyOffDay"></span>
+                        <div class="store-field">
+                            <label for="Email">Email</label>
+                            <input asp-for="Email" class="store-input" type="email" maxlength="150" />
+                            <span asp-validation-for="Email"></span>
+                        </div>
                     </div>
                 </div>
 
-                <div class="store-field" style="margin-top:12px;">
-                    <label for="Notes">Notes</label>
-                    <textarea asp-for="Notes" class="store-textarea" maxlength="300"></textarea>
-                    <span asp-validation-for="Notes"></span>
+                <div class="store-config-card">
+                    <h3 class="store-config-card-title"><i class="fa fa-map-marker" aria-hidden="true"></i> Store Address</h3>
+                    <div class="store-grid">
+                        <div class="store-field">
+                            <label for="AddressLine1">Address Line 1</label>
+                            <input asp-for="AddressLine1" class="store-input" maxlength="200" required />
+                            <span asp-validation-for="AddressLine1"></span>
+                        </div>
+
+                        <div class="store-field">
+                            <label for="AddressLine2">Address Line 2</label>
+                            <input asp-for="AddressLine2" class="store-input" maxlength="200" />
+                            <span asp-validation-for="AddressLine2"></span>
+                        </div>
+
+                        <div class="store-field">
+                            <label for="City">City</label>
+                            <input asp-for="City" class="store-input" maxlength="80" required />
+                            <span asp-validation-for="City"></span>
+                        </div>
+
+                        <div class="store-field">
+                            <label for="State">State</label>
+                            <input asp-for="State" class="store-input" maxlength="80" required />
+                            <span asp-validation-for="State"></span>
+                        </div>
+
+                        <div class="store-field">
+                            <label for="PostalCode">Postal Code</label>
+                            <input asp-for="PostalCode" class="store-input" maxlength="20" required pattern="[A-Za-z0-9\-\s]{4,12}" />
+                            <span asp-validation-for="PostalCode"></span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="store-config-card">
+                    <h3 class="store-config-card-title"><i class="fa fa-clock-o" aria-hidden="true"></i> Business Hours</h3>
+                    <div class="store-grid">
+                        <div class="store-field">
+                            <label for="OpeningTime">Opening Time</label>
+                            <input asp-for="OpeningTime" class="store-input" type="time" required />
+                            <span asp-validation-for="OpeningTime"></span>
+                        </div>
+
+                        <div class="store-field">
+                            <label for="ClosingTime">Closing Time</label>
+                            <input asp-for="ClosingTime" class="store-input" type="time" required />
+                            <span asp-validation-for="ClosingTime"></span>
+                        </div>
+
+                        <div class="store-field">
+                            <label for="WeeklyOffDay">Weekly Off Day</label>
+                            <select asp-for="WeeklyOffDay" class="store-select">
+                                <option value="">None</option>
+                                <option value="Sunday">Sunday</option>
+                                <option value="Monday">Monday</option>
+                                <option value="Tuesday">Tuesday</option>
+                                <option value="Wednesday">Wednesday</option>
+                                <option value="Thursday">Thursday</option>
+                                <option value="Friday">Friday</option>
+                                <option value="Saturday">Saturday</option>
+                            </select>
+                            <span asp-validation-for="WeeklyOffDay"></span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="store-config-card">
+                    <h3 class="store-config-card-title"><i class="fa fa-sticky-note-o" aria-hidden="true"></i> Additional Notes</h3>
+                    <div class="store-field">
+                        <label for="Notes">Notes</label>
+                        <textarea asp-for="Notes" class="store-textarea" maxlength="300"></textarea>
+                        <span asp-validation-for="Notes"></span>
+                    </div>
                 </div>
 
                 <div class="store-actions">
-                    <button type="submit" class="store-btn" id="saveStoreConfigBtn" data-default-label="@(Model.IsExistingRecord ? "Update Store Configuration" : "Save Store Configuration")">@(Model.IsExistingRecord ? "Update Store Configuration" : "Save Store Configuration")</button>
-                    <button type="button" class="store-btn secondary" onclick="window.location.href='@Url.Action("MyDashboard", "Dashboard")'">Back to My Dashboard</button>
+                    <button type="submit" class="store-btn" id="saveStoreConfigBtn" data-default-label="@(Model.IsExistingRecord ? "Update Store Configuration" : "Save Store Configuration")"><i class="fa fa-save" aria-hidden="true"></i> @(Model.IsExistingRecord ? "Update Store Configuration" : "Save Store Configuration")</button>
+                    <button type="button" class="store-btn secondary" onclick="window.location.href='@Url.Action("MyDashboard", "Dashboard")'"><i class="fa fa-arrow-left" aria-hidden="true"></i> Back to My Dashboard</button>
                 </div>
             </form>
         </div>

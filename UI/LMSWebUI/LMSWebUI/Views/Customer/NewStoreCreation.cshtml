@@ -9,6 +9,21 @@
 }
 
 <style>
+:root {
+    --els-primary: #173B70;
+    --els-primary-dark: #173B70;
+    --els-primary-light: #2878C8;
+    --els-accent: #EAF2FC;
+    --els-background: #F5F7FA;
+    --els-surface: #FFFFFF;
+    --els-text: #1E293B;
+    --els-text-muted: #64748B;
+    --els-border: #E2E8F0;
+    --els-success: #16A36A;
+    --els-warning: #D99520;
+    --els-danger: #D94848;
+}
+
 .admin-setup-page,
 .admin-setup-page input,
 .admin-setup-page button,
@@ -18,31 +33,107 @@
     font-family: Arial, Helvetica, sans-serif;
 }
 
-.admin-setup-page { padding: 20px; }
+.admin-setup-page {
+    padding: 24px;
+    background: var(--els-background);
+}
+
 .admin-setup-box {
-    max-width: 900px;
+    max-width: 1080px;
     margin: 0 auto;
-    background: var(--els-surface);
-    border-radius: 10px;
-    box-shadow: 0 2px 12px rgba(0,0,0,0.08);
-    overflow: hidden;
 }
+
+.admin-page-header {
+    border: 1px solid var(--els-border);
+    border-radius: 14px;
+    background: linear-gradient(120deg, #f8fbff 0%, #edf4fd 100%);
+    box-shadow: 0 8px 22px rgba(23, 59, 112, 0.08);
+    padding: 18px 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-bottom: 14px;
+}
+
 .admin-setup-title {
-    background: linear-gradient(90deg, var(--els-primary) 0%, var(--els-primary-dark) 100%);
-    color: #fff;
-    padding: 14px 20px;
-    font-size: 20px;
-    font-weight: 600;
+    margin: 0;
+    color: var(--els-primary);
+    font-size: 24px;
+    font-weight: 700;
+    display: inline-flex;
+    align-items: center;
+    gap: 9px;
 }
-.admin-setup-body { padding: 20px; }
+
+.admin-setup-subtitle {
+    margin: 6px 0 0;
+    color: var(--els-text-muted);
+    font-size: 13px;
+}
+
+.admin-context-wrap {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.admin-context-chip {
+    border: 1px solid var(--els-border);
+    border-radius: 999px;
+    background: #fff;
+    color: var(--els-primary);
+    font-size: 11px;
+    font-weight: 700;
+    padding: 5px 10px;
+}
+
+.admin-setup-body {
+    display: grid;
+    gap: 14px;
+}
+
 .admin-setup-note {
     border: 1px solid var(--els-border);
-    border-radius: 8px;
+    border-radius: 12px;
     background: var(--els-accent);
     padding: 12px;
-    margin-bottom: 14px;
     color: var(--els-text);
 }
+
+.admin-setup-card {
+    border: 1px solid var(--els-border);
+    border-radius: 12px;
+    background: var(--els-surface);
+    box-shadow: 0 6px 18px rgba(15, 23, 42, 0.06);
+    padding: 16px;
+}
+
+.admin-card-head {
+    margin-bottom: 10px;
+}
+
+.admin-card-title {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--els-text);
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.admin-card-title i {
+    color: var(--els-primary);
+}
+
+.admin-card-subtitle {
+    margin: 4px 0 0;
+    font-size: 12px;
+    color: var(--els-text-muted);
+}
+
 .form-row {
     display: grid;
     grid-template-columns: 1fr auto;
@@ -52,36 +143,67 @@
 .form-row label {
     display: block;
     margin-bottom: 6px;
-    font-weight: 600;
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--els-text);
 }
+
 .form-row input {
     width: 100%;
     border: 1px solid var(--els-border);
-    border-radius: 6px;
-    padding: 9px 10px;
+    border-radius: 8px;
+    min-height: 40px;
+    padding: 8px 10px;
     font-size: 14px;
+    background: #fff;
+    color: var(--els-text);
 }
+
+.form-row input:focus {
+    outline: none;
+    border-color: var(--els-primary-light);
+    box-shadow: 0 0 0 3px rgba(40, 120, 200, 0.16);
+}
+
 .admin-setup-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 14px; }
 .admin-btn {
     min-width: 180px;
     min-height: 42px;
     border: 1px solid transparent;
     border-radius: 8px;
-    background: linear-gradient(180deg, var(--els-primary-light) 0%, var(--els-primary) 100%);
+    background: var(--els-primary-light);
     color: #fff;
-    font-weight: 600;
+    font-weight: 700;
     cursor: pointer;
     padding: 8px 14px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
 }
+
+.admin-btn:hover:not(:disabled) {
+    filter: brightness(0.96);
+}
+
+.admin-btn:focus {
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(40, 120, 200, 0.18);
+}
+
 .admin-btn.secondary {
-    background: linear-gradient(180deg, #8f99a4 0%, #6f7a86 100%);
+    background: #fff;
+    border-color: var(--els-border);
+    color: var(--els-primary-dark);
 }
+
 .admin-btn:disabled {
     opacity: 0.6;
     cursor: not-allowed;
 }
+
 .result-box {
-    margin-top: 14px;
+    margin-top: 12px;
     border: 1px solid var(--els-border);
     border-radius: 8px;
     padding: 10px;
@@ -98,23 +220,28 @@
     background: #f4fff7;
 }
 .stores-list-box {
-    margin-top: 16px;
     border: 1px solid var(--els-border);
-    border-radius: 8px;
+    border-radius: 10px;
     background: var(--els-surface);
     padding: 12px;
 }
+
 .stores-list-title {
-    font-weight: 600;
+    font-size: 13px;
+    font-weight: 700;
     color: var(--els-text);
     margin-bottom: 8px;
 }
+
 .stores-list-state {
-    color: #5f6b7a;
+    color: var(--els-text-muted);
+    font-size: 12px;
 }
+
 .stores-list-state.error {
-    color: #b34848;
+    color: var(--els-danger);
 }
+
 .stores-list {
     margin: 0;
     padding-left: 0;
@@ -130,19 +257,44 @@
     align-items: center;
     justify-content: space-between;
     gap: 12px;
+    background: #fff;
 }
+
 .store-list-item:first-child {
     margin-top: 0;
 }
+
+.store-item-main {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.store-item-label {
+    font-size: 11px;
+    color: var(--els-text-muted);
+    font-weight: 700;
+}
+
 .store-code {
-    font-weight: 600;
+    font-weight: 700;
     color: var(--els-text);
 }
+
+.store-currency {
+    font-size: 12px;
+    color: var(--els-text-muted);
+}
+
 .store-status-wrap {
     display: inline-flex;
     align-items: center;
-    gap: 8px;
+    gap: 6px;
+    font-size: 11px;
+    color: var(--els-text-muted);
+    font-weight: 700;
 }
+
 .store-status-pill {
     display: inline-block;
     padding: 3px 10px;
@@ -160,41 +312,76 @@
     color: var(--els-danger);
     border: 1px solid var(--els-danger);
 }
+
+@@media (max-width: 900px) {
+    .admin-setup-page {
+        padding: 16px;
+    }
+
+    .form-row {
+        grid-template-columns: 1fr;
+    }
+
+    .admin-btn {
+        width: 100%;
+    }
+
+    .store-list-item {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+}
 </style>
 
 <section class="admin-setup-page">
     <div class="admin-setup-box">
-        <div class="admin-setup-title">New Store Creation</div>
+        <div class="admin-page-header">
+            <div>
+                <h2 class="admin-setup-title"><i class="fa fa-plus-square-o" aria-hidden="true"></i> New Store Creation</h2>
+                <p class="admin-setup-subtitle">Create and manage store codes for your tenant.</p>
+            </div>
+            <div class="admin-context-wrap">
+                <span class="admin-context-chip">Tenant: @tenantName</span>
+                <span class="admin-context-chip">Current Store: @currentStoreCode</span>
+            </div>
+        </div>
+
         <div class="admin-setup-body">
             <div class="admin-setup-note">
-                <div><b>Tenant:</b> @tenantName</div>
-                <div><b>Current Store:</b> @currentStoreCode</div>
                 <div style="margin-top:6px;">Use this screen to create a new store code for admin login setup. Additional details can be configured in Store Configuration.</div>
             </div>
 
-            <div class="form-row">
-                <div>
-                    <label for="newStoreCode">New Store Code</label>
-                    <input type="text" id="newStoreCode" maxlength="50" placeholder="Enter new store code" />
+            <div class="admin-setup-card">
+                <div class="admin-card-head">
+                    <h3 class="admin-card-title"><i class="fa fa-building-o" aria-hidden="true"></i> Create New Store</h3>
+                    <p class="admin-card-subtitle">Enter a unique store code to create a new store setup entry.</p>
                 </div>
-                <div>
-                    <button type="button" class="admin-btn" id="createStoreBtn">Create Store</button>
+
+                <div class="form-row">
+                    <div>
+                        <label for="newStoreCode">New Store Code</label>
+                        <input type="text" id="newStoreCode" maxlength="50" placeholder="For example: HYD01" />
+                    </div>
+                    <div>
+                        <button type="button" class="admin-btn" id="createStoreBtn"><i class="fa fa-plus" aria-hidden="true"></i> Create Store</button>
+                    </div>
                 </div>
+                <div id="createStoreResult" class="result-box"></div>
             </div>
 
-            <div id="createStoreResult" class="result-box"></div>
-
-            <div class="stores-list-box">
-                <div class="stores-list-title">Existing Stores</div>
-                <div id="existingStoresLoading" class="stores-list-state" style="display:none;">Loading existing stores...</div>
-                <div id="existingStoresError" class="stores-list-state error" style="display:none;"></div>
-                <div id="existingStoresEmpty" class="stores-list-state" style="display:none;">No stores available.</div>
-                <ul id="existingStoresList" class="stores-list" style="display:none;"></ul>
+            <div class="admin-setup-card">
+                <div class="stores-list-box">
+                    <div class="stores-list-title"><i class="fa fa-list-ul" aria-hidden="true"></i> Existing Stores</div>
+                    <div id="existingStoresLoading" class="stores-list-state" style="display:none;">Loading existing stores...</div>
+                    <div id="existingStoresError" class="stores-list-state error" style="display:none;"></div>
+                    <div id="existingStoresEmpty" class="stores-list-state" style="display:none;">No stores available.</div>
+                    <ul id="existingStoresList" class="stores-list" style="display:none;"></ul>
+                </div>
             </div>
 
             <div class="admin-setup-actions">
-                <button type="button" class="admin-btn secondary" onclick="window.location.href='@Url.Action("StoreUsersSetup", "Customer")'">Go to Store Users Setup</button>
-                <button type="button" class="admin-btn secondary" onclick="window.location.href='@Url.Action("Index", "Dashboard")'">Back to Dashboard</button>
+                <button type="button" class="admin-btn secondary" onclick="window.location.href='@Url.Action("StoreUsersSetup", "Customer")'"><i class="fa fa-users" aria-hidden="true"></i> Go to Store Users Setup</button>
+                <button type="button" class="admin-btn secondary" onclick="window.location.href='@Url.Action("Index", "Dashboard")'"><i class="fa fa-arrow-left" aria-hidden="true"></i> Back to Dashboard</button>
             </div>
         </div>
     </div>
@@ -294,17 +481,21 @@
             var storeCode = getStoreCode(store);
             var isActive = getStoreIsActive(store);
 
-        var currencyBadge = "";
+        var currencyDisplay = "Not configured";
         if (store && (store.currencySymbol || store.currencyCode)) {
             var sym = store.currencySymbol || "";
             var code = store.currencyCode || "";
-            currencyBadge = " <span class='store-currency' title='" + (store.currencyLocale || "") + "'>" + (sym ? sym + " " : "") + (code ? "(" + code + ")" : "") + "</span>";
+            currencyDisplay = (sym ? sym + " " : "") + (code ? "(" + code + ")" : "");
         }
 
         return "<li class='store-list-item'>"
-                + "<div>"
-                + "<div class='store-code'>" + storeCode + currencyBadge + "</div>"
-                + "<div class='store-status-wrap'>" + renderStoreStatusPill(isActive) + "</div>"
+                + "<div class='store-item-main'>"
+                + "<div class='store-item-label'>Store Code</div>"
+                + "<div class='store-code'>" + storeCode + "</div>"
+                + "<div class='store-item-label'>Currency</div>"
+                + "<div class='store-currency'>" + currencyDisplay + "</div>"
+                + "</div>"
+                + "<div class='store-status-wrap'><span>Status</span>" + renderStoreStatusPill(isActive) + "</div>"
                 + "</div>"
                 + "</li>";
         }).join("");
