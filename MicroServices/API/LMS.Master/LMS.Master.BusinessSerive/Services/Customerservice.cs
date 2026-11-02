@@ -16,6 +16,8 @@ using System.Data;
 using System.IO;
 using System.Linq;
 using System.Net;
+using System.Net.Http;
+using System.Net.Http.Headers;
 using System.Net.Mail;
 using System.Net.Sockets;
 using System.Security.Cryptography;
@@ -28,11 +30,40 @@ namespace LMS.Master.BusinessSerive.Services
 {
     public class Customerservice : ICustomer
     {
+        private const string InternalWebhookSecretManagedKey = "__els_webhook_secret_managed";
+        private const string InternalWebhookSecretRevealedKey = "__els_webhook_secret_revealed";
+        private const string InternalWebhookSecretGeneratedAtKey = "__els_webhook_secret_generated_at_utc";
+        private const string InternalWebhookSecretRevealedAtKey = "__els_webhook_secret_revealed_at_utc";
+
         private sealed class IntegrationSettingsPayload
         {
             public Dictionary<string, string> Public { get; set; } = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
             public Dictionary<string, string> Secret { get; set; } = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         }
+
+        private sealed class StoreCurrencyConfiguration
+        {
+            public string CurrencyCode { get; set; }
+            public string CurrencySymbol { get; set; }
+            public string CurrencyLocale { get; set; }
+            public int? CurrencyDecimalDigits { get; set; }
+        }
+
+        private sealed class RazorpayPaymentVerificationDetails
+        {
+            public string PaymentId { get; set; }
+            public string OrderId { get; set; }
+            public long AmountInMinorUnits { get; set; }
+            public string Currency { get; set; }
+            public string Status { get; set; }
+        }
+
+        private static readonly HashSet<string> RazorpaySupportedCurrencies = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "INR", "USD", "EUR", "GBP", "SGD", "AED", "AUD", "CAD", "CHF", "CNY",
+            "JPY", "HKD", "NOK", "NZD", "SEK", "ZAR", "SAR", "QAR", "KWD", "BHD",
+            "OMR", "MYR", "THB", "IDR", "PHP", "VND", "KRW", "DKK", "PLN", "BRL"
+        };
 
         private readonly IMapper _mapper;
         private readonly MasterDbContext _masterDbContext;
@@ -861,6 +892,12 @@ namespace LMS.Master.BusinessSerive.Services
                 ? integrationDto.ProviderKey
                 : integrationDto.ProviderDisplayName.Trim();
 
+            var isRazorpayConfiguration = IsRazorpayProvider(
+                integrationDto.Category,
+                integrationDto.ProviderKey,
+                integrationDto.ProviderDisplayName,
+                integrationDto.PublicSettings);
+
             var existing = await _masterDbContext.TenantIntegrationSettings.FirstOrDefaultAsync(x =>
                 x.TenantName == integrationDto.TenantName
                 && x.StoreCode == integrationDto.StoreCode
@@ -887,6 +924,12 @@ namespace LMS.Master.BusinessSerive.Services
                     }
 
                     var value = item.Value?.Trim();
+                    if (isRazorpayConfiguration && key.Equals("WebhookUrl", StringComparison.OrdinalIgnoreCase))
+                    {
+                        // Razorpay webhook URL is server-generated and must never trust tenant input.
+                        continue;
+                    }
+
                     if (string.IsNullOrEmpty(value))
                     {
                         payload.Public.Remove(key);
@@ -896,6 +939,15 @@ namespace LMS.Master.BusinessSerive.Services
                         payload.Public[key] = value;
                     }
                 }
+
+            if (isRazorpayConfiguration)
+            {
+                payload.Public.Remove("WebhookUrl");
+                if (TryBuildRazorpayWebhookUrl(integrationDto.TenantName, integrationDto.StoreCode, integrationDto.ProviderKey, out var generatedWebhookUrl))
+                {
+                    payload.Public["WebhookUrl"] = generatedWebhookUrl;
+                }
+            }
             }
 
             if (integrationDto.ClearSecrets)
@@ -903,6 +955,11 @@ namespace LMS.Master.BusinessSerive.Services
                 payload.Secret.Clear();
             }
 
+            var webhookSecretProvidedByRequest = false;
+            var previousWebhookSecret = previousPayload.Secret != null
+                && previousPayload.Secret.TryGetValue("WebhookSecret", out var previousSecretValue)
+                ? previousSecretValue?.Trim()
+                : null;
             if (integrationDto.SecretSettings != null)
             {
                 foreach (var item in integrationDto.SecretSettings)
@@ -919,7 +976,39 @@ namespace LMS.Master.BusinessSerive.Services
                         continue;
                     }
 
+                    if (key.StartsWith("__els_", StringComparison.OrdinalIgnoreCase))
+                    {
+                        continue;
+                    }
+
+                    if (isRazorpayConfiguration
+                        && key.Equals("WebhookSecret", StringComparison.OrdinalIgnoreCase)
+                        && !string.Equals(previousWebhookSecret ?? string.Empty, value, StringComparison.Ordinal))
+                    {
+                        webhookSecretProvidedByRequest = true;
+                    }
+
                     payload.Secret[key] = value;
+                }
+            }
+
+            if (isRazorpayConfiguration)
+            {
+                if (webhookSecretProvidedByRequest)
+                {
+                    payload.Secret[InternalWebhookSecretManagedKey] = "false";
+                    payload.Secret[InternalWebhookSecretRevealedKey] = "true";
+                    payload.Secret.Remove(InternalWebhookSecretGeneratedAtKey);
+                    payload.Secret.Remove(InternalWebhookSecretRevealedAtKey);
+                }
+                else if (!payload.Secret.TryGetValue("WebhookSecret", out var webhookSecret)
+                    || string.IsNullOrWhiteSpace(webhookSecret))
+                {
+                    payload.Secret["WebhookSecret"] = GenerateRazorpayWebhookSecret();
+                    payload.Secret[InternalWebhookSecretManagedKey] = "true";
+                    payload.Secret[InternalWebhookSecretRevealedKey] = "false";
+                    payload.Secret[InternalWebhookSecretGeneratedAtKey] = DateTime.UtcNow.ToString("O", CultureInfo.InvariantCulture);
+                    payload.Secret.Remove(InternalWebhookSecretRevealedAtKey);
                 }
             }
 
@@ -1019,7 +1108,12 @@ namespace LMS.Master.BusinessSerive.Services
             if (isEnabled)
             {
                 var payload = ReadPayload(existing.EncryptedSettingsJson);
-                var validationErrors = ValidateIntegrationConfiguration(category, payload);
+                var validationErrors = ValidateIntegrationConfiguration(
+                    category,
+                    payload,
+                    existing.ProviderKey,
+                    existing.ProviderDisplayName,
+                    requireRazorpayWebhookSecret: true);
                 if (validationErrors.Count > 0)
                 {
                     return ActionSet.ActionReturnType(HttpStatusCode.BadRequest, new CustomerIOResponse
@@ -1087,7 +1181,12 @@ namespace LMS.Master.BusinessSerive.Services
             }
 
             var payload = ReadPayload(existing.EncryptedSettingsJson);
-            var validationErrors = ValidateIntegrationConfiguration(category, payload);
+            var validationErrors = ValidateIntegrationConfiguration(
+                category,
+                payload,
+                existing.ProviderKey,
+                existing.ProviderDisplayName,
+                requireRazorpayWebhookSecret: false);
 
             existing.LastTestedAtUtc = DateTime.UtcNow;
             if (validationErrors.Count > 0)
@@ -1139,6 +1238,241 @@ namespace LMS.Master.BusinessSerive.Services
             {
                 StatusCode = "200",
                 Message = existing.LastTestMessage
+            });
+        }
+
+        public async Task<ActionReturnType> RevealTenantIntegrationWebhookSecretOnce(string tenantName, string storeCode, string category, string providerKey)
+        {
+            await EnsureTenantIntegrationSettingsTableExistsAsync();
+
+            if (string.IsNullOrWhiteSpace(tenantName)
+                || string.IsNullOrWhiteSpace(storeCode)
+                || string.IsNullOrWhiteSpace(category)
+                || string.IsNullOrWhiteSpace(providerKey))
+            {
+                return ActionSet.ActionReturnType(HttpStatusCode.BadRequest, new CustomerIOResponse
+                {
+                    StatusCode = "400",
+                    Message = "Invalid webhook secret reveal request."
+                });
+            }
+
+            tenantName = tenantName.Trim();
+            storeCode = storeCode.Trim();
+            category = category.Trim();
+            providerKey = providerKey.Trim();
+
+            var isRazorpayOrLegacyAlias = string.Equals(providerKey, "razorpay", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(providerKey, "generic-payment", StringComparison.OrdinalIgnoreCase);
+
+            if (!string.Equals(category, IntegrationConstants.Category.Payments, StringComparison.OrdinalIgnoreCase)
+                || !isRazorpayOrLegacyAlias)
+            {
+                return ActionSet.ActionReturnType(HttpStatusCode.BadRequest, new CustomerIOResponse
+                {
+                    StatusCode = "400",
+                    Message = "Webhook secret reveal is available only for Razorpay payment integration."
+                });
+            }
+
+            await using var dbTransaction = await _masterDbContext.Database.BeginTransactionAsync(IsolationLevel.Serializable);
+            var existing = await _masterDbContext.TenantIntegrationSettings.FirstOrDefaultAsync(x =>
+                x.TenantName == tenantName
+                && x.StoreCode == storeCode
+                && x.Category == category
+                && x.ProviderKey == providerKey);
+
+            if (existing == null)
+            {
+                var fallbackProviderKey = string.Equals(providerKey, "generic-payment", StringComparison.OrdinalIgnoreCase)
+                    ? "razorpay"
+                    : "generic-payment";
+
+                existing = await _masterDbContext.TenantIntegrationSettings.FirstOrDefaultAsync(x =>
+                    x.TenantName == tenantName
+                    && x.StoreCode == storeCode
+                    && x.Category == category
+                    && x.ProviderKey == fallbackProviderKey);
+            }
+
+            if (existing == null)
+            {
+                return ActionSet.ActionReturnType(HttpStatusCode.NotFound, new CustomerIOResponse
+                {
+                    StatusCode = "404",
+                    Message = "Integration configuration not found. Save configuration first."
+                });
+            }
+
+            var payload = ReadPayload(existing.EncryptedSettingsJson);
+            payload.Secret ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            payload.Public ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+            if (!IsRazorpayProvider(existing.Category, existing.ProviderKey, existing.ProviderDisplayName, payload.Public))
+            {
+                return ActionSet.ActionReturnType(HttpStatusCode.BadRequest, new CustomerIOResponse
+                {
+                    StatusCode = "400",
+                    Message = "Webhook secret reveal is available only for Razorpay payment integration."
+                });
+            }
+
+            providerKey = existing.ProviderKey;
+
+            if (!payload.Secret.TryGetValue("WebhookSecret", out var webhookSecret)
+                || string.IsNullOrWhiteSpace(webhookSecret))
+            {
+                return ActionSet.ActionReturnType(HttpStatusCode.BadRequest, new CustomerIOResponse
+                {
+                    StatusCode = "400",
+                    Message = "Webhook secret is not configured for this integration."
+                });
+            }
+
+            if (!IsElsManagedWebhookSecret(payload.Secret))
+            {
+                return ActionSet.ActionReturnType(HttpStatusCode.BadRequest, new CustomerIOResponse
+                {
+                    StatusCode = "400",
+                    Message = "Webhook secret was not generated by ELS. Rotate secret to create a managed one-time reveal secret."
+                });
+            }
+
+            if (IsWebhookSecretAlreadyRevealed(payload.Secret))
+            {
+                return ActionSet.ActionReturnType(HttpStatusCode.Conflict, new CustomerIOResponse
+                {
+                    StatusCode = "409",
+                    Message = "Webhook secret has already been revealed once. Rotate the secret to generate a new one-time secret."
+                });
+            }
+
+            payload.Secret[InternalWebhookSecretRevealedKey] = "true";
+            payload.Secret[InternalWebhookSecretRevealedAtKey] = DateTime.UtcNow.ToString("O", CultureInfo.InvariantCulture);
+
+            existing.EncryptedSettingsJson = EncryptSettingsPayload(payload);
+            existing.ModifiedDate = DateTime.UtcNow;
+            await _masterDbContext.SaveChangesAsync();
+            await dbTransaction.CommitAsync();
+
+            _logger?.LogInformation(
+                "Razorpay webhook secret revealed one-time for Tenant {TenantName}, Store {StoreCode}, Provider {ProviderKey}.",
+                tenantName,
+                storeCode,
+                providerKey);
+
+            return ActionSet.ActionReturnType(HttpStatusCode.OK, new TenantIntegrationRevealWebhookSecretResponseDto
+            {
+                ProviderKey = providerKey,
+                WebhookSecret = webhookSecret.Trim(),
+                Message = "Webhook secret revealed once. Store it securely in Razorpay Dashboard and your secure vault."
+            });
+        }
+
+        public async Task<ActionReturnType> RotateTenantIntegrationWebhookSecret(string tenantName, string storeCode, string category, string providerKey)
+        {
+            await EnsureTenantIntegrationSettingsTableExistsAsync();
+
+            if (string.IsNullOrWhiteSpace(tenantName)
+                || string.IsNullOrWhiteSpace(storeCode)
+                || string.IsNullOrWhiteSpace(category)
+                || string.IsNullOrWhiteSpace(providerKey))
+            {
+                return ActionSet.ActionReturnType(HttpStatusCode.BadRequest, new CustomerIOResponse
+                {
+                    StatusCode = "400",
+                    Message = "Invalid webhook secret rotation request."
+                });
+            }
+
+            tenantName = tenantName.Trim();
+            storeCode = storeCode.Trim();
+            category = category.Trim();
+            providerKey = providerKey.Trim();
+
+            var isRazorpayOrLegacyAlias = string.Equals(providerKey, "razorpay", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(providerKey, "generic-payment", StringComparison.OrdinalIgnoreCase);
+
+            if (!string.Equals(category, IntegrationConstants.Category.Payments, StringComparison.OrdinalIgnoreCase)
+                || !isRazorpayOrLegacyAlias)
+            {
+                return ActionSet.ActionReturnType(HttpStatusCode.BadRequest, new CustomerIOResponse
+                {
+                    StatusCode = "400",
+                    Message = "Webhook secret rotation is available only for Razorpay payment integration."
+                });
+            }
+
+            await using var dbTransaction = await _masterDbContext.Database.BeginTransactionAsync(IsolationLevel.Serializable);
+            var existing = await _masterDbContext.TenantIntegrationSettings.FirstOrDefaultAsync(x =>
+                x.TenantName == tenantName
+                && x.StoreCode == storeCode
+                && x.Category == category
+                && x.ProviderKey == providerKey);
+
+            if (existing == null)
+            {
+                var fallbackProviderKey = string.Equals(providerKey, "generic-payment", StringComparison.OrdinalIgnoreCase)
+                    ? "razorpay"
+                    : "generic-payment";
+
+                existing = await _masterDbContext.TenantIntegrationSettings.FirstOrDefaultAsync(x =>
+                    x.TenantName == tenantName
+                    && x.StoreCode == storeCode
+                    && x.Category == category
+                    && x.ProviderKey == fallbackProviderKey);
+            }
+
+            if (existing == null)
+            {
+                return ActionSet.ActionReturnType(HttpStatusCode.NotFound, new CustomerIOResponse
+                {
+                    StatusCode = "404",
+                    Message = "Integration configuration not found. Save configuration first."
+                });
+            }
+
+            var payload = ReadPayload(existing.EncryptedSettingsJson);
+            payload.Secret ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            payload.Public ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+            if (!IsRazorpayProvider(existing.Category, existing.ProviderKey, existing.ProviderDisplayName, payload.Public))
+            {
+                return ActionSet.ActionReturnType(HttpStatusCode.BadRequest, new CustomerIOResponse
+                {
+                    StatusCode = "400",
+                    Message = "Webhook secret rotation is available only for Razorpay payment integration."
+                });
+            }
+
+            providerKey = existing.ProviderKey;
+
+            payload.Secret["WebhookSecret"] = GenerateRazorpayWebhookSecret();
+            payload.Secret[InternalWebhookSecretManagedKey] = "true";
+            payload.Secret[InternalWebhookSecretRevealedKey] = "false";
+            payload.Secret[InternalWebhookSecretGeneratedAtKey] = DateTime.UtcNow.ToString("O", CultureInfo.InvariantCulture);
+            payload.Secret.Remove(InternalWebhookSecretRevealedAtKey);
+
+            existing.EncryptedSettingsJson = EncryptSettingsPayload(payload);
+            existing.IsEnabled = false;
+            existing.LastTestStatus = "NotTested";
+            existing.LastTestMessage = "Webhook secret rotated. Please register the new webhook secret in Razorpay Dashboard, test connection, and then enable integration.";
+            existing.LastTestedAtUtc = null;
+            existing.ModifiedDate = DateTime.UtcNow;
+
+            await _masterDbContext.SaveChangesAsync();
+            await dbTransaction.CommitAsync();
+
+            _logger?.LogInformation(
+                "Razorpay webhook secret rotated for Tenant {TenantName}, Store {StoreCode}, Provider {ProviderKey}.",
+                tenantName,
+                storeCode,
+                providerKey);
+
+            return ActionSet.ActionReturnType(HttpStatusCode.OK, new CustomerIOResponse
+            {
+                StatusCode = "200",
+                Message = "Webhook secret rotated. Retrieve it using one-time reveal and register in Razorpay Dashboard."
             });
         }
 
@@ -1203,7 +1537,12 @@ namespace LMS.Master.BusinessSerive.Services
             }
 
             var payload = ReadPayload(existing.EncryptedSettingsJson);
-            var validationErrors = ValidateIntegrationConfiguration(category, payload);
+            var validationErrors = ValidateIntegrationConfiguration(
+                category,
+                payload,
+                existing.ProviderKey,
+                existing.ProviderDisplayName,
+                requireRazorpayWebhookSecret: false);
             if (validationErrors.Count > 0)
             {
                 return ActionSet.ActionReturnType(HttpStatusCode.BadRequest, new CustomerIOResponse
@@ -1507,7 +1846,12 @@ namespace LMS.Master.BusinessSerive.Services
             if (existing != null)
             {
                 var payload = ReadPayload(existing.EncryptedSettingsJson);
-                var validationErrors = ValidateIntegrationConfiguration(category, payload);
+                var validationErrors = ValidateIntegrationConfiguration(
+                    category,
+                    payload,
+                    existing.ProviderKey,
+                    existing.ProviderDisplayName,
+                    requireRazorpayWebhookSecret: false);
 
                 if (validationErrors.Count == 0)
                 {
@@ -2342,6 +2686,7 @@ namespace LMS.Master.BusinessSerive.Services
         public async Task<ActionReturnType> CreateLaundryOrder(LaundryOrderDto orderDto)
         {
             await EnsureLaundryOrdersTableExistsAsync();
+            await EnsurePaymentTransactionsTableExistsAsync();
             await EnsureCustomerAdvancesTableExistsAsync();
             await EnsureLaundryItemPricesTableExistsAsync();
 
@@ -2740,9 +3085,1749 @@ SELECT
             return value != null && Convert.ToInt32(value, CultureInfo.InvariantCulture) == 1;
         }
 
+        public async Task<ActionReturnType> CreateLaundryInvoicePaymentOrder(string tenantName, string storeCode, CreateLaundryInvoicePaymentOrderRequestDto request)
+        {
+            await EnsureLaundryOrdersTableExistsAsync();
+            await EnsurePaymentTransactionsTableExistsAsync();
+            await EnsureTenantIntegrationSettingsTableExistsAsync();
+
+            if (string.IsNullOrWhiteSpace(tenantName)
+                || string.IsNullOrWhiteSpace(storeCode)
+                || request == null
+                || string.IsNullOrWhiteSpace(request.OrderNo)
+                || string.IsNullOrWhiteSpace(request.ClientRequestId))
+            {
+                return ActionSet.ActionReturnType(HttpStatusCode.BadRequest, new CustomerIOResponse
+                {
+                    StatusCode = "400",
+                    Message = "Invalid payment order request."
+                });
+            }
+
+            tenantName = tenantName.Trim();
+            storeCode = storeCode.Trim();
+            request.OrderNo = request.OrderNo.Trim();
+            request.ClientRequestId = request.ClientRequestId.Trim();
+
+            if (request.ClientRequestId.Length > 64)
+            {
+                return ActionSet.ActionReturnType(HttpStatusCode.BadRequest, new CustomerIOResponse
+                {
+                    StatusCode = "400",
+                    Message = "Client request ID must be 64 characters or less."
+                });
+            }
+
+            var order = await _masterDbContext.LaundryOrders
+                .AsNoTracking()
+                .FirstOrDefaultAsync(x => x.TenantName == tenantName
+                                          && x.StoreCode == storeCode
+                                          && x.OrderNo == request.OrderNo);
+
+            if (order == null)
+            {
+                return ActionSet.ActionReturnType(HttpStatusCode.NotFound, new CustomerIOResponse
+                {
+                    StatusCode = "404",
+                    Message = "Order not found for this store."
+                });
+            }
+
+            var payableAmount = Math.Round(Math.Max(0, order.NetPayable), 2, MidpointRounding.AwayFromZero);
+            if (payableAmount <= 0)
+            {
+                return ActionSet.ActionReturnType(HttpStatusCode.BadRequest, new CustomerIOResponse
+                {
+                    StatusCode = "400",
+                    Message = "Order is already paid or has no pending amount."
+                });
+            }
+
+            var (currencyResolved, currencyError, currencyConfiguration) = await ResolveStoreCurrencyConfigurationAsync(tenantName, storeCode);
+            if (!currencyResolved)
+            {
+                return ActionSet.ActionReturnType(HttpStatusCode.BadRequest, new CustomerIOResponse
+                {
+                    StatusCode = "400",
+                    Message = string.IsNullOrWhiteSpace(currencyError)
+                        ? "Currency configuration is not available for this store."
+                        : currencyError
+                });
+            }
+
+            var configuredCurrencyCode = currencyConfiguration.CurrencyCode.Trim().ToUpperInvariant();
+            var configuredCurrencySymbol = currencyConfiguration.CurrencySymbol?.Trim();
+            var configuredCurrencyLocale = currencyConfiguration.CurrencyLocale?.Trim();
+            var configuredCurrencyDecimalDigits = currencyConfiguration.CurrencyDecimalDigits.Value;
+
+            if (!TryConvertToMinorUnits(payableAmount, configuredCurrencyDecimalDigits, out var amountInMinorUnits)
+                || amountInMinorUnits <= 0)
+            {
+                return ActionSet.ActionReturnType(HttpStatusCode.BadRequest, new CustomerIOResponse
+                {
+                    StatusCode = "400",
+                    Message = "Order amount precision is incompatible with configured currency minor units."
+                });
+            }
+
+            var integrationRecords = await _masterDbContext.TenantIntegrationSettings
+                .Where(x => x.TenantName == tenantName
+                            && x.StoreCode == storeCode
+                            && x.Category == IntegrationConstants.Category.Payments
+                            && x.IsEnabled)
+                .ToListAsync();
+
+            TenantIntegrationSettingsEntity razorpayIntegration = null;
+            IntegrationSettingsPayload integrationPayload = null;
+            foreach (var record in integrationRecords)
+            {
+                var payload = ReadPayload(record.EncryptedSettingsJson);
+                if (IsRazorpayProvider(record.Category, record.ProviderKey, record.ProviderDisplayName, payload.Public))
+                {
+                    razorpayIntegration = record;
+                    integrationPayload = payload;
+                    break;
+                }
+            }
+
+            if (razorpayIntegration == null)
+            {
+                return ActionSet.ActionReturnType(HttpStatusCode.BadRequest, new CustomerIOResponse
+                {
+                    StatusCode = "400",
+                    Message = "Enabled Razorpay configuration not found for this store."
+                });
+            }
+
+            integrationPayload ??= new IntegrationSettingsPayload();
+            integrationPayload.Secret ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+            string Secret(params string[] keys)
+            {
+                foreach (var key in keys)
+                {
+                    if (integrationPayload.Secret.TryGetValue(key, out var value) && !string.IsNullOrWhiteSpace(value))
+                    {
+                        return value.Trim();
+                    }
+                }
+
+                return null;
+            }
+
+            var isTestMode = razorpayIntegration.IsTestMode;
+            var keyId = isTestMode
+                ? Secret("TestKeyId")
+                : Secret("LiveKeyId", "LiveApiKey", "ApiKey", "Username", "Token", "KeyId");
+            var keySecret = isTestMode
+                ? Secret("TestKeySecret")
+                : Secret("LiveKeySecret", "LiveSecretKey", "SecretKey", "Password", "Secret", "KeySecret");
+
+            if (string.IsNullOrWhiteSpace(keyId) || string.IsNullOrWhiteSpace(keySecret))
+            {
+                return ActionSet.ActionReturnType(HttpStatusCode.BadRequest, new CustomerIOResponse
+                {
+                    StatusCode = "400",
+                    Message = isTestMode
+                        ? "Razorpay test mode requires TestKeyId and TestKeySecret."
+                        : "Razorpay credentials are missing for the selected mode."
+                });
+            }
+
+            CreateLaundryInvoicePaymentOrderResponseDto BuildSafeResponse(PaymentTransactionsEntity tx)
+                => new CreateLaundryInvoicePaymentOrderResponseDto
+                {
+                    TransactionId = tx.Id,
+                    GatewayOrderId = tx.GatewayOrderId,
+                    RazorpayKeyId = keyId,
+                    AmountInMinorUnits = amountInMinorUnits,
+                    Currency = configuredCurrencyCode,
+                    CurrencySymbol = configuredCurrencySymbol,
+                    CurrencyLocale = configuredCurrencyLocale,
+                    CurrencyDecimalDigits = configuredCurrencyDecimalDigits,
+                    InvoiceNo = order.InvoiceNo,
+                    OrderNo = order.OrderNo,
+                    IsTestMode = isTestMode
+                };
+
+            bool IsCompatibleIdempotentTransaction(PaymentTransactionsEntity tx)
+            {
+                if (tx == null)
+                {
+                    return false;
+                }
+
+                if (!string.Equals(tx.OrderNo?.Trim(), order.OrderNo, StringComparison.OrdinalIgnoreCase))
+                {
+                    return false;
+                }
+
+                if (!string.Equals(tx.Currency?.Trim(), configuredCurrencyCode, StringComparison.OrdinalIgnoreCase))
+                {
+                    return false;
+                }
+
+                var existingAmount = Math.Round(tx.AmountAuthorized, 2, MidpointRounding.AwayFromZero);
+                return existingAmount == payableAmount;
+            }
+
+            var existing = await _masterDbContext.PaymentTransactions
+                .FirstOrDefaultAsync(x => x.TenantName == tenantName
+                                          && x.StoreCode == storeCode
+                                          && x.ClientRequestId == request.ClientRequestId);
+
+            if (existing != null)
+            {
+                if (!IsCompatibleIdempotentTransaction(existing))
+                {
+                    return ActionSet.ActionReturnType(HttpStatusCode.Conflict, new CustomerIOResponse
+                    {
+                        StatusCode = "409",
+                        Message = "This client request ID is already associated with a different order amount or currency context."
+                    });
+                }
+
+                if (!string.IsNullOrWhiteSpace(existing.GatewayOrderId))
+                {
+                    return ActionSet.ActionReturnType(HttpStatusCode.OK, BuildSafeResponse(existing));
+                }
+
+                return ActionSet.ActionReturnType(HttpStatusCode.Conflict, new CustomerIOResponse
+                {
+                    StatusCode = "409",
+                    Message = "A payment request with this client request ID is already being processed."
+                });
+            }
+
+            var now = DateTime.UtcNow;
+            var transaction = new PaymentTransactionsEntity
+            {
+                TenantName = tenantName,
+                StoreCode = storeCode,
+                OrderNo = order.OrderNo,
+                InvoiceNo = order.InvoiceNo,
+                CustCode = order.CustCode,
+                GatewayProvider = "Razorpay",
+                ClientRequestId = request.ClientRequestId,
+                GatewayOrderId = null,
+                GatewayPaymentId = null,
+                GatewaySignature = null,
+                Currency = configuredCurrencyCode,
+                AmountRequested = payableAmount,
+                AmountAuthorized = payableAmount,
+                AmountCaptured = 0,
+                Status = "Initiating",
+                FailureCode = null,
+                FailureReason = null,
+                IsLiveMode = !isTestMode,
+                CreatedDate = now,
+                ModifiedDate = now
+            };
+
+            _masterDbContext.PaymentTransactions.Add(transaction);
+            try
+            {
+                await _masterDbContext.SaveChangesAsync();
+            }
+            catch (DbUpdateException)
+            {
+                var duplicate = await _masterDbContext.PaymentTransactions
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(x => x.TenantName == tenantName
+                                              && x.StoreCode == storeCode
+                                              && x.ClientRequestId == request.ClientRequestId);
+                if (duplicate != null)
+                {
+                    if (!IsCompatibleIdempotentTransaction(duplicate))
+                    {
+                        return ActionSet.ActionReturnType(HttpStatusCode.Conflict, new CustomerIOResponse
+                        {
+                            StatusCode = "409",
+                            Message = "This client request ID is already associated with a different order amount or currency context."
+                        });
+                    }
+
+                    if (!string.IsNullOrWhiteSpace(duplicate.GatewayOrderId))
+                    {
+                        return ActionSet.ActionReturnType(HttpStatusCode.OK, BuildSafeResponse(duplicate));
+                    }
+
+                    return ActionSet.ActionReturnType(HttpStatusCode.Conflict, new CustomerIOResponse
+                    {
+                        StatusCode = "409",
+                        Message = "A payment request with this client request ID is already being processed."
+                    });
+                }
+
+                return ActionSet.ActionReturnType(HttpStatusCode.InternalServerError, new CustomerIOResponse
+                {
+                    StatusCode = "500",
+                    Message = "Unable to create payment transaction. Please try again."
+                });
+            }
+
+            var razorpayApiBaseUrl = _configuration?["IntegrationSettings:RazorpayApiBaseUrl"];
+            if (string.IsNullOrWhiteSpace(razorpayApiBaseUrl))
+            {
+                razorpayApiBaseUrl = "https://api.razorpay.com";
+            }
+
+            if (!Uri.TryCreate(razorpayApiBaseUrl.Trim(), UriKind.Absolute, out var razorpayBaseUri)
+                || razorpayBaseUri.Scheme != Uri.UriSchemeHttps)
+            {
+                transaction.Status = "Failed";
+                transaction.FailureCode = "Config";
+                transaction.FailureReason = "Razorpay API base URL is invalid.";
+                transaction.ModifiedDate = DateTime.UtcNow;
+                await _masterDbContext.SaveChangesAsync();
+
+                return ActionSet.ActionReturnType(HttpStatusCode.BadRequest, new CustomerIOResponse
+                {
+                    StatusCode = "400",
+                    Message = "Razorpay API base URL is invalid."
+                });
+            }
+
+            var receipt = request.ClientRequestId.Length > 40
+                ? request.ClientRequestId.Substring(0, 40)
+                : request.ClientRequestId;
+
+            var orderCreatePayload = new
+            {
+                amount = amountInMinorUnits,
+                currency = configuredCurrencyCode,
+                receipt,
+                notes = new
+                {
+                    orderNo = order.OrderNo,
+                    invoiceNo = order.InvoiceNo ?? string.Empty
+                }
+            };
+
+            var requestJson = JsonSerializer.Serialize(orderCreatePayload);
+            using var httpClient = new HttpClient
+            {
+                Timeout = TimeSpan.FromSeconds(20)
+            };
+            using var httpRequest = new HttpRequestMessage(HttpMethod.Post, new Uri(razorpayBaseUri, "/v1/orders"));
+            var basicToken = Convert.ToBase64String(Encoding.ASCII.GetBytes($"{keyId}:{keySecret}"));
+            httpRequest.Headers.Authorization = new AuthenticationHeaderValue("Basic", basicToken);
+            httpRequest.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+            httpRequest.Content = new StringContent(requestJson, Encoding.UTF8, "application/json");
+
+            try
+            {
+                using var httpResponse = await httpClient.SendAsync(httpRequest);
+                var responseBody = await httpResponse.Content.ReadAsStringAsync();
+                if (!httpResponse.IsSuccessStatusCode)
+                {
+                    var (errorCode, errorMessage) = ParseRazorpayError(responseBody);
+                    transaction.Status = "Failed";
+                    transaction.FailureCode = string.IsNullOrWhiteSpace(errorCode)
+                        ? ((int)httpResponse.StatusCode).ToString(CultureInfo.InvariantCulture)
+                        : errorCode;
+                    transaction.FailureReason = string.IsNullOrWhiteSpace(errorMessage)
+                        ? $"Razorpay request failed with status code {(int)httpResponse.StatusCode}."
+                        : errorMessage;
+                    transaction.ModifiedDate = DateTime.UtcNow;
+                    await _masterDbContext.SaveChangesAsync();
+
+                    return ActionSet.ActionReturnType(HttpStatusCode.BadRequest, new CustomerIOResponse
+                    {
+                        StatusCode = "400",
+                        Message = transaction.FailureReason
+                    });
+                }
+
+                using var json = JsonDocument.Parse(responseBody);
+                var root = json.RootElement;
+                var gatewayOrderId = root.TryGetProperty("id", out var idElement)
+                    ? idElement.GetString()?.Trim()
+                    : null;
+
+                if (string.IsNullOrWhiteSpace(gatewayOrderId))
+                {
+                    transaction.Status = "Failed";
+                    transaction.FailureCode = "InvalidResponse";
+                    transaction.FailureReason = "Razorpay did not return a valid order ID.";
+                    transaction.ModifiedDate = DateTime.UtcNow;
+                    await _masterDbContext.SaveChangesAsync();
+
+                    return ActionSet.ActionReturnType(HttpStatusCode.BadGateway, new CustomerIOResponse
+                    {
+                        StatusCode = "502",
+                        Message = "Razorpay order creation failed due to invalid gateway response."
+                    });
+                }
+
+                transaction.GatewayOrderId = gatewayOrderId;
+                transaction.Status = "Created";
+                transaction.FailureCode = null;
+                transaction.FailureReason = null;
+                transaction.ModifiedDate = DateTime.UtcNow;
+                await _masterDbContext.SaveChangesAsync();
+
+                return ActionSet.ActionReturnType(HttpStatusCode.OK, BuildSafeResponse(transaction));
+            }
+            catch (TaskCanceledException)
+            {
+                transaction.Status = "Failed";
+                transaction.FailureCode = "Timeout";
+                transaction.FailureReason = "Razorpay request timed out.";
+                transaction.ModifiedDate = DateTime.UtcNow;
+                await _masterDbContext.SaveChangesAsync();
+
+                return ActionSet.ActionReturnType(HttpStatusCode.BadGateway, new CustomerIOResponse
+                {
+                    StatusCode = "502",
+                    Message = "Razorpay request timed out. Please retry."
+                });
+            }
+            catch (HttpRequestException)
+            {
+                transaction.Status = "Failed";
+                transaction.FailureCode = "Network";
+                transaction.FailureReason = "Unable to reach Razorpay API.";
+                transaction.ModifiedDate = DateTime.UtcNow;
+                await _masterDbContext.SaveChangesAsync();
+
+                return ActionSet.ActionReturnType(HttpStatusCode.BadGateway, new CustomerIOResponse
+                {
+                    StatusCode = "502",
+                    Message = "Unable to reach Razorpay API. Please retry."
+                });
+            }
+            catch (DbUpdateException)
+            {
+                return ActionSet.ActionReturnType(HttpStatusCode.Conflict, new CustomerIOResponse
+                {
+                    StatusCode = "409",
+                    Message = "Duplicate payment transaction detected. Please retry with a new client request ID."
+                });
+            }
+            catch
+            {
+                transaction.Status = "Failed";
+                transaction.FailureCode = "Unexpected";
+                transaction.FailureReason = "Unexpected error while creating Razorpay order.";
+                transaction.ModifiedDate = DateTime.UtcNow;
+                await _masterDbContext.SaveChangesAsync();
+
+                return ActionSet.ActionReturnType(HttpStatusCode.InternalServerError, new CustomerIOResponse
+                {
+                    StatusCode = "500",
+                    Message = "Unable to create payment order at this time."
+                });
+            }
+        }
+
+        public async Task<ActionReturnType> ConfirmLaundryInvoicePayment(string tenantName, string storeCode, ConfirmLaundryInvoicePaymentRequestDto request)
+        {
+            await EnsureLaundryOrdersTableExistsAsync();
+            await EnsurePaymentTransactionsTableExistsAsync();
+            await EnsureTenantIntegrationSettingsTableExistsAsync();
+
+            if (string.IsNullOrWhiteSpace(tenantName)
+                || string.IsNullOrWhiteSpace(storeCode)
+                || request == null
+                || request.TransactionId <= 0
+                || string.IsNullOrWhiteSpace(request.RazorpayOrderId)
+                || string.IsNullOrWhiteSpace(request.RazorpayPaymentId)
+                || string.IsNullOrWhiteSpace(request.RazorpaySignature))
+            {
+                return ActionSet.ActionReturnType(HttpStatusCode.BadRequest, new CustomerIOResponse
+                {
+                    StatusCode = "400",
+                    Message = "Invalid payment confirmation request."
+                });
+            }
+
+            tenantName = tenantName.Trim();
+            storeCode = storeCode.Trim();
+            request.RazorpayOrderId = request.RazorpayOrderId.Trim();
+            request.RazorpayPaymentId = request.RazorpayPaymentId.Trim();
+            request.RazorpaySignature = request.RazorpaySignature.Trim();
+
+            var transactionSnapshot = await _masterDbContext.PaymentTransactions
+                .AsNoTracking()
+                .FirstOrDefaultAsync(x => x.Id == request.TransactionId
+                                          && x.TenantName == tenantName
+                                          && x.StoreCode == storeCode);
+
+            if (transactionSnapshot == null)
+            {
+                return ActionSet.ActionReturnType(HttpStatusCode.NotFound, new CustomerIOResponse
+                {
+                    StatusCode = "404",
+                    Message = "Payment transaction not found for this store."
+                });
+            }
+
+            if (string.IsNullOrWhiteSpace(transactionSnapshot.GatewayOrderId)
+                || !string.Equals(transactionSnapshot.GatewayOrderId, request.RazorpayOrderId, StringComparison.Ordinal))
+            {
+                return ActionSet.ActionReturnType(HttpStatusCode.BadRequest, new CustomerIOResponse
+                {
+                    StatusCode = "400",
+                    Message = "Invalid order reference for payment confirmation."
+                });
+            }
+
+            var transactionCurrencyCode = transactionSnapshot.Currency?.Trim()?.ToUpperInvariant();
+            if (string.IsNullOrWhiteSpace(transactionCurrencyCode))
+            {
+                return ActionSet.ActionReturnType(HttpStatusCode.BadRequest, new CustomerIOResponse
+                {
+                    StatusCode = "400",
+                    Message = "Saved payment transaction has no currency information."
+                });
+            }
+
+            var configuredCurrencyDecimalDigits = GetCurrencyDecimalDigitsForCurrencyCode(transactionCurrencyCode);
+
+            if (!TryConvertToMinorUnits(transactionSnapshot.AmountRequested, configuredCurrencyDecimalDigits, out var expectedAmountInMinorUnits)
+                || expectedAmountInMinorUnits <= 0)
+            {
+                return ActionSet.ActionReturnType(HttpStatusCode.BadRequest, new CustomerIOResponse
+                {
+                    StatusCode = "400",
+                    Message = "Saved payment amount is invalid for the configured currency."
+                });
+            }
+
+            var (credentialsResolved, keyId, keySecret, isTestMode, credentialsError) = await ResolveRazorpayCredentialsAsync(tenantName, storeCode);
+            if (!credentialsResolved)
+            {
+                return ActionSet.ActionReturnType(HttpStatusCode.BadRequest, new CustomerIOResponse
+                {
+                    StatusCode = "400",
+                    Message = credentialsError
+                });
+            }
+
+            var expectedSignature = ComputeRazorpayCheckoutSignature(request.RazorpayOrderId, request.RazorpayPaymentId, keySecret);
+            if (!SecureEquals(expectedSignature, request.RazorpaySignature))
+            {
+                await MarkTransactionFailedAsync(transactionSnapshot.Id, "InvalidSignature", "Checkout signature verification failed.");
+                return ActionSet.ActionReturnType(HttpStatusCode.BadRequest, new CustomerIOResponse
+                {
+                    StatusCode = "400",
+                    Message = "Payment signature verification failed."
+                });
+            }
+
+            var (paymentVerified, definitiveGatewayFailure, paymentStatusCode, paymentError, paymentDetails) = await FetchRazorpayPaymentDetailsAsync(keyId, keySecret, request.RazorpayPaymentId);
+            if (!paymentVerified)
+            {
+                if (definitiveGatewayFailure)
+                {
+                    await MarkTransactionFailedAsync(transactionSnapshot.Id, "GatewayVerifyFailed", paymentError ?? "Unable to verify payment from gateway.");
+                }
+
+                return ActionSet.ActionReturnType(paymentStatusCode, new CustomerIOResponse
+                {
+                    StatusCode = ((int)paymentStatusCode).ToString(CultureInfo.InvariantCulture),
+                    Message = paymentError ?? "Unable to verify payment from gateway."
+                });
+            }
+
+            if (!string.Equals(paymentDetails.PaymentId, request.RazorpayPaymentId, StringComparison.Ordinal)
+                || !string.Equals(paymentDetails.OrderId, transactionSnapshot.GatewayOrderId, StringComparison.Ordinal)
+                || !string.Equals(paymentDetails.Currency?.Trim(), transactionCurrencyCode, StringComparison.OrdinalIgnoreCase)
+                || paymentDetails.AmountInMinorUnits != expectedAmountInMinorUnits)
+            {
+                await MarkTransactionFailedAsync(transactionSnapshot.Id, "GatewayMismatch", "Gateway payment data does not match the saved transaction.");
+                return ActionSet.ActionReturnType(HttpStatusCode.BadRequest, new CustomerIOResponse
+                {
+                    StatusCode = "400",
+                    Message = "Gateway payment details did not match the saved transaction."
+                });
+            }
+
+            if (!string.Equals(paymentDetails.Status, "captured", StringComparison.OrdinalIgnoreCase))
+            {
+                if (string.Equals(paymentDetails.Status, "failed", StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(paymentDetails.Status, "refunded", StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(paymentDetails.Status, "cancelled", StringComparison.OrdinalIgnoreCase))
+                {
+                    await MarkTransactionFailedAsync(transactionSnapshot.Id, "NotCaptured", "Gateway payment is not captured in a terminal state.");
+                }
+
+                return ActionSet.ActionReturnType(HttpStatusCode.BadRequest, new CustomerIOResponse
+                {
+                    StatusCode = "400",
+                    Message = "Payment is not captured yet."
+                });
+            }
+
+            if (!TryConvertFromMinorUnits(paymentDetails.AmountInMinorUnits, configuredCurrencyDecimalDigits, out var capturedAmount))
+            {
+                return ActionSet.ActionReturnType(HttpStatusCode.BadRequest, new CustomerIOResponse
+                {
+                    StatusCode = "400",
+                    Message = "Captured payment amount format is invalid for configured currency."
+                });
+            }
+
+            return await FinalizeCapturedPaymentAsync(
+                tenantName,
+                storeCode,
+                request.TransactionId,
+                request.RazorpayOrderId,
+                request.RazorpayPaymentId,
+                request.RazorpaySignature,
+                capturedAmount,
+                isTestMode);
+        }
+
+        public async Task<ActionReturnType> ReceivePaymentWebhook(string provider, string referenceToken, string signature, string rawRequestBody)
+        {
+            await EnsureLaundryOrdersTableExistsAsync();
+            await EnsurePaymentTransactionsTableExistsAsync();
+            await EnsureTenantIntegrationSettingsTableExistsAsync();
+
+            provider = NormalizeKey(provider).ToLowerInvariant();
+            referenceToken = NormalizeKey(referenceToken).ToLowerInvariant();
+            signature = NormalizeKey(signature);
+            rawRequestBody ??= string.Empty;
+
+            if (!string.Equals(provider, "razorpay", StringComparison.OrdinalIgnoreCase)
+                || string.IsNullOrWhiteSpace(referenceToken)
+                || string.IsNullOrWhiteSpace(signature)
+                || string.IsNullOrWhiteSpace(rawRequestBody))
+            {
+                return ActionSet.ActionReturnType(HttpStatusCode.BadRequest, new CustomerIOResponse
+                {
+                    StatusCode = "400",
+                    Message = "Invalid webhook request."
+                });
+            }
+
+            var (resolved, integration, payload, webhookSecret, resolveError) = await ResolveRazorpayWebhookIntegrationAsync(provider, referenceToken);
+            if (!resolved)
+            {
+                return ActionSet.ActionReturnType(HttpStatusCode.BadRequest, new CustomerIOResponse
+                {
+                    StatusCode = "400",
+                    Message = string.IsNullOrWhiteSpace(resolveError) ? "Invalid webhook context." : resolveError
+                });
+            }
+
+            var expectedWebhookSignature = ComputeRazorpayWebhookSignature(rawRequestBody, webhookSecret);
+            if (!SecureEquals(expectedWebhookSignature, signature))
+            {
+                return ActionSet.ActionReturnType(HttpStatusCode.BadRequest, new CustomerIOResponse
+                {
+                    StatusCode = "400",
+                    Message = "Invalid webhook signature."
+                });
+            }
+
+            string eventType;
+            string webhookPaymentId;
+            string webhookOrderId;
+            string webhookCurrency;
+            string webhookStatus;
+            long webhookAmountMinor;
+
+            if (!TryParseRazorpayWebhookPaymentCaptured(rawRequestBody,
+                out eventType,
+                out webhookPaymentId,
+                out webhookOrderId,
+                out webhookAmountMinor,
+                out webhookCurrency,
+                out webhookStatus))
+            {
+                return ActionSet.ActionReturnType(HttpStatusCode.BadRequest, new CustomerIOResponse
+                {
+                    StatusCode = "400",
+                    Message = "Invalid webhook payload."
+                });
+            }
+
+            if (!string.Equals(eventType, "payment.captured", StringComparison.OrdinalIgnoreCase))
+            {
+                return ActionSet.ActionReturnType(HttpStatusCode.OK, new CustomerIOResponse
+                {
+                    StatusCode = "200",
+                    Message = "Webhook event ignored."
+                });
+            }
+
+            var tenantName = integration.TenantName?.Trim();
+            var storeCode = integration.StoreCode?.Trim();
+            var transaction = await _masterDbContext.PaymentTransactions
+                .AsNoTracking()
+                .FirstOrDefaultAsync(x => x.TenantName == tenantName
+                                          && x.StoreCode == storeCode
+                                          && x.GatewayOrderId == webhookOrderId);
+
+            if (transaction == null)
+            {
+                return ActionSet.ActionReturnType(HttpStatusCode.OK, new CustomerIOResponse
+                {
+                    StatusCode = "200",
+                    Message = "No matching payment transaction found for webhook order."
+                });
+            }
+
+            var transactionCurrencyCode = transaction.Currency?.Trim()?.ToUpperInvariant();
+            if (string.IsNullOrWhiteSpace(transactionCurrencyCode))
+            {
+                return ActionSet.ActionReturnType(HttpStatusCode.BadRequest, new CustomerIOResponse
+                {
+                    StatusCode = "400",
+                    Message = "Saved payment transaction has no currency information."
+                });
+            }
+
+            var configuredCurrencyDecimalDigits = GetCurrencyDecimalDigitsForCurrencyCode(transactionCurrencyCode);
+            if (!TryConvertToMinorUnits(transaction.AmountRequested, configuredCurrencyDecimalDigits, out var expectedAmountInMinorUnits)
+                || expectedAmountInMinorUnits <= 0)
+            {
+                return ActionSet.ActionReturnType(HttpStatusCode.BadRequest, new CustomerIOResponse
+                {
+                    StatusCode = "400",
+                    Message = "Saved payment amount is invalid for the configured currency."
+                });
+            }
+
+            if (!string.Equals(webhookCurrency?.Trim(), transactionCurrencyCode, StringComparison.OrdinalIgnoreCase)
+                || webhookAmountMinor != expectedAmountInMinorUnits
+                || !string.Equals(webhookPaymentId?.Trim(), webhookPaymentId, StringComparison.Ordinal)
+                || !string.Equals(webhookOrderId, transaction.GatewayOrderId, StringComparison.Ordinal)
+                || !string.Equals(webhookStatus, "captured", StringComparison.OrdinalIgnoreCase))
+            {
+                await MarkTransactionFailedAsync(transaction.Id, "WebhookMismatch", "Webhook payment details do not match the saved transaction.");
+                return ActionSet.ActionReturnType(HttpStatusCode.BadRequest, new CustomerIOResponse
+                {
+                    StatusCode = "400",
+                    Message = "Webhook payment details did not match the saved transaction."
+                });
+            }
+
+            string Secret(params string[] keys)
+            {
+                foreach (var key in keys)
+                {
+                    if (payload.Secret.TryGetValue(key, out var value) && !string.IsNullOrWhiteSpace(value))
+                    {
+                        return value.Trim();
+                    }
+                }
+
+                return null;
+            }
+
+            var isTestMode = integration.IsTestMode;
+            var keyId = isTestMode
+                ? Secret("TestKeyId")
+                : Secret("LiveKeyId", "LiveApiKey", "ApiKey", "Username", "Token", "KeyId");
+            var keySecret = isTestMode
+                ? Secret("TestKeySecret")
+                : Secret("LiveKeySecret", "LiveSecretKey", "SecretKey", "Password", "Secret", "KeySecret");
+
+            if (string.IsNullOrWhiteSpace(keyId) || string.IsNullOrWhiteSpace(keySecret))
+            {
+                return ActionSet.ActionReturnType(HttpStatusCode.BadRequest, new CustomerIOResponse
+                {
+                    StatusCode = "400",
+                    Message = isTestMode
+                        ? "Razorpay test mode requires TestKeyId and TestKeySecret."
+                        : "Razorpay credentials are missing for the selected mode."
+                });
+            }
+
+            var (paymentVerified, definitiveGatewayFailure, paymentStatusCode, paymentError, paymentDetails) = await FetchRazorpayPaymentDetailsAsync(keyId, keySecret, webhookPaymentId);
+            if (!paymentVerified)
+            {
+                if (definitiveGatewayFailure)
+                {
+                    await MarkTransactionFailedAsync(transaction.Id, "GatewayVerifyFailed", paymentError ?? "Unable to verify payment from gateway.");
+                }
+
+                return ActionSet.ActionReturnType(paymentStatusCode, new CustomerIOResponse
+                {
+                    StatusCode = ((int)paymentStatusCode).ToString(CultureInfo.InvariantCulture),
+                    Message = paymentError ?? "Unable to verify payment from gateway."
+                });
+            }
+
+            if (!string.Equals(paymentDetails.PaymentId, webhookPaymentId, StringComparison.Ordinal)
+                || !string.Equals(paymentDetails.OrderId, transaction.GatewayOrderId, StringComparison.Ordinal)
+                || !string.Equals(paymentDetails.Currency?.Trim(), transactionCurrencyCode, StringComparison.OrdinalIgnoreCase)
+                || paymentDetails.AmountInMinorUnits != expectedAmountInMinorUnits
+                || !string.Equals(paymentDetails.Status, "captured", StringComparison.OrdinalIgnoreCase))
+            {
+                await MarkTransactionFailedAsync(transaction.Id, "GatewayMismatch", "Gateway payment data does not match the saved transaction.");
+                return ActionSet.ActionReturnType(HttpStatusCode.BadRequest, new CustomerIOResponse
+                {
+                    StatusCode = "400",
+                    Message = "Gateway payment details did not match the saved transaction."
+                });
+            }
+
+            if (!TryConvertFromMinorUnits(paymentDetails.AmountInMinorUnits, configuredCurrencyDecimalDigits, out var capturedAmount))
+            {
+                return ActionSet.ActionReturnType(HttpStatusCode.BadRequest, new CustomerIOResponse
+                {
+                    StatusCode = "400",
+                    Message = "Captured payment amount format is invalid for configured currency."
+                });
+            }
+
+            var finalizeResult = await FinalizeCapturedPaymentAsync(
+                tenantName,
+                storeCode,
+                transaction.Id,
+                transaction.GatewayOrderId,
+                webhookPaymentId,
+                signature,
+                capturedAmount,
+                isTestMode);
+
+            if (finalizeResult.StatusCode == HttpStatusCode.OK)
+            {
+                return ActionSet.ActionReturnType(HttpStatusCode.OK, new CustomerIOResponse
+                {
+                    StatusCode = "200",
+                    Message = "Webhook processed successfully."
+                });
+            }
+
+            return finalizeResult;
+        }
+
+        private async Task<ActionReturnType> FinalizeCapturedPaymentAsync(
+            string tenantName,
+            string storeCode,
+            int transactionId,
+            string razorpayOrderId,
+            string razorpayPaymentId,
+            string gatewaySignature,
+            decimal capturedAmount,
+            bool isTestMode)
+        {
+            await using var dbTransaction = await _masterDbContext.Database.BeginTransactionAsync(IsolationLevel.Serializable);
+            try
+            {
+                var transaction = await _masterDbContext.PaymentTransactions
+                    .FirstOrDefaultAsync(x => x.Id == transactionId
+                                              && x.TenantName == tenantName
+                                              && x.StoreCode == storeCode);
+
+                if (transaction == null)
+                {
+                    await dbTransaction.RollbackAsync();
+                    return ActionSet.ActionReturnType(HttpStatusCode.NotFound, new CustomerIOResponse
+                    {
+                        StatusCode = "404",
+                        Message = "Payment transaction not found for this store."
+                    });
+                }
+
+                if (!string.Equals(transaction.GatewayOrderId, razorpayOrderId, StringComparison.Ordinal))
+                {
+                    await dbTransaction.RollbackAsync();
+                    return ActionSet.ActionReturnType(HttpStatusCode.BadRequest, new CustomerIOResponse
+                    {
+                        StatusCode = "400",
+                        Message = "Invalid order reference for payment confirmation."
+                    });
+                }
+
+                if (string.Equals(transaction.Status, "Captured", StringComparison.OrdinalIgnoreCase))
+                {
+                    if (!string.IsNullOrWhiteSpace(transaction.GatewayPaymentId)
+                        && !string.Equals(transaction.GatewayPaymentId, razorpayPaymentId, StringComparison.Ordinal))
+                    {
+                        await dbTransaction.RollbackAsync();
+                        return ActionSet.ActionReturnType(HttpStatusCode.Conflict, new CustomerIOResponse
+                        {
+                            StatusCode = "409",
+                            Message = "A different payment is already captured for this transaction."
+                        });
+                    }
+
+                    await dbTransaction.RollbackAsync();
+                    return ActionSet.ActionReturnType(HttpStatusCode.OK, new CustomerIOResponse
+                    {
+                        StatusCode = "200",
+                        Message = "Payment already processed."
+                    });
+                }
+
+                if (!string.IsNullOrWhiteSpace(transaction.GatewayPaymentId)
+                    && !string.Equals(transaction.GatewayPaymentId, razorpayPaymentId, StringComparison.Ordinal))
+                {
+                    await dbTransaction.RollbackAsync();
+                    return ActionSet.ActionReturnType(HttpStatusCode.Conflict, new CustomerIOResponse
+                    {
+                        StatusCode = "409",
+                        Message = "Payment transaction is already linked to another payment reference."
+                    });
+                }
+
+                var order = await _masterDbContext.LaundryOrders.FirstOrDefaultAsync(x =>
+                    x.TenantName == tenantName
+                    && x.StoreCode == storeCode
+                    && x.OrderNo == transaction.OrderNo);
+
+                if (order == null)
+                {
+                    await dbTransaction.RollbackAsync();
+                    return ActionSet.ActionReturnType(HttpStatusCode.NotFound, new CustomerIOResponse
+                    {
+                        StatusCode = "404",
+                        Message = "Order not found for this store."
+                    });
+                }
+
+                if (order.NetPayable <= 0)
+                {
+                    transaction.Status = "Captured";
+                    transaction.GatewayPaymentId = razorpayPaymentId;
+                    transaction.GatewaySignature = gatewaySignature;
+                    transaction.FailureCode = null;
+                    transaction.FailureReason = null;
+                    transaction.AmountAuthorized = capturedAmount;
+                    transaction.AmountCaptured = capturedAmount;
+                    transaction.IsLiveMode = !isTestMode;
+                    transaction.ModifiedDate = DateTime.UtcNow;
+
+                    await _masterDbContext.SaveChangesAsync();
+                    await dbTransaction.CommitAsync();
+                    return ActionSet.ActionReturnType(HttpStatusCode.OK, MapLaundryOrderDto(order));
+                }
+
+                var payableBefore = Math.Max(0, order.NetPayable);
+                var applied = Math.Min(Math.Round(capturedAmount, 2, MidpointRounding.AwayFromZero), payableBefore);
+
+                transaction.Status = "Captured";
+                transaction.GatewayPaymentId = razorpayPaymentId;
+                transaction.GatewaySignature = gatewaySignature;
+                transaction.FailureCode = null;
+                transaction.FailureReason = null;
+                transaction.AmountAuthorized = capturedAmount;
+                transaction.AmountCaptured = capturedAmount;
+                transaction.IsLiveMode = !isTestMode;
+                transaction.ModifiedDate = DateTime.UtcNow;
+
+                order.PaidNow = Math.Round(order.PaidNow + applied, 2, MidpointRounding.AwayFromZero);
+                order.NetPayable = Math.Round(Math.Max(0, payableBefore - applied), 2, MidpointRounding.AwayFromZero);
+                order.PendingAmount = order.NetPayable;
+
+                if (string.IsNullOrWhiteSpace(order.PaymentMode))
+                {
+                    order.PaymentMode = "Online";
+                }
+
+                var notePrefix = $"Payment captured {DateTime.UtcNow:yyyy-MM-dd HH:mm} UTC: {applied:0.00}";
+                order.Notes = string.IsNullOrWhiteSpace(order.Notes)
+                    ? notePrefix
+                    : (order.Notes + " || " + notePrefix);
+
+                await _masterDbContext.SaveChangesAsync();
+                await dbTransaction.CommitAsync();
+
+                return ActionSet.ActionReturnType(HttpStatusCode.OK, MapLaundryOrderDto(order));
+            }
+            catch (DbUpdateConcurrencyException)
+            {
+                await dbTransaction.RollbackAsync();
+                return ActionSet.ActionReturnType(HttpStatusCode.Conflict, new CustomerIOResponse
+                {
+                    StatusCode = "409",
+                    Message = "Payment confirmation conflict detected. Please retry."
+                });
+            }
+            catch
+            {
+                await dbTransaction.RollbackAsync();
+                return ActionSet.ActionReturnType(HttpStatusCode.InternalServerError, new CustomerIOResponse
+                {
+                    StatusCode = "500",
+                    Message = "Unable to confirm payment at this time."
+                });
+            }
+        }
+
+        private async Task<(bool Success, TenantIntegrationSettingsEntity Integration, IntegrationSettingsPayload Payload, string WebhookSecret, string ErrorMessage)> ResolveRazorpayWebhookIntegrationAsync(string provider, string referenceToken)
+        {
+            var normalizedProvider = NormalizeKey(provider).ToLowerInvariant();
+            var normalizedReferenceToken = NormalizeKey(referenceToken).ToLowerInvariant();
+
+            if (!string.Equals(normalizedProvider, "razorpay", StringComparison.OrdinalIgnoreCase)
+                || string.IsNullOrWhiteSpace(normalizedReferenceToken))
+            {
+                return (false, null, null, null, "Invalid webhook context.");
+            }
+
+            var integrationRecords = await _masterDbContext.TenantIntegrationSettings
+                .Where(x => x.Category == IntegrationConstants.Category.Payments && x.IsEnabled)
+                .ToListAsync();
+
+            foreach (var record in integrationRecords)
+            {
+                var payload = ReadPayload(record.EncryptedSettingsJson);
+                if (!IsRazorpayProvider(record.Category, record.ProviderKey, record.ProviderDisplayName, payload.Public))
+                {
+                    continue;
+                }
+
+                var expectedReference = BuildRazorpayWebhookReferenceToken(record.TenantName, record.StoreCode, record.ProviderKey);
+                if (!SecureEquals(expectedReference, normalizedReferenceToken))
+                {
+                    continue;
+                }
+
+                payload ??= new IntegrationSettingsPayload();
+                payload.Secret ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+                if (!payload.Secret.TryGetValue("WebhookSecret", out var webhookSecret)
+                    || string.IsNullOrWhiteSpace(webhookSecret))
+                {
+                    return (false, null, null, null, "Webhook secret is not configured for this Razorpay integration.");
+                }
+
+                return (true, record, payload, webhookSecret.Trim(), null);
+            }
+
+            return (false, null, null, null, "No matching Razorpay integration found for webhook context.");
+        }
+
+        private static string BuildRazorpayWebhookReferenceToken(string tenantName, string storeCode, string providerKey)
+        {
+            var keyMaterial = string.Join("|",
+                NormalizeKey(tenantName).ToLowerInvariant(),
+                NormalizeKey(storeCode).ToLowerInvariant(),
+                NormalizeKey(providerKey).ToLowerInvariant(),
+                "razorpay");
+
+            using var sha = SHA256.Create();
+            var hashBytes = sha.ComputeHash(Encoding.UTF8.GetBytes(keyMaterial));
+            return Convert.ToHexString(hashBytes).ToLowerInvariant();
+        }
+
+        private static string ComputeRazorpayWebhookSignature(string rawRequestBody, string webhookSecret)
+        {
+            var bodyBytes = Encoding.UTF8.GetBytes(rawRequestBody ?? string.Empty);
+            var secretBytes = Encoding.UTF8.GetBytes(webhookSecret ?? string.Empty);
+            using var hmac = new HMACSHA256(secretBytes);
+            var hash = hmac.ComputeHash(bodyBytes);
+
+            var builder = new StringBuilder(hash.Length * 2);
+            foreach (var b in hash)
+            {
+                builder.AppendFormat(CultureInfo.InvariantCulture, "{0:x2}", b);
+            }
+
+            return builder.ToString();
+        }
+
+        private static bool TryParseRazorpayWebhookPaymentCaptured(
+            string rawRequestBody,
+            out string eventType,
+            out string paymentId,
+            out string orderId,
+            out long amountInMinorUnits,
+            out string currency,
+            out string status)
+        {
+            eventType = null;
+            paymentId = null;
+            orderId = null;
+            amountInMinorUnits = 0;
+            currency = null;
+            status = null;
+
+            if (string.IsNullOrWhiteSpace(rawRequestBody))
+            {
+                return false;
+            }
+
+            try
+            {
+                using var doc = JsonDocument.Parse(rawRequestBody);
+                var root = doc.RootElement;
+                if (root.ValueKind != JsonValueKind.Object)
+                {
+                    return false;
+                }
+
+                eventType = root.TryGetProperty("event", out var eventEl) ? eventEl.GetString()?.Trim() : null;
+                if (string.IsNullOrWhiteSpace(eventType))
+                {
+                    return false;
+                }
+
+                if (!string.Equals(eventType, "payment.captured", StringComparison.OrdinalIgnoreCase))
+                {
+                    return true;
+                }
+
+                if (!root.TryGetProperty("payload", out var payload)
+                    || payload.ValueKind != JsonValueKind.Object
+                    || !payload.TryGetProperty("payment", out var payment)
+                    || payment.ValueKind != JsonValueKind.Object
+                    || !payment.TryGetProperty("entity", out var entity)
+                    || entity.ValueKind != JsonValueKind.Object)
+                {
+                    return false;
+                }
+
+                paymentId = entity.TryGetProperty("id", out var idEl) ? idEl.GetString()?.Trim() : null;
+                orderId = entity.TryGetProperty("order_id", out var orderEl) ? orderEl.GetString()?.Trim() : null;
+                currency = entity.TryGetProperty("currency", out var currencyEl) ? currencyEl.GetString()?.Trim() : null;
+                status = entity.TryGetProperty("status", out var statusEl) ? statusEl.GetString()?.Trim() : null;
+
+                if (!entity.TryGetProperty("amount", out var amountEl)
+                    || amountEl.ValueKind != JsonValueKind.Number
+                    || !amountEl.TryGetInt64(out amountInMinorUnits))
+                {
+                    return false;
+                }
+
+                return !string.IsNullOrWhiteSpace(paymentId)
+                       && !string.IsNullOrWhiteSpace(orderId)
+                       && !string.IsNullOrWhiteSpace(currency)
+                       && !string.IsNullOrWhiteSpace(status)
+                       && amountInMinorUnits > 0;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        private static (string ErrorCode, string ErrorMessage) ParseRazorpayError(string responseBody)
+        {
+            if (string.IsNullOrWhiteSpace(responseBody))
+            {
+                return (null, null);
+            }
+
+            try
+            {
+                using var doc = JsonDocument.Parse(responseBody);
+                if (doc.RootElement.ValueKind != JsonValueKind.Object)
+                {
+                    return (null, null);
+                }
+
+                var root = doc.RootElement;
+                if (root.TryGetProperty("error", out var error)
+                    && error.ValueKind == JsonValueKind.Object)
+                {
+                    var code = error.TryGetProperty("code", out var codeEl) ? codeEl.GetString() : null;
+                    var message = error.TryGetProperty("description", out var descEl)
+                        ? descEl.GetString()
+                        : (error.TryGetProperty("message", out var msgEl) ? msgEl.GetString() : null);
+                    return (code, message);
+                }
+            }
+            catch
+            {
+            }
+
+            return (null, null);
+        }
+
+        private async Task<(bool Success, string ErrorMessage, StoreCurrencyConfiguration Currency)> ResolveStoreCurrencyConfigurationAsync(string tenantName, string storeCode)
+        {
+            var identityApiBaseUrl = _configuration?["IntegrationSettings:IdentityApiBaseUrl"]
+                                     ?? _configuration?["ServiceEndpoints:Identity:BaseUrl"]
+                                     ?? _configuration?["Identity:BaseUrl"];
+
+            if (string.IsNullOrWhiteSpace(identityApiBaseUrl)
+                || !Uri.TryCreate(identityApiBaseUrl.Trim(), UriKind.Absolute, out var identityBaseUri)
+                || identityBaseUri.Scheme != Uri.UriSchemeHttps)
+            {
+                return (false, "Identity API base URL is not configured for currency resolution.", null);
+            }
+
+            var (storeSuccess, storeNotFound, storeError, storeCurrency) = await FetchStoreCurrencyConfigurationAsync(identityBaseUri, tenantName, storeCode);
+            if (!storeSuccess && !storeNotFound)
+            {
+                return (false, storeError, null);
+            }
+
+            var needsFallback = storeCurrency == null
+                                || string.IsNullOrWhiteSpace(storeCurrency.CurrencyCode)
+                                || !storeCurrency.CurrencyDecimalDigits.HasValue;
+
+            StoreCurrencyConfiguration tenantCurrency = null;
+            if (needsFallback)
+            {
+                var (tenantSuccess, tenantNotFound, tenantError, tenantLevelCurrency) = await FetchStoreCurrencyConfigurationAsync(identityBaseUri, tenantName, string.Empty);
+                if (!tenantSuccess && !tenantNotFound)
+                {
+                    return (false, tenantError, null);
+                }
+
+                tenantCurrency = tenantLevelCurrency;
+            }
+
+            var merged = MergeCurrencyConfiguration(storeCurrency, tenantCurrency);
+            if (merged == null || string.IsNullOrWhiteSpace(merged.CurrencyCode))
+            {
+                return (false, "Currency code is not configured for this tenant/store.", null);
+            }
+
+            if (!merged.CurrencyDecimalDigits.HasValue)
+            {
+                return (false, "Currency decimal digits are not configured for this tenant/store.", null);
+            }
+
+            merged.CurrencyCode = merged.CurrencyCode.Trim().ToUpperInvariant();
+            if (!RazorpaySupportedCurrencies.Contains(merged.CurrencyCode))
+            {
+                return (false, $"Configured currency '{merged.CurrencyCode}' is not supported for Razorpay orders.", null);
+            }
+
+            if (merged.CurrencyDecimalDigits.Value < 0 || merged.CurrencyDecimalDigits.Value > 6)
+            {
+                return (false, "Currency decimal digits must be between 0 and 6.", null);
+            }
+
+            return (true, null, merged);
+        }
+
+        private async Task<(bool Success, bool NotFound, string ErrorMessage, StoreCurrencyConfiguration Currency)> FetchStoreCurrencyConfigurationAsync(Uri identityBaseUri, string tenantName, string storeCode)
+        {
+            var endpoint = new Uri(identityBaseUri, $"/Login/GetStoreConfiguration?tenantEmail={Uri.EscapeDataString(tenantName ?? string.Empty)}&storeCode={Uri.EscapeDataString(storeCode ?? string.Empty)}");
+
+            using var httpClient = new HttpClient
+            {
+                Timeout = TimeSpan.FromSeconds(20)
+            };
+            using var request = new HttpRequestMessage(HttpMethod.Get, endpoint);
+
+            try
+            {
+                using var response = await httpClient.SendAsync(request);
+                var responseBody = await response.Content.ReadAsStringAsync();
+                if (response.StatusCode == HttpStatusCode.NotFound)
+                {
+                    return (false, true, null, null);
+                }
+
+                if (!response.IsSuccessStatusCode)
+                {
+                    return (false, false, ExtractMessageFromJson(responseBody) ?? "Unable to load store currency configuration.", null);
+                }
+
+                var currency = ExtractCurrencyConfigurationFromResponse(responseBody);
+                return (true, false, null, currency);
+            }
+            catch (TaskCanceledException)
+            {
+                return (false, false, "Currency configuration request timed out.", null);
+            }
+            catch (HttpRequestException)
+            {
+                return (false, false, "Unable to reach identity service for currency configuration.", null);
+            }
+        }
+
+        private static StoreCurrencyConfiguration MergeCurrencyConfiguration(StoreCurrencyConfiguration primary, StoreCurrencyConfiguration fallback)
+        {
+            if (primary == null && fallback == null)
+            {
+                return null;
+            }
+
+            return new StoreCurrencyConfiguration
+            {
+                CurrencyCode = !string.IsNullOrWhiteSpace(primary?.CurrencyCode)
+                    ? primary.CurrencyCode
+                    : fallback?.CurrencyCode,
+                CurrencySymbol = !string.IsNullOrWhiteSpace(primary?.CurrencySymbol)
+                    ? primary.CurrencySymbol
+                    : fallback?.CurrencySymbol,
+                CurrencyLocale = !string.IsNullOrWhiteSpace(primary?.CurrencyLocale)
+                    ? primary.CurrencyLocale
+                    : fallback?.CurrencyLocale,
+                CurrencyDecimalDigits = primary?.CurrencyDecimalDigits ?? fallback?.CurrencyDecimalDigits
+            };
+        }
+
+        private async Task<(bool Success, string KeyId, string KeySecret, bool IsTestMode, string ErrorMessage)> ResolveRazorpayCredentialsAsync(string tenantName, string storeCode)
+        {
+            var integrationRecords = await _masterDbContext.TenantIntegrationSettings
+                .Where(x => x.TenantName == tenantName
+                            && x.StoreCode == storeCode
+                            && x.Category == IntegrationConstants.Category.Payments
+                            && x.IsEnabled)
+                .ToListAsync();
+
+            TenantIntegrationSettingsEntity razorpayIntegration = null;
+            IntegrationSettingsPayload integrationPayload = null;
+            foreach (var record in integrationRecords)
+            {
+                var payload = ReadPayload(record.EncryptedSettingsJson);
+                if (IsRazorpayProvider(record.Category, record.ProviderKey, record.ProviderDisplayName, payload.Public))
+                {
+                    razorpayIntegration = record;
+                    integrationPayload = payload;
+                    break;
+                }
+            }
+
+            if (razorpayIntegration == null)
+            {
+                return (false, null, null, false, "Enabled Razorpay configuration not found for this store.");
+            }
+
+            integrationPayload ??= new IntegrationSettingsPayload();
+            integrationPayload.Secret ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+            string Secret(params string[] keys)
+            {
+                foreach (var key in keys)
+                {
+                    if (integrationPayload.Secret.TryGetValue(key, out var value) && !string.IsNullOrWhiteSpace(value))
+                    {
+                        return value.Trim();
+                    }
+                }
+
+                return null;
+            }
+
+            var isTestMode = razorpayIntegration.IsTestMode;
+            var keyId = isTestMode
+                ? Secret("TestKeyId")
+                : Secret("LiveKeyId", "LiveApiKey", "ApiKey", "Username", "Token", "KeyId");
+            var keySecret = isTestMode
+                ? Secret("TestKeySecret")
+                : Secret("LiveKeySecret", "LiveSecretKey", "SecretKey", "Password", "Secret", "KeySecret");
+
+            if (string.IsNullOrWhiteSpace(keyId) || string.IsNullOrWhiteSpace(keySecret))
+            {
+                return (false, null, null, isTestMode, isTestMode
+                    ? "Razorpay test mode requires TestKeyId and TestKeySecret."
+                    : "Razorpay credentials are missing for the selected mode.");
+            }
+
+            return (true, keyId.Trim(), keySecret.Trim(), isTestMode, null);
+        }
+
+        private static string ComputeRazorpayCheckoutSignature(string razorpayOrderId, string razorpayPaymentId, string keySecret)
+        {
+            var payload = $"{razorpayOrderId}|{razorpayPaymentId}";
+            var keyBytes = Encoding.UTF8.GetBytes(keySecret ?? string.Empty);
+            var payloadBytes = Encoding.UTF8.GetBytes(payload);
+            using var hmac = new HMACSHA256(keyBytes);
+            var hash = hmac.ComputeHash(payloadBytes);
+
+            var builder = new StringBuilder(hash.Length * 2);
+            foreach (var b in hash)
+            {
+                builder.AppendFormat(CultureInfo.InvariantCulture, "{0:x2}", b);
+            }
+
+            return builder.ToString();
+        }
+
+        private static bool SecureEquals(string left, string right)
+        {
+            if (string.IsNullOrWhiteSpace(left) || string.IsNullOrWhiteSpace(right))
+            {
+                return false;
+            }
+
+            var normalizedLeft = left.Trim().ToLowerInvariant();
+            var normalizedRight = right.Trim().ToLowerInvariant();
+
+            var leftBytes = Encoding.UTF8.GetBytes(normalizedLeft);
+            var rightBytes = Encoding.UTF8.GetBytes(normalizedRight);
+
+            if (leftBytes.Length != rightBytes.Length)
+            {
+                return false;
+            }
+
+            return CryptographicOperations.FixedTimeEquals(leftBytes, rightBytes);
+        }
+
+        private async Task<(bool Success, bool DefinitiveFailure, HttpStatusCode StatusCode, string ErrorMessage, RazorpayPaymentVerificationDetails Payment)> FetchRazorpayPaymentDetailsAsync(string keyId, string keySecret, string razorpayPaymentId)
+        {
+            var razorpayApiBaseUrl = _configuration?["IntegrationSettings:RazorpayApiBaseUrl"];
+            if (string.IsNullOrWhiteSpace(razorpayApiBaseUrl))
+            {
+                razorpayApiBaseUrl = "https://api.razorpay.com";
+            }
+
+            if (!Uri.TryCreate(razorpayApiBaseUrl.Trim(), UriKind.Absolute, out var razorpayBaseUri)
+                || razorpayBaseUri.Scheme != Uri.UriSchemeHttps)
+            {
+                return (false, true, HttpStatusCode.BadRequest, "Razorpay API base URL is invalid.", null);
+            }
+
+            var encodedPaymentId = Uri.EscapeDataString(razorpayPaymentId ?? string.Empty);
+            using var httpClient = new HttpClient
+            {
+                Timeout = TimeSpan.FromSeconds(20)
+            };
+
+            using var httpRequest = new HttpRequestMessage(HttpMethod.Get, new Uri(razorpayBaseUri, $"/v1/payments/{encodedPaymentId}"));
+            var basicToken = Convert.ToBase64String(Encoding.ASCII.GetBytes($"{keyId}:{keySecret}"));
+            httpRequest.Headers.Authorization = new AuthenticationHeaderValue("Basic", basicToken);
+            httpRequest.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+
+            try
+            {
+                using var httpResponse = await httpClient.SendAsync(httpRequest);
+                var responseBody = await httpResponse.Content.ReadAsStringAsync();
+                if (!httpResponse.IsSuccessStatusCode)
+                {
+                    var (_, errorMessage) = ParseRazorpayError(responseBody);
+                    var isDefinitive = (int)httpResponse.StatusCode >= 400 && (int)httpResponse.StatusCode < 500;
+                    var mappedStatus = isDefinitive ? HttpStatusCode.BadRequest : HttpStatusCode.BadGateway;
+                    return (false, isDefinitive, mappedStatus,
+                        string.IsNullOrWhiteSpace(errorMessage) ? "Gateway verification failed." : errorMessage,
+                        null);
+                }
+
+                using var json = JsonDocument.Parse(responseBody);
+                var root = json.RootElement;
+
+                var paymentId = root.TryGetProperty("id", out var idEl) ? idEl.GetString()?.Trim() : null;
+                var orderId = root.TryGetProperty("order_id", out var orderEl) ? orderEl.GetString()?.Trim() : null;
+                var currency = root.TryGetProperty("currency", out var currencyEl) ? currencyEl.GetString()?.Trim() : null;
+                var status = root.TryGetProperty("status", out var statusEl) ? statusEl.GetString()?.Trim() : null;
+
+                long amountMinor;
+                if (!root.TryGetProperty("amount", out var amountEl)
+                    || amountEl.ValueKind != JsonValueKind.Number
+                    || !amountEl.TryGetInt64(out amountMinor))
+                {
+                    return (false, true, HttpStatusCode.BadGateway, "Invalid gateway payment amount response.", null);
+                }
+
+                if (string.IsNullOrWhiteSpace(paymentId)
+                    || string.IsNullOrWhiteSpace(orderId)
+                    || string.IsNullOrWhiteSpace(currency)
+                    || string.IsNullOrWhiteSpace(status))
+                {
+                    return (false, true, HttpStatusCode.BadGateway, "Invalid gateway payment verification response.", null);
+                }
+
+                return (true, false, HttpStatusCode.OK, null, new RazorpayPaymentVerificationDetails
+                {
+                    PaymentId = paymentId,
+                    OrderId = orderId,
+                    AmountInMinorUnits = amountMinor,
+                    Currency = currency,
+                    Status = status
+                });
+            }
+            catch (TaskCanceledException)
+            {
+                return (false, false, HttpStatusCode.BadGateway, "Razorpay payment verification timed out. Please retry.", null);
+            }
+            catch (HttpRequestException)
+            {
+                return (false, false, HttpStatusCode.BadGateway, "Unable to reach Razorpay API. Please retry.", null);
+            }
+            catch
+            {
+                return (false, false, HttpStatusCode.BadGateway, "Unable to verify payment from gateway.", null);
+            }
+        }
+
+        private async Task MarkTransactionFailedAsync(int transactionId, string failureCode, string failureReason)
+        {
+            var tx = await _masterDbContext.PaymentTransactions.FirstOrDefaultAsync(x => x.Id == transactionId);
+            if (tx == null || string.Equals(tx.Status, "Captured", StringComparison.OrdinalIgnoreCase))
+            {
+                return;
+            }
+
+            tx.Status = "Failed";
+            tx.FailureCode = failureCode;
+            tx.FailureReason = failureReason;
+            tx.ModifiedDate = DateTime.UtcNow;
+            await _masterDbContext.SaveChangesAsync();
+        }
+
+        private static bool TryConvertFromMinorUnits(long minorUnits, int decimalDigits, out decimal majorUnits)
+        {
+            majorUnits = 0;
+            if (minorUnits < 0 || decimalDigits < 0 || decimalDigits > 6)
+            {
+                return false;
+            }
+
+            decimal factor = 1m;
+            for (var i = 0; i < decimalDigits; i++)
+            {
+                factor *= 10m;
+            }
+
+            if (factor <= 0)
+            {
+                return false;
+            }
+
+            majorUnits = minorUnits / factor;
+            return majorUnits >= 0;
+        }
+
+        private static int GetCurrencyDecimalDigitsForCurrencyCode(string currencyCode)
+        {
+            if (string.IsNullOrWhiteSpace(currencyCode))
+            {
+                return 2;
+            }
+
+            var normalized = currencyCode.Trim().ToUpperInvariant();
+
+            if (normalized == "BHD" || normalized == "KWD" || normalized == "OMR")
+            {
+                return 3;
+            }
+
+            if (normalized == "JPY" || normalized == "KRW" || normalized == "VND")
+            {
+                return 0;
+            }
+
+            return 2;
+        }
+
+        private static LaundryOrderDto MapLaundryOrderDto(LaundryOrderEntity order)
+        {
+            if (order == null)
+            {
+                return null;
+            }
+
+            return new LaundryOrderDto
+            {
+                TenantName = order.TenantName,
+                StoreCode = order.StoreCode,
+                CustCode = order.CustCode,
+                CustomerName = order.CustomerName,
+                OrderNo = order.OrderNo,
+                ServiceType = order.ServiceType,
+                OrderMode = order.OrderMode,
+                WeightInKg = order.WeightInKg,
+                RatePerKg = order.RatePerKg,
+                OrderAmount = order.OrderAmount,
+                SubTotal = order.SubTotal,
+                TaxPercent = order.TaxPercent,
+                TaxAmount = order.TaxAmount,
+                CgstAmount = order.CgstAmount,
+                SgstAmount = order.SgstAmount,
+                TotalAmount = order.TotalAmount,
+                InvoiceNo = order.InvoiceNo,
+                Status = order.Status,
+                AdvanceUsed = order.AdvanceUsed,
+                PaidNow = order.PaidNow,
+                PendingAmount = order.PendingAmount,
+                NetPayable = order.NetPayable,
+                PaymentMode = order.PaymentMode,
+                Notes = order.Notes,
+                CreatedDate = order.CreatedDate
+            };
+        }
+
+        private static StoreCurrencyConfiguration ExtractCurrencyConfigurationFromResponse(string responseBody)
+        {
+            if (string.IsNullOrWhiteSpace(responseBody))
+            {
+                return null;
+            }
+
+            try
+            {
+                using var doc = JsonDocument.Parse(responseBody);
+                var currency = new StoreCurrencyConfiguration();
+                if (TryFindStringProperty(doc.RootElement, "ConfigurationJson", out var configurationJson)
+                    && !string.IsNullOrWhiteSpace(configurationJson))
+                {
+                    try
+                    {
+                        using var configDoc = JsonDocument.Parse(configurationJson);
+                        currency = ExtractCurrencyConfigurationFromElement(configDoc.RootElement);
+                    }
+                    catch
+                    {
+                        currency = new StoreCurrencyConfiguration();
+                    }
+                }
+
+                var direct = ExtractCurrencyConfigurationFromElement(doc.RootElement);
+                return MergeCurrencyConfiguration(currency, direct);
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        private static StoreCurrencyConfiguration ExtractCurrencyConfigurationFromElement(JsonElement element)
+        {
+            var result = new StoreCurrencyConfiguration();
+
+            if (TryFindStringProperty(element, "CurrencyCode", out var code))
+            {
+                result.CurrencyCode = code?.Trim();
+            }
+
+            if (TryFindStringProperty(element, "CurrencySymbol", out var symbol))
+            {
+                result.CurrencySymbol = symbol?.Trim();
+            }
+
+            if (TryFindStringProperty(element, "CurrencyLocale", out var locale))
+            {
+                result.CurrencyLocale = locale?.Trim();
+            }
+
+            if (TryFindIntProperty(element, "CurrencyDecimalDigits", out var digits))
+            {
+                result.CurrencyDecimalDigits = digits;
+            }
+
+            return result;
+        }
+
+        private static bool TryFindStringProperty(JsonElement element, string propertyName, out string value)
+        {
+            value = null;
+
+            if (element.ValueKind == JsonValueKind.Object)
+            {
+                foreach (var property in element.EnumerateObject())
+                {
+                    if (string.Equals(property.Name, propertyName, StringComparison.OrdinalIgnoreCase)
+                        && property.Value.ValueKind == JsonValueKind.String)
+                    {
+                        value = property.Value.GetString();
+                        return true;
+                    }
+
+                    if (TryFindStringProperty(property.Value, propertyName, out value))
+                    {
+                        return true;
+                    }
+                }
+            }
+            else if (element.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var item in element.EnumerateArray())
+                {
+                    if (TryFindStringProperty(item, propertyName, out value))
+                    {
+                        return true;
+                    }
+                }
+            }
+
+            return false;
+        }
+
+        private static bool TryFindIntProperty(JsonElement element, string propertyName, out int value)
+        {
+            value = 0;
+
+            if (element.ValueKind == JsonValueKind.Object)
+            {
+                foreach (var property in element.EnumerateObject())
+                {
+                    if (string.Equals(property.Name, propertyName, StringComparison.OrdinalIgnoreCase))
+                    {
+                        if (property.Value.ValueKind == JsonValueKind.Number && property.Value.TryGetInt32(out value))
+                        {
+                            return true;
+                        }
+
+                        if (property.Value.ValueKind == JsonValueKind.String
+                            && int.TryParse(property.Value.GetString(), NumberStyles.Integer, CultureInfo.InvariantCulture, out value))
+                        {
+                            return true;
+                        }
+                    }
+
+                    if (TryFindIntProperty(property.Value, propertyName, out value))
+                    {
+                        return true;
+                    }
+                }
+            }
+            else if (element.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var item in element.EnumerateArray())
+                {
+                    if (TryFindIntProperty(item, propertyName, out value))
+                    {
+                        return true;
+                    }
+                }
+            }
+
+            return false;
+        }
+
+        private static bool TryConvertToMinorUnits(decimal amount, int decimalDigits, out long minorUnits)
+        {
+            minorUnits = 0;
+            if (amount <= 0 || decimalDigits < 0 || decimalDigits > 6)
+            {
+                return false;
+            }
+
+            decimal factor = 1m;
+            for (var i = 0; i < decimalDigits; i++)
+            {
+                factor *= 10m;
+            }
+
+            var scaled = amount * factor;
+            if (decimal.Truncate(scaled) != scaled)
+            {
+                return false;
+            }
+
+            if (scaled > long.MaxValue)
+            {
+                return false;
+            }
+
+            minorUnits = Convert.ToInt64(scaled, CultureInfo.InvariantCulture);
+            return minorUnits > 0;
+        }
+
+        private static string ExtractMessageFromJson(string body)
+        {
+            if (string.IsNullOrWhiteSpace(body))
+            {
+                return null;
+            }
+
+            try
+            {
+                using var doc = JsonDocument.Parse(body);
+                if (TryFindStringProperty(doc.RootElement, "Message", out var message)
+                    && !string.IsNullOrWhiteSpace(message))
+                {
+                    return message;
+                }
+            }
+            catch
+            {
+            }
+
+            return null;
+        }
+
         public async Task<ActionReturnType> SettleLaundryOrderPayment(string tenantName, string storeCode, string orderNo, decimal paidAmount, string paymentMode = null, string notes = null)
         {
             await EnsureLaundryOrdersTableExistsAsync();
+            await EnsurePaymentTransactionsTableExistsAsync();
 
             if (string.IsNullOrWhiteSpace(tenantName)
                 || string.IsNullOrWhiteSpace(storeCode)
@@ -4209,13 +6294,19 @@ END;";
             dto.PublicSettings = payload.Public ?? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
             dto.SecretSettings = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
             dto.SecretKeys = payload.Secret?.Keys
-                .Where(k => !string.IsNullOrWhiteSpace(k))
+                .Where(k => !string.IsNullOrWhiteSpace(k) && !k.StartsWith("__els_", StringComparison.OrdinalIgnoreCase))
                 .OrderBy(k => k)
                 .ToList() ?? new List<string>();
 
             foreach (var key in dto.SecretKeys)
             {
                 dto.SecretSettings[key] = "********";
+            }
+
+            if (IsRazorpayProvider(dto.Category, dto.ProviderKey, dto.ProviderDisplayName, payload?.Public)
+                && TryBuildRazorpayWebhookUrl(dto.TenantName, dto.StoreCode, dto.ProviderKey, out var generatedWebhookUrl))
+            {
+                dto.PublicSettings["WebhookUrl"] = generatedWebhookUrl;
             }
 
             // For SMTP UI convenience, show saved username/API key while never exposing
@@ -4362,7 +6453,93 @@ END;";
         private static string NormalizeKey(string value)
             => string.IsNullOrWhiteSpace(value) ? string.Empty : value.Trim();
 
-        private List<string> ValidateIntegrationConfiguration(string category, IntegrationSettingsPayload payload)
+        private bool IsRazorpayProvider(string category, string providerKey, string providerDisplayName, IDictionary<string, string> publicSettings)
+        {
+            if (!NormalizeKey(category).Equals(IntegrationConstants.Category.Payments, StringComparison.OrdinalIgnoreCase))
+            {
+                return false;
+            }
+
+            if (NormalizeKey(providerKey).Equals("razorpay", StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+
+            if (NormalizeKey(providerDisplayName).Equals("razorpay", StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+
+            if (publicSettings != null)
+            {
+                if (publicSettings.TryGetValue("Provider", out var provider)
+                    && NormalizeKey(provider).Equals("razorpay", StringComparison.OrdinalIgnoreCase))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private bool TryBuildRazorpayWebhookUrl(string tenantName, string storeCode, string providerKey, out string webhookUrl)
+        {
+            webhookUrl = null;
+
+            var baseUrl = _configuration?["IntegrationSettings:MasterApiPublicBaseUrl"];
+            if (string.IsNullOrWhiteSpace(baseUrl))
+            {
+                baseUrl = _configuration?["Services:Master:BaseUrl"];
+            }
+
+            if (string.IsNullOrWhiteSpace(baseUrl))
+            {
+                return false;
+            }
+
+            var webhookRoute = _configuration?["IntegrationSettings:RazorpayWebhookRoute"];
+            if (string.IsNullOrWhiteSpace(webhookRoute))
+            {
+                webhookRoute = _configuration?["Services:Master:RazorpayWebhookRoute"];
+            }
+
+            if (string.IsNullOrWhiteSpace(webhookRoute))
+            {
+                webhookRoute = "/Customer/ReceivePaymentWebhook";
+            }
+
+            var trimmedBase = baseUrl.Trim().TrimEnd('/');
+            if (!Uri.TryCreate(trimmedBase, UriKind.Absolute, out var baseUri)
+                || (baseUri.Scheme != Uri.UriSchemeHttp && baseUri.Scheme != Uri.UriSchemeHttps))
+            {
+                return false;
+            }
+
+            webhookRoute = webhookRoute.Trim();
+            if (!webhookRoute.StartsWith("/", StringComparison.Ordinal))
+            {
+                webhookRoute = "/" + webhookRoute;
+            }
+
+            var keyMaterial = string.Join("|",
+                NormalizeKey(tenantName).ToLowerInvariant(),
+                NormalizeKey(storeCode).ToLowerInvariant(),
+                NormalizeKey(providerKey).ToLowerInvariant(),
+                "razorpay");
+
+            using var sha = SHA256.Create();
+            var hashBytes = sha.ComputeHash(Encoding.UTF8.GetBytes(keyMaterial));
+            var token = Convert.ToHexString(hashBytes).ToLowerInvariant();
+            webhookUrl = $"{trimmedBase}{webhookRoute}?provider=razorpay&ref={token}";
+            return true;
+        }
+
+        private List<string> ValidateIntegrationConfiguration(
+            string category,
+            IntegrationSettingsPayload payload,
+            string providerKey = null,
+            string providerDisplayName = null,
+            bool requireRazorpayWebhookSecret = false)
         {
             payload ??= new IntegrationSettingsPayload();
             payload.Public ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
@@ -4425,11 +6602,29 @@ END;";
             }
             else if (normalizedCategory.Equals(IntegrationConstants.Category.Payments, StringComparison.OrdinalIgnoreCase))
             {
+                var isRazorpay = IsRazorpayProvider(category, providerKey, providerDisplayName, payload.Public);
                 if (string.IsNullOrWhiteSpace(Public("Provider"))) errors.Add("Payment provider is required.");
-                if (string.IsNullOrWhiteSpace(Public("MerchantId", "AccountId", "Port"))) errors.Add("Merchant/account ID is required.");
-                if (string.IsNullOrWhiteSpace(Public("WebhookUrl"))) errors.Add("Webhook URL is required.");
-                if (!HasAnySecret("ApiKey", "Username", "Token")) errors.Add("Payment API key/username is required.");
-                if (!HasAnySecret("SecretKey", "Password", "Secret")) errors.Add("Payment secret key/password is required.");
+                if (!HasAnySecret("ApiKey", "Username", "Token", "KeyId")) errors.Add(isRazorpay ? "Razorpay key ID is required." : "Payment API key/username is required.");
+                if (!HasAnySecret("SecretKey", "Password", "Secret", "KeySecret")) errors.Add(isRazorpay ? "Razorpay key secret is required." : "Payment secret key/password is required.");
+
+                if (isRazorpay)
+                {
+                    if (requireRazorpayWebhookSecret && !HasAnySecret("WebhookSecret"))
+                    {
+                        errors.Add("Razorpay webhook secret is required.");
+                    }
+
+                    var webhookUrl = Public("WebhookUrl");
+                    if (string.IsNullOrWhiteSpace(webhookUrl))
+                    {
+                        errors.Add("Razorpay webhook URL is unavailable. Configure Master API public base URL.");
+                    }
+                }
+                else
+                {
+                    if (string.IsNullOrWhiteSpace(Public("MerchantId", "AccountId", "Port"))) errors.Add("Merchant/account ID is required.");
+                    if (string.IsNullOrWhiteSpace(Public("WebhookUrl"))) errors.Add("Webhook URL is required.");
+                }
             }
 
             return errors;
@@ -4446,6 +6641,19 @@ END;";
                 foreach (var key in keys)
                 {
                     if (payload.Public.TryGetValue(key, out var value) && !string.IsNullOrWhiteSpace(value))
+                    {
+                        return value.Trim();
+                    }
+                }
+
+                return null;
+            }
+
+            string Secret(params string[] keys)
+            {
+                foreach (var key in keys)
+                {
+                    if (payload.Secret.TryGetValue(key, out var value) && !string.IsNullOrWhiteSpace(value))
                     {
                         return value.Trim();
                     }
@@ -4495,6 +6703,79 @@ END;";
                     return (false, "Live mode requires a publicly reachable webhook URL.");
                 }
 
+                if (IsRazorpayProvider(category, providerKey, null, payload.Public))
+                {
+                    var keyId = isTestMode
+                        ? Secret("TestKeyId")
+                        : Secret("LiveKeyId", "LiveApiKey", "ApiKey", "Username", "Token", "KeyId");
+                    var keySecret = isTestMode
+                        ? Secret("TestKeySecret")
+                        : Secret("LiveKeySecret", "LiveSecretKey", "SecretKey", "Password", "Secret", "KeySecret");
+
+                    if (string.IsNullOrWhiteSpace(keyId) || string.IsNullOrWhiteSpace(keySecret))
+                    {
+                        return (false, isTestMode
+                            ? "Razorpay test mode requires TestKeyId and TestKeySecret."
+                            : "Razorpay credentials are missing for the selected mode.");
+                    }
+
+                    var razorpayApiBaseUrl = _configuration?["IntegrationSettings:RazorpayApiBaseUrl"];
+                    if (string.IsNullOrWhiteSpace(razorpayApiBaseUrl))
+                    {
+                        razorpayApiBaseUrl = "https://api.razorpay.com";
+                    }
+
+                    if (!Uri.TryCreate(razorpayApiBaseUrl.Trim(), UriKind.Absolute, out var razorpayBaseUri)
+                        || razorpayBaseUri.Scheme != Uri.UriSchemeHttps)
+                    {
+                        return (false, "Razorpay API base URL is invalid.");
+                    }
+
+                    var probeUri = new Uri(razorpayBaseUri, "/v1/orders?count=1");
+
+                    using var httpClient = new HttpClient
+                    {
+                        Timeout = TimeSpan.FromSeconds(12)
+                    };
+
+                    using var request = new HttpRequestMessage(HttpMethod.Get, probeUri);
+                    var basicToken = Convert.ToBase64String(Encoding.ASCII.GetBytes($"{keyId}:{keySecret}"));
+                    request.Headers.Authorization = new AuthenticationHeaderValue("Basic", basicToken);
+                    request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+
+                    try
+                    {
+                        using var response = await httpClient.SendAsync(request);
+                        if (response.StatusCode == HttpStatusCode.Unauthorized || response.StatusCode == HttpStatusCode.Forbidden)
+                        {
+                            return (false, isTestMode
+                                ? "Razorpay test credentials are invalid. Update Key ID and Key Secret."
+                                : "Razorpay live credentials are invalid. Update Key ID and Key Secret.");
+                        }
+
+                        if (!response.IsSuccessStatusCode)
+                        {
+                            return (false, $"Razorpay verification failed with status code {(int)response.StatusCode}.");
+                        }
+
+                        return (true, isTestMode
+                            ? "Razorpay test credentials verified successfully using a read-only API check. No transaction was initiated."
+                            : "Razorpay live credentials verified successfully using a read-only API check. No transaction was initiated.");
+                    }
+                    catch (TaskCanceledException)
+                    {
+                        return (false, "Razorpay verification timed out. Please try again.");
+                    }
+                    catch (HttpRequestException)
+                    {
+                        return (false, "Unable to reach Razorpay API. Please check network connectivity and try again.");
+                    }
+                    catch
+                    {
+                        return (false, "Razorpay verification failed due to an unexpected error.");
+                    }
+                }
+
                 return (true, isTestMode
                     ? "Payment configuration validated in test/sandbox mode. No transaction was initiated."
                     : "Payment configuration validated for live mode. No transaction was initiated.");
@@ -4535,6 +6816,42 @@ END;";
 
             using var sha256 = SHA256.Create();
             return sha256.ComputeHash(Encoding.UTF8.GetBytes(material));
+        }
+
+        private static string GenerateRazorpayWebhookSecret()
+        {
+            var randomBytes = RandomNumberGenerator.GetBytes(32);
+            return Convert.ToHexString(randomBytes).ToLowerInvariant();
+        }
+
+        private static bool IsElsManagedWebhookSecret(Dictionary<string, string> secrets)
+        {
+            if (secrets == null)
+            {
+                return false;
+            }
+
+            if (!secrets.TryGetValue(InternalWebhookSecretManagedKey, out var managed))
+            {
+                return false;
+            }
+
+            return string.Equals(managed?.Trim(), "true", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static bool IsWebhookSecretAlreadyRevealed(Dictionary<string, string> secrets)
+        {
+            if (secrets == null)
+            {
+                return false;
+            }
+
+            if (!secrets.TryGetValue(InternalWebhookSecretRevealedKey, out var revealed))
+            {
+                return false;
+            }
+
+            return string.Equals(revealed?.Trim(), "true", StringComparison.OrdinalIgnoreCase);
         }
 
         private string EncryptString(string plainText)
@@ -5060,6 +7377,83 @@ BEGIN
 END;";
 
             await _masterDbContext.Database.ExecuteSqlRawAsync(backfillPendingAmountSql);
+        }
+
+        private async Task EnsurePaymentTransactionsTableExistsAsync()
+        {
+            const string createTableSql = @"
+IF OBJECT_ID(N'[dbo].[PaymentTransactions]', N'U') IS NULL
+BEGIN
+    CREATE TABLE [dbo].[PaymentTransactions](
+        [Id] [int] IDENTITY(1,1) NOT NULL,
+        [TenantName] [nvarchar](256) NOT NULL,
+        [StoreCode] [nvarchar](64) NOT NULL,
+        [OrderNo] [nvarchar](64) NOT NULL,
+        [InvoiceNo] [nvarchar](32) NULL,
+        [CustCode] [nvarchar](64) NOT NULL,
+        [GatewayProvider] [nvarchar](32) NOT NULL,
+        [ClientRequestId] [nvarchar](64) NOT NULL,
+        [GatewayOrderId] [nvarchar](64) NULL,
+        [GatewayPaymentId] [nvarchar](64) NULL,
+        [GatewaySignature] [nvarchar](512) NULL,
+        [Currency] [nvarchar](8) NOT NULL CONSTRAINT [DF_PaymentTransactions_Currency] DEFAULT(N'INR'),
+        [AmountRequested] [decimal](18,2) NOT NULL CONSTRAINT [DF_PaymentTransactions_AmountRequested] DEFAULT((0)),
+        [AmountAuthorized] [decimal](18,2) NOT NULL CONSTRAINT [DF_PaymentTransactions_AmountAuthorized] DEFAULT((0)),
+        [AmountCaptured] [decimal](18,2) NOT NULL CONSTRAINT [DF_PaymentTransactions_AmountCaptured] DEFAULT((0)),
+        [Status] [nvarchar](32) NOT NULL,
+        [FailureCode] [nvarchar](64) NULL,
+        [FailureReason] [nvarchar](512) NULL,
+        [IsLiveMode] [bit] NOT NULL CONSTRAINT [DF_PaymentTransactions_IsLiveMode] DEFAULT((0)),
+        [CreatedDate] [datetime2](7) NOT NULL,
+        [ModifiedDate] [datetime2](7) NOT NULL,
+        [RowVersion] [rowversion] NOT NULL,
+        CONSTRAINT [PK_PaymentTransactions] PRIMARY KEY CLUSTERED ([Id] ASC)
+    );
+END;
+
+IF NOT EXISTS (
+    SELECT 1
+    FROM sys.indexes
+    WHERE name = N'IX_PaymentTransactions_TenantName_StoreCode_OrderNo'
+      AND object_id = OBJECT_ID(N'[dbo].[PaymentTransactions]'))
+BEGIN
+    CREATE NONCLUSTERED INDEX [IX_PaymentTransactions_TenantName_StoreCode_OrderNo]
+    ON [dbo].[PaymentTransactions] ([TenantName], [StoreCode], [OrderNo]);
+END;
+
+IF NOT EXISTS (
+    SELECT 1
+    FROM sys.indexes
+    WHERE name = N'IX_PaymentTransactions_TenantName_StoreCode_ClientRequestId'
+      AND object_id = OBJECT_ID(N'[dbo].[PaymentTransactions]'))
+BEGIN
+    CREATE UNIQUE NONCLUSTERED INDEX [IX_PaymentTransactions_TenantName_StoreCode_ClientRequestId]
+    ON [dbo].[PaymentTransactions] ([TenantName], [StoreCode], [ClientRequestId]);
+END;
+
+IF EXISTS (
+    SELECT 1
+    FROM sys.indexes
+    WHERE name = N'IX_PaymentTransactions_GatewayOrderId'
+      AND object_id = OBJECT_ID(N'[dbo].[PaymentTransactions]')
+      AND (is_unique = 0 OR filter_definition IS NULL OR filter_definition NOT LIKE '%[GatewayOrderId] IS NOT NULL%')
+)
+BEGIN
+    DROP INDEX [IX_PaymentTransactions_GatewayOrderId] ON [dbo].[PaymentTransactions];
+END;
+
+IF NOT EXISTS (
+    SELECT 1
+    FROM sys.indexes
+    WHERE name = N'IX_PaymentTransactions_GatewayOrderId'
+      AND object_id = OBJECT_ID(N'[dbo].[PaymentTransactions]'))
+BEGIN
+    CREATE UNIQUE NONCLUSTERED INDEX [IX_PaymentTransactions_GatewayOrderId]
+    ON [dbo].[PaymentTransactions] ([GatewayOrderId])
+    WHERE [GatewayOrderId] IS NOT NULL;
+END;";
+
+            await _masterDbContext.Database.ExecuteSqlRawAsync(createTableSql);
         }
 
         private async Task EnsureCustomerAdvancesTableExistsAsync()

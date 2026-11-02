@@ -279,12 +279,21 @@
             var canEnable = string.Equals(lastTestStatus, "Success", StringComparison.OrdinalIgnoreCase);
             var isEmailSmtp = string.Equals(provider.Category, "Email", StringComparison.OrdinalIgnoreCase)
                 && string.Equals(provider.ProviderKey, "smtp", StringComparison.OrdinalIgnoreCase);
+            var isPaymentsCategory = string.Equals(provider.Category, "Payments", StringComparison.OrdinalIgnoreCase);
+            var providerNameValue = provider.PublicSettings != null && provider.PublicSettings.ContainsKey("Provider")
+                ? provider.PublicSettings["Provider"]
+                : provider.ProviderDisplayName;
+            var isRazorpayProvider = isPaymentsCategory
+                && (string.Equals(provider.ProviderKey, "razorpay", StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(providerNameValue, "Razorpay", StringComparison.OrdinalIgnoreCase));
             var hasSavedPassword = provider.SecretKeys != null
                 && provider.SecretKeys.Any(key =>
                     string.Equals(key, "Password", StringComparison.OrdinalIgnoreCase)
                     || string.Equals(key, "Token", StringComparison.OrdinalIgnoreCase)
                     || string.Equals(key, "Secret", StringComparison.OrdinalIgnoreCase)
                     || string.Equals(key, "SecretKey", StringComparison.OrdinalIgnoreCase));
+            var hasSavedWebhookSecret = provider.SecretKeys != null
+                && provider.SecretKeys.Any(key => string.Equals(key, "WebhookSecret", StringComparison.OrdinalIgnoreCase));
             <div class="category-card">
                 <div class="category-title">@provider.Category — @provider.ProviderDisplayName</div>
                 <div class="provider-card">
@@ -301,7 +310,7 @@
                             || provider.HasSecretsConfigured
                             || !string.Equals(lastTestStatus, "NotTested", StringComparison.OrdinalIgnoreCase);
                     }
-                    <form asp-action="SaveIntegration" asp-controller="Customer" method="post" class="integration-form" data-category="@provider.Category" data-provider-key="@provider.ProviderKey" data-last-test-status="@lastTestStatus" data-secret-keys="@(provider.SecretKeys == null ? string.Empty : string.Join(",", provider.SecretKeys))" data-has-saved-record="@(hasSavedIntegrationRecord ? "true" : "false")" data-has-secrets-configured="@(provider.HasSecretsConfigured ? "true" : "false")">
+                    <form asp-action="SaveIntegration" asp-controller="Customer" method="post" class="integration-form" data-category="@provider.Category" data-provider-key="@provider.ProviderKey" data-last-test-status="@lastTestStatus" data-secret-keys="@(provider.SecretKeys == null ? string.Empty : string.Join(",", provider.SecretKeys))" data-has-saved-record="@(hasSavedIntegrationRecord ? "true" : "false")" data-has-secrets-configured="@(provider.HasSecretsConfigured ? "true" : "false")" data-reveal-url="@Url.Action("RevealWebhookSecret", "Customer")" data-rotate-url="@Url.Action("RotateWebhookSecret", "Customer")">
                             @Html.AntiForgeryToken()
                             <input type="hidden" name="Category" value="@provider.Category" />
                             <input type="hidden" name="ProviderKey" value="@provider.ProviderKey" />
@@ -320,7 +329,7 @@
                                     }
                                 </div>
                                 <div class="integration-field">
-                                    <label>@(isEmailSmtp ? "SMTP Host" : "Endpoint / Host")</label>
+                                    <label>@(isEmailSmtp ? "SMTP Host" : (isRazorpayProvider ? "Endpoint / Host (Optional)" : "Endpoint / Host"))</label>
                                     <input name="PublicSettings[Host]" value="@(provider.PublicSettings.ContainsKey("Host") ? provider.PublicSettings["Host"] : string.Empty)" placeholder="@(isEmailSmtp ? "smtp.gmail.com" : string.Empty)" />
                                     @if (isEmailSmtp)
                                     {
@@ -328,7 +337,7 @@
                                     }
                                 </div>
                                 <div class="integration-field">
-                                    <label>@(isEmailSmtp ? "Port" : "Port / Account ID")</label>
+                                    <label>@(isEmailSmtp ? "Port" : (isRazorpayProvider ? "Port / Account ID (Optional)" : "Port / Account ID"))</label>
                                     <input name="PublicSettings[Port]" value="@(provider.PublicSettings.ContainsKey("Port") ? provider.PublicSettings["Port"] : string.Empty)" placeholder="@(isEmailSmtp ? "587" : string.Empty)" />
                                     @if (isEmailSmtp)
                                     {
@@ -336,7 +345,7 @@
                                     }
                                 </div>
                                 <div class="integration-field">
-                                    <label>@(isEmailSmtp ? "Sender Email" : "Sender / From / Sender ID")</label>
+                                    <label>@(isEmailSmtp ? "Sender Email" : (isRazorpayProvider ? "Sender / From / Sender ID (Optional)" : "Sender / From / Sender ID"))</label>
                                     <input name="PublicSettings[From]" value="@(provider.PublicSettings.ContainsKey("From") ? provider.PublicSettings["From"] : string.Empty)" />
                                     @if (isEmailSmtp)
                                     {
@@ -346,8 +355,12 @@
                                 @if (!isEmailSmtp)
                                 {
                                     <div class="integration-field">
-                                        <label>Webhook URL</label>
-                                        <input name="PublicSettings[WebhookUrl]" value="@(provider.PublicSettings.ContainsKey("WebhookUrl") ? provider.PublicSettings["WebhookUrl"] : string.Empty)" />
+                                        <label>@(isRazorpayProvider ? "Webhook URL (Auto-generated)" : "Webhook URL")</label>
+                                        <input name="PublicSettings[WebhookUrl]" value="@(provider.PublicSettings.ContainsKey("WebhookUrl") ? provider.PublicSettings["WebhookUrl"] : string.Empty)" @(isRazorpayProvider ? "readonly=\"readonly\"" : string.Empty) />
+                                        @if (isRazorpayProvider)
+                                        {
+                                            <div class="integration-field-hint">Webhook URL is generated and managed by the platform API.</div>
+                                        }
                                     </div>
                                 }
                                 <div class="integration-field">
@@ -370,7 +383,7 @@
                                     }
                                 </div>
                                 <div class="integration-field">
-                                    <label>@(isEmailSmtp ? "Username" : "Username / API Key")</label>
+                                    <label>@(isEmailSmtp ? "Username" : (isRazorpayProvider ? "Razorpay Key ID" : "Username / API Key"))</label>
                                     <input name="SecretSettings[Username]" value="@(provider.SecretSettings.ContainsKey("Username") ? provider.SecretSettings["Username"] : string.Empty)" placeholder="Enter new value (kept encrypted)" autocomplete="off" />
                                     @if (isEmailSmtp)
                                     {
@@ -378,14 +391,51 @@
                                     }
                                 </div>
                                 <div class="integration-field">
-                                    <label>@(isEmailSmtp ? "Password / App Password" : "Password / Token / Secret")</label>
+                                    <label>@(isEmailSmtp ? "Password / App Password" : (isRazorpayProvider ? "Razorpay Key Secret" : "Password / Token / Secret"))</label>
                                     <input name="SecretSettings[Password]" value="" placeholder="@(hasSavedPassword ? "Saved securely" : "********")" autocomplete="off" />
                                     @if (isEmailSmtp)
                                     {
                                         <div class="integration-field-hint">Use a Google App Password, not your normal Gmail password. Saved passwords are never shown.</div>
                                     }
                                 </div>
+                                @if (isPaymentsCategory)
+                                {
+                                    <div class="integration-field">
+                                        <label>Webhook Secret</label>
+                                        <input type="password" name="SecretSettings[WebhookSecret]" value="" placeholder="@(hasSavedWebhookSecret ? "Saved securely" : "********")" autocomplete="off" />
+                                        @if (isRazorpayProvider)
+                                        {
+                                            <div class="integration-field-hint">Required for Razorpay webhook signature verification.</div>
+                                        }
+                                    </div>
+                                }
                             </div>
+
+                            @if (isRazorpayProvider)
+                            {
+                                <div class="webhook-secret-panel" data-role="webhook-secret-panel">
+                                    <p>
+                                        Use <b>Reveal Webhook Secret</b> only during Razorpay Dashboard webhook setup.
+                                        The revealed secret is shown once and must be copied immediately.
+                                    </p>
+                                    <p>
+                                        Use <b>Rotate Secret</b> only when required. Rotation disables this integration until webhook configuration is updated, tested, and re-enabled.
+                                    </p>
+                                    <div class="integration-actions" style="margin-top:0;">
+                                        <button type="button" class="integration-btn secondary" data-role="reveal-webhook-secret">Reveal Webhook Secret</button>
+                                        <button type="button" class="integration-btn warning" data-role="rotate-webhook-secret">Rotate Secret</button>
+                                        <button type="button" class="integration-btn" data-role="copy-webhook-secret" style="display:none;">Copy</button>
+                                    </div>
+                                    <div class="integration-status info" data-role="webhook-secret-message" style="display:none;"></div>
+                                    <div class="webhook-secret-output" data-role="webhook-secret-output" aria-live="polite">
+                                        <div class="integration-actions" style="margin-top:0; justify-content:space-between; align-items:center;">
+                                            <strong>One-time Webhook Secret (visible until closed)</strong>
+                                            <button type="button" class="integration-btn secondary" data-role="close-webhook-secret">Close</button>
+                                        </div>
+                                        <input type="text" class="webhook-secret-value" value="" readonly data-role="webhook-secret-value" autocomplete="off" />
+                                    </div>
+                                </div>
+                            }
 
                             @if (isEmailSmtp)
                             {
@@ -496,6 +546,9 @@
         function validate(form) {
             var errors = [];
             var category = normalize(form.getAttribute('data-category'));
+            var providerKey = normalize(form.getAttribute('data-provider-key'));
+            var providerName = normalize(get(form, 'PublicSettings[Provider]'));
+            var isRazorpay = category === 'payments' && (providerKey === 'razorpay' || providerName === 'razorpay');
             if (category === 'email') {
                 if (!hasPublic(form, ['Host', 'Endpoint'])) errors.push('Email host is required.');
                 var port = get(form, 'PublicSettings[Port]') || get(form, 'PublicSettings[AccountId]');
@@ -513,10 +566,15 @@
                 if (!hasSecret(form, ['AccessToken', 'Token', 'Password', 'Secret'])) errors.push('WhatsApp access token/secret is required.');
             } else if (category === 'payments') {
                 if (!hasPublic(form, ['Provider'])) errors.push('Payment provider is required.');
-                if (!hasPublic(form, ['MerchantId', 'AccountId', 'Port'])) errors.push('Merchant/account ID is required.');
-                if (!hasPublic(form, ['WebhookUrl'])) errors.push('Webhook URL is required.');
-                if (!hasSecret(form, ['ApiKey', 'Username', 'Token'])) errors.push('Payment API key/username is required.');
-                if (!hasSecret(form, ['SecretKey', 'Password', 'Secret'])) errors.push('Payment secret key/password is required.');
+                if (isRazorpay) {
+                    if (!hasSecret(form, ['ApiKey', 'Username', 'Token'])) errors.push('Razorpay Key ID is required.');
+                    if (!hasSecret(form, ['SecretKey', 'Password', 'Secret'])) errors.push('Razorpay Key Secret is required.');
+                } else {
+                    if (!hasPublic(form, ['MerchantId', 'AccountId', 'Port'])) errors.push('Merchant/account ID is required.');
+                    if (!hasPublic(form, ['WebhookUrl'])) errors.push('Webhook URL is required.');
+                    if (!hasSecret(form, ['ApiKey', 'Username', 'Token'])) errors.push('Payment API key/username is required.');
+                    if (!hasSecret(form, ['SecretKey', 'Password', 'Secret'])) errors.push('Payment secret key/password is required.');
+                }
             }
             return errors;
         }
@@ -569,6 +627,42 @@
             if (message) {
                 message.innerHTML = info.length ? ('<ul><li>' + info.join('</li><li>') + '</li></ul>') : '';
             }
+        }
+
+        async function postJson(url, payload, token) {
+            var response = await fetch(url, {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
+                    'RequestVerificationToken': token || ''
+                },
+                body: payload
+            });
+            return await response.json();
+        }
+
+        function setWebhookSecretMessage(form, message, isError) {
+            var messageEl = form.querySelector('[data-role="webhook-secret-message"]');
+            if (!messageEl) return;
+            messageEl.style.display = message ? 'block' : 'none';
+            messageEl.className = 'integration-status ' + (isError ? 'error' : 'info');
+            messageEl.textContent = message || '';
+        }
+
+        function clearWebhookSecretDisplay(form) {
+            var out = form.querySelector('[data-role="webhook-secret-output"]');
+            var secretInput = form.querySelector('[data-role="webhook-secret-value"]');
+            var copyBtn = form.querySelector('[data-role="copy-webhook-secret"]');
+            if (secretInput) secretInput.value = '';
+            if (out) out.classList.remove('visible');
+            if (copyBtn) copyBtn.style.display = 'none';
+        }
+
+        function clearAllWebhookSecretDisplays() {
+            document.querySelectorAll('.integration-form').forEach(function (integrationForm) {
+                clearWebhookSecretDisplay(integrationForm);
+            });
         }
 
         var forms = document.querySelectorAll('.integration-form');
@@ -626,11 +720,116 @@
                     return;
                 }
 
+                if (submitRole === 'save' && isRazorpayForm(form)) {
+                    var webhookSecretField = form.querySelector('[name="SecretSettings[WebhookSecret]"]');
+                    if (webhookSecretField && !hasValue(webhookSecretField.value)) {
+                        webhookSecretField.disabled = true;
+                    }
+                }
+
                 form.setAttribute('data-submitting', 'true');
                 update(form);
             });
 
+            var revealBtn = form.querySelector('[data-role="reveal-webhook-secret"]');
+            var rotateBtn = form.querySelector('[data-role="rotate-webhook-secret"]');
+            var copyBtn = form.querySelector('[data-role="copy-webhook-secret"]');
+            var closeBtn = form.querySelector('[data-role="close-webhook-secret"]');
+            var secretOutput = form.querySelector('[data-role="webhook-secret-output"]');
+            var secretValue = form.querySelector('[data-role="webhook-secret-value"]');
+            var antiForgery = form.querySelector('input[name="__RequestVerificationToken"]');
+            var antiForgeryToken = antiForgery ? antiForgery.value : '';
+            var category = get(form, 'Category') || form.getAttribute('data-category') || '';
+            var providerKey = get(form, 'ProviderKey') || form.getAttribute('data-provider-key') || '';
+            var revealInFlight = false;
+
+            if (closeBtn) {
+                closeBtn.addEventListener('click', function () {
+                    clearWebhookSecretDisplay(form);
+                    setWebhookSecretMessage(form, '', false);
+                });
+            }
+
+            if (copyBtn) {
+                copyBtn.addEventListener('click', async function () {
+                    if (!secretValue || !secretValue.value) return;
+                    try {
+                        await navigator.clipboard.writeText(secretValue.value);
+                        setWebhookSecretMessage(form, 'Webhook secret copied. Paste it immediately in Razorpay Dashboard webhook configuration.', false);
+                    } catch (err) {
+                        setWebhookSecretMessage(form, 'Copy failed. Please manually select and copy the secret now.', true);
+                    }
+                });
+            }
+
+            if (revealBtn) {
+                revealBtn.addEventListener('click', async function () {
+                    if (revealInFlight) {
+                        return;
+                    }
+
+                    revealInFlight = true;
+                    revealBtn.disabled = true;
+                    clearWebhookSecretDisplay(form);
+                    setWebhookSecretMessage(form, 'Revealing one-time webhook secret...', false);
+                    var payload = new URLSearchParams();
+                    payload.append('category', category);
+                    payload.append('providerKey', providerKey);
+
+                    try {
+                        var result = await postJson(form.getAttribute('data-reveal-url'), payload, antiForgeryToken);
+                        if (result && result.success && result.webhookSecret) {
+                            if (secretValue) secretValue.value = result.webhookSecret;
+                            if (secretOutput) secretOutput.classList.add('visible');
+                            if (copyBtn) copyBtn.style.display = 'inline-block';
+                            setWebhookSecretMessage(form, result.message || 'Webhook secret revealed once. Copy it immediately.', false);
+                        } else {
+                            setWebhookSecretMessage(form, (result && result.message) ? result.message : 'Unable to reveal webhook secret.', true);
+                        }
+                    } catch (err) {
+                        setWebhookSecretMessage(form, 'Unable to reveal webhook secret.', true);
+                    } finally {
+                        revealInFlight = false;
+                        revealBtn.disabled = false;
+                    }
+                });
+            }
+
+            if (rotateBtn) {
+                rotateBtn.addEventListener('click', async function () {
+                    var confirmed = window.confirm('Rotate Razorpay webhook secret? This will disable the integration until webhook setup is updated, tested, and re-enabled.');
+                    if (!confirmed) return;
+
+                    clearWebhookSecretDisplay(form);
+                    setWebhookSecretMessage(form, 'Rotating webhook secret...', false);
+                    var payload = new URLSearchParams();
+                    payload.append('category', category);
+                    payload.append('providerKey', providerKey);
+
+                    try {
+                        var result = await postJson(form.getAttribute('data-rotate-url'), payload, antiForgeryToken);
+                        if (result && result.success) {
+                            setWebhookSecretMessage(form, result.message || 'Webhook secret rotated. Reveal and copy the new secret, then update Razorpay Dashboard.', false);
+                            form.setAttribute('data-last-test-status', 'NotTested');
+                            var statusPill = form.closest('.provider-card') ? form.closest('.provider-card').querySelector('.provider-status') : null;
+                            if (statusPill) {
+                                statusPill.textContent = 'Disabled | Last Test: NotTested';
+                            }
+                            update(form);
+                        } else {
+                            setWebhookSecretMessage(form, (result && result.message) ? result.message : 'Unable to rotate webhook secret.', true);
+                        }
+                    } catch (err) {
+                        setWebhookSecretMessage(form, 'Unable to rotate webhook secret.', true);
+                    }
+                });
+            }
+
             update(form);
+        });
+
+        window.addEventListener('pagehide', function () {
+            clearAllWebhookSecretDisplays();
         });
     })();
 </script>
