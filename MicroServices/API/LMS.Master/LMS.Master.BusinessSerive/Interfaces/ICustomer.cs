@@ -28,6 +28,9 @@ namespace LMS.Master.BusinessSerive.Interfaces
         Task<ActionReturnType> GetStoreLaundryOrders(string tenantName, string storeCode, string status = null, string searchText = null);
         Task<ActionReturnType> UpdateLaundryOrderStatus(string tenantName, string storeCode, string orderNo, string status);
         Task<ActionReturnType> SettleLaundryOrderPayment(string tenantName, string storeCode, string orderNo, decimal paidAmount, string paymentMode = null, string notes = null);
+        Task<ActionReturnType> CreateLaundryInvoicePaymentOrder(string tenantName, string storeCode, CreateLaundryInvoicePaymentOrderRequestDto request);
+        Task<ActionReturnType> ConfirmLaundryInvoicePayment(string tenantName, string storeCode, ConfirmLaundryInvoicePaymentRequestDto request);
+        Task<ActionReturnType> ReceivePaymentWebhook(string provider, string referenceToken, string signature, string rawRequestBody);
         Task<ActionReturnType> GetLaundryDeliveryStatus(string tenantName, string storeCode);
         Task<ActionReturnType> SaveLaundryItemPrice(LaundryItemPriceDto itemPriceDto);
         Task<ActionReturnType> DeactivateLaundryItemPrice(string tenantName, string storeCode, string serviceType, string category, string itemName);
@@ -44,6 +47,8 @@ namespace LMS.Master.BusinessSerive.Interfaces
         Task<ActionReturnType> SaveTenantIntegrationSettings(TenantIntegrationSettingsDto integrationDto);
         Task<ActionReturnType> SetTenantIntegrationEnabled(string tenantName, string storeCode, string category, string providerKey, bool isEnabled);
         Task<ActionReturnType> TestTenantIntegration(string tenantName, string storeCode, string category, string providerKey);
+        Task<ActionReturnType> RevealTenantIntegrationWebhookSecretOnce(string tenantName, string storeCode, string category, string providerKey);
+        Task<ActionReturnType> RotateTenantIntegrationWebhookSecret(string tenantName, string storeCode, string category, string providerKey);
         Task<ActionReturnType> SendTenantIntegrationTestEmail(string tenantName, string storeCode, string category, string providerKey, string recipientEmail);
         Task<ActionReturnType> SendTenantIntegrationOrderBillEmail(TenantIntegrationOrderBillEmailRequestDto request);
         ActionReturnType GetCustomerByName(string customerName, string tenantName, string storeCode);

@@ -6,6 +6,8 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using System;
 using System.Collections.Generic;
+using System.IO;
+using System.Linq;
 using System.Threading.Tasks;
 
 namespace LMS.Master.WebApi.Controllers
@@ -253,6 +255,76 @@ namespace LMS.Master.WebApi.Controllers
             return StatusCode((int)paymentSettingsResult.StatusCode, paymentSettingsResult.ResultSet);
         }
 
+        [HttpPost(nameof(CreateLaundryInvoicePaymentOrder))]
+        [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(Result<CreateLaundryInvoicePaymentOrderResponseDto>))]
+        [ProducesResponseType(StatusCodes.Status500InternalServerError, Type = typeof(Result<object>))]
+        [ProducesResponseType(StatusCodes.Status400BadRequest, Type = typeof(Result<object>))]
+        public async Task<ActionResult> CreateLaundryInvoicePaymentOrder([FromBody] CreateLaundryInvoicePaymentOrderRequestDto request)
+        {
+            if (User?.Identity?.IsAuthenticated != true)
+            {
+                return Unauthorized("Unauthorized access.");
+            }
+
+            if (request == null)
+            {
+                return BadRequest("Invalid data for this operation.");
+            }
+
+            if (!TryResolveAuthenticatedPaymentScope(out var scopedTenantName, out var scopedStoreCode, out var scopeValidationError))
+            {
+                return BadRequest(scopeValidationError);
+            }
+
+            var result = await _customer.CreateLaundryInvoicePaymentOrder(scopedTenantName, scopedStoreCode, request);
+            return StatusCode((int)result.StatusCode, result.ResultSet);
+        }
+
+        [HttpPost(nameof(ConfirmLaundryInvoicePayment))]
+        [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(Result<LaundryOrderDto>))]
+        [ProducesResponseType(StatusCodes.Status500InternalServerError, Type = typeof(Result<object>))]
+        [ProducesResponseType(StatusCodes.Status400BadRequest, Type = typeof(Result<object>))]
+        public async Task<ActionResult> ConfirmLaundryInvoicePayment([FromBody] ConfirmLaundryInvoicePaymentRequestDto request)
+        {
+            if (User?.Identity?.IsAuthenticated != true)
+            {
+                return Unauthorized("Unauthorized access.");
+            }
+
+            if (request == null)
+            {
+                return BadRequest("Invalid data for this operation.");
+            }
+
+            if (!TryResolveAuthenticatedPaymentScope(out var scopedTenantName, out var scopedStoreCode, out var scopeValidationError))
+            {
+                return BadRequest(scopeValidationError);
+            }
+
+            var result = await _customer.ConfirmLaundryInvoicePayment(scopedTenantName, scopedStoreCode, request);
+            return StatusCode((int)result.StatusCode, result.ResultSet);
+        }
+
+        [AllowAnonymous]
+        [HttpPost(nameof(ReceivePaymentWebhook))]
+        [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(Result<CustomerIOResponse>))]
+        [ProducesResponseType(StatusCodes.Status500InternalServerError, Type = typeof(Result<object>))]
+        [ProducesResponseType(StatusCodes.Status400BadRequest, Type = typeof(Result<object>))]
+        public async Task<ActionResult> ReceivePaymentWebhook([FromQuery] string provider = null, [FromQuery(Name = "ref")] string referenceToken = null)
+        {
+            Request.EnableBuffering();
+            string rawBody;
+            using (var reader = new StreamReader(Request.Body, System.Text.Encoding.UTF8, detectEncodingFromByteOrderMarks: false, leaveOpen: true))
+            {
+                rawBody = await reader.ReadToEndAsync();
+                Request.Body.Position = 0;
+            }
+
+            var signature = Request?.Headers["X-Razorpay-Signature"].ToString();
+            var result = await _customer.ReceivePaymentWebhook(provider, referenceToken, signature, rawBody);
+            return StatusCode((int)result.StatusCode, result.ResultSet);
+        }
+
         [HttpGet(nameof(GetTenantIntegrationSettings))]
         [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(Result<List<TenantIntegrationSettingsDto>>))]
         [ProducesResponseType(StatusCodes.Status500InternalServerError, Type = typeof(Result<object>))]
@@ -416,6 +488,98 @@ namespace LMS.Master.WebApi.Controllers
 
             var result = await _customer.SendTenantIntegrationOrderBillEmail(request);
             return StatusCode((int)result.StatusCode, result.ResultSet);
+        }
+
+        [HttpPost(nameof(RevealTenantIntegrationWebhookSecretOnce))]
+        [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(Result<TenantIntegrationRevealWebhookSecretResponseDto>))]
+        [ProducesResponseType(StatusCodes.Status500InternalServerError, Type = typeof(Result<object>))]
+        [ProducesResponseType(StatusCodes.Status403Forbidden, Type = typeof(Result<object>))]
+        [ProducesResponseType(StatusCodes.Status400BadRequest, Type = typeof(Result<object>))]
+        public async Task<ActionResult> RevealTenantIntegrationWebhookSecretOnce([FromBody] TenantIntegrationRevealWebhookSecretRequestDto request)
+        {
+            if (User?.Identity?.IsAuthenticated != true)
+            {
+                return Unauthorized("Unauthorized access.");
+            }
+
+            if (request == null)
+            {
+                return BadRequest("Invalid data for this operation.");
+            }
+
+            if (!IsTenantStoreAdminUser())
+            {
+                return StatusCode(StatusCodes.Status403Forbidden, "Only tenant/store administrators can reveal webhook secrets.");
+            }
+
+            var tenantName = request.TenantName;
+            var storeCode = request.StoreCode;
+            if (!TryResolveSensitiveTenantStoreScope(tenantName, storeCode, out var scopedTenantName, out var scopedStoreCode, out var scopeValidationError))
+            {
+                return StatusCode(StatusCodes.Status403Forbidden, scopeValidationError);
+            }
+
+            var providerKey = string.IsNullOrWhiteSpace(request.ProviderKey) ? "razorpay" : request.ProviderKey;
+            try
+            {
+                var result = await _customer.RevealTenantIntegrationWebhookSecretOnce(
+                    scopedTenantName,
+                    scopedStoreCode,
+                    IntegrationConstants.Category.Payments,
+                    providerKey);
+
+                return StatusCode((int)result.StatusCode, result.ResultSet);
+            }
+            catch
+            {
+                return StatusCode(StatusCodes.Status500InternalServerError, "Unable to process webhook secret reveal request at this time.");
+            }
+        }
+
+        [HttpPost(nameof(RotateTenantIntegrationWebhookSecret))]
+        [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(Result<CustomerIOResponse>))]
+        [ProducesResponseType(StatusCodes.Status500InternalServerError, Type = typeof(Result<object>))]
+        [ProducesResponseType(StatusCodes.Status403Forbidden, Type = typeof(Result<object>))]
+        [ProducesResponseType(StatusCodes.Status400BadRequest, Type = typeof(Result<object>))]
+        public async Task<ActionResult> RotateTenantIntegrationWebhookSecret([FromBody] TenantIntegrationRotateWebhookSecretRequestDto request)
+        {
+            if (User?.Identity?.IsAuthenticated != true)
+            {
+                return Unauthorized("Unauthorized access.");
+            }
+
+            if (request == null)
+            {
+                return BadRequest("Invalid data for this operation.");
+            }
+
+            if (!IsTenantStoreAdminUser())
+            {
+                return StatusCode(StatusCodes.Status403Forbidden, "Only tenant/store administrators can rotate webhook secrets.");
+            }
+
+            var tenantName = request.TenantName;
+            var storeCode = request.StoreCode;
+            if (!TryResolveSensitiveTenantStoreScope(tenantName, storeCode, out var scopedTenantName, out var scopedStoreCode, out var scopeValidationError))
+            {
+                return StatusCode(StatusCodes.Status403Forbidden, scopeValidationError);
+            }
+
+            var providerKey = string.IsNullOrWhiteSpace(request.ProviderKey) ? "razorpay" : request.ProviderKey;
+            try
+            {
+                var result = await _customer.RotateTenantIntegrationWebhookSecret(
+                    scopedTenantName,
+                    scopedStoreCode,
+                    IntegrationConstants.Category.Payments,
+                    providerKey);
+
+                return StatusCode((int)result.StatusCode, result.ResultSet);
+            }
+            catch
+            {
+                return StatusCode(StatusCodes.Status500InternalServerError, "Unable to process webhook secret rotation request at this time.");
+            }
         }
 
         [HttpGet(nameof(GetTaxInvoiceSettings))]
@@ -716,6 +880,136 @@ namespace LMS.Master.WebApi.Controllers
 
             resolvedTenantName = !string.IsNullOrWhiteSpace(claimTenant) ? claimTenant : resolvedTenantName;
             resolvedStoreCode = !string.IsNullOrWhiteSpace(claimStore) ? claimStore : resolvedStoreCode;
+
+            validationError = null;
+            return true;
+        }
+
+        private bool IsTenantStoreAdminUser()
+        {
+            var role = User?.FindFirst("http://schemas.microsoft.com/ws/2008/06/identity/claims/role")?.Value?.Trim();
+            if (string.IsNullOrWhiteSpace(role))
+            {
+                role = User?.FindFirst("role")?.Value?.Trim();
+            }
+
+            if (string.IsNullOrWhiteSpace(role))
+            {
+                return false;
+            }
+
+            return role.Equals("Admin", StringComparison.OrdinalIgnoreCase)
+                || role.Equals("TenantAdmin", StringComparison.OrdinalIgnoreCase)
+                || role.Equals("StoreAdmin", StringComparison.OrdinalIgnoreCase)
+                || role.Equals("SuperAdmin", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private bool TryResolveSensitiveTenantStoreScope(string requestedTenantName, string requestedStoreCode, out string resolvedTenantName, out string resolvedStoreCode, out string validationError)
+        {
+            resolvedTenantName = null;
+            resolvedStoreCode = null;
+            var headerTenant = Request?.Headers["X-TenantName"].ToString()?.Trim();
+            var headerStore = Request?.Headers["X-StoreCode"].ToString()?.Trim();
+            var requestedTenant = requestedTenantName?.Trim();
+            var requestedStore = requestedStoreCode?.Trim();
+
+            var claimTenant = User?.FindFirst("email")?.Value?.Trim();
+            if (string.IsNullOrWhiteSpace(claimTenant))
+            {
+                claimTenant = User?.FindFirst(System.Security.Claims.ClaimTypes.Email)?.Value?.Trim();
+            }
+
+            var claimStoreCodes = User?.FindFirst("storeCodes")?.Value;
+            var allowedStores = (claimStoreCodes ?? string.Empty)
+                .Split(',', StringSplitOptions.RemoveEmptyEntries)
+                .Select(x => x?.Trim())
+                .Where(x => !string.IsNullOrWhiteSpace(x))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            if (string.IsNullOrWhiteSpace(claimTenant) || allowedStores.Count == 0)
+            {
+                validationError = "Tenant/store scope claims are required for this operation.";
+                return false;
+            }
+
+            if (string.IsNullOrWhiteSpace(requestedTenant) || string.IsNullOrWhiteSpace(requestedStore))
+            {
+                validationError = "Tenant/store scope claims are required for this operation.";
+                return false;
+            }
+
+            if (!string.Equals(requestedTenant, claimTenant, StringComparison.OrdinalIgnoreCase))
+            {
+                validationError = "Unauthorized tenant access.";
+                return false;
+            }
+
+            if (!allowedStores.Contains(requestedStore, StringComparer.OrdinalIgnoreCase))
+            {
+                validationError = "Unauthorized store access.";
+                return false;
+            }
+
+            resolvedTenantName = requestedTenant;
+            resolvedStoreCode = requestedStore;
+
+            if (!string.IsNullOrWhiteSpace(headerTenant)
+                && !string.Equals(headerTenant, requestedTenant, StringComparison.OrdinalIgnoreCase))
+            {
+                validationError = "Tenant scope mismatch.";
+                return false;
+            }
+
+            if (!string.IsNullOrWhiteSpace(headerStore)
+                && !string.Equals(headerStore, requestedStore, StringComparison.OrdinalIgnoreCase))
+            {
+                validationError = "Store scope mismatch.";
+                return false;
+            }
+
+            validationError = null;
+            return true;
+        }
+
+        private bool TryResolveAuthenticatedPaymentScope(out string resolvedTenantName, out string resolvedStoreCode, out string validationError)
+        {
+            resolvedTenantName = User?.FindFirst("tenantName")?.Value?.Trim();
+            resolvedStoreCode = User?.FindFirst("storeCode")?.Value?.Trim();
+            var headerTenant = Request?.Headers["X-TenantName"].ToString()?.Trim();
+            var headerStore = Request?.Headers["X-StoreCode"].ToString()?.Trim();
+
+            if (!string.IsNullOrWhiteSpace(resolvedTenantName)
+                && !string.IsNullOrWhiteSpace(headerTenant)
+                && !string.Equals(resolvedTenantName, headerTenant, StringComparison.OrdinalIgnoreCase))
+            {
+                validationError = "Tenant scope mismatch.";
+                return false;
+            }
+
+            if (!string.IsNullOrWhiteSpace(resolvedStoreCode)
+                && !string.IsNullOrWhiteSpace(headerStore)
+                && !string.Equals(resolvedStoreCode, headerStore, StringComparison.OrdinalIgnoreCase))
+            {
+                validationError = "Store scope mismatch.";
+                return false;
+            }
+
+            if (string.IsNullOrWhiteSpace(resolvedTenantName))
+            {
+                resolvedTenantName = headerTenant;
+            }
+
+            if (string.IsNullOrWhiteSpace(resolvedStoreCode))
+            {
+                resolvedStoreCode = headerStore;
+            }
+
+            if (string.IsNullOrWhiteSpace(resolvedTenantName) || string.IsNullOrWhiteSpace(resolvedStoreCode))
+            {
+                validationError = "Invalid data for this operation.";
+                return false;
+            }
 
             validationError = null;
             return true;

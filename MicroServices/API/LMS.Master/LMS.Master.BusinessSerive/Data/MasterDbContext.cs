@@ -24,6 +24,7 @@ namespace LMS.Master.BusinessSerive.Data
         public DbSet<StoreServiceMasterEntity> StoreServiceMasters => Set<StoreServiceMasterEntity>();
         public DbSet<StoreItemMasterEntity> StoreItemMasters => Set<StoreItemMasterEntity>();
         public DbSet<TenantIntegrationSettingsEntity> TenantIntegrationSettings => Set<TenantIntegrationSettingsEntity>();
+        public DbSet<PaymentTransactionsEntity> PaymentTransactions => Set<PaymentTransactionsEntity>();
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -224,6 +225,37 @@ namespace LMS.Master.BusinessSerive.Data
                 entity.Property(x => x.Description).HasMaxLength(256);
 
                 entity.HasIndex(x => new { x.TenantName, x.StoreCode, x.ServiceType, x.Category, x.ItemName }).IsUnique();
+            });
+
+            modelBuilder.Entity<PaymentTransactionsEntity>(entity =>
+            {
+                entity.ToTable("PaymentTransactions");
+                entity.HasKey(x => x.Id);
+
+                entity.Property(x => x.TenantName).HasMaxLength(256).IsRequired();
+                entity.Property(x => x.StoreCode).HasMaxLength(64).IsRequired();
+                entity.Property(x => x.OrderNo).HasMaxLength(64).IsRequired();
+                entity.Property(x => x.InvoiceNo).HasMaxLength(32);
+                entity.Property(x => x.CustCode).HasMaxLength(64).IsRequired();
+                entity.Property(x => x.GatewayProvider).HasMaxLength(32).IsRequired();
+                entity.Property(x => x.ClientRequestId).HasMaxLength(64).IsRequired();
+                entity.Property(x => x.GatewayOrderId).HasMaxLength(64);
+                entity.Property(x => x.GatewayPaymentId).HasMaxLength(64);
+                entity.Property(x => x.GatewaySignature).HasMaxLength(512);
+                entity.Property(x => x.Currency).HasMaxLength(8).HasDefaultValue("INR").IsRequired();
+                entity.Property(x => x.AmountRequested).HasColumnType("decimal(18,2)");
+                entity.Property(x => x.AmountAuthorized).HasColumnType("decimal(18,2)");
+                entity.Property(x => x.AmountCaptured).HasColumnType("decimal(18,2)");
+                entity.Property(x => x.Status).HasMaxLength(32).IsRequired();
+                entity.Property(x => x.FailureCode).HasMaxLength(64);
+                entity.Property(x => x.FailureReason).HasMaxLength(512);
+                entity.Property(x => x.RowVersion).IsRowVersion().IsConcurrencyToken();
+
+                entity.HasIndex(x => new { x.TenantName, x.StoreCode, x.OrderNo });
+                entity.HasIndex(x => new { x.TenantName, x.StoreCode, x.ClientRequestId }).IsUnique();
+                entity.HasIndex(x => x.GatewayOrderId)
+                    .IsUnique()
+                    .HasFilter("[GatewayOrderId] IS NOT NULL");
             });
         }
     }

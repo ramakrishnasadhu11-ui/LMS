@@ -39,4 +39,25 @@ namespace LMS.Master.DTO
         public string AttachmentFileName { get; set; }
         public string AttachmentContentBase64 { get; set; }
     }
+
+    public class TenantIntegrationRevealWebhookSecretRequestDto
+    {
+        public string TenantName { get; set; }
+        public string StoreCode { get; set; }
+        public string ProviderKey { get; set; }
+    }
+
+    public class TenantIntegrationRevealWebhookSecretResponseDto
+    {
+        public string ProviderKey { get; set; }
+        public string WebhookSecret { get; set; }
+        public string Message { get; set; }
+    }
+
+    public class TenantIntegrationRotateWebhookSecretRequestDto
+    {
+        public string TenantName { get; set; }
+        public string StoreCode { get; set; }
+        public string ProviderKey { get; set; }
+    }
 }

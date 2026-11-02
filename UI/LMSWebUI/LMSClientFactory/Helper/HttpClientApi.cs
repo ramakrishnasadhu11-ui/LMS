@@ -90,6 +90,25 @@ namespace LMSClientFactory.Helper
 
             if (typeof(T) == typeof(JObject))
             {
+                var statusCodeText = response.StatusCode == 0
+                    ? "Unknown"
+                    : ((int)response.StatusCode).ToString();
+                var contentType = string.IsNullOrWhiteSpace(response.ContentType)
+                    ? "Unknown"
+                    : response.ContentType.Trim();
+                var contentLength = string.IsNullOrEmpty(response.Content)
+                    ? 0
+                    : response.Content.Length;
+
+                if (string.IsNullOrWhiteSpace(response.Content))
+                {
+                    throw new ApiUnavailableException(
+                        $"Master API JSON diagnostic: HTTP {statusCodeText}; ContentType={contentType}; ContentLength={contentLength}; BodyState=Empty.",
+                        response.ErrorException,
+                        response.StatusCode == 0 ? 0 : (int)response.StatusCode,
+                        string.Empty);
+                }
+
                 if (!string.IsNullOrWhiteSpace(response.Content))
                 {
                     try
@@ -99,9 +118,24 @@ namespace LMSClientFactory.Helper
                         {
                             return (T)(object)parsedObject;
                         }
+
+                        throw new ApiUnavailableException(
+                            $"Master API JSON diagnostic: HTTP {statusCodeText}; ContentType={contentType}; ContentLength={contentLength}; BodyState=InvalidJsonObject.",
+                            null,
+                            response.StatusCode == 0 ? 0 : (int)response.StatusCode,
+                            string.Empty);
                     }
-                    catch
+                    catch (ApiUnavailableException)
                     {
+                        throw;
+                    }
+                    catch (Exception ex)
+                    {
+                        throw new ApiUnavailableException(
+                            $"Master API JSON diagnostic: HTTP {statusCodeText}; ContentType={contentType}; ContentLength={contentLength}; BodyState=InvalidJson.",
+                            ex,
+                            response.StatusCode == 0 ? 0 : (int)response.StatusCode,
+                            string.Empty);
                     }
                 }
             }

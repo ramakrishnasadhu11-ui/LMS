@@ -26,5 +26,5 @@
 
 
 
-
+premium, modern SaaS business dashboard suitable for a commercial laundry-management subscription product.
 test.uk.tenant@test.com
