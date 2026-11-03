@@ -1,6 +1,7 @@
 ﻿using LMS.Identity.DTO;
 using LMS.Identity.Utilities;
 using System.Threading.Tasks;
+using System.Security.Claims;
 
 namespace LMS.Identity.BusinessSerive.Interfaces
 {
@@ -30,5 +31,23 @@ namespace LMS.Identity.BusinessSerive.Interfaces
         Task<ActionReturnType> GetAllTenantApprovals();
 
         Task<ActionReturnType> SetTenantApprovalStatus(string tenantId, string approvalStatus, string reason, string actionedBy);
+
+        Task<ActionReturnType> GetSubscriptionPlans();
+
+        Task<ActionReturnType> UpdateSubscriptionPlanPrice(SubscriptionPlanPriceUpdateRequestDto request, string actionedBy);
+
+        Task<ActionReturnType> SetSubscriptionPlanActiveStatus(SubscriptionPlanActiveStatusUpdateRequestDto request, string actionedBy);
+
+        Task<ActionReturnType> CreateTenantSubscriptionPaymentOrder(CreateTenantSubscriptionPaymentOrderRequestDto request, ClaimsPrincipal user);
+
+        Task<ActionReturnType> VerifyTenantSubscriptionCheckoutPayment(VerifyCheckoutPaymentRequestDto request, ClaimsPrincipal user);
+
+        Task<ActionReturnType> ReconcileCapturedPayment(ReconcileCapturedPaymentRequestDto request);
+
+        Task<ActionReturnType> ProcessRazorpayWebhook(string rawPayload, string razorpaySignature);
+
+        Task<ActionReturnType> GetTenantSubscriptionPaymentHistory(ClaimsPrincipal user);
+
+        Task<ActionReturnType> GetTenantSubscriptionOverview(ClaimsPrincipal user);
     }
 }

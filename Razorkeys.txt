@@ -1,3 +1,21 @@
 smtp(gmail)     :siro dpqj fkbi najp
-Test API Key    :rzp_test_TunqVgALue4k8j
-Test Key Secret : bzAYMUtyGNTJShNvJc8Xfwgh
+Test API Key    :rzp_test_TvJdtD1q4FBZ73
+Test Key Secret : JbI61BCTgJCTJriyGj615XcH
+
+onetime webhook
+ cfa7388ce671c56008777ae07af8262573aa834977acba007257e7cf67a47740
+
+
+
+live:
+
+Live API Key:     rzp_live_TvYuHJFO8eoLhc
+Live Key Secret:  O21uGzBiHJC5tz5j61NvtZ1m
+Webhook URL    :  https://identity.api.techforgedev.in/Login/RazorpayWebhook
+
+
+payment.captured
+payment.failed
+order.paid
+
+secret         :  ELS_Live_Webhook_Secret_YourRandomValue

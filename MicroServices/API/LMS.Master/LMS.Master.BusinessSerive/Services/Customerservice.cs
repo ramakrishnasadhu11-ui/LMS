@@ -1108,6 +1108,19 @@ namespace LMS.Master.BusinessSerive.Services
             if (isEnabled)
             {
                 var payload = ReadPayload(existing.EncryptedSettingsJson);
+                var isRazorpay = IsRazorpayProvider(category, existing.ProviderKey, existing.ProviderDisplayName, payload?.Public);
+                if (isRazorpay)
+                {
+                    payload ??= new IntegrationSettingsPayload();
+                    payload.Public ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                    if ((!payload.Public.TryGetValue("WebhookUrl", out var persistedWebhookUrl)
+                            || string.IsNullOrWhiteSpace(persistedWebhookUrl))
+                        && TryBuildRazorpayWebhookUrl(existing.TenantName, existing.StoreCode, existing.ProviderKey, out var generatedWebhookUrl))
+                    {
+                        payload.Public["WebhookUrl"] = generatedWebhookUrl;
+                    }
+                }
+
                 var validationErrors = ValidateIntegrationConfiguration(
                     category,
                     payload,
@@ -1181,6 +1194,19 @@ namespace LMS.Master.BusinessSerive.Services
             }
 
             var payload = ReadPayload(existing.EncryptedSettingsJson);
+            var isRazorpay = IsRazorpayProvider(category, existing.ProviderKey, existing.ProviderDisplayName, payload?.Public);
+            if (isRazorpay)
+            {
+                payload ??= new IntegrationSettingsPayload();
+                payload.Public ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                if ((!payload.Public.TryGetValue("WebhookUrl", out var persistedWebhookUrl)
+                        || string.IsNullOrWhiteSpace(persistedWebhookUrl))
+                    && TryBuildRazorpayWebhookUrl(existing.TenantName, existing.StoreCode, existing.ProviderKey, out var generatedWebhookUrl))
+                {
+                    payload.Public["WebhookUrl"] = generatedWebhookUrl;
+                }
+            }
+
             var validationErrors = ValidateIntegrationConfiguration(
                 category,
                 payload,
@@ -3217,10 +3243,10 @@ SELECT
 
             var isTestMode = razorpayIntegration.IsTestMode;
             var keyId = isTestMode
-                ? Secret("TestKeyId")
+                ? Secret("TestKeyId", "Username")
                 : Secret("LiveKeyId", "LiveApiKey", "ApiKey", "Username", "Token", "KeyId");
             var keySecret = isTestMode
-                ? Secret("TestKeySecret")
+                ? Secret("TestKeySecret", "Password")
                 : Secret("LiveKeySecret", "LiveSecretKey", "SecretKey", "Password", "Secret", "KeySecret");
 
             if (string.IsNullOrWhiteSpace(keyId) || string.IsNullOrWhiteSpace(keySecret))
@@ -3821,10 +3847,10 @@ SELECT
 
             var isTestMode = integration.IsTestMode;
             var keyId = isTestMode
-                ? Secret("TestKeyId")
+                ? Secret("TestKeyId", "Username")
                 : Secret("LiveKeyId", "LiveApiKey", "ApiKey", "Username", "Token", "KeyId");
             var keySecret = isTestMode
-                ? Secret("TestKeySecret")
+                ? Secret("TestKeySecret", "Password")
                 : Secret("LiveKeySecret", "LiveSecretKey", "SecretKey", "Password", "Secret", "KeySecret");
 
             if (string.IsNullOrWhiteSpace(keyId) || string.IsNullOrWhiteSpace(keySecret))
@@ -4397,10 +4423,10 @@ SELECT
 
             var isTestMode = razorpayIntegration.IsTestMode;
             var keyId = isTestMode
-                ? Secret("TestKeyId")
+                ? Secret("TestKeyId", "Username")
                 : Secret("LiveKeyId", "LiveApiKey", "ApiKey", "Username", "Token", "KeyId");
             var keySecret = isTestMode
-                ? Secret("TestKeySecret")
+                ? Secret("TestKeySecret", "Password")
                 : Secret("LiveKeySecret", "LiveSecretKey", "SecretKey", "Password", "Secret", "KeySecret");
 
             if (string.IsNullOrWhiteSpace(keyId) || string.IsNullOrWhiteSpace(keySecret))
@@ -6706,10 +6732,10 @@ END;";
                 if (IsRazorpayProvider(category, providerKey, null, payload.Public))
                 {
                     var keyId = isTestMode
-                        ? Secret("TestKeyId")
+                        ? Secret("TestKeyId", "Username")
                         : Secret("LiveKeyId", "LiveApiKey", "ApiKey", "Username", "Token", "KeyId");
                     var keySecret = isTestMode
-                        ? Secret("TestKeySecret")
+                        ? Secret("TestKeySecret", "Password")
                         : Secret("LiveKeySecret", "LiveSecretKey", "SecretKey", "Password", "Secret", "KeySecret");
 
                     if (string.IsNullOrWhiteSpace(keyId) || string.IsNullOrWhiteSpace(keySecret))

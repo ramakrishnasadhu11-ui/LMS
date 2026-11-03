@@ -14,10 +14,8 @@
     var currentPlanCode = Convert.ToString(ViewData["CurrentPlanCode"] ?? string.Empty);
     var currentSubscriptionStatus = Convert.ToString(ViewData["CurrentSubscriptionStatus"] ?? string.Empty);
     var subscriptionSpotlightVisible = showSubscriptionSpotlight;
-    var plansAndTariffUrl = isAdminUser
-        ? Url.Action("PricingRules", "Customer")
-        : Url.Action("Onboarding", "Dashboard");
-    var subscriptionCtaText = isAdminUser ? "Manage Laundry Pricing" : "Explore Plans & Tariff";
+    var plansAndTariffUrl = Url.Action("TenantSubscriptionPlans", "Customer");
+    var subscriptionCtaText = "Explore Subscription Plans";
     var isSubscriptionTrial = string.Equals(currentSubscriptionStatus, "Trial", StringComparison.OrdinalIgnoreCase)
         || string.Equals(currentSubscriptionStatus, "TrialActive", StringComparison.OrdinalIgnoreCase);
     var subscriptionStatusClass = string.Equals(currentSubscriptionStatus, "Active", StringComparison.OrdinalIgnoreCase)
@@ -1912,6 +1910,12 @@
                                 <p class="admin-menu-card-desc">Review stores across all tenants and activate or deactivate them. Newly created stores stay inactive until approved here.</p>
                                 <button type="button" class="admin-menu-btn" onclick="location.href='@Url.Action("StoreActivation", "Customer")'">Open</button>
                             </div>
+
+                            <div class="admin-menu-card @(IsActiveAdminMenu("SubscriptionPlanManagement") ? "active" : string.Empty)">
+                                <p class="admin-menu-card-title">Subscription Plan Management</p>
+                                <p class="admin-menu-card-desc">View all subscription plans, update monthly or yearly prices, and activate or deactivate plans.</p>
+                                <button type="button" class="admin-menu-btn" onclick="location.href='@Url.Action("SubscriptionPlanManagement", "Customer")'">Open</button>
+                            </div>
                         </div>
                     </section>
                 </div>
@@ -1929,6 +1933,7 @@
                         </div>
                         <div class="admin-header-actions">
                             <a class="admin-compact-action" href="@Url.Action("PricingRules", "Customer")">Manage Laundry Pricing</a>
+                            <a class="admin-compact-action" href="@Url.Action("TenantSubscriptionPlans", "Customer")">Subscription Plans</a>
                             <span class="admin-refresh-chip">Period: <span id="adminHeaderPeriod">Month to Date</span></span>
                             <span class="admin-refresh-chip">Last refreshed: <span id="adminHeaderLastRefreshed">--</span></span>
                             <span class="admin-refresh-chip">Auto refresh: <span id="adminHeaderRefreshStatus">On</span></span>

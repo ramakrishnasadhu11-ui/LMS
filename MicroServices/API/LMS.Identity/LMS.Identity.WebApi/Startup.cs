@@ -19,6 +19,9 @@ using System.Reflection;
 using System.Security.Cryptography;
 using System.Text;
 using LMS.Identity.BusinessSerive.Services;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.IdentityModel.Tokens;
 using static LMS.Identity.BusinessSerive.Services.LoginService;
 using IConfiguration = Microsoft.Extensions.Configuration.IConfiguration;
 namespace LMS.Identity.WebApi
@@ -48,8 +51,44 @@ namespace LMS.Identity.WebApi
              services.AddSingleton<IMailConfiguration>(sp =>
                 sp.GetRequiredService<IOptions<MailConfiguration>>().Value);
 
+             var razorpaySection = Configuration.GetSection(nameof(RazorpayOptions));
+             services.Configure<RazorpayOptions>(razorpaySection);
+             services.AddSingleton<IRazorpayOptions>(sp =>
+                sp.GetRequiredService<IOptions<RazorpayOptions>>().Value);
+
+             ValidateRazorpayOptions(razorpaySection.Get<RazorpayOptions>());
+
             // Register logging for LoginService via DI so ILogger<LoginService> can be injected
             services.AddLogging();
+
+            var issuer = Configuration["Jwt:Issuer"]?.Trim();
+            var audience = Configuration["Jwt:Audience"]?.Trim();
+            var signingKey = Configuration["Jwt:SigningKey"];
+
+            services
+                .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+                .AddJwtBearer(options =>
+                {
+                    options.TokenValidationParameters = new TokenValidationParameters
+                    {
+                        ValidateIssuer = true,
+                        ValidateAudience = true,
+                        ValidateLifetime = true,
+                        ValidateIssuerSigningKey = true,
+                        ValidIssuer = issuer,
+                        ValidAudience = audience,
+                        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(signingKey ?? string.Empty)),
+                        RoleClaimType = System.Security.Claims.ClaimTypes.Role,
+                        NameClaimType = System.Security.Claims.ClaimTypes.Name
+                    };
+                });
+
+            services.AddAuthorization(options =>
+            {
+                options.FallbackPolicy = new AuthorizationPolicyBuilder()
+                    .RequireAuthenticatedUser()
+                    .Build();
+            });
 
            
             var xmlFile = $"{Assembly.GetExecutingAssembly().GetName().Name}.xml";
@@ -72,6 +111,31 @@ namespace LMS.Identity.WebApi
                 {
                     c.IncludeXmlComments(xmlPathModel);
                 }
+
+                c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
+                {
+                    Type = SecuritySchemeType.Http,
+                    Scheme = "bearer",
+                    BearerFormat = "JWT",
+                    In = ParameterLocation.Header,
+                    Name = "Authorization",
+                    Description = "JWT Authorization header using the Bearer scheme."
+                });
+
+                c.AddSecurityRequirement(new OpenApiSecurityRequirement
+                {
+                    {
+                        new OpenApiSecurityScheme
+                        {
+                            Reference = new OpenApiReference
+                            {
+                                Type = ReferenceType.SecurityScheme,
+                                Id = "Bearer"
+                            }
+                        },
+                        Array.Empty<string>()
+                    }
+                });
             });
             var mappingConfig = new MapperConfiguration(mc =>
             {
@@ -103,6 +167,8 @@ namespace LMS.Identity.WebApi
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
         public void Configure(IApplicationBuilder app, IWebHostEnvironment env, ILogger<Startup> logger)
         {
+            LogRazorpayConfigurationDiagnostics(env, logger);
+
             var configuredIssuer = GetJwtValue("Issuer")?.Trim();
             var configuredAudience = GetJwtValue("Audience")?.Trim();
             var configuredSigningKey = GetJwtValue("SigningKey");
@@ -144,6 +210,8 @@ namespace LMS.Identity.WebApi
             {
                 c.SwaggerEndpoint("/swagger/v1/swagger.json", "LMS Identity API v1");
             });
+            app.UseAuthentication();
+            app.UseAuthorization();
             app.UseEndpoints(endpoints => endpoints.MapControllers());
         }
 
@@ -157,6 +225,69 @@ namespace LMS.Identity.WebApi
             using var sha256 = SHA256.Create();
             var hash = sha256.ComputeHash(Encoding.UTF8.GetBytes(key.Trim()));
             return Convert.ToBase64String(hash, 0, 6);
+        }
+
+        private static void ValidateRazorpayOptions(RazorpayOptions options)
+        {
+            if (options == null)
+            {
+                throw new InvalidOperationException("RazorpayOptions configuration section is missing.");
+            }
+
+            if (!string.Equals(options.Mode, "Test", StringComparison.OrdinalIgnoreCase)
+                && !string.Equals(options.Mode, "Live", StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidOperationException("RazorpayOptions:Mode must be Test or Live.");
+            }
+
+            var credentials = options.GetActiveCredentials();
+            if (credentials == null
+                || string.IsNullOrWhiteSpace(credentials.KeyId)
+                || string.IsNullOrWhiteSpace(credentials.KeySecret)
+                || string.IsNullOrWhiteSpace(credentials.WebhookSecret))
+            {
+                throw new InvalidOperationException($"RazorpayOptions for mode '{options.Mode}' must include KeyId, KeySecret and WebhookSecret.");
+            }
+        }
+
+        private void LogRazorpayConfigurationDiagnostics(IWebHostEnvironment env, ILogger<Startup> logger)
+        {
+            var section = Configuration.GetSection(nameof(RazorpayOptions));
+            var options = section.Get<RazorpayOptions>();
+            var mode = options?.Mode?.Trim();
+            var active = options?.GetActiveCredentials();
+
+            var testEnvDoubleUnderscore = !string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("RazorpayOptions__Test__KeyId"));
+            var liveEnvDoubleUnderscore = !string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("RazorpayOptions__Live__KeyId"));
+            var testEnvColon = !string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("RazorpayOptions:Test:KeyId"));
+            var liveEnvColon = !string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("RazorpayOptions:Live:KeyId"));
+
+            logger?.LogInformation(
+                "Razorpay configuration diagnostics. Environment={Environment}, ASPNETCORE_ENVIRONMENT={AspNetCoreEnvironment}, IsProduction={IsProduction}, Mode={Mode}, ActiveKeyIdConfigured={KeyIdConfigured}, ActiveKeySecretConfigured={KeySecretConfigured}, ActiveWebhookConfigured={WebhookConfigured}, ActiveKeyIdPlaceholder={KeyIdPlaceholder}, ActiveKeySecretPlaceholder={KeySecretPlaceholder}, EnvKeyIdDetectedDoubleUnderscore={EnvKeyIdDetectedDoubleUnderscore}, EnvKeyIdDetectedColon={EnvKeyIdDetectedColon}",
+                env.EnvironmentName,
+                Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") ?? "<not-set>",
+                env.IsProduction(),
+                mode ?? "<missing>",
+                !string.IsNullOrWhiteSpace(active?.KeyId),
+                !string.IsNullOrWhiteSpace(active?.KeySecret),
+                !string.IsNullOrWhiteSpace(active?.WebhookSecret),
+                LooksLikePlaceholderValue(active?.KeyId),
+                LooksLikePlaceholderValue(active?.KeySecret),
+                testEnvDoubleUnderscore || liveEnvDoubleUnderscore,
+                testEnvColon || liveEnvColon);
+        }
+
+        private static bool LooksLikePlaceholderValue(string value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                return false;
+            }
+
+            var normalized = value.Trim();
+            return normalized.StartsWith("RAZORPAY_", StringComparison.OrdinalIgnoreCase)
+                   || normalized.Contains("_KEY_")
+                   || normalized.Contains("_SECRET");
         }
 
         private string GetJwtValue(string name)

@@ -138,6 +138,55 @@ namespace LMS.Identity.BusinessSerive.Data.Migrations
                     b.ToTable("StoreUsers", (string)null);
                 });
 
+            modelBuilder.Entity("LMS.Identity.DTO.Entities.SubscriptionPlanEntity", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<decimal>("Amount")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("BillingCycle")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
+
+                    b.Property<DateTime>("CreatedDateUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Currency")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(8)
+                        .HasColumnType("nvarchar(8)")
+                        .HasDefaultValue("INR");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<DateTime?>("ModifiedDateUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("PlanCode")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PlanCode", "BillingCycle")
+                        .IsUnique();
+
+                    b.ToTable("SubscriptionPlans", (string)null);
+                });
+
             modelBuilder.Entity("LMS.Identity.DTO.Entities.SuperAdminEntity", b =>
                 {
                     b.Property<int>("Id")
@@ -232,6 +281,9 @@ namespace LMS.Identity.BusinessSerive.Data.Migrations
                     b.Property<string>("FamilyName")
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<DateTime?>("GraceEndUtc")
+                        .HasColumnType("datetime2");
+
                     b.Property<string>("MiddleName")
                         .HasColumnType("nvarchar(max)");
 
@@ -244,9 +296,23 @@ namespace LMS.Identity.BusinessSerive.Data.Migrations
                     b.Property<string>("PhoneNumber")
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<string>("PlanCode")
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
                     b.Property<string>("Region")
                         .HasMaxLength(128)
                         .HasColumnType("nvarchar(128)");
+
+                    b.Property<DateTime?>("SubscriptionEndUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("SubscriptionStartUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("SubscriptionStatus")
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
 
                     b.Property<string>("TenantId")
                         .IsRequired()
@@ -257,6 +323,12 @@ namespace LMS.Identity.BusinessSerive.Data.Migrations
                         .IsRequired()
                         .HasMaxLength(256)
                         .HasColumnType("nvarchar(256)");
+
+                    b.Property<DateTime?>("TrialEndUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("TrialStartUtc")
+                        .HasColumnType("datetime2");
 
                     b.Property<string>("Zip")
                         .HasMaxLength(32)
@@ -372,6 +444,400 @@ namespace LMS.Identity.BusinessSerive.Data.Migrations
                         .IsUnique();
 
                     b.ToTable("TenantStoreStatuses", (string)null);
+                });
+
+            modelBuilder.Entity("LMS.Identity.DTO.Entities.TenantSubscriptionPaymentOrderEntity", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<decimal>("Amount")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("BillingCycle")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
+
+                    b.Property<DateTime>("CreatedDateUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Currency")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(8)
+                        .HasColumnType("nvarchar(8)")
+                        .HasDefaultValue("INR");
+
+                    b.Property<string>("GatewayOrderId")
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<DateTime?>("ModifiedDateUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("OrderExpiresUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("OrderStatus")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<string>("PendingVerificationStatus")
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<DateTime?>("PendingVerificationUntilUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("PlanCode")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<string>("ReceiptId")
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.Property<int>("TenantEntityId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("TenantId")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("GatewayOrderId")
+                        .IsUnique()
+                        .HasFilter("[GatewayOrderId] IS NOT NULL");
+
+                    b.HasIndex("ReceiptId")
+                        .IsUnique()
+                        .HasFilter("[ReceiptId] IS NOT NULL");
+
+                    b.HasIndex("TenantEntityId");
+
+                    b.HasIndex("TenantId")
+                        .IsUnique()
+                        .HasDatabaseName("UX_TenantSubscriptionPaymentOrders_TenantId_Open")
+                        .HasFilter("[OrderStatus] IN ('Pending','Created','PendingVerification')");
+
+                    b.HasIndex("TenantId", "CreatedDateUtc");
+
+                    b.ToTable("TenantSubscriptionPaymentOrders", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_TenantSubscriptionPaymentOrders_Amount", "[Amount] > 0");
+
+                            t.HasCheckConstraint("CK_TenantSubscriptionPaymentOrders_Expiry", "[OrderExpiresUtc] IS NULL OR [OrderExpiresUtc] >= [CreatedDateUtc]");
+                        });
+                });
+
+            modelBuilder.Entity("LMS.Identity.DTO.Entities.TenantSubscriptionPaymentTransactionEntity", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<decimal>("Amount")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<DateTime>("CreatedDateUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Currency")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(8)
+                        .HasColumnType("nvarchar(8)")
+                        .HasDefaultValue("INR");
+
+                    b.Property<string>("FailureCode")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<string>("FailureReason")
+                        .HasMaxLength(512)
+                        .HasColumnType("nvarchar(512)");
+
+                    b.Property<string>("GatewayOrderId")
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<string>("GatewayPaymentId")
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<bool>("IsLiveMode")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsSignatureVerified")
+                        .HasColumnType("bit");
+
+                    b.Property<DateTime?>("PaidAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("PaymentProvider")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.Property<int>("TenantEntityId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("TenantId")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<int>("TenantSubscriptionPaymentOrderId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("TransactionStatus")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<DateTime?>("VerifiedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantEntityId");
+
+                    b.HasIndex("TenantId");
+
+                    b.HasIndex("TenantSubscriptionPaymentOrderId");
+
+                    b.HasIndex("PaymentProvider", "IsLiveMode", "GatewayPaymentId")
+                        .IsUnique()
+                        .HasDatabaseName("UX_TenantSubscriptionPaymentTransactions_Provider_Mode_PaymentId")
+                        .HasFilter("[GatewayPaymentId] IS NOT NULL");
+
+                    b.ToTable("TenantSubscriptionPaymentTransactions", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_TenantSubscriptionPaymentTransactions_Amount", "[Amount] > 0");
+                        });
+                });
+
+            modelBuilder.Entity("LMS.Identity.DTO.Entities.TenantSubscriptionStateHistoryEntity", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("ActivationIdempotencyKey")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("ChangeReason")
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
+
+                    b.Property<DateTime>("ChangedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("ChangedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
+
+                    b.Property<string>("NewPlanCode")
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<string>("NewSubscriptionStatus")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<string>("PreviousPlanCode")
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<string>("PreviousSubscriptionStatus")
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.Property<int>("TenantEntityId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("TenantId")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<int?>("TenantSubscriptionPaymentOrderId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ActivationIdempotencyKey")
+                        .IsUnique()
+                        .HasDatabaseName("UX_TenantSubscriptionStateHistories_ActivationKey")
+                        .HasFilter("[ActivationIdempotencyKey] IS NOT NULL");
+
+                    b.HasIndex("TenantEntityId");
+
+                    b.HasIndex("TenantSubscriptionPaymentOrderId");
+
+                    b.HasIndex("TenantId", "ChangedAtUtc");
+
+                    b.ToTable("TenantSubscriptionStateHistories", (string)null);
+                });
+
+            modelBuilder.Entity("LMS.Identity.DTO.Entities.TenantSubscriptionWebhookEventEntity", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("EventId")
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<string>("EventType")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<bool>("IsLiveMode")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsSignatureVerified")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("PayloadJson")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("PaymentProvider")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<DateTime?>("ProcessedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("ProcessingError")
+                        .HasMaxLength(1024)
+                        .HasColumnType("nvarchar(1024)");
+
+                    b.Property<string>("ProcessingStatus")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<DateTime>("ReceivedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.Property<int>("TenantEntityId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("TenantId")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<int?>("TenantSubscriptionPaymentOrderId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantEntityId");
+
+                    b.HasIndex("TenantId");
+
+                    b.HasIndex("TenantSubscriptionPaymentOrderId");
+
+                    b.HasIndex("PaymentProvider", "IsLiveMode", "EventId")
+                        .IsUnique()
+                        .HasDatabaseName("UX_TenantSubscriptionWebhookEvents_Provider_Mode_EventId")
+                        .HasFilter("[EventId] IS NOT NULL");
+
+                    b.ToTable("TenantSubscriptionWebhookEvents", (string)null);
+                });
+
+            modelBuilder.Entity("LMS.Identity.DTO.Entities.TenantSubscriptionPaymentOrderEntity", b =>
+                {
+                    b.HasOne("LMS.Identity.DTO.Entities.TenantEntity", null)
+                        .WithMany()
+                        .HasForeignKey("TenantEntityId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("LMS.Identity.DTO.Entities.TenantSubscriptionPaymentTransactionEntity", b =>
+                {
+                    b.HasOne("LMS.Identity.DTO.Entities.TenantEntity", null)
+                        .WithMany()
+                        .HasForeignKey("TenantEntityId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("LMS.Identity.DTO.Entities.TenantSubscriptionPaymentOrderEntity", null)
+                        .WithMany()
+                        .HasForeignKey("TenantSubscriptionPaymentOrderId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("LMS.Identity.DTO.Entities.TenantSubscriptionStateHistoryEntity", b =>
+                {
+                    b.HasOne("LMS.Identity.DTO.Entities.TenantEntity", null)
+                        .WithMany()
+                        .HasForeignKey("TenantEntityId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("LMS.Identity.DTO.Entities.TenantSubscriptionPaymentOrderEntity", null)
+                        .WithMany()
+                        .HasForeignKey("TenantSubscriptionPaymentOrderId")
+                        .OnDelete(DeleteBehavior.Restrict);
+                });
+
+            modelBuilder.Entity("LMS.Identity.DTO.Entities.TenantSubscriptionWebhookEventEntity", b =>
+                {
+                    b.HasOne("LMS.Identity.DTO.Entities.TenantEntity", null)
+                        .WithMany()
+                        .HasForeignKey("TenantEntityId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("LMS.Identity.DTO.Entities.TenantSubscriptionPaymentOrderEntity", null)
+                        .WithMany()
+                        .HasForeignKey("TenantSubscriptionPaymentOrderId")
+                        .OnDelete(DeleteBehavior.Restrict);
                 });
 #pragma warning restore 612, 618
         }

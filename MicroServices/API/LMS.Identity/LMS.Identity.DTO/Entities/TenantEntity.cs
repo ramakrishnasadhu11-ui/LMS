@@ -61,6 +61,12 @@ namespace LMS.Identity.DTO.Entities
 
        public DateTime? TrialEndUtc { get; set; }
 
+       public DateTime? SubscriptionStartUtc { get; set; }
+
+       public DateTime? SubscriptionEndUtc { get; set; }
+
+       public DateTime? GraceEndUtc { get; set; }
+
        [MaxLength(32)]
        public string SubscriptionStatus { get; set; }
 

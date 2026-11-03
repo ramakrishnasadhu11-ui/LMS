@@ -4,6 +4,14 @@ using LMS.Identity.BusinessSerive.Interfaces;
 using Microsoft.AspNetCore.Http;
 using LMS.Identity.DTO;
 using LMS.Identity.Utilities;
+using Microsoft.AspNetCore.Authorization;
+using System;
+using System.IO;
+using System.Linq;
+using System.Security.Claims;
+using System.Text;
+using System.Diagnostics;
+using Microsoft.Extensions.Logging;
 
 namespace LMS.Identity.WebApi.Controllers
 {
@@ -12,10 +20,12 @@ namespace LMS.Identity.WebApi.Controllers
     public class LoginController : ControllerBase
     {
         private readonly ILoginService _login;
+        private readonly ILogger<LoginController> _logger;
 
-        public LoginController(ILoginService login)
+        public LoginController(ILoginService login, ILogger<LoginController> logger)
         {
             _login = login;
+            _logger = logger;
         }
         /// <summary>
         /// Test Service
@@ -31,6 +41,7 @@ namespace LMS.Identity.WebApi.Controllers
         /// Register Tenant
         /// </summary>
         /// <returns></returns>
+        [AllowAnonymous]
         [HttpPost(nameof(RegisterTenant))]
         [HttpPost("Register")]
         [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(Result<LoginIoResponse>))]
@@ -51,6 +62,7 @@ namespace LMS.Identity.WebApi.Controllers
         /// <summary>
         /// Authenticate a tenant or store user
         /// </summary>
+        [AllowAnonymous]
         [HttpPost(nameof(TenantLogin))]
         [ProducesResponseType(StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
@@ -69,6 +81,7 @@ namespace LMS.Identity.WebApi.Controllers
         /// <summary>
         /// Check Tenant Email Exist or not
         /// </summary>
+        [AllowAnonymous]
         [HttpGet(nameof(TenantprofileDetails))]
         [ProducesResponseType(StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
@@ -82,6 +95,7 @@ namespace LMS.Identity.WebApi.Controllers
         /// <summary>
         /// ChangePassword 
         /// </summary>
+        [AllowAnonymous]
         [HttpGet("changePassword")]
         [ProducesResponseType(StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
@@ -95,6 +109,7 @@ namespace LMS.Identity.WebApi.Controllers
          /// <summary>
         /// forgotPassword 
         /// </summary>
+        [AllowAnonymous]
         [HttpGet("forgotPassword")]
         [ProducesResponseType(StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
@@ -108,6 +123,7 @@ namespace LMS.Identity.WebApi.Controllers
          /// <summary>
         /// CheckTenantEmail 
         /// </summary>
+        [AllowAnonymous]
         [HttpGet(nameof(CheckTenantEmail))]
         [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(Result<LoginIoResponse>))]
         [ProducesResponseType(StatusCodes.Status201Created, Type = typeof(Result<LoginIoResponse>))]
@@ -123,6 +139,7 @@ namespace LMS.Identity.WebApi.Controllers
          /// <summary>
         /// GetTenantStoreDetails 
         /// </summary>
+        [AllowAnonymous]
         [HttpGet(nameof(GetTenantStoreDetails))]
         [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(Result<LoginIoResponse>))]
         [ProducesResponseType(StatusCodes.Status201Created, Type = typeof(Result<LoginIoResponse>))]
@@ -137,6 +154,7 @@ namespace LMS.Identity.WebApi.Controllers
          /// <summary>
         /// CheckIsPasswordChangedBytenant 
         /// </summary>
+        [AllowAnonymous]
         [HttpGet("CheckIsPasswordChangedBytenant")]
         [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(Result<LoginIoResponse>))]
         [ProducesResponseType(StatusCodes.Status201Created, Type = typeof(Result<LoginIoResponse>))]
@@ -151,6 +169,7 @@ namespace LMS.Identity.WebApi.Controllers
          /// <summary>
         /// change password 
         /// </summary>
+        [AllowAnonymous]
         [HttpPost("changepassword")]
         [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(Result<LoginIoResponse>))]
         [ProducesResponseType(StatusCodes.Status201Created, Type = typeof(Result<LoginIoResponse>))]
@@ -165,6 +184,7 @@ namespace LMS.Identity.WebApi.Controllers
            /// <summary>
         /// change password 
         /// </summary>
+        [AllowAnonymous]
         [HttpPost("forgotpassword")]
         [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(Result<LoginIoResponse>))]
         [ProducesResponseType(StatusCodes.Status201Created, Type = typeof(Result<LoginIoResponse>))]
@@ -323,6 +343,151 @@ namespace LMS.Identity.WebApi.Controllers
         {
             var result = await _login.NewStoreConfiguration(model);
             return StatusCode((int)result.StatusCode, result.ResultSet);
+        }
+
+        [Authorize(Roles = "SuperAdmin")]
+        [HttpGet(nameof(GetSubscriptionPlans))]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(StatusCodes.Status403Forbidden)]
+        public async Task<ActionResult> GetSubscriptionPlans()
+        {
+            var result = await _login.GetSubscriptionPlans();
+            return StatusCode((int)result.StatusCode, result.ResultSet);
+        }
+
+        [Authorize]
+        [HttpPost(nameof(CreateTenantSubscriptionPaymentOrder))]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(StatusCodes.Status409Conflict)]
+        [ProducesResponseType(StatusCodes.Status502BadGateway)]
+        public async Task<ActionResult> CreateTenantSubscriptionPaymentOrder([FromBody] CreateTenantSubscriptionPaymentOrderRequestDto request)
+        {
+            var result = await _login.CreateTenantSubscriptionPaymentOrder(request, User);
+            return StatusCode((int)result.StatusCode, result.ResultSet);
+        }
+
+        [Authorize]
+        [HttpPost(nameof(VerifyTenantSubscriptionCheckoutPayment))]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        [ProducesResponseType(StatusCodes.Status409Conflict)]
+        [ProducesResponseType(StatusCodes.Status502BadGateway)]
+        public async Task<ActionResult> VerifyTenantSubscriptionCheckoutPayment([FromBody] VerifyCheckoutPaymentRequestDto request)
+        {
+            var result = await _login.VerifyTenantSubscriptionCheckoutPayment(request, User);
+            return StatusCode((int)result.StatusCode, result.ResultSet);
+        }
+
+        [Authorize(Roles = "SuperAdmin")]
+        [HttpPost(nameof(ReconcileCapturedPayment))]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(StatusCodes.Status403Forbidden)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        [ProducesResponseType(StatusCodes.Status409Conflict)]
+        [ProducesResponseType(StatusCodes.Status502BadGateway)]
+        public async Task<ActionResult> ReconcileCapturedPayment([FromBody] ReconcileCapturedPaymentRequestDto request)
+        {
+            var result = await _login.ReconcileCapturedPayment(request);
+            return StatusCode((int)result.StatusCode, result.ResultSet);
+        }
+
+        [AllowAnonymous]
+        [HttpPost("RazorpayWebhook")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status502BadGateway)]
+        public async Task<ActionResult> ProcessRazorpayWebhook()
+        {
+            var correlationId = Activity.Current?.Id ?? HttpContext?.TraceIdentifier ?? Guid.NewGuid().ToString("N");
+            var timestampUtc = DateTime.UtcNow;
+            _logger?.LogInformation(
+                "Razorpay webhook controller entry. CorrelationId={CorrelationId}, TimestampUtc={TimestampUtc}, Path={Path}",
+                correlationId,
+                timestampUtc,
+                Request?.Path.Value);
+
+            using var reader = new StreamReader(Request.Body, Encoding.UTF8, detectEncodingFromByteOrderMarks: false, leaveOpen: true);
+            var rawPayload = await reader.ReadToEndAsync();
+            var signature = Request.Headers["X-Razorpay-Signature"].FirstOrDefault();
+
+            _logger?.LogInformation(
+                "Razorpay webhook request metadata. CorrelationId={CorrelationId}, TimestampUtc={TimestampUtc}, BodyLength={BodyLength}, SignaturePresent={SignaturePresent}",
+                correlationId,
+                DateTime.UtcNow,
+                rawPayload?.Length ?? 0,
+                !string.IsNullOrWhiteSpace(signature));
+
+            var result = await _login.ProcessRazorpayWebhook(rawPayload, signature);
+            _logger?.LogInformation(
+                "Razorpay webhook controller exit. CorrelationId={CorrelationId}, TimestampUtc={TimestampUtc}, StatusCode={StatusCode}",
+                correlationId,
+                DateTime.UtcNow,
+                (int)result.StatusCode);
+            return StatusCode((int)result.StatusCode, result.ResultSet);
+        }
+
+        [Authorize]
+        [HttpGet(nameof(GetTenantSubscriptionPaymentHistory))]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        public async Task<ActionResult> GetTenantSubscriptionPaymentHistory()
+        {
+            var result = await _login.GetTenantSubscriptionPaymentHistory(User);
+            return StatusCode((int)result.StatusCode, result.ResultSet);
+        }
+
+        [Authorize]
+        [HttpGet(nameof(GetTenantSubscriptionOverview))]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        public async Task<ActionResult> GetTenantSubscriptionOverview()
+        {
+            var result = await _login.GetTenantSubscriptionOverview(User);
+            return StatusCode((int)result.StatusCode, result.ResultSet);
+        }
+
+        [Authorize(Roles = "SuperAdmin")]
+        [HttpPost(nameof(UpdateSubscriptionPlanPrice))]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(StatusCodes.Status403Forbidden)]
+        public async Task<ActionResult> UpdateSubscriptionPlanPrice([FromBody] SubscriptionPlanPriceUpdateRequestDto request)
+        {
+            var actor = ResolveActorIdentity();
+            var result = await _login.UpdateSubscriptionPlanPrice(request, actor);
+            return StatusCode((int)result.StatusCode, result.ResultSet);
+        }
+
+        [Authorize(Roles = "SuperAdmin")]
+        [HttpPost(nameof(SetSubscriptionPlanActiveStatus))]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(StatusCodes.Status403Forbidden)]
+        public async Task<ActionResult> SetSubscriptionPlanActiveStatus([FromBody] SubscriptionPlanActiveStatusUpdateRequestDto request)
+        {
+            var actor = ResolveActorIdentity();
+            var result = await _login.SetSubscriptionPlanActiveStatus(request, actor);
+            return StatusCode((int)result.StatusCode, result.ResultSet);
+        }
+
+        private string ResolveActorIdentity()
+        {
+            return User?.FindFirst(ClaimTypes.Email)?.Value
+                ?? User?.FindFirst(ClaimTypes.Name)?.Value
+                ?? User?.FindFirst("email")?.Value
+                ?? User?.Identity?.Name
+                ?? "SuperAdmin";
         }
     }
 }
