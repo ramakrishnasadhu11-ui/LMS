@@ -19,6 +19,9 @@ namespace LMS.Identity.DTO
        public string Region { get; set; }
        public string Zip { get; set; }
        public string Country { get; set; }
+       public string CountryCode { get; set; }
+       public string TimeZoneIana { get; set; }
+       public string PhoneDialingCode { get; set; }
        // Optional currency suggested/overridden by administrator during registration
        public string CurrencyCode { get; set; }
        public string CurrencySymbol { get; set; }

@@ -20,7 +20,7 @@ namespace LMSWebUI.Models.Login
        [EmailAddress(ErrorMessage = "Please enter a valid email address.")]
        public string Email {get;set;}
        [Required(ErrorMessage = "Phone number is required.")]
-       [RegularExpression("^\\d+$", ErrorMessage = "Please enter a valid phone number.")]
+        [RegularExpression("^\\+?[0-9]{7,15}$", ErrorMessage = "Please enter a valid phone number (7-15 digits, optionally starting with +).")]
        public string PhoneNumber { get; set; }
        [Required(ErrorMessage = "Last name is required.")]
        [RegularExpression("^\\s*[A-Za-z]+(?:\\s+[A-Za-z]+)*\\s*$", ErrorMessage = "Last name can contain letters and spaces only.")]
@@ -33,6 +33,7 @@ namespace LMSWebUI.Models.Login
        public string Region { get; set; }
        public string Zip { get; set; }
        public string Country { get; set; }
+        public string CountryCode { get; set; }
        // Optional currency preferences suggested during registration
        public string CurrencyCode { get; set; }
        public string CurrencySymbol { get; set; }

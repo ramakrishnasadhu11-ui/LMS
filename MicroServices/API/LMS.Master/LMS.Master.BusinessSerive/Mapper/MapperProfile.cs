@@ -14,6 +14,7 @@ namespace LMS.Master.BusinessSerive.Mapper
             CreateMap<PricingRulesEntity, PricingRulesDto>().ReverseMap();
             CreateMap<PaymentSettingsEntity, PaymentSettingsDto>().ReverseMap();
             CreateMap<TaxInvoiceSettingsEntity, TaxInvoiceSettingsDto>().ReverseMap();
+            CreateMap<TaxInvoiceComponentEntity, TaxInvoiceComponentDto>().ReverseMap();
             CreateMap<BarcodeTagSettingsEntity, BarcodeTagSettingsDto>().ReverseMap();
             CreateMap<WorkflowStatusEntity, WorkflowStatusDto>().ReverseMap();
             CreateMap<CustomerAdvanceEntity, CustomerAdvanceDto>().ReverseMap();

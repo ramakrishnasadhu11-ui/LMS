@@ -12,5 +12,15 @@ namespace LMS.Master.DTO
         public int InvoiceNumberPadding { get; set; }
         public bool ResetInvoiceNumberYearly { get; set; }
         public string Notes { get; set; }
+
+        public string TaxMode { get; set; }
+
+        public string CountryCode { get; set; }
+
+        public string CurrencyCode { get; set; }
+
+        public bool? IsPricesInclusive { get; set; }
+
+        public string ConcurrencyToken { get; set; }
     }
 }

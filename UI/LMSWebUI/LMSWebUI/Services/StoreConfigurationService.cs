@@ -146,6 +146,10 @@ namespace LMSWebUI.Services
             model.City = model.City?.Trim();
             model.State = model.State?.Trim();
             model.PostalCode = model.PostalCode?.Trim();
+            model.Country = model.Country?.Trim();
+            model.CurrencyDisplay = model.CurrencyDisplay?.Trim();
+            model.TimeZoneIana = model.TimeZoneIana?.Trim();
+            model.PhoneDialingCode = model.PhoneDialingCode?.Trim();
             model.OpeningTime = model.OpeningTime?.Trim();
             model.ClosingTime = model.ClosingTime?.Trim();
             model.WeeklyOffDay = model.WeeklyOffDay?.Trim();

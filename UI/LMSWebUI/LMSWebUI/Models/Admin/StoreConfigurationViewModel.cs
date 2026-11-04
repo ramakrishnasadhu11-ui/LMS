@@ -32,6 +32,23 @@ namespace LMSWebUI.Models.Admin
         [StringLength(20, ErrorMessage = "Phone number cannot exceed 20 characters.")]
         public string PhoneNumber { get; set; }
 
+        [Display(Name = "Country")]
+        [StringLength(128)]
+        public string Country { get; set; }
+
+        [Display(Name = "Currency")]
+        [StringLength(32)]
+        public string CurrencyDisplay { get; set; }
+
+        [Display(Name = "Timezone")]
+        [StringLength(64)]
+        public string TimeZoneIana { get; set; }
+
+        [Display(Name = "Phone Country Calling Code")]
+        [StringLength(8)]
+        [RegularExpression("^\\+[1-9]\\d{0,6}$", ErrorMessage = "Use a valid dialing code like +91 or +971.")]
+        public string PhoneDialingCode { get; set; }
+
         [Display(Name = "Email")]
         [EmailAddress(ErrorMessage = "Please enter a valid email address.")]
         [StringLength(150, ErrorMessage = "Email cannot exceed 150 characters.")]

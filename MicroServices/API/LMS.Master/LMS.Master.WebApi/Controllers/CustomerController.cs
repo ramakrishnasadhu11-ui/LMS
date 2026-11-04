@@ -607,6 +607,128 @@ namespace LMS.Master.WebApi.Controllers
             return StatusCode((int)taxInvoiceSettingsResult.StatusCode, taxInvoiceSettingsResult.ResultSet);
         }
 
+        [HttpGet(nameof(GetTaxConfiguration))]
+        [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(Result<TaxConfigurationDto>))]
+        [ProducesResponseType(StatusCodes.Status500InternalServerError, Type = typeof(Result<object>))]
+        [ProducesResponseType(StatusCodes.Status400BadRequest, Type = typeof(Result<object>))]
+        public async Task<ActionResult> GetTaxConfiguration(string tenantName, string storeCode)
+        {
+            if (!TryResolveStrictPricingScope(tenantName, storeCode, out var scopedTenantName, out var scopedStoreCode, out var scopeValidationError))
+            {
+                return StatusCode(StatusCodes.Status403Forbidden, scopeValidationError);
+            }
+
+            var result = await _customer.GetTaxConfiguration(scopedTenantName, scopedStoreCode);
+            return StatusCode((int)result.StatusCode, result.ResultSet);
+        }
+
+        [HttpPost(nameof(UpsertTaxConfiguration))]
+        [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(Result<TaxConfigurationDto>))]
+        [ProducesResponseType(StatusCodes.Status500InternalServerError, Type = typeof(Result<object>))]
+        [ProducesResponseType(StatusCodes.Status400BadRequest, Type = typeof(Result<object>))]
+        public async Task<ActionResult> UpsertTaxConfiguration([FromBody] TaxConfigurationUpsertRequestDto request)
+        {
+            if (request == null)
+            {
+                return BadRequest("Invalid data for this operation.");
+            }
+
+            if (!TryResolveStrictPricingScope(request.TenantName, request.StoreCode, out var scopedTenantName, out var scopedStoreCode, out var scopeValidationError))
+            {
+                return StatusCode(StatusCodes.Status403Forbidden, scopeValidationError);
+            }
+
+            request.TenantName = scopedTenantName;
+            request.StoreCode = scopedStoreCode;
+
+            var result = await _customer.UpsertTaxConfiguration(request);
+            return StatusCode((int)result.StatusCode, result.ResultSet);
+        }
+
+        [HttpPost(nameof(AddTaxInvoiceComponent))]
+        [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(Result<TaxInvoiceComponentDto>))]
+        [ProducesResponseType(StatusCodes.Status500InternalServerError, Type = typeof(Result<object>))]
+        [ProducesResponseType(StatusCodes.Status400BadRequest, Type = typeof(Result<object>))]
+        public async Task<ActionResult> AddTaxInvoiceComponent([FromBody] TaxInvoiceComponentUpsertRequestDto request)
+        {
+            if (request == null)
+            {
+                return BadRequest("Invalid data for this operation.");
+            }
+
+            if (!TryResolveStrictPricingScope(request.TenantName, request.StoreCode, out var scopedTenantName, out var scopedStoreCode, out var scopeValidationError))
+            {
+                return StatusCode(StatusCodes.Status403Forbidden, scopeValidationError);
+            }
+
+            request.TenantName = scopedTenantName;
+            request.StoreCode = scopedStoreCode;
+
+            var result = await _customer.AddTaxInvoiceComponent(request);
+            return StatusCode((int)result.StatusCode, result.ResultSet);
+        }
+
+        [HttpPut(nameof(UpdateTaxInvoiceComponent))]
+        [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(Result<TaxInvoiceComponentDto>))]
+        [ProducesResponseType(StatusCodes.Status500InternalServerError, Type = typeof(Result<object>))]
+        [ProducesResponseType(StatusCodes.Status400BadRequest, Type = typeof(Result<object>))]
+        public async Task<ActionResult> UpdateTaxInvoiceComponent([FromBody] TaxInvoiceComponentUpsertRequestDto request)
+        {
+            if (request == null)
+            {
+                return BadRequest("Invalid data for this operation.");
+            }
+
+            if (!TryResolveStrictPricingScope(request.TenantName, request.StoreCode, out var scopedTenantName, out var scopedStoreCode, out var scopeValidationError))
+            {
+                return StatusCode(StatusCodes.Status403Forbidden, scopeValidationError);
+            }
+
+            request.TenantName = scopedTenantName;
+            request.StoreCode = scopedStoreCode;
+
+            var result = await _customer.UpdateTaxInvoiceComponent(request);
+            return StatusCode((int)result.StatusCode, result.ResultSet);
+        }
+
+        [HttpPost(nameof(DeactivateTaxInvoiceComponent))]
+        [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(Result<TaxInvoiceComponentDto>))]
+        [ProducesResponseType(StatusCodes.Status500InternalServerError, Type = typeof(Result<object>))]
+        [ProducesResponseType(StatusCodes.Status400BadRequest, Type = typeof(Result<object>))]
+        public async Task<ActionResult> DeactivateTaxInvoiceComponent([FromBody] TaxInvoiceComponentDeactivateRequestDto request)
+        {
+            if (request == null)
+            {
+                return BadRequest("Invalid data for this operation.");
+            }
+
+            if (!TryResolveStrictPricingScope(request.TenantName, request.StoreCode, out var scopedTenantName, out var scopedStoreCode, out var scopeValidationError))
+            {
+                return StatusCode(StatusCodes.Status403Forbidden, scopeValidationError);
+            }
+
+            request.TenantName = scopedTenantName;
+            request.StoreCode = scopedStoreCode;
+
+            var result = await _customer.DeactivateTaxInvoiceComponent(request);
+            return StatusCode((int)result.StatusCode, result.ResultSet);
+        }
+
+        [HttpGet(nameof(ResolveTaxMode))]
+        [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(Result<TaxModeResolutionDto>))]
+        [ProducesResponseType(StatusCodes.Status500InternalServerError, Type = typeof(Result<object>))]
+        [ProducesResponseType(StatusCodes.Status400BadRequest, Type = typeof(Result<object>))]
+        public async Task<ActionResult> ResolveTaxMode(string tenantName, string storeCode)
+        {
+            if (!TryResolveStrictPricingScope(tenantName, storeCode, out var scopedTenantName, out var scopedStoreCode, out var scopeValidationError))
+            {
+                return StatusCode(StatusCodes.Status403Forbidden, scopeValidationError);
+            }
+
+            var result = await _customer.ResolveTaxMode(scopedTenantName, scopedStoreCode);
+            return StatusCode((int)result.StatusCode, result.ResultSet);
+        }
+
         [HttpGet(nameof(GetWorkflowStatusSettings))]
         [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(Result<WorkflowStatusSettingsDto>))]
         [ProducesResponseType(StatusCodes.Status500InternalServerError, Type = typeof(Result<object>))]
@@ -880,6 +1002,58 @@ namespace LMS.Master.WebApi.Controllers
 
             resolvedTenantName = !string.IsNullOrWhiteSpace(claimTenant) ? claimTenant : resolvedTenantName;
             resolvedStoreCode = !string.IsNullOrWhiteSpace(claimStore) ? claimStore : resolvedStoreCode;
+
+            validationError = null;
+            return true;
+        }
+
+        private bool TryResolveStrictPricingScope(string requestedTenantName, string requestedStoreCode, out string resolvedTenantName, out string resolvedStoreCode, out string validationError)
+        {
+            resolvedTenantName = requestedTenantName?.Trim();
+            resolvedStoreCode = requestedStoreCode?.Trim();
+
+            var claimTenant = User?.FindFirst("tenantName")?.Value?.Trim();
+            var claimStore = User?.FindFirst("storeCode")?.Value?.Trim();
+            var headerTenant = Request?.Headers["X-TenantName"].ToString()?.Trim();
+            var headerStore = Request?.Headers["X-StoreCode"].ToString()?.Trim();
+
+            if (string.IsNullOrWhiteSpace(claimTenant) || string.IsNullOrWhiteSpace(claimStore))
+            {
+                validationError = "Tenant/store scope claims are required for this operation.";
+                return false;
+            }
+
+            if (string.IsNullOrWhiteSpace(resolvedTenantName) || string.IsNullOrWhiteSpace(resolvedStoreCode))
+            {
+                validationError = "Tenant and store are required.";
+                return false;
+            }
+
+            if (!string.Equals(claimTenant, resolvedTenantName, StringComparison.OrdinalIgnoreCase))
+            {
+                validationError = "Unauthorized tenant access.";
+                return false;
+            }
+
+            if (!string.Equals(claimStore, resolvedStoreCode, StringComparison.OrdinalIgnoreCase))
+            {
+                validationError = "Unauthorized store access.";
+                return false;
+            }
+
+            if (!string.IsNullOrWhiteSpace(headerTenant)
+                && !string.Equals(headerTenant, resolvedTenantName, StringComparison.OrdinalIgnoreCase))
+            {
+                validationError = "Tenant scope mismatch.";
+                return false;
+            }
+
+            if (!string.IsNullOrWhiteSpace(headerStore)
+                && !string.Equals(headerStore, resolvedStoreCode, StringComparison.OrdinalIgnoreCase))
+            {
+                validationError = "Store scope mismatch.";
+                return false;
+            }
 
             validationError = null;
             return true;

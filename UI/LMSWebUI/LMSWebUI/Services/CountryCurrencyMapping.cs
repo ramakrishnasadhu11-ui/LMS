@@ -10,11 +10,12 @@ namespace LMSWebUI.Services
         {
             return new Dictionary<string, CurrencyConfig>
             {
-                { "India", new CurrencyConfig { CurrencyCode = "INR", CurrencySymbol = "₹", CurrencyLocale = "en-IN", DecimalDigits = 2 } },
-                { "United States", new CurrencyConfig { CurrencyCode = "USD", CurrencySymbol = "$", CurrencyLocale = "en-US", DecimalDigits = 2 } },
-                { "United Kingdom", new CurrencyConfig { CurrencyCode = "GBP", CurrencySymbol = "£", CurrencyLocale = "en-GB", DecimalDigits = 2 } },
-                { "France", new CurrencyConfig { CurrencyCode = "EUR", CurrencySymbol = "€", CurrencyLocale = "fr-FR", DecimalDigits = 2 } },
-                { "Germany", new CurrencyConfig { CurrencyCode = "EUR", CurrencySymbol = "€", CurrencyLocale = "de-DE", DecimalDigits = 2 } }
+                { "India", new CurrencyConfig { CountryCode = "IN", CurrencyCode = "INR", CurrencySymbol = "₹", CurrencyLocale = "en-IN", DecimalDigits = 2 } },
+                { "United States", new CurrencyConfig { CountryCode = "US", CurrencyCode = "USD", CurrencySymbol = "$", CurrencyLocale = "en-US", DecimalDigits = 2 } },
+                { "United Kingdom", new CurrencyConfig { CountryCode = "GB", CurrencyCode = "GBP", CurrencySymbol = "£", CurrencyLocale = "en-GB", DecimalDigits = 2 } },
+                { "United Arab Emirates", new CurrencyConfig { CountryCode = "AE", CurrencyCode = "AED", CurrencySymbol = "د.إ", CurrencyLocale = "en-AE", DecimalDigits = 2 } },
+                { "France", new CurrencyConfig { CountryCode = "FR", CurrencyCode = "EUR", CurrencySymbol = "€", CurrencyLocale = "fr-FR", DecimalDigits = 2 } },
+                { "Germany", new CurrencyConfig { CountryCode = "DE", CurrencyCode = "EUR", CurrencySymbol = "€", CurrencyLocale = "de-DE", DecimalDigits = 2 } }
             };
         }
 

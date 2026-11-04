@@ -31,6 +31,7 @@ using RestSharp;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using System.Diagnostics;
+using System.Security.Claims;
 
 namespace LMSWebUI.Controllers
 {
@@ -53,6 +54,8 @@ namespace LMSWebUI.Controllers
         private const string CustomerNotInStoreMessage = "Customer not found in the current store.";
         private const string SessionExpiredMessage = "Session expired. Please log in again.";
         private const long MaxCsvUploadBytes = 2 * 1024 * 1024;
+        private static readonly Regex E164Regex = new Regex("^\\+[1-9]\\d{6,14}$", RegexOptions.Compiled);
+        private static readonly Regex LegacyDigitsRegex = new Regex("^\\d{7,15}$", RegexOptions.Compiled);
 
         public override async Task OnActionExecutionAsync(ActionExecutingContext context, ActionExecutionDelegate next)
         {
@@ -754,6 +757,23 @@ namespace LMSWebUI.Controllers
             model.StoreCode = storeCode;
             model.IsExistingRecord = model.IsExistingRecord || _storeConfigurationService.HasData(model);
 
+            try
+            {
+                var parms = new Dictionary<string, string> { { "eMail", tenantName } };
+                var profile = await _loginApi.SendRequestAsync<LoginIoResponse>("/TenantprofileDetails", parms, Method.GET);
+                if (profile != null)
+                {
+                    model.Country = profile.Country;
+                    model.CurrencyDisplay = string.Join(" ", new[] { profile.CurrencyCode, profile.CurrencySymbol }.Where(x => !string.IsNullOrWhiteSpace(x))).Trim();
+                    model.TimeZoneIana = string.IsNullOrWhiteSpace(profile.TimeZoneIana) ? model.TimeZoneIana : profile.TimeZoneIana;
+                    model.PhoneDialingCode = string.IsNullOrWhiteSpace(profile.PhoneDialingCode) ? model.PhoneDialingCode : profile.PhoneDialingCode;
+                }
+            }
+            catch
+            {
+                // keep store configuration fallback values
+            }
+
             if (!string.IsNullOrWhiteSpace(model.LoadErrorMessage) && TempData["UserMessage"] == null)
             {
                 TempData["UserMessage"] = JsonConvert.SerializeObject(new MessageDto
@@ -801,6 +821,11 @@ namespace LMSWebUI.Controllers
             model.StoreCode = storeCode;
             var existingConfig = await _storeConfigurationService.LoadAsync(tenantName, storeCode);
             model.IsExistingRecord = _storeConfigurationService.HasData(existingConfig);
+            model.Country = existingConfig?.Country;
+            model.CurrencyDisplay = existingConfig?.CurrencyDisplay;
+            model.TimeZoneIana = model.TimeZoneIana?.Trim();
+            model.PhoneDialingCode = model.PhoneDialingCode?.Trim();
+            model.PhoneNumber = NormalizePhoneNumberForStorage(model.PhoneNumber);
 
             if (!ModelState.IsValid)
             {
@@ -850,6 +875,36 @@ namespace LMSWebUI.Controllers
                     });
 
                     return View(model);
+                }
+
+                var userRole = HttpContext.Session.GetString("UserRole") ?? string.Empty;
+                if (string.Equals(userRole, "Admin", StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(userRole, "SuperAdmin", StringComparison.OrdinalIgnoreCase))
+                {
+                    var localizationPayload = new
+                    {
+                        TimeZoneIana = model.TimeZoneIana,
+                        PhoneDialingCode = model.PhoneDialingCode
+                    };
+
+                    try
+                    {
+                        await _loginApi.SendRequestAsync<LoginIoResponse>(
+                            $"/UpdateTenantLocalizationSettings?tenantEmail={Uri.EscapeDataString(tenantName)}",
+                            localizationPayload,
+                            Method.POST);
+                    }
+                    catch (Exception localizationEx)
+                    {
+                        TempData["UserMessage"] = JsonConvert.SerializeObject(new MessageDto
+                        {
+                            CssClassName = "alert-warning",
+                            Title = "Warning.",
+                            DisplayMessage = BuildApiErrorMessage(localizationEx, "Store configuration was saved, but tenant localization settings update failed.")
+                        });
+
+                        return View(model);
+                    }
                 }
 
                 TempData["UserMessage"] = JsonConvert.SerializeObject(new MessageDto
@@ -2673,15 +2728,47 @@ namespace LMSWebUI.Controllers
 
         private static DateTime? TryParseDateTime(JToken token)
         {
-            var raw = token?.ToString();
+            if (token == null)
+            {
+                return null;
+            }
+
+            if (token.Type == JTokenType.Date)
+            {
+                var tokenValue = token.Value<DateTime?>();
+                if (!tokenValue.HasValue)
+                {
+                    return null;
+                }
+
+                var dt = tokenValue.Value;
+                if (dt.Kind == DateTimeKind.Unspecified)
+                {
+                    return DateTime.SpecifyKind(dt, DateTimeKind.Utc);
+                }
+
+                return dt.ToUniversalTime();
+            }
+
+            var raw = token.ToString();
             if (string.IsNullOrWhiteSpace(raw))
             {
                 return null;
             }
 
-            return DateTime.TryParse(raw, null, DateTimeStyles.RoundtripKind, out var parsed)
-                ? parsed.ToUniversalTime()
-                : null;
+            if (DateTimeOffset.TryParse(raw, null, DateTimeStyles.RoundtripKind, out var parsedOffset))
+            {
+                return parsedOffset.UtcDateTime;
+            }
+
+            if (DateTime.TryParse(raw, null, DateTimeStyles.RoundtripKind, out var parsed))
+            {
+                return parsed.Kind == DateTimeKind.Unspecified
+                    ? DateTime.SpecifyKind(parsed, DateTimeKind.Utc)
+                    : parsed.ToUniversalTime();
+            }
+
+            return null;
         }
 
         [HttpGet]
@@ -4377,6 +4464,26 @@ namespace LMSWebUI.Controllers
                 return false;
             }
 
+            if (!string.IsNullOrWhiteSpace(model.TimeZoneIana))
+            {
+                try
+                {
+                    _ = TimeZoneInfo.FindSystemTimeZoneById(model.TimeZoneIana.Trim());
+                }
+                catch
+                {
+                    validationError = "Please provide a valid IANA timezone identifier.";
+                    return false;
+                }
+            }
+
+            if (!string.IsNullOrWhiteSpace(model.PhoneDialingCode)
+                && !Regex.IsMatch(model.PhoneDialingCode.Trim(), "^\\+[1-9]\\d{0,6}$"))
+            {
+                validationError = "Please provide a valid phone country calling code (for example, +91).";
+                return false;
+            }
+
             if (openingTime == closingTime)
             {
                 validationError = "Opening and closing time cannot be the same.";
@@ -4385,6 +4492,22 @@ namespace LMSWebUI.Controllers
 
             validationError = null;
             return true;
+        }
+
+        private static string NormalizePhoneNumberForStorage(string phone)
+        {
+            if (string.IsNullOrWhiteSpace(phone))
+            {
+                return null;
+            }
+
+            var normalized = phone.Trim().Replace(" ", string.Empty).Replace("-", string.Empty).Replace("(", string.Empty).Replace(")", string.Empty);
+            if (E164Regex.IsMatch(normalized) || LegacyDigitsRegex.IsMatch(normalized))
+            {
+                return normalized;
+            }
+
+            return phone.Trim();
         }
 
         private async Task<PricingRulesViewModel> LoadPricingRulesAsync(string tenantName, string storeCode)
@@ -4544,9 +4667,12 @@ namespace LMSWebUI.Controllers
                 return RedirectToAction("Index", "Customer");
             }
 
-            if (!string.IsNullOrWhiteSpace(customerInfoDto.PhoneNumber) && !Regex.IsMatch(customerInfoDto.PhoneNumber.Trim().Replace(" ", string.Empty), @"^\d{7,15}$"))
+            var normalizedCreatePhone = NormalizePhoneNumberForStorage(customerInfoDto.PhoneNumber);
+            if (!string.IsNullOrWhiteSpace(normalizedCreatePhone)
+                && !LegacyDigitsRegex.IsMatch(normalizedCreatePhone)
+                && !E164Regex.IsMatch(normalizedCreatePhone))
             {
-                TempData["UserMessage"] = JsonConvert.SerializeObject(new MessageDto { CssClassName = "alert-warning", Title = "Warning.", DisplayMessage = "Please enter a valid phone number (7-15 digits)" });
+                TempData["UserMessage"] = JsonConvert.SerializeObject(new MessageDto { CssClassName = "alert-warning", Title = "Warning.", DisplayMessage = "Please enter a valid phone number (7-15 digits or E.164 like +919876543210)" });
                 return RedirectToAction("Index", "Customer");
             }
 
@@ -4560,7 +4686,7 @@ namespace LMSWebUI.Controllers
             customerInfoDto.Address = customerInfoDto.Address?.Trim();
             // MembershipId removed system-wide
             customerInfoDto.BarCode = string.IsNullOrWhiteSpace(customerInfoDto.BarCode) ? null : customerInfoDto.BarCode.Trim();
-            customerInfoDto.PhoneNumber = string.IsNullOrWhiteSpace(customerInfoDto.PhoneNumber) ? null : customerInfoDto.PhoneNumber.Trim().Replace(" ", string.Empty);
+            customerInfoDto.PhoneNumber = normalizedCreatePhone;
             customerInfoDto.Email = string.IsNullOrWhiteSpace(customerInfoDto.Email) ? null : customerInfoDto.Email.Trim();
 
             string tenantName = HttpContext.Session.GetString("TenantName");
@@ -4696,9 +4822,12 @@ namespace LMSWebUI.Controllers
                 return Json(new { success = false, message = "Please enter Customer Address" });
             }
 
-            if (!string.IsNullOrWhiteSpace(customerInfoDto.PhoneNumber) && !Regex.IsMatch(customerInfoDto.PhoneNumber.Trim().Replace(" ", string.Empty), @"^\d{7,15}$"))
+            var normalizedUpdatePhone = NormalizePhoneNumberForStorage(customerInfoDto.PhoneNumber);
+            if (!string.IsNullOrWhiteSpace(normalizedUpdatePhone)
+                && !LegacyDigitsRegex.IsMatch(normalizedUpdatePhone)
+                && !E164Regex.IsMatch(normalizedUpdatePhone))
             {
-                return Json(new { success = false, message = "Please enter a valid phone number (7-15 digits)" });
+                return Json(new { success = false, message = "Please enter a valid phone number (7-15 digits or E.164 like +919876543210)" });
             }
 
             if (!string.IsNullOrWhiteSpace(customerInfoDto.Email) && !Regex.IsMatch(customerInfoDto.Email.Trim(), @"^[^\s@]+@[^\s@]+\.[^\s@]+$"))
@@ -4709,7 +4838,7 @@ namespace LMSWebUI.Controllers
             customerInfoDto.CustomerName = customerInfoDto.CustomerName?.Trim();
             customerInfoDto.Address = customerInfoDto.Address?.Trim();
             customerInfoDto.BarCode = string.IsNullOrWhiteSpace(customerInfoDto.BarCode) ? null : customerInfoDto.BarCode.Trim();
-            customerInfoDto.PhoneNumber = string.IsNullOrWhiteSpace(customerInfoDto.PhoneNumber) ? null : customerInfoDto.PhoneNumber.Trim().Replace(" ", string.Empty);
+            customerInfoDto.PhoneNumber = normalizedUpdatePhone;
             customerInfoDto.Email = string.IsNullOrWhiteSpace(customerInfoDto.Email) ? null : customerInfoDto.Email.Trim();
 
             customerInfoDto.StoreCode = HttpContext.Session.GetString("TenantStore");

@@ -49,6 +49,9 @@ namespace LMS.Identity.BusinessSerive.Data
                 entity.Property(x => x.Region).HasMaxLength(128);
                 entity.Property(x => x.Zip).HasMaxLength(32);
                 entity.Property(x => x.Country).HasMaxLength(128);
+                entity.Property(x => x.CountryCode).HasMaxLength(2).HasColumnType("nvarchar(2)");
+                entity.Property(x => x.TimeZoneIana).HasMaxLength(64).HasColumnType("nvarchar(64)");
+                entity.Property(x => x.PhoneDialingCode).HasMaxLength(8).HasColumnType("nvarchar(8)");
                 entity.Property(x => x.ApprovalStatus).HasMaxLength(32);
                 entity.Property(x => x.ApprovalReason).HasMaxLength(512);
                 entity.Property(x => x.ApprovedBy).HasMaxLength(256);

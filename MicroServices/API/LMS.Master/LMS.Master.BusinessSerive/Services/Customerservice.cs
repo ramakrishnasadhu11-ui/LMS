@@ -65,6 +65,31 @@ namespace LMS.Master.BusinessSerive.Services
             "OMR", "MYR", "THB", "IDR", "PHP", "VND", "KRW", "DKK", "PLN", "BRL"
         };
 
+        private static readonly HashSet<string> SupportedTaxModes = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "NoTax",
+            "GST",
+            "VAT",
+            "SalesTax"
+        };
+
+        private sealed class CountryTaxProfile
+        {
+            public string DefaultTaxMode { get; set; }
+            public string DefaultCurrencyCode { get; set; }
+        }
+
+        private static readonly IReadOnlyDictionary<string, CountryTaxProfile> SupportedCountryTaxProfiles
+            = new Dictionary<string, CountryTaxProfile>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["IN"] = new CountryTaxProfile { DefaultTaxMode = "GST", DefaultCurrencyCode = "INR" },
+                ["US"] = new CountryTaxProfile { DefaultTaxMode = "SalesTax", DefaultCurrencyCode = "USD" },
+                ["GB"] = new CountryTaxProfile { DefaultTaxMode = "VAT", DefaultCurrencyCode = "GBP" },
+                ["AE"] = new CountryTaxProfile { DefaultTaxMode = "VAT", DefaultCurrencyCode = "AED" },
+                ["DE"] = new CountryTaxProfile { DefaultTaxMode = "VAT", DefaultCurrencyCode = "EUR" },
+                ["FR"] = new CountryTaxProfile { DefaultTaxMode = "VAT", DefaultCurrencyCode = "EUR" }
+            };
+
         private readonly IMapper _mapper;
         private readonly MasterDbContext _masterDbContext;
         private readonly IConfiguration _configuration;
@@ -2263,6 +2288,497 @@ namespace LMS.Master.BusinessSerive.Services
 
             var responseDto = _mapper.Map<TaxInvoiceSettingsDto>(taxInvoiceSettings);
             return ActionSet.ActionReturnType(HttpStatusCode.OK, responseDto);
+        }
+
+        public async Task<ActionReturnType> GetTaxConfiguration(string tenantName, string storeCode)
+        {
+            await EnsureTaxInvoiceSettingsTableExistsAsync();
+            await EnsureTaxInvoiceComponentsTableExistsAsync();
+
+            if (string.IsNullOrWhiteSpace(tenantName) || string.IsNullOrWhiteSpace(storeCode))
+            {
+                return ActionSet.ActionReturnType(HttpStatusCode.BadRequest, new CustomerIOResponse
+                {
+                    StatusCode = "400",
+                    Message = "Invalid tax configuration request."
+                });
+            }
+
+            tenantName = tenantName.Trim();
+            storeCode = storeCode.Trim();
+
+            var taxSettings = await _masterDbContext.TaxInvoiceSettings
+                .AsNoTracking()
+                .FirstOrDefaultAsync(x => x.TenantName == tenantName && x.StoreCode == storeCode);
+
+            if (taxSettings == null)
+            {
+                return ActionSet.ActionReturnType(HttpStatusCode.NotFound, new CustomerIOResponse
+                {
+                    StatusCode = "404",
+                    Message = "Tax configuration not found."
+                });
+            }
+
+            var components = await _masterDbContext.TaxInvoiceComponents
+                .AsNoTracking()
+                .Where(x => x.TenantName == tenantName && x.StoreCode == storeCode)
+                .OrderBy(x => x.Priority)
+                .ThenBy(x => x.Code)
+                .ToListAsync();
+
+            var resolved = ResolveTaxModeFromSettings(taxSettings);
+            var response = BuildTaxConfigurationDto(taxSettings, components, resolved.ResolvedTaxMode, resolved.ResolutionSource);
+            return ActionSet.ActionReturnType(HttpStatusCode.OK, response);
+        }
+
+        public async Task<ActionReturnType> UpsertTaxConfiguration(TaxConfigurationUpsertRequestDto request)
+        {
+            await EnsureTaxInvoiceSettingsTableExistsAsync();
+            await EnsureTaxInvoiceComponentsTableExistsAsync();
+
+            if (request == null || string.IsNullOrWhiteSpace(request.TenantName) || string.IsNullOrWhiteSpace(request.StoreCode))
+            {
+                return ActionSet.ActionReturnType(HttpStatusCode.BadRequest, new CustomerIOResponse
+                {
+                    StatusCode = "400",
+                    Message = "Invalid tax configuration request."
+                });
+            }
+
+            request.TenantName = request.TenantName.Trim();
+            request.StoreCode = request.StoreCode.Trim();
+            request.TaxMode = NormalizeTaxMode(request.TaxMode);
+            request.CountryCode = NormalizeCountryCode(request.CountryCode);
+            request.CurrencyCode = NormalizeCurrencyCode(request.CurrencyCode);
+
+            if (TryGetCountryTaxProfile(request.CountryCode, out var countryProfile))
+            {
+                if (string.IsNullOrWhiteSpace(request.TaxMode))
+                {
+                    request.TaxMode = countryProfile.DefaultTaxMode;
+                }
+
+                if (string.IsNullOrWhiteSpace(request.CurrencyCode))
+                {
+                    request.CurrencyCode = countryProfile.DefaultCurrencyCode;
+                }
+            }
+
+            request.InvoicePrefix = string.IsNullOrWhiteSpace(request.InvoicePrefix)
+                ? null
+                : request.InvoicePrefix.Trim().ToUpperInvariant();
+            request.Notes = string.IsNullOrWhiteSpace(request.Notes)
+                ? null
+                : request.Notes.Trim();
+
+            var validationError = ValidateTaxConfigurationRequest(request);
+            if (!string.IsNullOrWhiteSpace(validationError))
+            {
+                return ActionSet.ActionReturnType(HttpStatusCode.BadRequest, new CustomerIOResponse
+                {
+                    StatusCode = "400",
+                    Message = validationError
+                });
+            }
+
+            var existing = await _masterDbContext.TaxInvoiceSettings.FirstOrDefaultAsync(x =>
+                x.TenantName == request.TenantName && x.StoreCode == request.StoreCode);
+
+            if (existing == null)
+            {
+                existing = new TaxInvoiceSettingsEntity
+                {
+                    TenantName = request.TenantName,
+                    StoreCode = request.StoreCode,
+                    EnableTax = request.EnableTax ?? false,
+                    GstPercent = request.GstPercent ?? 0,
+                    PricesIncludeTax = request.PricesIncludeTax ?? request.IsPricesInclusive,
+                    InvoicePrefix = string.IsNullOrWhiteSpace(request.InvoicePrefix)
+                        ? BuildStoreInvoicePrefix(request.StoreCode)
+                        : request.InvoicePrefix,
+                    NextInvoiceNumber = request.NextInvoiceNumber.GetValueOrDefault(1),
+                    InvoiceNumberPadding = request.InvoiceNumberPadding.GetValueOrDefault(4),
+                    ResetInvoiceNumberYearly = request.ResetInvoiceNumberYearly.GetValueOrDefault(false),
+                    Notes = request.Notes,
+                    TaxMode = request.TaxMode,
+                    CountryCode = request.CountryCode,
+                    CurrencyCode = request.CurrencyCode,
+                    IsPricesInclusive = request.IsPricesInclusive,
+                    CreatedDate = DateTime.UtcNow,
+                    ModifiedDate = DateTime.UtcNow
+                };
+
+                _masterDbContext.TaxInvoiceSettings.Add(existing);
+            }
+            else
+            {
+                if (!TryApplyConcurrencyToken(request.ConcurrencyToken, existing.RowVersion, out var conflictMessage))
+                {
+                    return ActionSet.ActionReturnType(HttpStatusCode.Conflict, new CustomerIOResponse
+                    {
+                        StatusCode = "409",
+                        Message = conflictMessage
+                    });
+                }
+
+                if (request.EnableTax.HasValue)
+                {
+                    existing.EnableTax = request.EnableTax.Value;
+                }
+
+                if (request.GstPercent.HasValue)
+                {
+                    existing.GstPercent = request.GstPercent.Value;
+                }
+
+                if (request.PricesIncludeTax.HasValue)
+                {
+                    existing.PricesIncludeTax = request.PricesIncludeTax.Value;
+                }
+
+                if (!string.IsNullOrWhiteSpace(request.InvoicePrefix))
+                {
+                    existing.InvoicePrefix = request.InvoicePrefix.Length > 16
+                        ? request.InvoicePrefix.Substring(0, 16)
+                        : request.InvoicePrefix;
+                }
+
+                if (request.NextInvoiceNumber.HasValue && request.NextInvoiceNumber.Value > 0)
+                {
+                    existing.NextInvoiceNumber = request.NextInvoiceNumber.Value;
+                }
+
+                if (request.InvoiceNumberPadding.HasValue && request.InvoiceNumberPadding.Value >= 1 && request.InvoiceNumberPadding.Value <= 12)
+                {
+                    existing.InvoiceNumberPadding = request.InvoiceNumberPadding.Value;
+                }
+
+                if (request.ResetInvoiceNumberYearly.HasValue)
+                {
+                    existing.ResetInvoiceNumberYearly = request.ResetInvoiceNumberYearly.Value;
+                }
+
+                if (request.Notes != null)
+                {
+                    existing.Notes = request.Notes.Length > 300 ? request.Notes.Substring(0, 300) : request.Notes;
+                }
+
+                existing.TaxMode = request.TaxMode;
+                existing.CountryCode = request.CountryCode;
+                existing.CurrencyCode = request.CurrencyCode;
+                existing.IsPricesInclusive = request.IsPricesInclusive;
+                existing.ModifiedDate = DateTime.UtcNow;
+            }
+
+            try
+            {
+                await _masterDbContext.SaveChangesAsync();
+            }
+            catch (DbUpdateConcurrencyException)
+            {
+                return ActionSet.ActionReturnType(HttpStatusCode.Conflict, new CustomerIOResponse
+                {
+                    StatusCode = "409",
+                    Message = "Tax configuration update conflict detected. Please retry."
+                });
+            }
+
+            return await GetTaxConfiguration(request.TenantName, request.StoreCode);
+        }
+
+        public async Task<ActionReturnType> AddTaxInvoiceComponent(TaxInvoiceComponentUpsertRequestDto request)
+        {
+            await EnsureTaxInvoiceSettingsTableExistsAsync();
+            await EnsureTaxInvoiceComponentsTableExistsAsync();
+
+            if (request == null || string.IsNullOrWhiteSpace(request.TenantName) || string.IsNullOrWhiteSpace(request.StoreCode))
+            {
+                return ActionSet.ActionReturnType(HttpStatusCode.BadRequest, new CustomerIOResponse
+                {
+                    StatusCode = "400",
+                    Message = "Invalid tax component request."
+                });
+            }
+
+            request.TenantName = request.TenantName.Trim();
+            request.StoreCode = request.StoreCode.Trim();
+            request.Code = NormalizeTaxComponentCode(request.Code);
+            request.DisplayName = string.IsNullOrWhiteSpace(request.DisplayName) ? null : request.DisplayName.Trim();
+            request.Jurisdiction = NormalizeJurisdiction(request.Jurisdiction);
+
+            var validationError = ValidateTaxComponentRequest(request, isUpdate: false);
+            if (!string.IsNullOrWhiteSpace(validationError))
+            {
+                return ActionSet.ActionReturnType(HttpStatusCode.BadRequest, new CustomerIOResponse
+                {
+                    StatusCode = "400",
+                    Message = validationError
+                });
+            }
+
+            var settings = await _masterDbContext.TaxInvoiceSettings.FirstOrDefaultAsync(x =>
+                x.TenantName == request.TenantName && x.StoreCode == request.StoreCode);
+            if (settings == null)
+            {
+                return ActionSet.ActionReturnType(HttpStatusCode.NotFound, new CustomerIOResponse
+                {
+                    StatusCode = "404",
+                    Message = "Tax configuration not found for selected store."
+                });
+            }
+
+            var normalizedJurisdictionKey = NormalizeJurisdictionUniquenessKey(request.Jurisdiction);
+            var duplicate = request.IsActive
+                && await _masterDbContext.TaxInvoiceComponents
+                    .AnyAsync(x => x.TenantName == request.TenantName
+                                   && x.StoreCode == request.StoreCode
+                                   && x.Code == request.Code
+                                   && x.Priority == request.Priority
+                                   && x.IsActive
+                                   && EF.Property<string>(x, "JurisdictionNormalizedKey") == normalizedJurisdictionKey);
+            if (duplicate)
+            {
+                return ActionSet.ActionReturnType(HttpStatusCode.Conflict, new CustomerIOResponse
+                {
+                    StatusCode = "409",
+                    Message = "An active tax component with the same code, priority and jurisdiction already exists."
+                });
+            }
+
+            var entity = new TaxInvoiceComponentEntity
+            {
+                TaxInvoiceSettingsId = settings.Id,
+                TenantName = request.TenantName,
+                StoreCode = request.StoreCode,
+                Code = request.Code,
+                DisplayName = request.DisplayName,
+                RatePercent = request.RatePercent,
+                Jurisdiction = request.Jurisdiction,
+                Priority = request.Priority,
+                IsCompound = request.IsCompound,
+                IsActive = request.IsActive,
+                EffectiveFromUtc = request.EffectiveFromUtc,
+                EffectiveToUtc = request.EffectiveToUtc,
+                CreatedDate = DateTime.UtcNow,
+                ModifiedDate = DateTime.UtcNow
+            };
+
+            _masterDbContext.TaxInvoiceComponents.Add(entity);
+            await _masterDbContext.SaveChangesAsync();
+
+            return ActionSet.ActionReturnType(HttpStatusCode.OK, MapTaxComponentDto(entity));
+        }
+
+        public async Task<ActionReturnType> UpdateTaxInvoiceComponent(TaxInvoiceComponentUpsertRequestDto request)
+        {
+            await EnsureTaxInvoiceComponentsTableExistsAsync();
+
+            if (request == null
+                || !request.ComponentId.HasValue
+                || string.IsNullOrWhiteSpace(request.TenantName)
+                || string.IsNullOrWhiteSpace(request.StoreCode))
+            {
+                return ActionSet.ActionReturnType(HttpStatusCode.BadRequest, new CustomerIOResponse
+                {
+                    StatusCode = "400",
+                    Message = "Invalid tax component update request."
+                });
+            }
+
+            request.TenantName = request.TenantName.Trim();
+            request.StoreCode = request.StoreCode.Trim();
+            request.Code = NormalizeTaxComponentCode(request.Code);
+            request.DisplayName = string.IsNullOrWhiteSpace(request.DisplayName) ? null : request.DisplayName.Trim();
+            request.Jurisdiction = NormalizeJurisdiction(request.Jurisdiction);
+
+            var validationError = ValidateTaxComponentRequest(request, isUpdate: true);
+            if (!string.IsNullOrWhiteSpace(validationError))
+            {
+                return ActionSet.ActionReturnType(HttpStatusCode.BadRequest, new CustomerIOResponse
+                {
+                    StatusCode = "400",
+                    Message = validationError
+                });
+            }
+
+            var entity = await _masterDbContext.TaxInvoiceComponents.FirstOrDefaultAsync(x =>
+                x.Id == request.ComponentId.Value
+                && x.TenantName == request.TenantName
+                && x.StoreCode == request.StoreCode);
+
+            if (entity == null)
+            {
+                return ActionSet.ActionReturnType(HttpStatusCode.NotFound, new CustomerIOResponse
+                {
+                    StatusCode = "404",
+                    Message = "Tax component not found."
+                });
+            }
+
+            if (!TryApplyConcurrencyToken(request.ConcurrencyToken, entity.RowVersion, out var conflictMessage))
+            {
+                return ActionSet.ActionReturnType(HttpStatusCode.Conflict, new CustomerIOResponse
+                {
+                    StatusCode = "409",
+                    Message = conflictMessage
+                });
+            }
+
+            var normalizedJurisdictionKey = NormalizeJurisdictionUniquenessKey(request.Jurisdiction);
+            var duplicate = request.IsActive
+                && await _masterDbContext.TaxInvoiceComponents
+                    .AnyAsync(x => x.Id != entity.Id
+                                   && x.TenantName == request.TenantName
+                                   && x.StoreCode == request.StoreCode
+                                   && x.Code == request.Code
+                                   && x.Priority == request.Priority
+                                   && x.IsActive
+                                   && EF.Property<string>(x, "JurisdictionNormalizedKey") == normalizedJurisdictionKey);
+            if (duplicate)
+            {
+                return ActionSet.ActionReturnType(HttpStatusCode.Conflict, new CustomerIOResponse
+                {
+                    StatusCode = "409",
+                    Message = "An active tax component with the same code, priority and jurisdiction already exists."
+                });
+            }
+
+            entity.Code = request.Code;
+            entity.DisplayName = request.DisplayName;
+            entity.RatePercent = request.RatePercent;
+            entity.Jurisdiction = request.Jurisdiction;
+            entity.Priority = request.Priority;
+            entity.IsCompound = request.IsCompound;
+            entity.IsActive = request.IsActive;
+            entity.EffectiveFromUtc = request.EffectiveFromUtc;
+            entity.EffectiveToUtc = request.EffectiveToUtc;
+            entity.ModifiedDate = DateTime.UtcNow;
+
+            try
+            {
+                await _masterDbContext.SaveChangesAsync();
+            }
+            catch (DbUpdateConcurrencyException)
+            {
+                return ActionSet.ActionReturnType(HttpStatusCode.Conflict, new CustomerIOResponse
+                {
+                    StatusCode = "409",
+                    Message = "Tax component update conflict detected. Please retry."
+                });
+            }
+
+            return ActionSet.ActionReturnType(HttpStatusCode.OK, MapTaxComponentDto(entity));
+        }
+
+        public async Task<ActionReturnType> DeactivateTaxInvoiceComponent(TaxInvoiceComponentDeactivateRequestDto request)
+        {
+            await EnsureTaxInvoiceComponentsTableExistsAsync();
+
+            if (request == null
+                || request.ComponentId <= 0
+                || string.IsNullOrWhiteSpace(request.TenantName)
+                || string.IsNullOrWhiteSpace(request.StoreCode))
+            {
+                return ActionSet.ActionReturnType(HttpStatusCode.BadRequest, new CustomerIOResponse
+                {
+                    StatusCode = "400",
+                    Message = "Invalid tax component deactivation request."
+                });
+            }
+
+            request.TenantName = request.TenantName.Trim();
+            request.StoreCode = request.StoreCode.Trim();
+
+            var entity = await _masterDbContext.TaxInvoiceComponents.FirstOrDefaultAsync(x =>
+                x.Id == request.ComponentId
+                && x.TenantName == request.TenantName
+                && x.StoreCode == request.StoreCode);
+
+            if (entity == null)
+            {
+                return ActionSet.ActionReturnType(HttpStatusCode.NotFound, new CustomerIOResponse
+                {
+                    StatusCode = "404",
+                    Message = "Tax component not found."
+                });
+            }
+
+            if (!TryApplyConcurrencyToken(request.ConcurrencyToken, entity.RowVersion, out var conflictMessage))
+            {
+                return ActionSet.ActionReturnType(HttpStatusCode.Conflict, new CustomerIOResponse
+                {
+                    StatusCode = "409",
+                    Message = conflictMessage
+                });
+            }
+
+            if (!entity.IsActive)
+            {
+                return ActionSet.ActionReturnType(HttpStatusCode.OK, MapTaxComponentDto(entity));
+            }
+
+            entity.IsActive = false;
+            entity.EffectiveToUtc ??= DateTime.UtcNow;
+            entity.ModifiedDate = DateTime.UtcNow;
+
+            try
+            {
+                await _masterDbContext.SaveChangesAsync();
+            }
+            catch (DbUpdateConcurrencyException)
+            {
+                return ActionSet.ActionReturnType(HttpStatusCode.Conflict, new CustomerIOResponse
+                {
+                    StatusCode = "409",
+                    Message = "Tax component deactivation conflict detected. Please retry."
+                });
+            }
+
+            return ActionSet.ActionReturnType(HttpStatusCode.OK, MapTaxComponentDto(entity));
+        }
+
+        public async Task<ActionReturnType> ResolveTaxMode(string tenantName, string storeCode)
+        {
+            await EnsureTaxInvoiceSettingsTableExistsAsync();
+
+            if (string.IsNullOrWhiteSpace(tenantName) || string.IsNullOrWhiteSpace(storeCode))
+            {
+                return ActionSet.ActionReturnType(HttpStatusCode.BadRequest, new CustomerIOResponse
+                {
+                    StatusCode = "400",
+                    Message = "Invalid tax mode resolution request."
+                });
+            }
+
+            tenantName = tenantName.Trim();
+            storeCode = storeCode.Trim();
+
+            var taxSettings = await _masterDbContext.TaxInvoiceSettings
+                .AsNoTracking()
+                .FirstOrDefaultAsync(x => x.TenantName == tenantName && x.StoreCode == storeCode);
+
+            if (taxSettings == null)
+            {
+                return ActionSet.ActionReturnType(HttpStatusCode.NotFound, new CustomerIOResponse
+                {
+                    StatusCode = "404",
+                    Message = "Tax configuration not found."
+                });
+            }
+
+            var resolved = ResolveTaxModeFromSettings(taxSettings);
+
+            return ActionSet.ActionReturnType(HttpStatusCode.OK, new TaxModeResolutionDto
+            {
+                TenantName = tenantName,
+                StoreCode = storeCode,
+                CountryCode = taxSettings.CountryCode,
+                ResolvedTaxMode = resolved.ResolvedTaxMode,
+                ResolutionSource = resolved.ResolutionSource,
+                LegacyTaxEnabled = taxSettings.EnableTax,
+                LegacyGstPercent = taxSettings.GstPercent
+            });
         }
 
         public async Task<ActionReturnType> SaveBarcodeTagSettings(BarcodeTagSettingsDto barcodeTagSettingsDto)
@@ -6255,10 +6771,40 @@ BEGIN
         [InvoiceNumberPadding] [int] NOT NULL,
         [ResetInvoiceNumberYearly] [bit] NOT NULL,
         [Notes] [nvarchar](300) NULL,
+        [TaxMode] [nvarchar](24) NULL,
+        [CountryCode] [nvarchar](8) NULL,
+        [CurrencyCode] [nvarchar](8) NULL,
+        [IsPricesInclusive] [bit] NULL,
         [CreatedDate] [datetime2](7) NOT NULL,
         [ModifiedDate] [datetime2](7) NOT NULL,
+        [RowVersion] [rowversion] NOT NULL,
         CONSTRAINT [PK_TaxInvoiceSettings] PRIMARY KEY CLUSTERED ([Id] ASC)
     );
+END;
+
+IF COL_LENGTH(N'[dbo].[TaxInvoiceSettings]', N'TaxMode') IS NULL
+BEGIN
+    ALTER TABLE [dbo].[TaxInvoiceSettings] ADD [TaxMode] [nvarchar](24) NULL;
+END;
+
+IF COL_LENGTH(N'[dbo].[TaxInvoiceSettings]', N'CountryCode') IS NULL
+BEGIN
+    ALTER TABLE [dbo].[TaxInvoiceSettings] ADD [CountryCode] [nvarchar](8) NULL;
+END;
+
+IF COL_LENGTH(N'[dbo].[TaxInvoiceSettings]', N'CurrencyCode') IS NULL
+BEGIN
+    ALTER TABLE [dbo].[TaxInvoiceSettings] ADD [CurrencyCode] [nvarchar](8) NULL;
+END;
+
+IF COL_LENGTH(N'[dbo].[TaxInvoiceSettings]', N'IsPricesInclusive') IS NULL
+BEGIN
+    ALTER TABLE [dbo].[TaxInvoiceSettings] ADD [IsPricesInclusive] [bit] NULL;
+END;
+
+IF COL_LENGTH(N'[dbo].[TaxInvoiceSettings]', N'RowVersion') IS NULL
+BEGIN
+    ALTER TABLE [dbo].[TaxInvoiceSettings] ADD [RowVersion] [rowversion] NOT NULL;
 END;
 
 IF NOT EXISTS (
@@ -6269,6 +6815,296 @@ IF NOT EXISTS (
 BEGIN
     CREATE UNIQUE NONCLUSTERED INDEX [IX_TaxInvoiceSettings_TenantName_StoreCode]
     ON [dbo].[TaxInvoiceSettings] ([TenantName], [StoreCode]);
+END;";
+
+            await _masterDbContext.Database.ExecuteSqlRawAsync(createTableSql);
+        }
+
+        private async Task EnsureTaxInvoiceComponentsTableExistsAsync()
+        {
+            const string createTableSql = @"
+IF OBJECT_ID(N'[dbo].[TaxInvoiceComponents]', N'U') IS NULL
+BEGIN
+    CREATE TABLE [dbo].[TaxInvoiceComponents](
+        [Id] [int] IDENTITY(1,1) NOT NULL,
+        [TaxInvoiceSettingsId] [int] NOT NULL,
+        [TenantName] [nvarchar](256) NOT NULL,
+        [StoreCode] [nvarchar](64) NOT NULL,
+        [Code] [nvarchar](32) NOT NULL,
+        [DisplayName] [nvarchar](128) NOT NULL,
+        [RatePercent] [decimal](5,2) NOT NULL,
+        [Jurisdiction] [nvarchar](64) NULL,
+        [JurisdictionNormalizedKey] AS (COALESCE(NULLIF(LTRIM(RTRIM([Jurisdiction])),N''),N'__NULL__')) PERSISTED,
+        [Priority] [int] NOT NULL,
+        [IsCompound] [bit] NOT NULL,
+        [IsActive] [bit] NOT NULL,
+        [EffectiveFromUtc] [datetime2](7) NULL,
+        [EffectiveToUtc] [datetime2](7) NULL,
+        [CreatedDate] [datetime2](7) NOT NULL,
+        [ModifiedDate] [datetime2](7) NOT NULL,
+        [RowVersion] [rowversion] NOT NULL,
+        CONSTRAINT [PK_TaxInvoiceComponents] PRIMARY KEY CLUSTERED ([Id] ASC),
+        CONSTRAINT [FK_TaxInvoiceComponents_TaxInvoiceSettings] FOREIGN KEY ([TaxInvoiceSettingsId])
+            REFERENCES [dbo].[TaxInvoiceSettings]([Id]) ON DELETE CASCADE
+    );
+END;
+
+IF COL_LENGTH(N'[dbo].[TaxInvoiceComponents]', N'TaxInvoiceSettingsId') IS NULL
+BEGIN
+    ALTER TABLE [dbo].[TaxInvoiceComponents] ADD [TaxInvoiceSettingsId] [int] NULL;
+END;
+
+IF COL_LENGTH(N'[dbo].[TaxInvoiceComponents]', N'TenantName') IS NULL
+BEGIN
+    ALTER TABLE [dbo].[TaxInvoiceComponents] ADD [TenantName] [nvarchar](256) NULL;
+END;
+
+IF COL_LENGTH(N'[dbo].[TaxInvoiceComponents]', N'StoreCode') IS NULL
+BEGIN
+    ALTER TABLE [dbo].[TaxInvoiceComponents] ADD [StoreCode] [nvarchar](64) NULL;
+END;
+
+IF COL_LENGTH(N'[dbo].[TaxInvoiceComponents]', N'Code') IS NULL
+BEGIN
+    ALTER TABLE [dbo].[TaxInvoiceComponents] ADD [Code] [nvarchar](32) NULL;
+END;
+
+IF COL_LENGTH(N'[dbo].[TaxInvoiceComponents]', N'DisplayName') IS NULL
+BEGIN
+    ALTER TABLE [dbo].[TaxInvoiceComponents] ADD [DisplayName] [nvarchar](128) NULL;
+END;
+
+IF COL_LENGTH(N'[dbo].[TaxInvoiceComponents]', N'RatePercent') IS NULL
+BEGIN
+    ALTER TABLE [dbo].[TaxInvoiceComponents] ADD [RatePercent] [decimal](5,2) NOT NULL CONSTRAINT [DF_TaxInvoiceComponents_RatePercent] DEFAULT((0));
+END;
+
+IF COL_LENGTH(N'[dbo].[TaxInvoiceComponents]', N'Jurisdiction') IS NULL
+BEGIN
+    ALTER TABLE [dbo].[TaxInvoiceComponents] ADD [Jurisdiction] [nvarchar](64) NULL;
+END;
+
+IF COL_LENGTH(N'[dbo].[TaxInvoiceComponents]', N'JurisdictionNormalizedKey') IS NULL
+BEGIN
+    ALTER TABLE [dbo].[TaxInvoiceComponents]
+    ADD [JurisdictionNormalizedKey] AS (COALESCE(NULLIF(LTRIM(RTRIM([Jurisdiction])),N''),N'__NULL__')) PERSISTED;
+END;
+
+IF COL_LENGTH(N'[dbo].[TaxInvoiceComponents]', N'Priority') IS NULL
+BEGIN
+    ALTER TABLE [dbo].[TaxInvoiceComponents] ADD [Priority] [int] NOT NULL CONSTRAINT [DF_TaxInvoiceComponents_Priority] DEFAULT((1));
+END;
+
+IF COL_LENGTH(N'[dbo].[TaxInvoiceComponents]', N'IsCompound') IS NULL
+BEGIN
+    ALTER TABLE [dbo].[TaxInvoiceComponents] ADD [IsCompound] [bit] NOT NULL CONSTRAINT [DF_TaxInvoiceComponents_IsCompound] DEFAULT((0));
+END;
+
+IF COL_LENGTH(N'[dbo].[TaxInvoiceComponents]', N'IsActive') IS NULL
+BEGIN
+    ALTER TABLE [dbo].[TaxInvoiceComponents] ADD [IsActive] [bit] NOT NULL CONSTRAINT [DF_TaxInvoiceComponents_IsActive] DEFAULT((1));
+END;
+
+IF COL_LENGTH(N'[dbo].[TaxInvoiceComponents]', N'EffectiveFromUtc') IS NULL
+BEGIN
+    ALTER TABLE [dbo].[TaxInvoiceComponents] ADD [EffectiveFromUtc] [datetime2](7) NULL;
+END;
+
+IF COL_LENGTH(N'[dbo].[TaxInvoiceComponents]', N'EffectiveToUtc') IS NULL
+BEGIN
+    ALTER TABLE [dbo].[TaxInvoiceComponents] ADD [EffectiveToUtc] [datetime2](7) NULL;
+END;
+
+IF COL_LENGTH(N'[dbo].[TaxInvoiceComponents]', N'CreatedDate') IS NULL
+BEGIN
+    ALTER TABLE [dbo].[TaxInvoiceComponents] ADD [CreatedDate] [datetime2](7) NOT NULL CONSTRAINT [DF_TaxInvoiceComponents_CreatedDate] DEFAULT (SYSUTCDATETIME());
+END;
+
+IF COL_LENGTH(N'[dbo].[TaxInvoiceComponents]', N'ModifiedDate') IS NULL
+BEGIN
+    ALTER TABLE [dbo].[TaxInvoiceComponents] ADD [ModifiedDate] [datetime2](7) NOT NULL CONSTRAINT [DF_TaxInvoiceComponents_ModifiedDate] DEFAULT (SYSUTCDATETIME());
+END;
+
+IF COL_LENGTH(N'[dbo].[TaxInvoiceComponents]', N'RowVersion') IS NULL
+BEGIN
+    ALTER TABLE [dbo].[TaxInvoiceComponents] ADD [RowVersion] [rowversion] NOT NULL;
+END;
+
+IF EXISTS (
+    SELECT 1
+    FROM [dbo].[TaxInvoiceSettings]
+    GROUP BY [TenantName], [StoreCode]
+    HAVING COUNT(1) > 1
+)
+BEGIN
+    THROW 51010, 'TaxInvoiceSettings contains duplicate (TenantName, StoreCode). Resolve duplicates before TaxInvoiceComponents repair can continue.', 1;
+END;
+
+IF EXISTS (
+    SELECT 1
+    FROM [dbo].[TaxInvoiceComponents] c
+    LEFT JOIN [dbo].[TaxInvoiceSettings] s
+      ON s.[TenantName] = c.[TenantName]
+     AND s.[StoreCode] = c.[StoreCode]
+    WHERE c.[TaxInvoiceSettingsId] IS NULL
+      AND s.[Id] IS NULL
+)
+BEGIN
+    THROW 51011, 'TaxInvoiceComponents contains rows with no matching TaxInvoiceSettings by tenant/store. Repair stopped to prevent incorrect ownership backfill.', 1;
+END;
+
+UPDATE c
+SET c.[TaxInvoiceSettingsId] = s.[Id]
+FROM [dbo].[TaxInvoiceComponents] c
+INNER JOIN [dbo].[TaxInvoiceSettings] s
+    ON s.[TenantName] = c.[TenantName]
+   AND s.[StoreCode] = c.[StoreCode]
+WHERE c.[TaxInvoiceSettingsId] IS NULL;
+
+IF EXISTS (
+    SELECT 1
+    FROM [dbo].[TaxInvoiceComponents]
+    WHERE [TaxInvoiceSettingsId] IS NULL
+)
+BEGIN
+    THROW 51012, 'TaxInvoiceComponents contains NULL TaxInvoiceSettingsId after backfill. Repair stopped.', 1;
+END;
+
+IF EXISTS (
+    SELECT 1
+    FROM [dbo].[TaxInvoiceComponents] c
+    LEFT JOIN [dbo].[TaxInvoiceSettings] s
+      ON s.[Id] = c.[TaxInvoiceSettingsId]
+    WHERE s.[Id] IS NULL
+)
+BEGIN
+    THROW 51013, 'TaxInvoiceComponents contains orphan TaxInvoiceSettingsId values. Repair stopped.', 1;
+END;
+
+IF COLUMNPROPERTY(OBJECT_ID(N'[dbo].[TaxInvoiceComponents]'), N'TaxInvoiceSettingsId', 'AllowsNull') = 1
+BEGIN
+    ALTER TABLE [dbo].[TaxInvoiceComponents] ALTER COLUMN [TaxInvoiceSettingsId] [int] NOT NULL;
+END;
+
+IF COLUMNPROPERTY(OBJECT_ID(N'[dbo].[TaxInvoiceComponents]'), N'TenantName', 'AllowsNull') = 1
+BEGIN
+    IF EXISTS (SELECT 1 FROM [dbo].[TaxInvoiceComponents] WHERE [TenantName] IS NULL)
+    BEGIN
+        THROW 51020, 'TaxInvoiceComponents.TenantName contains NULL values. Repair stopped before enforcing NOT NULL.', 1;
+    END;
+
+    ALTER TABLE [dbo].[TaxInvoiceComponents] ALTER COLUMN [TenantName] [nvarchar](256) NOT NULL;
+END;
+
+IF COLUMNPROPERTY(OBJECT_ID(N'[dbo].[TaxInvoiceComponents]'), N'StoreCode', 'AllowsNull') = 1
+BEGIN
+    IF EXISTS (SELECT 1 FROM [dbo].[TaxInvoiceComponents] WHERE [StoreCode] IS NULL)
+    BEGIN
+        THROW 51021, 'TaxInvoiceComponents.StoreCode contains NULL values. Repair stopped before enforcing NOT NULL.', 1;
+    END;
+
+    ALTER TABLE [dbo].[TaxInvoiceComponents] ALTER COLUMN [StoreCode] [nvarchar](64) NOT NULL;
+END;
+
+IF COLUMNPROPERTY(OBJECT_ID(N'[dbo].[TaxInvoiceComponents]'), N'Code', 'AllowsNull') = 1
+BEGIN
+    IF EXISTS (SELECT 1 FROM [dbo].[TaxInvoiceComponents] WHERE [Code] IS NULL)
+    BEGIN
+        THROW 51022, 'TaxInvoiceComponents.Code contains NULL values. Repair stopped before enforcing NOT NULL.', 1;
+    END;
+
+    ALTER TABLE [dbo].[TaxInvoiceComponents] ALTER COLUMN [Code] [nvarchar](32) NOT NULL;
+END;
+
+IF COLUMNPROPERTY(OBJECT_ID(N'[dbo].[TaxInvoiceComponents]'), N'DisplayName', 'AllowsNull') = 1
+BEGIN
+    IF EXISTS (SELECT 1 FROM [dbo].[TaxInvoiceComponents] WHERE [DisplayName] IS NULL)
+    BEGIN
+        THROW 51023, 'TaxInvoiceComponents.DisplayName contains NULL values. Repair stopped before enforcing NOT NULL.', 1;
+    END;
+
+    ALTER TABLE [dbo].[TaxInvoiceComponents] ALTER COLUMN [DisplayName] [nvarchar](128) NOT NULL;
+END;
+
+IF NOT EXISTS (
+    SELECT 1
+    FROM sys.foreign_keys
+    WHERE name = N'FK_TaxInvoiceComponents_TaxInvoiceSettings'
+      AND parent_object_id = OBJECT_ID(N'[dbo].[TaxInvoiceComponents]'))
+BEGIN
+    ALTER TABLE [dbo].[TaxInvoiceComponents] WITH CHECK ADD CONSTRAINT [FK_TaxInvoiceComponents_TaxInvoiceSettings]
+    FOREIGN KEY([TaxInvoiceSettingsId]) REFERENCES [dbo].[TaxInvoiceSettings]([Id]) ON DELETE CASCADE;
+END;
+
+IF EXISTS (
+    SELECT 1
+    FROM [dbo].[TaxInvoiceComponents] c
+    LEFT JOIN [dbo].[TaxInvoiceSettings] s
+      ON s.[Id] = c.[TaxInvoiceSettingsId]
+    WHERE s.[Id] IS NULL
+)
+BEGIN
+    THROW 51024, 'TaxInvoiceComponents FK verification failed: orphan TaxInvoiceSettingsId rows exist.', 1;
+END;
+
+IF NOT EXISTS (
+    SELECT 1
+    FROM sys.indexes
+    WHERE name = N'IX_TaxInvoiceComponents_TenantName_StoreCode_IsActive'
+      AND object_id = OBJECT_ID(N'[dbo].[TaxInvoiceComponents]'))
+BEGIN
+    CREATE NONCLUSTERED INDEX [IX_TaxInvoiceComponents_TenantName_StoreCode_IsActive]
+    ON [dbo].[TaxInvoiceComponents] ([TenantName], [StoreCode], [IsActive]);
+END;
+
+IF NOT EXISTS (
+    SELECT 1
+    FROM sys.indexes
+    WHERE name = N'IX_TaxInvoiceComponents_TaxInvoiceSettingsId_Code_IsActive'
+      AND object_id = OBJECT_ID(N'[dbo].[TaxInvoiceComponents]'))
+BEGIN
+    CREATE NONCLUSTERED INDEX [IX_TaxInvoiceComponents_TaxInvoiceSettingsId_Code_IsActive]
+    ON [dbo].[TaxInvoiceComponents] ([TaxInvoiceSettingsId], [Code], [IsActive]);
+END;
+
+IF EXISTS (
+    SELECT 1
+    FROM sys.indexes
+    WHERE name = N'IX_TaxInvoiceComponents_Tenant_Store_Code_Priority'
+      AND object_id = OBJECT_ID(N'[dbo].[TaxInvoiceComponents]'))
+BEGIN
+    DROP INDEX [IX_TaxInvoiceComponents_Tenant_Store_Code_Priority] ON [dbo].[TaxInvoiceComponents];
+END;
+
+IF EXISTS (
+    SELECT 1
+    FROM sys.indexes
+    WHERE name = N'IX_TaxInvoiceComponents_Tenant_Store_Code_Priority_Jurisdiction_Active'
+      AND object_id = OBJECT_ID(N'[dbo].[TaxInvoiceComponents]'))
+BEGIN
+    DROP INDEX [IX_TaxInvoiceComponents_Tenant_Store_Code_Priority_Jurisdiction_Active] ON [dbo].[TaxInvoiceComponents];
+END;
+
+IF EXISTS (
+    SELECT 1
+    FROM [dbo].[TaxInvoiceComponents]
+    WHERE [IsActive] = 1
+    GROUP BY [TenantName], [StoreCode], [Code], [Priority], [JurisdictionNormalizedKey]
+    HAVING COUNT(1) > 1
+)
+BEGIN
+    THROW 51014, 'Active TaxInvoiceComponents contains duplicate code/priority/jurisdiction keys. Resolve duplicates before creating unique index.', 1;
+END;
+
+IF NOT EXISTS (
+    SELECT 1
+    FROM sys.indexes
+    WHERE name = N'IX_TaxInvoiceComponents_Tenant_Store_Code_Priority_Jurisdiction_Active'
+      AND object_id = OBJECT_ID(N'[dbo].[TaxInvoiceComponents]'))
+BEGIN
+    CREATE UNIQUE NONCLUSTERED INDEX [IX_TaxInvoiceComponents_Tenant_Store_Code_Priority_Jurisdiction_Active]
+    ON [dbo].[TaxInvoiceComponents] ([TenantName], [StoreCode], [Code], [Priority], [JurisdictionNormalizedKey])
+    WHERE [IsActive] = 1;
 END;";
 
             await _masterDbContext.Database.ExecuteSqlRawAsync(createTableSql);
@@ -7163,6 +7999,323 @@ BEGIN
 END;";
 
             await _masterDbContext.Database.ExecuteSqlRawAsync(createTableSql);
+        }
+
+        private static TaxConfigurationDto BuildTaxConfigurationDto(
+            TaxInvoiceSettingsEntity settings,
+            IReadOnlyCollection<TaxInvoiceComponentEntity> components,
+            string resolvedTaxMode,
+            string fallbackSource)
+        {
+            var dto = new TaxConfigurationDto
+            {
+                TenantName = settings.TenantName,
+                StoreCode = settings.StoreCode,
+                TaxMode = resolvedTaxMode,
+                CountryCode = settings.CountryCode,
+                CurrencyCode = settings.CurrencyCode,
+                IsPricesInclusive = settings.IsPricesInclusive ?? settings.PricesIncludeTax,
+                EnableTax = settings.EnableTax,
+                GstPercent = settings.GstPercent,
+                PricesIncludeTax = settings.PricesIncludeTax,
+                InvoicePrefix = settings.InvoicePrefix,
+                NextInvoiceNumber = settings.NextInvoiceNumber,
+                InvoiceNumberPadding = settings.InvoiceNumberPadding,
+                ResetInvoiceNumberYearly = settings.ResetInvoiceNumberYearly,
+                Notes = settings.Notes,
+                ConcurrencyToken = ToConcurrencyToken(settings.RowVersion),
+                LegacyFallbackSource = fallbackSource
+            };
+
+            if (components != null)
+            {
+                foreach (var component in components)
+                {
+                    dto.Components.Add(MapTaxComponentDto(component));
+                }
+            }
+
+            return dto;
+        }
+
+        private static TaxInvoiceComponentDto MapTaxComponentDto(TaxInvoiceComponentEntity component)
+        {
+            if (component == null)
+            {
+                return null;
+            }
+
+            return new TaxInvoiceComponentDto
+            {
+                Id = component.Id,
+                Code = component.Code,
+                DisplayName = component.DisplayName,
+                RatePercent = component.RatePercent,
+                Jurisdiction = component.Jurisdiction,
+                Priority = component.Priority,
+                IsCompound = component.IsCompound,
+                IsActive = component.IsActive,
+                EffectiveFromUtc = component.EffectiveFromUtc,
+                EffectiveToUtc = component.EffectiveToUtc,
+                ConcurrencyToken = ToConcurrencyToken(component.RowVersion)
+            };
+        }
+
+        private static string ValidateTaxConfigurationRequest(TaxConfigurationUpsertRequestDto request)
+        {
+            if (string.IsNullOrWhiteSpace(request.CountryCode) || request.CountryCode.Length != 2)
+            {
+                return "CountryCode must be a valid 2-letter ISO code.";
+            }
+
+            if (!TryGetCountryTaxProfile(request.CountryCode, out var countryProfile))
+            {
+                return "CountryCode is not supported. Supported countries: IN, US, GB, AE, DE, FR.";
+            }
+
+            if (!SupportedTaxModes.Contains(request.TaxMode))
+            {
+                return "Tax mode must be one of: NoTax, GST, VAT, SalesTax.";
+            }
+
+            if (!string.IsNullOrWhiteSpace(request.CurrencyCode)
+                && !string.Equals(request.CurrencyCode, countryProfile.DefaultCurrencyCode, StringComparison.OrdinalIgnoreCase))
+            {
+                return $"CurrencyCode for country {request.CountryCode} must be {countryProfile.DefaultCurrencyCode}.";
+            }
+
+            if (!string.IsNullOrWhiteSpace(request.CurrencyCode)
+                && (request.CurrencyCode.Length < 3 || request.CurrencyCode.Length > 8))
+            {
+                return "CurrencyCode is invalid.";
+            }
+
+            if (request.GstPercent.HasValue && (request.GstPercent.Value < 0 || request.GstPercent.Value > 100))
+            {
+                return "GST percentage should be between 0 and 100.";
+            }
+
+            if (request.NextInvoiceNumber.HasValue && request.NextInvoiceNumber.Value < 1)
+            {
+                return "Next invoice number should be 1 or greater.";
+            }
+
+            if (request.InvoiceNumberPadding.HasValue
+                && (request.InvoiceNumberPadding.Value < 1 || request.InvoiceNumberPadding.Value > 12))
+            {
+                return "Invoice number padding should be between 1 and 12.";
+            }
+
+            if (request.Components != null)
+            {
+                var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                foreach (var component in request.Components)
+                {
+                    if (component == null)
+                    {
+                        return "Tax component payload is invalid.";
+                    }
+
+                    var normalizedCode = NormalizeTaxComponentCode(component.Code);
+                    if (string.IsNullOrWhiteSpace(normalizedCode))
+                    {
+                        return "Tax component code is required.";
+                    }
+
+                    var jurisdiction = NormalizeJurisdictionUniquenessKey(component.Jurisdiction);
+                    var key = normalizedCode + "|" + component.Priority + "|" + jurisdiction;
+                    if (!seen.Add(key))
+                    {
+                        return "Duplicate tax component code/priority/jurisdiction detected.";
+                    }
+                }
+            }
+
+            return null;
+        }
+
+        private static string ValidateTaxComponentRequest(TaxInvoiceComponentUpsertRequestDto request, bool isUpdate)
+        {
+            if (isUpdate && !request.ComponentId.HasValue)
+            {
+                return "ComponentId is required for update.";
+            }
+
+            if (string.IsNullOrWhiteSpace(request.Code))
+            {
+                return "Tax component code is required.";
+            }
+
+            if (string.IsNullOrWhiteSpace(request.DisplayName))
+            {
+                return "Tax component display name is required.";
+            }
+
+            if (request.RatePercent < 0 || request.RatePercent > 100)
+            {
+                return "Tax component rate should be between 0 and 100.";
+            }
+
+            if (request.Priority < 1)
+            {
+                return "Tax component priority should be 1 or greater.";
+            }
+
+            if (request.EffectiveFromUtc.HasValue
+                && request.EffectiveToUtc.HasValue
+                && request.EffectiveFromUtc.Value > request.EffectiveToUtc.Value)
+            {
+                return "EffectiveFromUtc should be earlier than EffectiveToUtc.";
+            }
+
+            return null;
+        }
+
+        private static (string ResolvedTaxMode, string ResolutionSource) ResolveTaxModeFromSettings(TaxInvoiceSettingsEntity taxSettings)
+        {
+            if (taxSettings == null)
+            {
+                return ("NoTax", "None");
+            }
+
+            var normalized = NormalizeTaxMode(taxSettings.TaxMode);
+            if (!string.IsNullOrWhiteSpace(normalized) && SupportedTaxModes.Contains(normalized))
+            {
+                return (normalized, "CountryConfig");
+            }
+
+            if (TryGetCountryTaxProfile(taxSettings.CountryCode, out var countryProfile))
+            {
+                return (countryProfile.DefaultTaxMode, "CountryConfig");
+            }
+
+            if (taxSettings.EnableTax && taxSettings.GstPercent > 0)
+            {
+                return ("GST", "LegacyGSTFallback");
+            }
+
+            return ("NoTax", "LegacyGSTFallback");
+        }
+
+        private static string NormalizeTaxMode(string taxMode)
+        {
+            if (string.IsNullOrWhiteSpace(taxMode))
+            {
+                return null;
+            }
+
+            var normalized = taxMode.Trim();
+            if (string.Equals(normalized, "notax", StringComparison.OrdinalIgnoreCase))
+            {
+                return "NoTax";
+            }
+
+            if (string.Equals(normalized, "gst", StringComparison.OrdinalIgnoreCase))
+            {
+                return "GST";
+            }
+
+            if (string.Equals(normalized, "vat", StringComparison.OrdinalIgnoreCase))
+            {
+                return "VAT";
+            }
+
+            if (string.Equals(normalized, "salestax", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(normalized, "sales_tax", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(normalized, "sales-tax", StringComparison.OrdinalIgnoreCase))
+            {
+                return "SalesTax";
+            }
+
+            return normalized;
+        }
+
+        private static string NormalizeCountryCode(string countryCode)
+        {
+            return string.IsNullOrWhiteSpace(countryCode)
+                ? null
+                : countryCode.Trim().ToUpperInvariant();
+        }
+
+        private static bool TryGetCountryTaxProfile(string countryCode, out CountryTaxProfile profile)
+        {
+            profile = null;
+            if (string.IsNullOrWhiteSpace(countryCode))
+            {
+                return false;
+            }
+
+            return SupportedCountryTaxProfiles.TryGetValue(countryCode.Trim().ToUpperInvariant(), out profile);
+        }
+
+        private static string NormalizeCurrencyCode(string currencyCode)
+        {
+            return string.IsNullOrWhiteSpace(currencyCode)
+                ? null
+                : currencyCode.Trim().ToUpperInvariant();
+        }
+
+        private static string NormalizeTaxComponentCode(string code)
+        {
+            return string.IsNullOrWhiteSpace(code)
+                ? null
+                : code.Trim().ToUpperInvariant();
+        }
+
+        private static string NormalizeJurisdiction(string jurisdiction)
+        {
+            return string.IsNullOrWhiteSpace(jurisdiction)
+                ? null
+                : jurisdiction.Trim();
+        }
+
+        private static string NormalizeJurisdictionUniquenessKey(string jurisdiction)
+        {
+            var normalized = NormalizeJurisdiction(jurisdiction);
+            return string.IsNullOrWhiteSpace(normalized) ? "__NULL__" : normalized;
+        }
+
+        private static bool TryApplyConcurrencyToken(string token, byte[] currentRowVersion, out string message)
+        {
+            if (currentRowVersion == null || currentRowVersion.Length == 0)
+            {
+                message = null;
+                return true;
+            }
+
+            if (string.IsNullOrWhiteSpace(token))
+            {
+                message = "Concurrency token is required for update.";
+                return false;
+            }
+
+            try
+            {
+                var incoming = Convert.FromBase64String(token);
+                if (incoming.SequenceEqual(currentRowVersion))
+                {
+                    message = null;
+                    return true;
+                }
+
+                message = "Data has changed since it was loaded. Refresh and retry.";
+                return false;
+            }
+            catch (FormatException)
+            {
+                message = "Invalid concurrency token format.";
+                return false;
+            }
+        }
+
+        private static string ToConcurrencyToken(byte[] rowVersion)
+        {
+            if (rowVersion == null || rowVersion.Length == 0)
+            {
+                return null;
+            }
+
+            return Convert.ToBase64String(rowVersion);
         }
 
         private static (decimal SubTotal, decimal TaxPercent, decimal TaxAmount, decimal CgstAmount, decimal SgstAmount, decimal TotalAmount)
