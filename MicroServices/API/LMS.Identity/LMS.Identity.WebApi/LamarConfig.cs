@@ -12,6 +12,7 @@ namespace LMS.Identity.WebApi
            public static void RegisterContainer(ServiceRegistry lamarRegistryContainer)
         {
             lamarRegistryContainer.AddTransient<ILoginService, LoginService>();
+            lamarRegistryContainer.AddTransient<IRazorpayIntegrationService, RazorpayIntegrationService>();
 
             lamarRegistryContainer.AddScoped<IHttpContextAccessor, HttpContextAccessor>();
             lamarRegistryContainer

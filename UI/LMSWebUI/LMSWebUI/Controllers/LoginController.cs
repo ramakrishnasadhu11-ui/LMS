@@ -499,7 +499,7 @@ namespace LMSWebUI.Controllers
                         var isStoreUser = !string.Equals(role, "Admin", StringComparison.OrdinalIgnoreCase)
                             && !string.Equals(role, "SuperAdmin", StringComparison.OrdinalIgnoreCase);
 
-                        var allowedStores = await FilterEnabledStoresForTenantAsync(tenantSessionEmail, responseMessage.Storecodes ?? new List<string>());
+                        var allowedStores = NormalizeStoreCodes(responseMessage.Storecodes ?? new List<string>());
 
                         string resolvedStore;
                         if (isStoreUser)
@@ -911,18 +911,6 @@ namespace LMSWebUI.Controllers
                 { "eMail", normalizedTenantEmail }
             };
 
-            // Guard against showing store selection for tenants that are still pending/rejected.
-            // Tenant approval data is authoritative for this flow.
-            var approvalState = await GetTenantApprovalStateAsync(normalizedTenantEmail);
-            if (approvalState.IsKnown && !approvalState.IsApproved)
-            {
-                var blockedMessage = string.Equals(approvalState.Status, "Rejected", StringComparison.OrdinalIgnoreCase)
-                    ? "Your account registration was rejected. Please contact the administrator."
-                    : "Your account is pending approval by super admin.";
-
-                return Content("inactive|" + blockedMessage);
-            }
-
             try
             {
                 var responseMessage = await _clientApi.SendRequestAsync<LoginIoResponse>("/GetTenantStoreDetails", paramsGetAllStoresByClient, RestSharp.Method.GET);
@@ -943,7 +931,7 @@ namespace LMSWebUI.Controllers
                         return Content("superadmin");
                     }
 
-                    var enabledStores = await FilterEnabledStoresForTenantAsync(normalizedTenantEmail, responseMessage.Storecodes ?? new List<string>());
+                    var enabledStores = NormalizeStoreCodes(responseMessage.Storecodes ?? new List<string>());
                     return Content(string.Join(",", enabledStores));
                 }
 
@@ -967,7 +955,7 @@ namespace LMSWebUI.Controllers
 
                     if (responseMessage != null && string.Equals(responseMessage.StatusCode, "200", StringComparison.OrdinalIgnoreCase))
                     {
-                        var enabledStores = await FilterEnabledStoresForTenantAsync(normalizedTenantEmail, responseMessage.Storecodes ?? new List<string>());
+                        var enabledStores = NormalizeStoreCodes(responseMessage.Storecodes ?? new List<string>());
                         return Content(string.Join(",", enabledStores));
                     }
 
@@ -983,39 +971,6 @@ namespace LMSWebUI.Controllers
                     _logger.LogError(fallbackEx, "Fallback tenant store lookup failed unexpectedly.");
                     return StatusCode(StatusCodes.Status503ServiceUnavailable, "Store lookup service is unavailable. Please try again.");
                 }
-            }
-        }
-
-        private async Task<(bool IsKnown, bool IsApproved, string Status)> GetTenantApprovalStateAsync(string tenantEmail)
-        {
-            try
-            {
-                var approvalsResponse = await _clientApi.SendRequestAsync<JObject>("/GetAllTenantApprovals", new Dictionary<string, string>(), RestSharp.Method.GET);
-                var approvalsToken = approvalsResponse?["TenantApprovals"] ?? approvalsResponse?["tenantApprovals"] ?? new JArray();
-                var approvalsArray = approvalsToken as JArray ?? approvalsToken?["$values"] as JArray ?? new JArray();
-
-                var tenantApproval = approvalsArray
-                    .Select(x => new
-                    {
-                        Email = (x?["Email"] ?? x?["email"])?.ToString()?.Trim(),
-                        ApprovalStatus = (x?["ApprovalStatus"] ?? x?["approvalStatus"])?.ToString()?.Trim()
-                    })
-                    .FirstOrDefault(x => !string.IsNullOrWhiteSpace(x.Email)
-                        && string.Equals(x.Email, tenantEmail, StringComparison.OrdinalIgnoreCase));
-
-                if (tenantApproval == null)
-                {
-                    return (false, true, string.Empty);
-                }
-
-                var status = tenantApproval.ApprovalStatus ?? string.Empty;
-                var isApproved = string.Equals(status, "Approved", StringComparison.OrdinalIgnoreCase);
-                return (true, isApproved, status);
-            }
-            catch
-            {
-                // Don't block login discovery on transient approval-endpoint failures.
-                return (false, true, string.Empty);
             }
         }
 
@@ -1047,6 +1002,7 @@ namespace LMSWebUI.Controllers
                 var responseMessage = await _clientApi.SendRequestAsync<LoginIoResponse>("/TenantLogin", parmsLogin, RestSharp.Method.POST);
                 var isSuperAdmin = responseMessage != null
                     && string.Equals(responseMessage.UserRole, "SuperAdmin", StringComparison.OrdinalIgnoreCase);
+                var resolvedStores = NormalizeStoreCodes(responseMessage?.Storecodes ?? new List<string>());
 
                 if (responseMessage != null && responseMessage.StatusCode == "404")
                 {
@@ -1087,7 +1043,7 @@ namespace LMSWebUI.Controllers
 
                     var stores = isSuperAdmin
                         ? new List<string>()
-                        : await FilterEnabledStoresForTenantAsync(tenantEmailForStores, responseMessage.Storecodes ?? new List<string>());
+                        : resolvedStores;
 
                     // Credentials are valid - let the Login POST drive the change-password screen.
                     return Json(new
@@ -1107,7 +1063,7 @@ namespace LMSWebUI.Controllers
                     var tenantEmailForStores = string.IsNullOrWhiteSpace(responseMessage.Email)
                         ? email
                         : responseMessage.Email;
-                    var stores = await FilterEnabledStoresForTenantAsync(tenantEmailForStores, responseMessage.Storecodes ?? new List<string>());
+                    var stores = resolvedStores;
                     var isStoreUser = !string.Equals(role, "Admin", StringComparison.OrdinalIgnoreCase)
                                       && !string.Equals(role, "SuperAdmin", StringComparison.OrdinalIgnoreCase);
 
@@ -1167,29 +1123,12 @@ namespace LMSWebUI.Controllers
             }
         }
 
-        private async Task<List<string>> FilterEnabledStoresForTenantAsync(string tenantEmail, IEnumerable<string> candidateStores)
+        private static List<string> NormalizeStoreCodes(IEnumerable<string> storeCodes)
         {
-            var normalizedTenantEmail = tenantEmail?.Trim();
-            if (string.IsNullOrWhiteSpace(normalizedTenantEmail))
-            {
-                return new List<string>();
-            }
-
-            var normalizedCandidateStores = (candidateStores ?? Enumerable.Empty<string>())
+            return (storeCodes ?? Enumerable.Empty<string>())
                 .Where(x => !string.IsNullOrWhiteSpace(x))
                 .Select(x => x.Trim())
                 .Distinct(StringComparer.OrdinalIgnoreCase)
-                .ToList();
-
-            if (normalizedCandidateStores.Count == 0)
-            {
-                return normalizedCandidateStores;
-            }
-
-            var enabledStores = await GetEnabledStoreCodesForTenantAsync(normalizedTenantEmail);
-
-            return normalizedCandidateStores
-                .Where(x => enabledStores.Contains(x))
                 .ToList();
         }
 

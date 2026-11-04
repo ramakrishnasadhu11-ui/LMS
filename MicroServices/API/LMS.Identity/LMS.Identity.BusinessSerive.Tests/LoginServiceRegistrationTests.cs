@@ -14,6 +14,10 @@ using Microsoft.Extensions.DependencyInjection;
 using System.Linq;
 using Newtonsoft.Json.Linq;
 using Microsoft.Extensions.Configuration;
+using System.Net;
+using LMS.Identity.BusinessSerive.Interfaces;
+using LMS.Identity.Utilities;
+using System.Security.Claims;
 
 namespace LMS.Identity.BusinessSerive.Tests
 {
@@ -49,8 +53,70 @@ namespace LMS.Identity.BusinessSerive.Tests
             // is fine for tests that don't exercise mail sending.
             var mailConfig = new Fixtures.FailingSmtpMailConfiguration();
             IConfiguration config = null;
+            var razorpayStub = new StubRazorpayIntegrationService();
 
-            _service = new LoginService(mailConfig, mapper, _uow, logger, config);
+            _service = new LoginService(mailConfig, mapper, _uow, logger, config, razorpayStub);
+        }
+
+        private class StubRazorpayIntegrationService : IRazorpayIntegrationService
+        {
+            public bool IsLiveMode => false;
+
+            public string ActiveKeyId => "rzp_test_stub";
+
+            public Task<ActionReturnType> CreateTenantSubscriptionPaymentOrder(CreateTenantSubscriptionPaymentOrderRequestDto request, ClaimsPrincipal user)
+            {
+                return Task.FromResult(ActionSet.ActionReturnType(HttpStatusCode.NotImplemented, new IOResponse
+                {
+                    StatusCode = "501",
+                    Message = "Not implemented in this test stub."
+                }));
+            }
+
+            public Task<ActionReturnType> VerifyTenantSubscriptionCheckoutPayment(VerifyCheckoutPaymentRequestDto request, ClaimsPrincipal user)
+            {
+                return Task.FromResult(ActionSet.ActionReturnType(HttpStatusCode.NotImplemented, new IOResponse
+                {
+                    StatusCode = "501",
+                    Message = "Not implemented in this test stub."
+                }));
+            }
+
+            public Task<ActionReturnType> ReconcileCapturedPayment(ReconcileCapturedPaymentRequestDto request)
+            {
+                return Task.FromResult(ActionSet.ActionReturnType(HttpStatusCode.NotImplemented, new IOResponse
+                {
+                    StatusCode = "501",
+                    Message = "Not implemented in this test stub."
+                }));
+            }
+
+            public Task<ActionReturnType> ProcessRazorpayWebhook(string rawPayload, string razorpaySignature)
+            {
+                return Task.FromResult(ActionSet.ActionReturnType(HttpStatusCode.NotImplemented, new IOResponse
+                {
+                    StatusCode = "501",
+                    Message = "Not implemented in this test stub."
+                }));
+            }
+
+            public Task<ActionReturnType> GetTenantSubscriptionPaymentHistory(ClaimsPrincipal user)
+            {
+                return Task.FromResult(ActionSet.ActionReturnType(HttpStatusCode.NotImplemented, new IOResponse
+                {
+                    StatusCode = "501",
+                    Message = "Not implemented in this test stub."
+                }));
+            }
+
+            public Task<ActionReturnType> GetTenantSubscriptionOverview(ClaimsPrincipal user)
+            {
+                return Task.FromResult(ActionSet.ActionReturnType(HttpStatusCode.NotImplemented, new IOResponse
+                {
+                    StatusCode = "501",
+                    Message = "Not implemented in this test stub."
+                }));
+            }
         }
 
         [Fact]

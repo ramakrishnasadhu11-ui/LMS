@@ -1,0 +1,404 @@
+@{
+    ViewData["Title"] = "Subscription Plans";
+    Layout = "~/Views/Shared/_HeaderMenuItemsLayout.cshtml";
+    var tenantName = Convert.ToString(ViewData["TenantName"] ?? "-");
+    var userRole = Convert.ToString(ViewData["UserRole"] ?? "StoreUser");
+    var canCheckout = string.Equals(userRole, "Admin", StringComparison.OrdinalIgnoreCase);
+}
+
+<style>
+.subscription-page,
+.subscription-page input,
+.subscription-page button,
+.subscription-page label,
+.subscription-page textarea,
+.subscription-page select {
+    font-family: Arial, Helvetica, sans-serif;
+}
+
+.subscription-page { padding: 20px; }
+.subscription-box {
+    max-width: 1240px;
+    margin: 0 auto;
+    background: var(--els-surface);
+    border-radius: 10px;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+    overflow: hidden;
+}
+.subscription-title {
+    background: linear-gradient(90deg, var(--els-primary) 0%, var(--els-primary-dark) 100%);
+    color: #fff;
+    padding: 16px 20px;
+    font-size: 22px;
+    font-weight: 600;
+}
+.subscription-body { padding: 20px; }
+.subscription-note {
+    border: 1px solid var(--els-border);
+    border-radius: 8px;
+    background: var(--els-accent);
+    padding: 14px;
+    margin-bottom: 16px;
+    color: var(--els-text);
+    line-height: 1.55;
+}
+.subscription-status-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 12px;
+    margin-bottom: 16px;
+}
+.subscription-status-card {
+    border: 1px solid var(--els-border);
+    border-radius: 8px;
+    padding: 10px 12px;
+    background: #fff;
+}
+.subscription-status-label {
+    color: #6b7280;
+    font-size: 12px;
+    margin-bottom: 3px;
+}
+.subscription-status-value {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--els-text);
+}
+.subscription-msg {
+    display: none;
+    margin-bottom: 12px;
+    border-radius: 8px;
+    padding: 10px 12px;
+    font-size: 13px;
+    font-weight: 600;
+}
+.subscription-msg.success {
+    display: block;
+    background: rgba(22, 163, 74, 0.12);
+    color: #166534;
+    border: 1px solid #15803d;
+}
+.subscription-msg.error {
+    display: block;
+    background: rgba(201, 48, 44, 0.12);
+    color: #991b1b;
+    border: 1px solid var(--els-danger);
+}
+
+.subscription-table {
+    width: 100%;
+    border-collapse: collapse;
+    min-width: 900px;
+}
+.subscription-table th,
+.subscription-table td {
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--els-border);
+    text-align: left;
+    font-size: 13px;
+}
+.subscription-table th {
+    background: #f1f5ff;
+    font-weight: 700;
+}
+.subscription-wrap { overflow-x: auto; }
+.subscription-btn {
+    min-height: 36px;
+    border: 1px solid transparent;
+    border-radius: 8px;
+    background: linear-gradient(180deg, var(--els-primary-light) 0%, var(--els-primary) 100%);
+    color: #fff;
+    font-weight: 600;
+    cursor: pointer;
+    padding: 0 14px;
+}
+.subscription-btn[disabled] {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+.subscription-btn.secondary {
+    background: linear-gradient(180deg, #8f99a4 0%, #6f7a86 100%);
+}
+</style>
+
+<section class="subscription-page">
+    <div class="subscription-box">
+        <div class="subscription-title">Subscription Plans & Renewal</div>
+        <div class="subscription-body">
+            <div class="subscription-note">
+                Signed in tenant: <strong>@tenantName</strong><br />
+                Subscription activation and pricing are verified server-side from Identity API plan catalog.
+            </div>
+
+            <div id="subscriptionStatusMessage" class="subscription-msg"></div>
+
+            <div class="subscription-status-grid">
+                <div class="subscription-status-card">
+                    <div class="subscription-status-label">Current Plan</div>
+                    <div id="currentPlanValue" class="subscription-status-value">-</div>
+                </div>
+                <div class="subscription-status-card">
+                    <div class="subscription-status-label">Status</div>
+                    <div id="currentStatusValue" class="subscription-status-value">-</div>
+                </div>
+                <div class="subscription-status-card">
+                    <div class="subscription-status-label">Subscription Expiry (UTC)</div>
+                    <div id="subscriptionEndValue" class="subscription-status-value">-</div>
+                </div>
+                <div class="subscription-status-card">
+                    <div class="subscription-status-label">Trial End (UTC)</div>
+                    <div id="trialEndValue" class="subscription-status-value">-</div>
+                </div>
+            </div>
+
+            @if (!canCheckout)
+            {
+                <div class="subscription-note">Only tenant admin users can subscribe or renew from this screen.</div>
+            }
+
+            <div class="subscription-note">
+                <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">
+                    <strong>Available Active Plans</strong>
+                    <button type="button" class="subscription-btn secondary" id="refreshSubscriptionOverviewBtn">Refresh</button>
+                </div>
+                <div id="tenantPlansHost" style="margin-top:10px;">Loading plans...</div>
+            </div>
+
+            <div class="subscription-note">
+                <strong>Payment History</strong>
+                <div id="tenantPaymentHistoryHost" style="margin-top:10px;">No payment history available.</div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+<script>
+(function () {
+    var canCheckout = @canCheckout.ToString().ToLowerInvariant();
+    var statusMessage = document.getElementById("subscriptionStatusMessage");
+    var currentPlanValue = document.getElementById("currentPlanValue");
+    var currentStatusValue = document.getElementById("currentStatusValue");
+    var subscriptionEndValue = document.getElementById("subscriptionEndValue");
+    var trialEndValue = document.getElementById("trialEndValue");
+    var plansHost = document.getElementById("tenantPlansHost");
+    var historyHost = document.getElementById("tenantPaymentHistoryHost");
+    var refreshBtn = document.getElementById("refreshSubscriptionOverviewBtn");
+
+    function setMessage(type, text) {
+        statusMessage.className = "subscription-msg";
+        statusMessage.textContent = text || "";
+        if (!text) {
+            return;
+        }
+        statusMessage.classList.add(type === "success" ? "success" : "error");
+    }
+
+    function toDateText(value) {
+        if (!value) return "-";
+        var d = new Date(value);
+        return isNaN(d.getTime()) ? "-" : d.toISOString().replace("T", " ").replace(".000Z", "Z");
+    }
+
+    function formatInr(amount) {
+        var n = Number(amount || 0);
+        return isFinite(n)
+            ? n.toLocaleString("en-IN", { style: "currency", currency: "INR", minimumFractionDigits: 2, maximumFractionDigits: 2 })
+            : "₹0.00";
+    }
+
+    function renderHistory(history) {
+        if (!history || !history.length) {
+            historyHost.textContent = "No payment history available.";
+            return;
+        }
+
+        var html = "<div class='subscription-wrap'><table class='subscription-table'>"
+            + "<thead><tr><th>Order</th><th>Plan</th><th>Cycle</th><th>Amount</th><th>Status</th><th>Payment</th><th>Updated</th></tr></thead><tbody>";
+
+        history.forEach(function (h) {
+            html += "<tr>"
+                + "<td>" + (h.paymentOrderId || "-") + "</td>"
+                + "<td>" + (h.planCode || "-") + "</td>"
+                + "<td>" + (h.billingCycle || "-") + "</td>"
+                + "<td>" + formatInr(h.amount) + " " + (h.currency || "INR") + "</td>"
+                + "<td>" + (h.orderStatus || "-") + "</td>"
+                + "<td>" + (h.gatewayPaymentId || "-") + "</td>"
+                + "<td>" + toDateText(h.modifiedUtc || h.createdUtc) + "</td>"
+                + "</tr>";
+        });
+
+        html += "</tbody></table></div>";
+        historyHost.innerHTML = html;
+    }
+
+    function verifyCheckout(result, onDone) {
+        var form = new URLSearchParams();
+        form.append("paymentOrderId", String(result.paymentOrderId || 0));
+        form.append("razorpayOrderId", result.razorpayOrderId || "");
+        form.append("razorpayPaymentId", result.razorpayPaymentId || "");
+        form.append("razorpaySignature", result.razorpaySignature || "");
+
+        fetch('@Url.Action("VerifyTenantSubscriptionCheckoutPayment", "Customer")', {
+            method: "POST",
+            headers: { "Content-Type": "application/x-www-form-urlencoded" },
+            body: form.toString()
+        })
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+            if (data && data.success) {
+                setMessage("success", data.message || "Subscription payment verified successfully.");
+                loadOverview();
+            } else {
+                setMessage("error", (data && data.message) || "Unable to verify subscription payment.");
+            }
+        })
+        .catch(function () {
+            setMessage("error", "Unable to verify subscription payment.");
+        })
+        .finally(function () {
+            if (onDone) onDone();
+        });
+    }
+
+    function startCheckout(planCode, billingCycle, btn) {
+        var form = new URLSearchParams();
+        form.append("planCode", planCode || "");
+        form.append("billingCycle", billingCycle || "");
+
+        btn.disabled = true;
+        setMessage("", "");
+
+        fetch('@Url.Action("CreateTenantSubscriptionPaymentOrder", "Customer")', {
+            method: "POST",
+            headers: { "Content-Type": "application/x-www-form-urlencoded" },
+            body: form.toString()
+        })
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+            if (!data || data.success !== true || !data.order) {
+                setMessage("error", (data && data.message) || "Unable to create subscription checkout order.");
+                btn.disabled = false;
+                return;
+            }
+
+            var order = data.order;
+            var options = {
+                key: order.razorpayKeyId,
+                amount: Number(order.amountMinor || 0),
+                currency: order.currency || "INR",
+                name: "Excel Laundry Services",
+                description: (order.planCode || "Plan") + " - " + (order.billingCycle || "Cycle"),
+                order_id: order.razorpayOrderId,
+                handler: function (response) {
+                    verifyCheckout({
+                        paymentOrderId: order.paymentOrderId,
+                        razorpayOrderId: response.razorpay_order_id,
+                        razorpayPaymentId: response.razorpay_payment_id,
+                        razorpaySignature: response.razorpay_signature
+                    }, function () {
+                        btn.disabled = false;
+                    });
+                },
+                modal: {
+                    ondismiss: function () {
+                        btn.disabled = false;
+                    }
+                },
+                theme: {
+                    color: "#1e40af"
+                }
+            };
+
+            var razorpay = new Razorpay(options);
+            razorpay.on("payment.failed", function (resp) {
+                var reason = resp && resp.error && resp.error.description
+                    ? resp.error.description
+                    : "Payment failed.";
+                setMessage("error", reason);
+                btn.disabled = false;
+            });
+            razorpay.open();
+        })
+        .catch(function () {
+            setMessage("error", "Unable to create subscription checkout order.");
+            btn.disabled = false;
+        });
+    }
+
+    function renderPlans(plans) {
+        if (!plans || !plans.length) {
+            plansHost.textContent = "No active plans available.";
+            return;
+        }
+
+        var html = "<div class='subscription-wrap'><table class='subscription-table'>"
+            + "<thead><tr><th>Plan</th><th>Billing Cycle</th><th>Price</th><th>Currency</th><th>Action</th></tr></thead><tbody>";
+
+        plans.forEach(function (p) {
+            var buttonHtml = "<button type='button' class='subscription-btn subscribe-renew-btn'"
+                + " data-plan='" + (p.planCode || "") + "'"
+                + " data-cycle='" + (p.billingCycle || "") + "'"
+                + (canCheckout ? "" : " disabled")
+                + ">Subscribe / Renew</button>";
+
+            html += "<tr>"
+                + "<td>" + (p.planCode || "-") + "</td>"
+                + "<td>" + (p.billingCycle || "-") + "</td>"
+                + "<td>" + formatInr(p.amount) + "</td>"
+                + "<td>" + (p.currency || "INR") + "</td>"
+                + "<td>" + buttonHtml + "</td>"
+                + "</tr>";
+        });
+
+        html += "</tbody></table></div>";
+        plansHost.innerHTML = html;
+
+        Array.prototype.forEach.call(plansHost.querySelectorAll(".subscribe-renew-btn"), function (btn) {
+            btn.addEventListener("click", function () {
+                if (!canCheckout) {
+                    return;
+                }
+
+                startCheckout(btn.getAttribute("data-plan"), btn.getAttribute("data-cycle"), btn);
+            });
+        });
+    }
+
+    function loadOverview() {
+        setMessage("", "");
+        plansHost.textContent = "Loading plans...";
+
+        fetch('@Url.Action("GetTenantSubscriptionOverview", "Customer")')
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                if (!data || data.success !== true || !data.overview) {
+                    plansHost.textContent = "Unable to load tenant subscription details.";
+                    historyHost.textContent = "No payment history available.";
+                    setMessage("error", (data && data.message) || "Unable to load tenant subscription details.");
+                    return;
+                }
+
+                var o = data.overview;
+                currentPlanValue.textContent = o.planCode || "-";
+                currentStatusValue.textContent = o.subscriptionStatus || "-";
+                subscriptionEndValue.textContent = toDateText(o.subscriptionEndUtc);
+                trialEndValue.textContent = toDateText(o.trialEndUtc);
+
+                renderPlans(o.availablePlans || []);
+                renderHistory(o.paymentHistory || []);
+            })
+            .catch(function () {
+                plansHost.textContent = "Unable to load tenant subscription details.";
+                historyHost.textContent = "No payment history available.";
+                setMessage("error", "Unable to load tenant subscription details.");
+            });
+    }
+
+    refreshBtn.addEventListener("click", function () {
+        loadOverview();
+    });
+
+    loadOverview();
+})();
+</script>

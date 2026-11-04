@@ -10,6 +10,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net;
+using System.Reflection;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -185,6 +186,64 @@ namespace LMS.Master.WebApi.Tests
             Assert.Equal(2, statuses.Length);
         }
 
+        [Fact]
+        public async Task ResolveRazorpayCredentials_TestMode_FallsBackToUsernamePassword()
+        {
+            EnsureFixtureReady();
+            var (tenant, store) = NewScope();
+
+            await using var context = _fixture.CreateDbContext();
+            var service = _fixture.CreateService(context);
+
+            var dto = BuildRazorpayDto(tenant, store);
+            dto.SecretSettings = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["Username"] = "test-mode-username",
+                ["Password"] = "test-mode-password"
+            };
+
+            var saveResult = await service.SaveTenantIntegrationSettings(dto);
+            Assert.Equal(HttpStatusCode.OK, saveResult.StatusCode);
+
+            await EnableRazorpayIntegrationAsync(context, tenant, store);
+
+            var resolved = await ResolveRazorpayCredentialsForTestAsync(service, tenant, store);
+            Assert.True(resolved.Success);
+            Assert.True(resolved.IsTestMode);
+            Assert.Equal("test-mode-username", resolved.KeyId);
+            Assert.Equal("test-mode-password", resolved.KeySecret);
+        }
+
+        [Fact]
+        public async Task ResolveRazorpayCredentials_TestMode_PrefersTestKeysOverUsernamePassword()
+        {
+            EnsureFixtureReady();
+            var (tenant, store) = NewScope();
+
+            await using var context = _fixture.CreateDbContext();
+            var service = _fixture.CreateService(context);
+
+            var dto = BuildRazorpayDto(tenant, store);
+            dto.SecretSettings = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["TestKeyId"] = "preferred-test-key-id",
+                ["TestKeySecret"] = "preferred-test-key-secret",
+                ["Username"] = "fallback-username",
+                ["Password"] = "fallback-password"
+            };
+
+            var saveResult = await service.SaveTenantIntegrationSettings(dto);
+            Assert.Equal(HttpStatusCode.OK, saveResult.StatusCode);
+
+            await EnableRazorpayIntegrationAsync(context, tenant, store);
+
+            var resolved = await ResolveRazorpayCredentialsForTestAsync(service, tenant, store);
+            Assert.True(resolved.Success);
+            Assert.True(resolved.IsTestMode);
+            Assert.Equal("preferred-test-key-id", resolved.KeyId);
+            Assert.Equal("preferred-test-key-secret", resolved.KeySecret);
+        }
+
         private static TenantIntegrationSettingsDto BuildRazorpayDto(string tenant, string store)
         {
             return new TenantIntegrationSettingsDto
@@ -214,6 +273,27 @@ namespace LMS.Master.WebApi.Tests
 
         private static (string Tenant, string Store) NewScope()
             => ($"tenant-{Guid.NewGuid():N}", $"store-{Guid.NewGuid():N}");
+
+        private static async Task EnableRazorpayIntegrationAsync(MasterDbContext context, string tenant, string store)
+        {
+            var record = await context.TenantIntegrationSettings
+                .SingleAsync(x => x.TenantName == tenant
+                                  && x.StoreCode == store
+                                  && x.Category == IntegrationConstants.Category.Payments
+                                  && x.ProviderKey == "razorpay");
+
+            record.IsEnabled = true;
+            await context.SaveChangesAsync();
+        }
+
+        private static async Task<(bool Success, string KeyId, string KeySecret, bool IsTestMode, string ErrorMessage)> ResolveRazorpayCredentialsForTestAsync(Customerservice service, string tenant, string store)
+        {
+            var method = typeof(Customerservice).GetMethod("ResolveRazorpayCredentialsAsync", BindingFlags.Instance | BindingFlags.NonPublic);
+            Assert.NotNull(method);
+
+            var task = (Task<(bool Success, string KeyId, string KeySecret, bool IsTestMode, string ErrorMessage)>)method.Invoke(service, new object[] { tenant, store });
+            return await task;
+        }
 
         private static JsonElement ParsePayload(string encryptedPayload, string keyMaterial)
         {

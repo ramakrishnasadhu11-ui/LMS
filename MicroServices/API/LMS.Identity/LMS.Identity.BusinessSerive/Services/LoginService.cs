@@ -47,8 +47,9 @@ namespace LMS.Identity.BusinessSerive.Services
         private readonly string _mailFrom;
         private readonly ILogger<LoginService> _logger;
         private readonly IConfiguration _configuration;
+        private readonly IRazorpayIntegrationService _razorpayIntegrationService;
 
-        public LoginService(IMailConfiguration mailConfiguration, IMapper mapper, IUnitOfWork<IdentityDbContext> unitOfWork, ILogger<LoginService> logger, IConfiguration configuration)
+        public LoginService(IMailConfiguration mailConfiguration, IMapper mapper, IUnitOfWork<IdentityDbContext> unitOfWork, ILogger<LoginService> logger, IConfiguration configuration, IRazorpayIntegrationService razorpayIntegrationService)
         {
             _mapper = mapper ?? throw new ArgumentNullException(nameof(mapper));
             _unitOfWork = unitOfWork ?? throw new ArgumentNullException(nameof(unitOfWork));
@@ -57,6 +58,7 @@ namespace LMS.Identity.BusinessSerive.Services
             _mailSubject = _mail_configuration_subject(mailConfiguration);
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
             _configuration = configuration;
+            _razorpayIntegrationService = razorpayIntegrationService ?? throw new ArgumentNullException(nameof(razorpayIntegrationService));
         }
 
         // Small helpers to avoid potential null reference when reading mail config in ctor
@@ -1479,6 +1481,184 @@ namespace LMS.Identity.BusinessSerive.Services
                 StatusCode = "200",
                 Message = message
             });
+        }
+
+        public async Task<ActionReturnType> GetSubscriptionPlans()
+        {
+            var plans = await _unitOfWork.DbContext.SubscriptionPlans
+                .AsNoTracking()
+                .OrderBy(x => x.PlanCode)
+                .ThenBy(x => x.BillingCycle)
+                .Select(x => new SubscriptionPlanDto
+                {
+                    PlanCode = x.PlanCode,
+                    BillingCycle = x.BillingCycle,
+                    Amount = x.Amount,
+                    Currency = x.Currency,
+                    IsActive = x.IsActive,
+                    CreatedDateUtc = x.CreatedDateUtc,
+                    ModifiedDateUtc = x.ModifiedDateUtc,
+                    UpdatedBy = x.UpdatedBy
+                })
+                .ToListAsync();
+
+            return ActionSet.ActionReturnType(HttpStatusCode.OK, new SubscriptionPlanCatalogResponseDto
+            {
+                Plans = plans
+            });
+        }
+
+        public async Task<ActionReturnType> UpdateSubscriptionPlanPrice(SubscriptionPlanPriceUpdateRequestDto request, string actionedBy)
+        {
+            var normalizedPlanCode = (request?.PlanCode ?? string.Empty).Trim();
+            var normalizedBillingCycle = NormalizeBillingCycle(request?.BillingCycle);
+
+            if (string.IsNullOrWhiteSpace(normalizedPlanCode))
+            {
+                return ActionSet.ActionReturnType(HttpStatusCode.BadRequest, new IOResponse
+                {
+                    StatusCode = "400",
+                    Message = "Plan code is required."
+                });
+            }
+
+            if (string.IsNullOrWhiteSpace(normalizedBillingCycle))
+            {
+                return ActionSet.ActionReturnType(HttpStatusCode.BadRequest, new IOResponse
+                {
+                    StatusCode = "400",
+                    Message = "Billing cycle must be Monthly or Yearly."
+                });
+            }
+
+            if (request == null || request.Amount <= 0)
+            {
+                return ActionSet.ActionReturnType(HttpStatusCode.BadRequest, new IOResponse
+                {
+                    StatusCode = "400",
+                    Message = "Amount must be greater than zero."
+                });
+            }
+
+            var plan = await _unitOfWork.DbContext.SubscriptionPlans
+                .FirstOrDefaultAsync(x => x.PlanCode == normalizedPlanCode && x.BillingCycle == normalizedBillingCycle);
+
+            if (plan == null)
+            {
+                return ActionSet.ActionReturnType(HttpStatusCode.NotFound, new IOResponse
+                {
+                    StatusCode = "404",
+                    Message = $"Subscription plan {normalizedPlanCode} {normalizedBillingCycle} was not found."
+                });
+            }
+
+            plan.Amount = decimal.Round(request.Amount, 2, MidpointRounding.AwayFromZero);
+            plan.ModifiedDateUtc = DateTime.UtcNow;
+            plan.UpdatedBy = string.IsNullOrWhiteSpace(actionedBy) ? "SuperAdmin" : actionedBy.Trim();
+
+            await _unitOfWork.SaveChangesAsync();
+
+            return ActionSet.ActionReturnType(HttpStatusCode.OK, new IOResponse
+            {
+                StatusCode = "200",
+                Message = $"Subscription plan {normalizedPlanCode} {normalizedBillingCycle} price updated successfully."
+            });
+        }
+
+        public async Task<ActionReturnType> SetSubscriptionPlanActiveStatus(SubscriptionPlanActiveStatusUpdateRequestDto request, string actionedBy)
+        {
+            var normalizedPlanCode = (request?.PlanCode ?? string.Empty).Trim();
+            var normalizedBillingCycle = NormalizeBillingCycle(request?.BillingCycle);
+
+            if (string.IsNullOrWhiteSpace(normalizedPlanCode))
+            {
+                return ActionSet.ActionReturnType(HttpStatusCode.BadRequest, new IOResponse
+                {
+                    StatusCode = "400",
+                    Message = "Plan code is required."
+                });
+            }
+
+            if (string.IsNullOrWhiteSpace(normalizedBillingCycle))
+            {
+                return ActionSet.ActionReturnType(HttpStatusCode.BadRequest, new IOResponse
+                {
+                    StatusCode = "400",
+                    Message = "Billing cycle must be Monthly or Yearly."
+                });
+            }
+
+            var plan = await _unitOfWork.DbContext.SubscriptionPlans
+                .FirstOrDefaultAsync(x => x.PlanCode == normalizedPlanCode && x.BillingCycle == normalizedBillingCycle);
+
+            if (plan == null)
+            {
+                return ActionSet.ActionReturnType(HttpStatusCode.NotFound, new IOResponse
+                {
+                    StatusCode = "404",
+                    Message = $"Subscription plan {normalizedPlanCode} {normalizedBillingCycle} was not found."
+                });
+            }
+
+            plan.IsActive = request.IsActive;
+            plan.ModifiedDateUtc = DateTime.UtcNow;
+            plan.UpdatedBy = string.IsNullOrWhiteSpace(actionedBy) ? "SuperAdmin" : actionedBy.Trim();
+
+            await _unitOfWork.SaveChangesAsync();
+
+            return ActionSet.ActionReturnType(HttpStatusCode.OK, new IOResponse
+            {
+                StatusCode = "200",
+                Message = request.IsActive
+                    ? $"Subscription plan {normalizedPlanCode} {normalizedBillingCycle} activated successfully."
+                    : $"Subscription plan {normalizedPlanCode} {normalizedBillingCycle} deactivated successfully."
+            });
+        }
+
+        public async Task<ActionReturnType> CreateTenantSubscriptionPaymentOrder(CreateTenantSubscriptionPaymentOrderRequestDto request, ClaimsPrincipal user)
+        {
+            return await _razorpayIntegrationService.CreateTenantSubscriptionPaymentOrder(request, user);
+        }
+
+        public async Task<ActionReturnType> VerifyTenantSubscriptionCheckoutPayment(VerifyCheckoutPaymentRequestDto request, ClaimsPrincipal user)
+        {
+            return await _razorpayIntegrationService.VerifyTenantSubscriptionCheckoutPayment(request, user);
+        }
+
+        public async Task<ActionReturnType> ReconcileCapturedPayment(ReconcileCapturedPaymentRequestDto request)
+        {
+            return await _razorpayIntegrationService.ReconcileCapturedPayment(request);
+        }
+
+        public async Task<ActionReturnType> ProcessRazorpayWebhook(string rawPayload, string razorpaySignature)
+        {
+            return await _razorpayIntegrationService.ProcessRazorpayWebhook(rawPayload, razorpaySignature);
+        }
+
+        public async Task<ActionReturnType> GetTenantSubscriptionPaymentHistory(ClaimsPrincipal user)
+        {
+            return await _razorpayIntegrationService.GetTenantSubscriptionPaymentHistory(user);
+        }
+
+        public async Task<ActionReturnType> GetTenantSubscriptionOverview(ClaimsPrincipal user)
+        {
+            return await _razorpayIntegrationService.GetTenantSubscriptionOverview(user);
+        }
+
+        private static string NormalizeBillingCycle(string billingCycle)
+        {
+            var normalized = (billingCycle ?? string.Empty).Trim();
+            if (string.Equals(normalized, "Monthly", StringComparison.OrdinalIgnoreCase))
+            {
+                return "Monthly";
+            }
+
+            if (string.Equals(normalized, "Yearly", StringComparison.OrdinalIgnoreCase))
+            {
+                return "Yearly";
+            }
+
+            return null;
         }
 
         private async Task<bool> SendTenantApprovalConfirmationEmailAsync(TenantEntity tenant, string actionedBy)

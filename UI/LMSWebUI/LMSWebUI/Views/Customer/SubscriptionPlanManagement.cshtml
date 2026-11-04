@@ -1,0 +1,429 @@
+@{
+    ViewData["Title"] = "Subscription Plan Management";
+    Layout = "~/Views/Shared/_HeaderMenuItemsLayout.cshtml";
+    var tenantName = Convert.ToString(ViewData["TenantName"] ?? "-");
+}
+
+<style>
+.admin-setup-page,
+.admin-setup-page input,
+.admin-setup-page button,
+.admin-setup-page label,
+.admin-setup-page textarea,
+.admin-setup-page select {
+    font-family: Arial, Helvetica, sans-serif;
+}
+
+.admin-setup-page { padding: 20px; }
+.admin-setup-box {
+    max-width: 1280px;
+    margin: 0 auto;
+    background: var(--els-surface);
+    border-radius: 10px;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+    overflow: hidden;
+}
+.admin-setup-title {
+    background: linear-gradient(90deg, var(--els-primary) 0%, var(--els-primary-dark) 100%);
+    color: #fff;
+    padding: 16px 20px;
+    font-size: 22px;
+    font-weight: 600;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: flex-start;
+}
+.admin-setup-body { padding: 20px; }
+.plan-header-meta {
+    margin-top: 8px;
+    font-size: 14px;
+    color: rgba(255, 255, 255, 0.95);
+}
+.plan-header-meta .tenant-admin-name {
+    font-weight: 700;
+    color: #ffffff;
+}
+.admin-setup-note {
+    border: 1px solid var(--els-border);
+    border-radius: 8px;
+    background: var(--els-accent);
+    padding: 14px;
+    margin-bottom: 16px;
+    color: var(--els-text);
+    line-height: 1.55;
+}
+.plan-note-title {
+    margin: 0 0 6px;
+    font-size: 15px;
+    font-weight: 700;
+}
+.plan-note-text {
+    margin: 0;
+    font-size: 14px;
+}
+.admin-btn {
+    min-width: 110px;
+    min-height: 36px;
+    border: 1px solid transparent;
+    border-radius: 8px;
+    background: linear-gradient(180deg, var(--els-primary-light) 0%, var(--els-primary) 100%);
+    color: #fff;
+    font-weight: 600;
+    cursor: pointer;
+}
+.admin-btn.secondary {
+    background: linear-gradient(180deg, #8f99a4 0%, #6f7a86 100%);
+}
+.admin-btn.danger {
+    background: linear-gradient(180deg, #e2655f 0%, var(--els-danger) 100%);
+}
+.admin-btn + .admin-btn { margin-left: 6px; }
+.plan-list-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 10px;
+    flex-wrap: nowrap;
+}
+.plan-list-title {
+    margin: 0;
+    font-size: 17px;
+    font-weight: 700;
+    color: var(--els-text);
+}
+.plan-table-wrap {
+    width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+}
+.plan-status-pill {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 700;
+}
+.plan-status-pill.active {
+    background: rgba(22, 163, 74, 0.12);
+    color: #15803d;
+    border: 1px solid #15803d;
+}
+.plan-status-pill.inactive {
+    background: rgba(201, 48, 44, 0.10);
+    color: var(--els-danger);
+    border: 1px solid var(--els-danger);
+}
+
+.plan-status-msg {
+    display: none;
+    margin-bottom: 12px;
+    border-radius: 8px;
+    padding: 10px 12px;
+    font-size: 13px;
+    font-weight: 600;
+}
+.plan-status-msg.success {
+    display: block;
+    background: rgba(22, 163, 74, 0.12);
+    color: #166534;
+    border: 1px solid #15803d;
+}
+.plan-status-msg.error {
+    display: block;
+    background: rgba(201, 48, 44, 0.12);
+    color: #991b1b;
+    border: 1px solid var(--els-danger);
+}
+
+.subscription-plan-table {
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: fixed;
+    min-width: 1180px;
+}
+.subscription-plan-table th,
+.subscription-plan-table td {
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--els-border);
+    text-align: left;
+    vertical-align: middle;
+    font-size: 13px;
+    overflow-wrap: anywhere;
+}
+.subscription-plan-table th {
+    background: #f1f5ff;
+    color: var(--els-text);
+    font-weight: 700;
+    white-space: nowrap;
+}
+.subscription-plan-table col.col-plan { width: 12%; }
+.subscription-plan-table col.col-cycle { width: 10%; }
+.subscription-plan-table col.col-amount { width: 14%; }
+.subscription-plan-table col.col-currency { width: 9%; }
+.subscription-plan-table col.col-status { width: 10%; }
+.subscription-plan-table col.col-modified { width: 15%; }
+.subscription-plan-table col.col-updatedby { width: 14%; }
+.subscription-plan-table col.col-actions { width: 16%; }
+
+.plan-action-cell {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+.plan-price-edit {
+    width: 120px;
+    max-width: 100%;
+    border: 1px solid var(--els-border);
+    border-radius: 6px;
+    padding: 6px 8px;
+    font-size: 13px;
+}
+
+@@media (max-width: 768px) {
+    .admin-setup-page,
+    .admin-setup-body {
+        padding: 14px;
+    }
+
+    .plan-list-header {
+        flex-wrap: wrap;
+    }
+
+    .subscription-plan-table {
+        min-width: 1020px;
+    }
+}
+</style>
+
+<section class="admin-setup-page">
+    <div class="admin-setup-box">
+        <div class="admin-setup-title">
+            Subscription Plan Management
+            <div class="plan-header-meta">Signed in as Super Admin: <span class="tenant-admin-name">@tenantName</span></div>
+        </div>
+        <div class="admin-setup-body">
+            <div class="admin-setup-note">
+                <p class="plan-note-title">Plan Administration</p>
+                <p class="plan-note-text">
+                    Manage plan prices and availability for future subscriptions. Price changes do not alter historical transactions.
+                </p>
+            </div>
+
+            <div class="admin-setup-note">
+                <div id="planStatusMessage" class="plan-status-msg"></div>
+                <div class="plan-list-header">
+                    <h2 class="plan-list-title">Subscription Plans</h2>
+                    <button type="button" class="admin-btn secondary" id="refreshPlansBtn">Refresh</button>
+                </div>
+                <div id="subscriptionPlanList">Loading plans...</div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<script>
+(function () {
+    var host = document.getElementById("subscriptionPlanList");
+    var statusMessage = document.getElementById("planStatusMessage");
+
+    function setMessage(type, text) {
+        if (!statusMessage) {
+            return;
+        }
+
+        if (!text) {
+            statusMessage.className = "plan-status-msg";
+            statusMessage.textContent = "";
+            return;
+        }
+
+        statusMessage.className = "plan-status-msg " + (type === "success" ? "success" : "error");
+        statusMessage.textContent = text;
+    }
+
+    function formatInr(amount) {
+        var number = Number(amount || 0);
+        return new Intl.NumberFormat("en-IN", {
+            style: "currency",
+            currency: "INR",
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2
+        }).format(number);
+    }
+
+    function toLocalDate(value) {
+        if (!value) {
+            return "-";
+        }
+
+        var parsed = new Date(value);
+        return isNaN(parsed.getTime()) ? "-" : parsed.toLocaleString();
+    }
+
+    function render(plans) {
+        if (!plans || plans.length === 0) {
+            host.textContent = "No subscription plans found.";
+            return;
+        }
+
+        var html = "<div class='plan-table-wrap'><table class='subscription-plan-table'>"
+            + "<colgroup>"
+            + "<col class='col-plan' /><col class='col-cycle' /><col class='col-amount' /><col class='col-currency' />"
+            + "<col class='col-status' /><col class='col-modified' /><col class='col-updatedby' /><col class='col-actions' />"
+            + "</colgroup>"
+            + "<thead><tr>"
+            + "<th>Plan</th><th>Billing Cycle</th><th>Amount</th><th>Currency</th><th>Status</th><th>Last Modified</th><th>Updated By</th><th>Actions</th>"
+            + "</tr></thead><tbody>";
+
+        plans.forEach(function (p) {
+            var statusPill = p.isActive
+                ? "<span class='plan-status-pill active'>Active</span>"
+                : "<span class='plan-status-pill inactive'>Inactive</span>";
+
+            html += "<tr>"
+                + "<td>" + (p.planCode || "-") + "</td>"
+                + "<td>" + (p.billingCycle || "-") + "</td>"
+                + "<td><div>" + formatInr(p.amount) + "</div>"
+                + "<input type='number' min='0.01' step='0.01' class='plan-price-edit'"
+                + " data-plan='" + (p.planCode || "") + "'"
+                + " data-cycle='" + (p.billingCycle || "") + "'"
+                + " value='" + Number(p.amount || 0).toFixed(2) + "' /></td>"
+                + "<td>" + (p.currency || "INR") + "</td>"
+                + "<td>" + statusPill + "</td>"
+                + "<td>" + toLocalDate(p.modifiedDateUtc || p.createdDateUtc) + "</td>"
+                + "<td>" + (p.updatedBy || "-") + "</td>"
+                + "<td class='plan-action-cell'>"
+                + "<button type='button' class='admin-btn save-plan-price-btn'"
+                + " data-plan='" + (p.planCode || "") + "' data-cycle='" + (p.billingCycle || "") + "'>Save Price</button>"
+                + "<button type='button' class='admin-btn " + (p.isActive ? "secondary" : "") + " toggle-plan-status-btn'"
+                + " data-plan='" + (p.planCode || "") + "'"
+                + " data-cycle='" + (p.billingCycle || "") + "'"
+                + " data-active='" + (p.isActive ? "false" : "true") + "'>"
+                + (p.isActive ? "Deactivate" : "Activate") + "</button>"
+                + "</td>"
+                + "</tr>";
+        });
+
+        html += "</tbody></table></div>";
+        host.innerHTML = html;
+
+        Array.prototype.forEach.call(host.querySelectorAll(".save-plan-price-btn"), function (btn) {
+            btn.addEventListener("click", function () {
+                var plan = btn.getAttribute("data-plan") || "";
+                var cycle = btn.getAttribute("data-cycle") || "";
+                var input = host.querySelector(".plan-price-edit[data-plan='" + plan + "'][data-cycle='" + cycle + "']");
+                if (!input) {
+                    return;
+                }
+
+                var amount = Number(input.value);
+                if (!isFinite(amount) || amount <= 0) {
+                    setMessage("error", "Please enter a valid positive amount.");
+                    input.focus();
+                    return;
+                }
+
+                var body = new URLSearchParams();
+                body.append("planCode", plan);
+                body.append("billingCycle", cycle);
+                body.append("amount", amount.toFixed(2));
+
+                btn.disabled = true;
+                fetch('@Url.Action("UpdateSubscriptionPlanPrice", "Customer")', {
+                    method: "POST",
+                    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+                    body: body.toString()
+                })
+                .then(function (r) { return r.json(); })
+                .then(function (data) {
+                    if (data && data.success) {
+                        setMessage("success", data.message || "Plan price updated successfully.");
+                        loadPlans();
+                    } else {
+                        setMessage("error", (data && data.message) || "Unable to update plan price.");
+                    }
+                })
+                .catch(function () {
+                    setMessage("error", "Unable to update plan price.");
+                })
+                .finally(function () {
+                    btn.disabled = false;
+                });
+            });
+        });
+
+        Array.prototype.forEach.call(host.querySelectorAll(".toggle-plan-status-btn"), function (btn) {
+            btn.addEventListener("click", function () {
+                var plan = btn.getAttribute("data-plan") || "";
+                var cycle = btn.getAttribute("data-cycle") || "";
+                var toActive = (btn.getAttribute("data-active") || "false") === "true";
+                var actionLabel = toActive ? "activate" : "deactivate";
+
+                if (!window.confirm("Are you sure you want to " + actionLabel + " " + plan + " (" + cycle + ")?")) {
+                    return;
+                }
+
+                var body = new URLSearchParams();
+                body.append("planCode", plan);
+                body.append("billingCycle", cycle);
+                body.append("isActive", toActive ? "true" : "false");
+
+                btn.disabled = true;
+                fetch('@Url.Action("SetSubscriptionPlanActiveStatus", "Customer")', {
+                    method: "POST",
+                    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+                    body: body.toString()
+                })
+                .then(function (r) { return r.json(); })
+                .then(function (data) {
+                    if (data && data.success) {
+                        setMessage("success", data.message || "Subscription plan status updated successfully.");
+                        loadPlans();
+                    } else {
+                        setMessage("error", (data && data.message) || "Unable to update subscription plan status.");
+                    }
+                })
+                .catch(function () {
+                    setMessage("error", "Unable to update subscription plan status.");
+                })
+                .finally(function () {
+                    btn.disabled = false;
+                });
+            });
+        });
+    }
+
+    function loadPlans() {
+        setMessage("", "");
+        host.textContent = "Loading plans...";
+
+        fetch('@Url.Action("GetSubscriptionPlans", "Customer")')
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                if (!data || data.success !== true) {
+                    host.textContent = "Unable to load subscription plans.";
+                    setMessage("error", (data && data.message) || "Unable to load subscription plans.");
+                    return;
+                }
+
+                render(data.plans || []);
+            })
+            .catch(function () {
+                host.textContent = "Unable to load subscription plans.";
+                setMessage("error", "Unable to load subscription plans.");
+            });
+    }
+
+    var refreshBtn = document.getElementById("refreshPlansBtn");
+    if (refreshBtn) {
+        refreshBtn.addEventListener("click", function () {
+            loadPlans();
+        });
+    }
+
+    loadPlans();
+})();
+</script>

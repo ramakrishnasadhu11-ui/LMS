@@ -2280,6 +2280,411 @@ namespace LMSWebUI.Controllers
         }
 
         [HttpGet]
+        public IActionResult SubscriptionPlanManagement()
+        {
+            if (!IsSuperAdminUser())
+            {
+                TempData["UserMessage"] = JsonConvert.SerializeObject(new MessageDto
+                {
+                    CssClassName = "alert alert-danger",
+                    Title = "Access Denied!",
+                    DisplayMessage = "Only super admin users can manage subscription plans."
+                });
+                return RedirectToAction("Index", "Dashboard");
+            }
+
+            var superAdminName = HttpContext.Session.GetString("TenantName");
+            if (string.IsNullOrWhiteSpace(superAdminName))
+            {
+                TempData["UserMessage"] = JsonConvert.SerializeObject(new MessageDto
+                {
+                    CssClassName = "alert alert-danger",
+                    Title = "Failed.",
+                    DisplayMessage = "Session expired. Please log in again."
+                });
+                return RedirectToAction("Login", "Login");
+            }
+
+            ViewData["TenantName"] = superAdminName;
+            return View();
+        }
+
+        [HttpGet]
+        public async Task<JsonResult> GetSubscriptionPlans()
+        {
+            if (!IsSuperAdminUser())
+            {
+                return Json(new { success = false, message = "Only super admin users can view subscription plans.", plans = new List<object>() });
+            }
+
+            var superAdminName = HttpContext.Session.GetString("TenantName");
+            if (string.IsNullOrWhiteSpace(superAdminName))
+            {
+                return Json(new { success = false, message = "Session expired. Please log in again.", plans = new List<object>() });
+            }
+
+            try
+            {
+                var response = await _loginApi.SendRequestAsync<JObject>("/GetSubscriptionPlans", new Dictionary<string, string>(), Method.GET);
+                var plansToken = response?["Plans"] ?? response?["plans"] ?? new JArray();
+                var plansArray = plansToken as JArray ?? plansToken?["$values"] as JArray ?? new JArray();
+
+                var plans = plansArray
+                    .Select(x => new
+                    {
+                        planCode = (x?["PlanCode"] ?? x?["planCode"])?.ToString(),
+                        billingCycle = (x?["BillingCycle"] ?? x?["billingCycle"])?.ToString(),
+                        amount = (decimal?)(x?["Amount"] ?? x?["amount"]) ?? 0m,
+                        currency = (x?["Currency"] ?? x?["currency"])?.ToString() ?? "INR",
+                        isActive = (bool?)(x?["IsActive"] ?? x?["isActive"]) ?? false,
+                        modifiedDateUtc = (x?["ModifiedDateUtc"] ?? x?["modifiedDateUtc"])?.ToString(),
+                        createdDateUtc = (x?["CreatedDateUtc"] ?? x?["createdDateUtc"])?.ToString(),
+                        updatedBy = (x?["UpdatedBy"] ?? x?["updatedBy"])?.ToString()
+                    })
+                    .Where(x => !string.IsNullOrWhiteSpace(x.planCode) && !string.IsNullOrWhiteSpace(x.billingCycle))
+                    .OrderBy(x => x.planCode)
+                    .ThenBy(x => x.billingCycle)
+                    .ToList();
+
+                return Json(new { success = true, plans });
+            }
+            catch (Exception ex)
+            {
+                return Json(new
+                {
+                    success = false,
+                    message = BuildApiErrorMessage(ex, "Unable to load subscription plans."),
+                    plans = new List<object>()
+                });
+            }
+        }
+
+        [HttpPost]
+        public async Task<JsonResult> UpdateSubscriptionPlanPrice(string planCode, string billingCycle, decimal amount)
+        {
+            if (!IsSuperAdminUser())
+            {
+                return Json(new { success = false, message = "Only super admin users can update subscription plan price." });
+            }
+
+            var superAdminName = HttpContext.Session.GetString("TenantName");
+            if (string.IsNullOrWhiteSpace(superAdminName))
+            {
+                return Json(new { success = false, message = "Session expired. Please log in again." });
+            }
+
+            if (string.IsNullOrWhiteSpace(planCode) || string.IsNullOrWhiteSpace(billingCycle))
+            {
+                return Json(new { success = false, message = "Plan and billing cycle are required." });
+            }
+
+            if (amount <= 0)
+            {
+                return Json(new { success = false, message = "Amount must be greater than zero." });
+            }
+
+            try
+            {
+                var response = await _loginApi.SendRequestAsync<LoginIoResponse>("/UpdateSubscriptionPlanPrice", new
+                {
+                    planCode = planCode.Trim(),
+                    billingCycle = billingCycle.Trim(),
+                    amount
+                }, Method.POST);
+
+                var isSuccess = response != null && string.Equals(response.StatusCode, "200", StringComparison.OrdinalIgnoreCase);
+                return Json(new
+                {
+                    success = isSuccess,
+                    message = string.IsNullOrWhiteSpace(response?.Message)
+                        ? (isSuccess ? "Plan price updated successfully." : "Unable to update plan price.")
+                        : response.Message
+                });
+            }
+            catch (Exception ex)
+            {
+                return Json(new
+                {
+                    success = false,
+                    message = BuildApiErrorMessage(ex, "Unable to update plan price.")
+                });
+            }
+        }
+
+        [HttpPost]
+        public async Task<JsonResult> SetSubscriptionPlanActiveStatus(string planCode, string billingCycle, bool isActive)
+        {
+            if (!IsSuperAdminUser())
+            {
+                return Json(new { success = false, message = "Only super admin users can change subscription plan status." });
+            }
+
+            var superAdminName = HttpContext.Session.GetString("TenantName");
+            if (string.IsNullOrWhiteSpace(superAdminName))
+            {
+                return Json(new { success = false, message = "Session expired. Please log in again." });
+            }
+
+            if (string.IsNullOrWhiteSpace(planCode) || string.IsNullOrWhiteSpace(billingCycle))
+            {
+                return Json(new { success = false, message = "Plan and billing cycle are required." });
+            }
+
+            try
+            {
+                var response = await _loginApi.SendRequestAsync<LoginIoResponse>("/SetSubscriptionPlanActiveStatus", new
+                {
+                    planCode = planCode.Trim(),
+                    billingCycle = billingCycle.Trim(),
+                    isActive
+                }, Method.POST);
+
+                var isSuccess = response != null && string.Equals(response.StatusCode, "200", StringComparison.OrdinalIgnoreCase);
+                return Json(new
+                {
+                    success = isSuccess,
+                    message = string.IsNullOrWhiteSpace(response?.Message)
+                        ? (isSuccess ? "Subscription plan status updated successfully." : "Unable to update subscription plan status.")
+                        : response.Message
+                });
+            }
+            catch (Exception ex)
+            {
+                return Json(new
+                {
+                    success = false,
+                    message = BuildApiErrorMessage(ex, "Unable to update subscription plan status.")
+                });
+            }
+        }
+
+        [HttpGet]
+        public IActionResult TenantSubscriptionPlans()
+        {
+            if (IsSuperAdminUser())
+            {
+                TempData["UserMessage"] = JsonConvert.SerializeObject(new MessageDto
+                {
+                    CssClassName = "alert alert-danger",
+                    Title = "Access Denied!",
+                    DisplayMessage = "Tenant subscription checkout is available only for tenant users."
+                });
+                return RedirectToAction("Index", "Dashboard");
+            }
+
+            var tenantName = HttpContext.Session.GetString("TenantName");
+            if (string.IsNullOrWhiteSpace(tenantName))
+            {
+                TempData["UserMessage"] = JsonConvert.SerializeObject(new MessageDto
+                {
+                    CssClassName = "alert alert-danger",
+                    Title = "Failed.",
+                    DisplayMessage = "Session expired. Please log in again."
+                });
+                return RedirectToAction("Login", "Login");
+            }
+
+            ViewData["TenantName"] = tenantName;
+            ViewData["UserRole"] = HttpContext.Session.GetString("UserRole") ?? "StoreUser";
+            return View();
+        }
+
+        [HttpGet]
+        public async Task<JsonResult> GetTenantSubscriptionOverview()
+        {
+            if (IsSuperAdminUser())
+            {
+                return Json(new { success = false, message = "Super admin users do not have tenant subscription checkout.", overview = new object() });
+            }
+
+            var tenantName = HttpContext.Session.GetString("TenantName");
+            if (string.IsNullOrWhiteSpace(tenantName))
+            {
+                return Json(new { success = false, message = "Session expired. Please log in again.", overview = new object() });
+            }
+
+            try
+            {
+                var response = await _loginApi.SendRequestAsync<JObject>("/GetTenantSubscriptionOverview", new Dictionary<string, string>(), Method.GET);
+                var overview = new TenantSubscriptionOverviewDto
+                {
+                    TenantId = (response?["TenantId"] ?? response?["tenantId"])?.ToString(),
+                    PlanCode = (response?["PlanCode"] ?? response?["planCode"])?.ToString(),
+                    BillingCycle = (response?["BillingCycle"] ?? response?["billingCycle"])?.ToString(),
+                    SubscriptionStatus = (response?["SubscriptionStatus"] ?? response?["subscriptionStatus"])?.ToString(),
+                    TrialStartUtc = TryParseDateTime(response?["TrialStartUtc"] ?? response?["trialStartUtc"]),
+                    TrialEndUtc = TryParseDateTime(response?["TrialEndUtc"] ?? response?["trialEndUtc"]),
+                    SubscriptionStartUtc = TryParseDateTime(response?["SubscriptionStartUtc"] ?? response?["subscriptionStartUtc"]),
+                    SubscriptionEndUtc = TryParseDateTime(response?["SubscriptionEndUtc"] ?? response?["subscriptionEndUtc"]),
+                    GraceEndUtc = TryParseDateTime(response?["GraceEndUtc"] ?? response?["graceEndUtc"]),
+                    NextRenewalUtc = TryParseDateTime(response?["NextRenewalUtc"] ?? response?["nextRenewalUtc"])
+                };
+
+                var plansToken = response?["AvailablePlans"] ?? response?["availablePlans"] ?? new JArray();
+                var plansArray = plansToken as JArray ?? plansToken?["$values"] as JArray ?? new JArray();
+                overview.AvailablePlans = plansArray
+                    .Select(x => new TenantSubscriptionPlanOptionDto
+                    {
+                        PlanCode = (x?["PlanCode"] ?? x?["planCode"])?.ToString(),
+                        BillingCycle = (x?["BillingCycle"] ?? x?["billingCycle"])?.ToString(),
+                        Amount = (decimal?)(x?["Amount"] ?? x?["amount"]) ?? 0m,
+                        Currency = (x?["Currency"] ?? x?["currency"])?.ToString() ?? "INR",
+                        IsActive = (bool?)(x?["IsActive"] ?? x?["isActive"]) ?? false
+                    })
+                    .Where(x => !string.IsNullOrWhiteSpace(x.PlanCode) && !string.IsNullOrWhiteSpace(x.BillingCycle) && x.IsActive)
+                    .OrderBy(x => x.PlanCode)
+                    .ThenBy(x => x.BillingCycle)
+                    .ToList();
+
+                var historyToken = response?["PaymentHistory"] ?? response?["paymentHistory"] ?? new JArray();
+                var historyArray = historyToken as JArray ?? historyToken?["$values"] as JArray ?? new JArray();
+                overview.PaymentHistory = historyArray
+                    .Select(x => new TenantSubscriptionPaymentHistoryItemDto
+                    {
+                        PaymentOrderId = (int?)(x?["PaymentOrderId"] ?? x?["paymentOrderId"]) ?? 0,
+                        PlanCode = (x?["PlanCode"] ?? x?["planCode"])?.ToString(),
+                        BillingCycle = (x?["BillingCycle"] ?? x?["billingCycle"])?.ToString(),
+                        Amount = (decimal?)(x?["Amount"] ?? x?["amount"]) ?? 0m,
+                        Currency = (x?["Currency"] ?? x?["currency"])?.ToString() ?? "INR",
+                        OrderStatus = (x?["OrderStatus"] ?? x?["orderStatus"])?.ToString(),
+                        GatewayPaymentId = (x?["GatewayPaymentId"] ?? x?["gatewayPaymentId"])?.ToString(),
+                        FailureReason = (x?["FailureReason"] ?? x?["failureReason"])?.ToString(),
+                        CreatedUtc = TryParseDateTime(x?["CreatedUtc"] ?? x?["createdUtc"]),
+                        ModifiedUtc = TryParseDateTime(x?["ModifiedUtc"] ?? x?["modifiedUtc"])
+                    })
+                    .OrderByDescending(x => x.CreatedUtc)
+                    .ToList();
+
+                return Json(new { success = true, overview });
+            }
+            catch (Exception ex)
+            {
+                return Json(new
+                {
+                    success = false,
+                    message = BuildApiErrorMessage(ex, "Unable to load tenant subscription details."),
+                    overview = new object()
+                });
+            }
+        }
+
+        [HttpPost]
+        public async Task<JsonResult> CreateTenantSubscriptionPaymentOrder(string planCode, string billingCycle)
+        {
+            var userRole = HttpContext.Session.GetString("UserRole");
+            if (!string.Equals(userRole, "Admin", StringComparison.OrdinalIgnoreCase))
+            {
+                return Json(new { success = false, message = "Only tenant admin users can subscribe or renew." });
+            }
+
+            if (string.IsNullOrWhiteSpace(HttpContext.Session.GetString("TenantName")))
+            {
+                return Json(new { success = false, message = "Session expired. Please log in again." });
+            }
+
+            if (string.IsNullOrWhiteSpace(planCode) || string.IsNullOrWhiteSpace(billingCycle))
+            {
+                return Json(new { success = false, message = "Plan and billing cycle are required." });
+            }
+
+            var request = new CreateTenantSubscriptionPaymentOrderRequestDto
+            {
+                PlanCode = planCode.Trim(),
+                BillingCycle = billingCycle.Trim(),
+                ClientRequestId = "sub_" + Guid.NewGuid().ToString("N")
+            };
+
+            try
+            {
+                var response = await _loginApi.SendRequestAsync<CreateTenantSubscriptionPaymentOrderResponseDto>("/CreateTenantSubscriptionPaymentOrder", request, Method.POST);
+                if (response == null || string.IsNullOrWhiteSpace(response.RazorpayOrderId) || string.IsNullOrWhiteSpace(response.RazorpayKeyId))
+                {
+                    return Json(new { success = false, message = "Unable to create subscription checkout order." });
+                }
+
+                return Json(new
+                {
+                    success = true,
+                    order = response
+                });
+            }
+            catch (Exception ex)
+            {
+                return Json(new
+                {
+                    success = false,
+                    message = BuildApiErrorMessage(ex, "Unable to create subscription checkout order.")
+                });
+            }
+        }
+
+        [HttpPost]
+        public async Task<JsonResult> VerifyTenantSubscriptionCheckoutPayment(int paymentOrderId, string razorpayOrderId, string razorpayPaymentId, string razorpaySignature)
+        {
+            var userRole = HttpContext.Session.GetString("UserRole");
+            if (!string.Equals(userRole, "Admin", StringComparison.OrdinalIgnoreCase))
+            {
+                return Json(new { success = false, message = "Only tenant admin users can verify subscription payments." });
+            }
+
+            if (string.IsNullOrWhiteSpace(HttpContext.Session.GetString("TenantName")))
+            {
+                return Json(new { success = false, message = "Session expired. Please log in again." });
+            }
+
+            if (paymentOrderId <= 0
+                || string.IsNullOrWhiteSpace(razorpayOrderId)
+                || string.IsNullOrWhiteSpace(razorpayPaymentId)
+                || string.IsNullOrWhiteSpace(razorpaySignature))
+            {
+                return Json(new { success = false, message = "Invalid payment verification payload." });
+            }
+
+            var request = new VerifyTenantSubscriptionCheckoutPaymentRequestDto
+            {
+                PaymentOrderId = paymentOrderId,
+                RazorpayOrderId = razorpayOrderId.Trim(),
+                RazorpayPaymentId = razorpayPaymentId.Trim(),
+                RazorpaySignature = razorpaySignature.Trim()
+            };
+
+            try
+            {
+                var response = await _loginApi.SendRequestAsync<VerifyTenantSubscriptionCheckoutPaymentResponseDto>("/VerifyTenantSubscriptionCheckoutPayment", request, Method.POST);
+                var isSuccess = response != null && response.Success;
+                return Json(new
+                {
+                    success = isSuccess,
+                    message = string.IsNullOrWhiteSpace(response?.Message)
+                        ? (isSuccess ? "Subscription payment verified successfully." : "Unable to verify subscription payment.")
+                        : response.Message,
+                    result = response
+                });
+            }
+            catch (Exception ex)
+            {
+                return Json(new
+                {
+                    success = false,
+                    message = BuildApiErrorMessage(ex, "Unable to verify subscription payment.")
+                });
+            }
+        }
+
+        private static DateTime? TryParseDateTime(JToken token)
+        {
+            var raw = token?.ToString();
+            if (string.IsNullOrWhiteSpace(raw))
+            {
+                return null;
+            }
+
+            return DateTime.TryParse(raw, null, DateTimeStyles.RoundtripKind, out var parsed)
+                ? parsed.ToUniversalTime()
+                : null;
+        }
+
+        [HttpGet]
         public async Task<IActionResult> NewStoreCreation()
         {
             if (!IsAdminUser())
