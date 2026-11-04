@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 
 namespace LMS.Master.DTO.Entity
@@ -28,8 +29,21 @@ namespace LMS.Master.DTO.Entity
 
         public string Notes { get; set; }
 
+        public string TaxMode { get; set; }
+
+        public string CountryCode { get; set; }
+
+        public string CurrencyCode { get; set; }
+
+        public bool? IsPricesInclusive { get; set; }
+
         public DateTime CreatedDate { get; set; }
 
         public DateTime ModifiedDate { get; set; }
+
+        [Timestamp]
+        public byte[] RowVersion { get; set; }
+
+        public ICollection<TaxInvoiceComponentEntity> Components { get; set; } = new List<TaxInvoiceComponentEntity>();
     }
 }

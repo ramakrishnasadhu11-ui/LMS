@@ -455,6 +455,19 @@ namespace LMS.Identity.WebApi.Controllers
             return StatusCode((int)result.StatusCode, result.ResultSet);
         }
 
+        [Authorize(Roles = "Admin,SuperAdmin")]
+        [HttpPost(nameof(UpdateTenantLocalizationSettings))]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(StatusCodes.Status403Forbidden)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        public async Task<ActionResult> UpdateTenantLocalizationSettings([FromQuery] string tenantEmail, [FromBody] TenantLocalizationSettingsDto model)
+        {
+            var result = await _login.UpdateTenantLocalizationSettings(tenantEmail, model, User);
+            return StatusCode((int)result.StatusCode, result.ResultSet);
+        }
+
         [Authorize(Roles = "SuperAdmin")]
         [HttpPost(nameof(UpdateSubscriptionPlanPrice))]
         [ProducesResponseType(StatusCodes.Status200OK)]

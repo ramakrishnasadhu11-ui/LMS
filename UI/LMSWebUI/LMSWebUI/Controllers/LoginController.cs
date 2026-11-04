@@ -105,6 +105,11 @@ namespace LMSWebUI.Controllers
                     model.PhoneNumber = ResolveProfilePhoneNumber(responseMessage);
                     model.Address = responseMessage.Address;
                     model.Country = responseMessage.Country;
+                    model.CountryCode = responseMessage.CountryCode;
+                    model.TimeZoneIana = responseMessage.TimeZoneIana;
+                    model.PhoneDialingCode = responseMessage.PhoneDialingCode;
+                    model.CurrencyCode = responseMessage.CurrencyCode;
+                    model.CurrencySymbol = responseMessage.CurrencySymbol;
                     model.CreatedDate = responseMessage.CreatedDate;
                 }
             }
@@ -844,6 +849,7 @@ namespace LMSWebUI.Controllers
             tenantDto.PhoneNumber = tenantDto.PhoneNumber?.Trim();
             tenantDto.NoOfStores = tenantDto.NoOfStores?.Trim();
             tenantDto.Country = tenantDto.Country?.Trim();
+            tenantDto.CountryCode = tenantDto.CountryCode?.Trim().ToUpperInvariant();
             tenantDto.CurrencyCode = tenantDto.CurrencyCode?.Trim();
             tenantDto.CurrencySymbol = tenantDto.CurrencySymbol?.Trim();
             tenantDto.CurrencyLocale = tenantDto.CurrencyLocale?.Trim();

@@ -268,13 +268,42 @@
         <div class="store-config-header">
             <div>
                 <h2 class="store-config-title"><i class="fa fa-sliders" aria-hidden="true"></i> Store Configuration</h2>
-                <p class="store-config-subtitle">Configure store details, business hours and weekly holidays.</p>
+                <p class="store-config-subtitle">Configure store details, business hours, weekly holidays and tenant localization settings.</p>
             </div>
             <div class="store-config-context">
                 <span class="store-context-chip">Tenant: @Model.TenantName</span>
                 <span class="store-context-chip">Store: @Model.StoreCode</span>
             </div>
         </div>
+
+                <div class="store-config-card">
+                    <h3 class="store-config-card-title"><i class="fa fa-globe" aria-hidden="true"></i> Localization Settings</h3>
+                    <div class="store-grid">
+                        <div class="store-field">
+                            <label for="Country">Country</label>
+                            <input asp-for="Country" class="store-input" readonly />
+                            <span asp-validation-for="Country"></span>
+                        </div>
+
+                        <div class="store-field">
+                            <label for="CurrencyDisplay">Currency</label>
+                            <input asp-for="CurrencyDisplay" class="store-input" readonly />
+                            <span asp-validation-for="CurrencyDisplay"></span>
+                        </div>
+
+                        <div class="store-field">
+                            <label for="TimeZoneIana">Timezone (IANA)</label>
+                            <input asp-for="TimeZoneIana" class="store-input" maxlength="64" required />
+                            <span asp-validation-for="TimeZoneIana"></span>
+                        </div>
+
+                        <div class="store-field">
+                            <label for="PhoneDialingCode">Phone Country Calling Code</label>
+                            <input asp-for="PhoneDialingCode" class="store-input" maxlength="8" required pattern="\+[1-9]\d{0,6}" />
+                            <span asp-validation-for="PhoneDialingCode"></span>
+                        </div>
+                    </div>
+                </div>
 
         <div class="store-config-body">
             <div class="store-config-note">
@@ -414,13 +443,6 @@
         if (isExistingRecordInput) {
             var existingValue = (isExistingRecordInput.value || "").toLowerCase();
             isExistingRecord = existingValue === "true";
-        }
-
-        if (!window.location.search && !isExistingRecord && !hasValidationErrors) {
-            var storeConfigForm = document.querySelector("form");
-            if (storeConfigForm) {
-                storeConfigForm.reset();
-            }
         }
 
         if (storeConfigForm && saveStoreConfigBtn) {

@@ -270,6 +270,10 @@ namespace LMS.Identity.BusinessSerive.Data.Migrations
                         .HasMaxLength(128)
                         .HasColumnType("nvarchar(128)");
 
+                    b.Property<string>("CountryCode")
+                        .HasMaxLength(2)
+                        .HasColumnType("nvarchar(2)");
+
                     b.Property<DateTime>("CreatedDate")
                         .HasColumnType("datetime2");
 
@@ -292,6 +296,10 @@ namespace LMS.Identity.BusinessSerive.Data.Migrations
 
                     b.Property<int>("NoOfStores")
                         .HasColumnType("int");
+
+                    b.Property<string>("PhoneDialingCode")
+                        .HasMaxLength(8)
+                        .HasColumnType("nvarchar(8)");
 
                     b.Property<string>("PhoneNumber")
                         .HasColumnType("nvarchar(max)");
@@ -323,6 +331,10 @@ namespace LMS.Identity.BusinessSerive.Data.Migrations
                         .IsRequired()
                         .HasMaxLength(256)
                         .HasColumnType("nvarchar(256)");
+
+                    b.Property<string>("TimeZoneIana")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
 
                     b.Property<DateTime?>("TrialEndUtc")
                         .HasColumnType("datetime2");

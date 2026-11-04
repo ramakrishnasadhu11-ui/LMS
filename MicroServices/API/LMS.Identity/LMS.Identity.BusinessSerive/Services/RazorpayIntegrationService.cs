@@ -1254,17 +1254,7 @@ namespace LMS.Identity.BusinessSerive.Services
                 })
                 .ToListAsync();
 
-            string billingCycle = null;
-            if (!string.IsNullOrWhiteSpace(tenant.PlanCode))
-            {
-                billingCycle = await _unitOfWork.DbContext.SubscriptionPlans
-                    .AsNoTracking()
-                    .Where(x => x.PlanCode == tenant.PlanCode && x.IsActive)
-                    .OrderByDescending(x => x.BillingCycle == "Yearly")
-                    .ThenBy(x => x.BillingCycle)
-                    .Select(x => x.BillingCycle)
-                    .FirstOrDefaultAsync();
-            }
+            var billingCycle = await ResolveTenantOverviewBillingCycleAsync(tenant);
 
             var response = new TenantSubscriptionOverviewResponseDto
             {
@@ -1295,6 +1285,74 @@ namespace LMS.Identity.BusinessSerive.Services
             };
 
             return ActionSet.ActionReturnType(HttpStatusCode.OK, response);
+        }
+
+        private async Task<string> ResolveTenantOverviewBillingCycleAsync(TenantEntity tenant)
+        {
+            if (tenant == null)
+            {
+                return null;
+            }
+
+            var normalizedPlanCode = NormalizePlanCode(tenant.PlanCode);
+            if (string.IsNullOrWhiteSpace(normalizedPlanCode))
+            {
+                return null;
+            }
+
+            var normalizedPlanCodeUpper = normalizedPlanCode.ToUpper();
+            const string activeStatusUpper = "ACTIVE";
+            const string paidStatusUpper = "PAID";
+
+            var activationOrderIds = await _unitOfWork.DbContext.TenantSubscriptionStateHistories
+                .AsNoTracking()
+                .Where(x => x.TenantEntityId == tenant.Id
+                    && x.TenantId == tenant.TenantId
+                    && x.TenantSubscriptionPaymentOrderId.HasValue
+                    && x.NewSubscriptionStatus != null
+                    && x.NewSubscriptionStatus.ToUpper() == activeStatusUpper)
+                .OrderByDescending(x => x.ChangedAtUtc)
+                .ThenByDescending(x => x.Id)
+                .Select(x => x.TenantSubscriptionPaymentOrderId.Value)
+                .ToListAsync();
+
+            if (activationOrderIds.Count > 0)
+            {
+                foreach (var activationOrderId in activationOrderIds)
+                {
+                    var linkedBillingCycle = await _unitOfWork.DbContext.TenantSubscriptionPaymentOrders
+                        .AsNoTracking()
+                        .Where(x => x.Id == activationOrderId
+                            && x.TenantEntityId == tenant.Id
+                            && x.TenantId == tenant.TenantId
+                            && x.OrderStatus != null
+                            && x.OrderStatus.ToUpper() == paidStatusUpper
+                            && x.PlanCode != null
+                            && x.PlanCode.ToUpper() == normalizedPlanCodeUpper)
+                        .Select(x => x.BillingCycle)
+                        .FirstOrDefaultAsync();
+
+                    if (!string.IsNullOrWhiteSpace(linkedBillingCycle))
+                    {
+                        return linkedBillingCycle;
+                    }
+                }
+
+                return null;
+            }
+
+            return await _unitOfWork.DbContext.TenantSubscriptionPaymentOrders
+                .AsNoTracking()
+                .Where(x => x.TenantEntityId == tenant.Id
+                    && x.TenantId == tenant.TenantId
+                    && x.OrderStatus != null
+                    && x.OrderStatus.ToUpper() == paidStatusUpper
+                    && x.PlanCode != null
+                    && x.PlanCode.ToUpper() == normalizedPlanCodeUpper)
+                .OrderByDescending(x => x.ModifiedDateUtc ?? x.CreatedDateUtc)
+                .ThenByDescending(x => x.Id)
+                .Select(x => x.BillingCycle)
+                .FirstOrDefaultAsync();
         }
 
         private static string ResolveTenantIdFromClaims(ClaimsPrincipal user)
@@ -1387,7 +1445,6 @@ namespace LMS.Identity.BusinessSerive.Services
             string activationSource)
         {
             var nowUtc = DateTime.UtcNow;
-            await using var dbTx = await _unitOfWork.DbContext.Database.BeginTransactionAsync();
 
             var transaction = existingTransaction ?? new TenantSubscriptionPaymentTransactionEntity
             {
@@ -1439,12 +1496,9 @@ namespace LMS.Identity.BusinessSerive.Services
             try
             {
                 await _unitOfWork.SaveChangesAsync();
-                await dbTx.CommitAsync();
             }
             catch (DbUpdateException ex) when (IsPaymentTransactionDuplicateViolation(ex))
             {
-                await dbTx.RollbackAsync();
-
                 var persistedTransaction = await _unitOfWork.DbContext.TenantSubscriptionPaymentTransactions
                     .FirstOrDefaultAsync(x => x.PaymentProvider == "Razorpay"
                         && x.IsLiveMode == IsLiveMode
@@ -1524,8 +1578,6 @@ namespace LMS.Identity.BusinessSerive.Services
             }
             catch (DbUpdateException ex) when (IsUniqueConstraintViolation(ex, "UX_TenantSubscriptionStateHistories_ActivationKey"))
             {
-                await dbTx.RollbackAsync();
-
                 var refreshedTenant = await _unitOfWork.DbContext.Tenants
                     .AsNoTracking()
                     .FirstOrDefaultAsync(x => x.Id == tenant.Id);

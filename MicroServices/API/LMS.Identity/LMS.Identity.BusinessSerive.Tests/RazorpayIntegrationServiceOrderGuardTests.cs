@@ -1310,6 +1310,340 @@ namespace LMS.Identity.BusinessSerive.Tests
             Assert.Single(txns);
         }
 
+        [Fact]
+        public async Task GetTenantSubscriptionOverview_BillingCycle_PrefersLatestValidActiveActivationHistoryLinkedPaidOrder()
+        {
+            var dbName = Guid.NewGuid().ToString();
+            var options = new DbContextOptionsBuilder<IdentityDbContext>()
+                .UseInMemoryDatabase(dbName)
+                .ConfigureWarnings(w => w.Ignore(InMemoryEventId.TransactionIgnoredWarning))
+                .Options;
+
+            using var context = new IdentityDbContext(options);
+            var tenant = new TenantEntity
+            {
+                TenantId = "tenant-overview-1",
+                Email = "overview1@test.com",
+                TenantName = "Overview Tenant 1",
+                NoOfStores = 1,
+                PlanCode = "Premium",
+                SubscriptionStatus = "Active",
+                CreatedDate = DateTime.UtcNow,
+                ModifiedDate = DateTime.UtcNow
+            };
+
+            var otherTenant = new TenantEntity
+            {
+                TenantId = "tenant-overview-other",
+                Email = "overview-other@test.com",
+                TenantName = "Overview Tenant Other",
+                NoOfStores = 1,
+                PlanCode = "Premium",
+                SubscriptionStatus = "Active",
+                CreatedDate = DateTime.UtcNow,
+                ModifiedDate = DateTime.UtcNow
+            };
+
+            context.Tenants.AddRange(tenant, otherTenant);
+            await context.SaveChangesAsync();
+
+            var validOrder = new TenantSubscriptionPaymentOrderEntity
+            {
+                TenantId = tenant.TenantId,
+                TenantEntityId = tenant.Id,
+                PlanCode = "Premium",
+                BillingCycle = "Monthly",
+                Amount = 900m,
+                Currency = "INR",
+                OrderStatus = "Paid",
+                GatewayOrderId = "order_overview_valid_001",
+                CreatedDateUtc = DateTime.UtcNow.AddDays(-10),
+                ModifiedDateUtc = DateTime.UtcNow.AddDays(-9)
+            };
+
+            var unpaidOrder = new TenantSubscriptionPaymentOrderEntity
+            {
+                TenantId = tenant.TenantId,
+                TenantEntityId = tenant.Id,
+                PlanCode = "Premium",
+                BillingCycle = "Yearly",
+                Amount = 9000m,
+                Currency = "INR",
+                OrderStatus = "Created",
+                GatewayOrderId = "order_overview_unpaid_001",
+                CreatedDateUtc = DateTime.UtcNow.AddDays(-8),
+                ModifiedDateUtc = DateTime.UtcNow.AddDays(-8)
+            };
+
+            var otherTenantOrder = new TenantSubscriptionPaymentOrderEntity
+            {
+                TenantId = otherTenant.TenantId,
+                TenantEntityId = otherTenant.Id,
+                PlanCode = "Premium",
+                BillingCycle = "Yearly",
+                Amount = 9000m,
+                Currency = "INR",
+                OrderStatus = "Paid",
+                GatewayOrderId = "order_overview_other_001",
+                CreatedDateUtc = DateTime.UtcNow.AddDays(-7),
+                ModifiedDateUtc = DateTime.UtcNow.AddDays(-7)
+            };
+
+            context.TenantSubscriptionPaymentOrders.AddRange(validOrder, unpaidOrder, otherTenantOrder);
+            await context.SaveChangesAsync();
+
+            context.TenantSubscriptionStateHistories.AddRange(
+                new TenantSubscriptionStateHistoryEntity
+                {
+                    TenantId = tenant.TenantId,
+                    TenantEntityId = tenant.Id,
+                    NewSubscriptionStatus = "Active",
+                    NewPlanCode = "Premium",
+                    ChangedAtUtc = DateTime.UtcNow.AddMinutes(-3),
+                    TenantSubscriptionPaymentOrderId = otherTenantOrder.Id
+                },
+                new TenantSubscriptionStateHistoryEntity
+                {
+                    TenantId = tenant.TenantId,
+                    TenantEntityId = tenant.Id,
+                    NewSubscriptionStatus = "Active",
+                    NewPlanCode = "Premium",
+                    ChangedAtUtc = DateTime.UtcNow.AddMinutes(-4),
+                    TenantSubscriptionPaymentOrderId = unpaidOrder.Id
+                },
+                new TenantSubscriptionStateHistoryEntity
+                {
+                    TenantId = tenant.TenantId,
+                    TenantEntityId = tenant.Id,
+                    NewSubscriptionStatus = "Active",
+                    NewPlanCode = "Premium",
+                    ChangedAtUtc = DateTime.UtcNow.AddMinutes(-5),
+                    TenantSubscriptionPaymentOrderId = validOrder.Id
+                });
+
+            await context.SaveChangesAsync();
+
+            var service = CreateService(context);
+            var result = await service.GetTenantSubscriptionOverview(CreateTenantUser(tenant.TenantId));
+
+            Assert.Equal(HttpStatusCode.OK, result.StatusCode);
+            var response = Assert.IsType<TenantSubscriptionOverviewResponseDto>(result.ResultSet);
+            Assert.Equal("Monthly", response.BillingCycle);
+        }
+
+        [Fact]
+        public async Task GetTenantSubscriptionOverview_BillingCycle_UsesLatestMatchingPaidOrderAsLegacyFallback_WhenActivationHistoryMissing()
+        {
+            var dbName = Guid.NewGuid().ToString();
+            var options = new DbContextOptionsBuilder<IdentityDbContext>()
+                .UseInMemoryDatabase(dbName)
+                .ConfigureWarnings(w => w.Ignore(InMemoryEventId.TransactionIgnoredWarning))
+                .Options;
+
+            using var context = new IdentityDbContext(options);
+            var tenant = new TenantEntity
+            {
+                TenantId = "tenant-overview-2",
+                Email = "overview2@test.com",
+                TenantName = "Overview Tenant 2",
+                NoOfStores = 1,
+                PlanCode = "Premium",
+                SubscriptionStatus = "Active",
+                CreatedDate = DateTime.UtcNow,
+                ModifiedDate = DateTime.UtcNow
+            };
+            context.Tenants.Add(tenant);
+            await context.SaveChangesAsync();
+
+            context.TenantSubscriptionPaymentOrders.AddRange(
+                new TenantSubscriptionPaymentOrderEntity
+                {
+                    TenantId = tenant.TenantId,
+                    TenantEntityId = tenant.Id,
+                    PlanCode = "Premium",
+                    BillingCycle = "Monthly",
+                    Amount = 900m,
+                    Currency = "INR",
+                    OrderStatus = "Paid",
+                    GatewayOrderId = "order_overview_fallback_monthly",
+                    CreatedDateUtc = DateTime.UtcNow.AddDays(-12),
+                    ModifiedDateUtc = DateTime.UtcNow.AddDays(-12)
+                },
+                new TenantSubscriptionPaymentOrderEntity
+                {
+                    TenantId = tenant.TenantId,
+                    TenantEntityId = tenant.Id,
+                    PlanCode = "Premium",
+                    BillingCycle = "Yearly",
+                    Amount = 9000m,
+                    Currency = "INR",
+                    OrderStatus = "Paid",
+                    GatewayOrderId = "order_overview_fallback_yearly",
+                    CreatedDateUtc = DateTime.UtcNow.AddDays(-2),
+                    ModifiedDateUtc = DateTime.UtcNow.AddDays(-1)
+                },
+                new TenantSubscriptionPaymentOrderEntity
+                {
+                    TenantId = tenant.TenantId,
+                    TenantEntityId = tenant.Id,
+                    PlanCode = "Standard",
+                    BillingCycle = "Monthly",
+                    Amount = 499m,
+                    Currency = "INR",
+                    OrderStatus = "Paid",
+                    GatewayOrderId = "order_overview_fallback_other_plan",
+                    CreatedDateUtc = DateTime.UtcNow,
+                    ModifiedDateUtc = DateTime.UtcNow
+                });
+
+            await context.SaveChangesAsync();
+
+            var service = CreateService(context);
+            var result = await service.GetTenantSubscriptionOverview(CreateTenantUser(tenant.TenantId));
+
+            Assert.Equal(HttpStatusCode.OK, result.StatusCode);
+            var response = Assert.IsType<TenantSubscriptionOverviewResponseDto>(result.ResultSet);
+            Assert.Equal("Yearly", response.BillingCycle);
+        }
+
+        [Fact]
+        public async Task GetTenantSubscriptionOverview_BillingCycle_ReturnsNull_WhenActivationHistoryExistsButHasNoReliablePaidOrderEvidence()
+        {
+            var dbName = Guid.NewGuid().ToString();
+            var options = new DbContextOptionsBuilder<IdentityDbContext>()
+                .UseInMemoryDatabase(dbName)
+                .ConfigureWarnings(w => w.Ignore(InMemoryEventId.TransactionIgnoredWarning))
+                .Options;
+
+            using var context = new IdentityDbContext(options);
+            var tenant = new TenantEntity
+            {
+                TenantId = "tenant-overview-3",
+                Email = "overview3@test.com",
+                TenantName = "Overview Tenant 3",
+                NoOfStores = 1,
+                PlanCode = "Premium",
+                SubscriptionStatus = "Active",
+                CreatedDate = DateTime.UtcNow,
+                ModifiedDate = DateTime.UtcNow
+            };
+            context.Tenants.Add(tenant);
+            await context.SaveChangesAsync();
+
+            var mismatchedPlanPaidOrder = new TenantSubscriptionPaymentOrderEntity
+            {
+                TenantId = tenant.TenantId,
+                TenantEntityId = tenant.Id,
+                PlanCode = "Standard",
+                BillingCycle = "Monthly",
+                Amount = 499m,
+                Currency = "INR",
+                OrderStatus = "Paid",
+                GatewayOrderId = "order_overview_mismatch_001",
+                CreatedDateUtc = DateTime.UtcNow.AddDays(-3),
+                ModifiedDateUtc = DateTime.UtcNow.AddDays(-3)
+            };
+
+            var tenantPlanPaidOrder = new TenantSubscriptionPaymentOrderEntity
+            {
+                TenantId = tenant.TenantId,
+                TenantEntityId = tenant.Id,
+                PlanCode = "Premium",
+                BillingCycle = "Yearly",
+                Amount = 9000m,
+                Currency = "INR",
+                OrderStatus = "Paid",
+                GatewayOrderId = "order_overview_unlinked_paid_001",
+                CreatedDateUtc = DateTime.UtcNow,
+                ModifiedDateUtc = DateTime.UtcNow
+            };
+
+            context.TenantSubscriptionPaymentOrders.AddRange(mismatchedPlanPaidOrder, tenantPlanPaidOrder);
+            await context.SaveChangesAsync();
+
+            context.TenantSubscriptionStateHistories.Add(new TenantSubscriptionStateHistoryEntity
+            {
+                TenantId = tenant.TenantId,
+                TenantEntityId = tenant.Id,
+                NewSubscriptionStatus = "Active",
+                NewPlanCode = "Premium",
+                ChangedAtUtc = DateTime.UtcNow,
+                TenantSubscriptionPaymentOrderId = mismatchedPlanPaidOrder.Id
+            });
+            await context.SaveChangesAsync();
+
+            var service = CreateService(context);
+            var result = await service.GetTenantSubscriptionOverview(CreateTenantUser(tenant.TenantId));
+
+            Assert.Equal(HttpStatusCode.OK, result.StatusCode);
+            var response = Assert.IsType<TenantSubscriptionOverviewResponseDto>(result.ResultSet);
+            Assert.Null(response.BillingCycle);
+        }
+
+        [Fact]
+        public async Task GetTenantSubscriptionOverview_BillingCycle_ResolvesOnSqlServer_WithCaseInsensitiveStatusAndPlanComparisons()
+        {
+            var dbName = $"LmsIdentityOverviewSql_{Guid.NewGuid():N}";
+            var options = new DbContextOptionsBuilder<IdentityDbContext>()
+                .UseSqlServer($"Server=(localdb)\\MSSQLLocalDB;Database={dbName};Trusted_Connection=True;MultipleActiveResultSets=true;TrustServerCertificate=True")
+                .Options;
+
+            await using var seedContext = new IdentityDbContext(options);
+            await seedContext.Database.EnsureDeletedAsync();
+            await seedContext.Database.EnsureCreatedAsync();
+
+            var tenant = new TenantEntity
+            {
+                TenantId = "tenant-overview-sql-1",
+                Email = "overviewsql1@test.com",
+                TenantName = "Overview SQL Tenant",
+                NoOfStores = 1,
+                PlanCode = "premium",
+                SubscriptionStatus = "Active",
+                CreatedDate = DateTime.UtcNow,
+                ModifiedDate = DateTime.UtcNow
+            };
+            seedContext.Tenants.Add(tenant);
+            await seedContext.SaveChangesAsync();
+
+            var paidOrder = new TenantSubscriptionPaymentOrderEntity
+            {
+                TenantId = tenant.TenantId,
+                TenantEntityId = tenant.Id,
+                PlanCode = "PREMIUM",
+                BillingCycle = "Yearly",
+                Amount = 9000m,
+                Currency = "INR",
+                OrderStatus = "paid",
+                GatewayOrderId = "order_overview_sql_001",
+                CreatedDateUtc = DateTime.UtcNow.AddMinutes(-10),
+                ModifiedDateUtc = DateTime.UtcNow.AddMinutes(-9)
+            };
+            seedContext.TenantSubscriptionPaymentOrders.Add(paidOrder);
+            await seedContext.SaveChangesAsync();
+
+            seedContext.TenantSubscriptionStateHistories.Add(new TenantSubscriptionStateHistoryEntity
+            {
+                TenantId = tenant.TenantId,
+                TenantEntityId = tenant.Id,
+                NewSubscriptionStatus = "active",
+                NewPlanCode = "PREMIUM",
+                ChangedAtUtc = DateTime.UtcNow,
+                TenantSubscriptionPaymentOrderId = paidOrder.Id
+            });
+            await seedContext.SaveChangesAsync();
+
+            await using var testContext = new IdentityDbContext(options);
+            var service = CreateService(testContext);
+            var result = await service.GetTenantSubscriptionOverview(CreateTenantUser(tenant.TenantId));
+
+            Assert.Equal(HttpStatusCode.OK, result.StatusCode);
+            var response = Assert.IsType<TenantSubscriptionOverviewResponseDto>(result.ResultSet);
+            Assert.Equal("Yearly", response.BillingCycle);
+
+            await testContext.Database.EnsureDeletedAsync();
+        }
+
         private sealed class DirectSaveUnitOfWork : IUnitOfWork<IdentityDbContext>
         {
             public DirectSaveUnitOfWork(IdentityDbContext dbContext)

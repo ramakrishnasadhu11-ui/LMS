@@ -637,6 +637,7 @@
                                 <div class="register-field register-full">
                                     <label for="countrySelect">Country</label>
                                     @Html.DropDownListFor(m => m.Country, new Microsoft.AspNetCore.Mvc.Rendering.SelectList(LMSWebUI.Services.CountryCurrencyMapping.GetMappings().Keys), "Select Country", new { @class = "form-control", id = "countrySelect" })
+                                    @Html.HiddenFor(m => m.CountryCode, new { id = "countryCode" })
                                     @Html.ValidationMessageFor(m => m.Country, null, new { @class = "text-danger" })
                                 </div>
                                 <div class="register-field currency-technical-field">
@@ -688,6 +689,7 @@
                     var selected = $(this).val();
                     if (selected && countryCurrencyMap && countryCurrencyMap[selected]) {
                         var cfg = countryCurrencyMap[selected];
+                        $('#countryCode').val(cfg.CountryCode || '');
                         $('#currencyCode').val(cfg.CurrencyCode || '');
                         $('#currencySymbol').val(cfg.CurrencySymbol || '');
                         $('#currencyLocale').val(cfg.CurrencyLocale || '');
@@ -695,6 +697,7 @@
                     }
                     else {
                         // no suggestion available - clear fields to allow manual input
+                        $('#countryCode').val('');
                         $('#currencyCode').val('');
                         $('#currencySymbol').val('');
                         $('#currencyLocale').val('');
@@ -704,6 +707,8 @@
                     // no-op
                 }
             });
+
+            $('#countrySelect').trigger('change');
 
             if (shouldClearRegisterInputs) {
                 var registerPageInputs = $('input').not(':button, :submit, :reset, [type=hidden], [type=checkbox], [type=radio]');

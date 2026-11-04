@@ -15,6 +15,7 @@ namespace LMS.Master.BusinessSerive.Data
         public DbSet<PricingRulesEntity> PricingRules => Set<PricingRulesEntity>();
         public DbSet<PaymentSettingsEntity> PaymentSettings => Set<PaymentSettingsEntity>();
         public DbSet<TaxInvoiceSettingsEntity> TaxInvoiceSettings => Set<TaxInvoiceSettingsEntity>();
+        public DbSet<TaxInvoiceComponentEntity> TaxInvoiceComponents => Set<TaxInvoiceComponentEntity>();
         public DbSet<BarcodeTagSettingsEntity> BarcodeTagSettings => Set<BarcodeTagSettingsEntity>();
         public DbSet<WorkflowStatusEntity> WorkflowStatuses => Set<WorkflowStatusEntity>();
         public DbSet<CustomerAdvanceEntity> CustomerAdvances => Set<CustomerAdvanceEntity>();
@@ -87,10 +88,40 @@ namespace LMS.Master.BusinessSerive.Data
                 entity.Property(x => x.TenantName).HasMaxLength(256).IsRequired();
                 entity.Property(x => x.StoreCode).HasMaxLength(64).IsRequired();
                 entity.Property(x => x.GstPercent).HasColumnType("decimal(5,2)");
+                entity.Property(x => x.TaxMode).HasMaxLength(24);
+                entity.Property(x => x.CountryCode).HasMaxLength(8);
+                entity.Property(x => x.CurrencyCode).HasMaxLength(8);
                 entity.Property(x => x.InvoicePrefix).HasMaxLength(16);
                 entity.Property(x => x.Notes).HasMaxLength(300);
+                entity.Property(x => x.RowVersion).IsRowVersion().IsConcurrencyToken();
 
                 entity.HasIndex(x => new { x.TenantName, x.StoreCode }).IsUnique();
+            });
+
+            modelBuilder.Entity<TaxInvoiceComponentEntity>(entity =>
+            {
+                entity.ToTable("TaxInvoiceComponents");
+                entity.Property(x => x.TenantName).HasMaxLength(256).IsRequired();
+                entity.Property(x => x.StoreCode).HasMaxLength(64).IsRequired();
+                entity.Property(x => x.Code).HasMaxLength(32).IsRequired();
+                entity.Property(x => x.DisplayName).HasMaxLength(128).IsRequired();
+                entity.Property(x => x.RatePercent).HasColumnType("decimal(5,2)");
+                entity.Property(x => x.Jurisdiction).HasMaxLength(64);
+                entity.Property<string>("JurisdictionNormalizedKey")
+                    .HasMaxLength(64)
+                    .HasComputedColumnSql("COALESCE(NULLIF(LTRIM(RTRIM([Jurisdiction])),N''),N'__NULL__')", stored: true);
+                entity.Property(x => x.RowVersion).IsRowVersion().IsConcurrencyToken();
+
+                entity.HasOne(x => x.TaxInvoiceSettings)
+                    .WithMany(x => x.Components)
+                    .HasForeignKey(x => x.TaxInvoiceSettingsId)
+                    .OnDelete(DeleteBehavior.NoAction);
+
+                entity.HasIndex(x => new { x.TenantName, x.StoreCode, x.IsActive });
+                entity.HasIndex(x => new { x.TaxInvoiceSettingsId, x.Code, x.IsActive });
+                entity.HasIndex("TenantName", "StoreCode", "Code", "Priority", "JurisdictionNormalizedKey")
+                    .IsUnique()
+                    .HasFilter("[IsActive] = 1");
             });
 
             modelBuilder.Entity<BarcodeTagSettingsEntity>(entity =>

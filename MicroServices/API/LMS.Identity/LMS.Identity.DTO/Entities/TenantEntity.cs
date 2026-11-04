@@ -32,6 +32,15 @@ namespace LMS.Identity.DTO.Entities
 
        public string Country { get; set; }
 
+       [MaxLength(2)]
+       public string CountryCode { get; set; }
+
+       [MaxLength(64)]
+       public string TimeZoneIana { get; set; }
+
+       [MaxLength(8)]
+       public string PhoneDialingCode { get; set; }
+
        public DateTime CreatedDate { get; set; }
 
        public DateTime ModifiedDate { get; set; }

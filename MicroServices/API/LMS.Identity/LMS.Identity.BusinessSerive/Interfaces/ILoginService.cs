@@ -23,6 +23,7 @@ namespace LMS.Identity.BusinessSerive.Interfaces
         Task<ActionReturnType> SetStoreUserActiveStatus(string tenantEmail, string storeCode, string userEmail, bool isActive);
         Task<ActionReturnType> GetStoreConfiguration(string tenantEmail, string storeCode);
         Task<ActionReturnType> NewStoreConfiguration(NewStoreConfigurationDto model);
+        Task<ActionReturnType> UpdateTenantLocalizationSettings(string tenantEmail, TenantLocalizationSettingsDto model, ClaimsPrincipal user);
         Task<ActionReturnType> GetTenantStoreStatuses(string tenantEmail);
         Task<ActionReturnType> GetAllStoreStatuses();
         Task<ActionReturnType> SetTenantStoreActiveStatus(string tenantEmail, string storeCode, bool isActive, string activatedBy);

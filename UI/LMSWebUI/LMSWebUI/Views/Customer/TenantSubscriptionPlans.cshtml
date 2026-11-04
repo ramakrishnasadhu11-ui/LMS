@@ -1,5 +1,5 @@
 @{
-    ViewData["Title"] = "Subscription Plans";
+    ViewData["Title"] = "Subscription & Billing";
     Layout = "~/Views/Shared/_HeaderMenuItemsLayout.cshtml";
     var tenantName = Convert.ToString(ViewData["TenantName"] ?? "-");
     var userRole = Convert.ToString(ViewData["UserRole"] ?? "StoreUser");
@@ -7,167 +7,413 @@
 }
 
 <style>
-.subscription-page,
-.subscription-page input,
-.subscription-page button,
-.subscription-page label,
-.subscription-page textarea,
-.subscription-page select {
+.subscription-dashboard,
+.subscription-dashboard input,
+.subscription-dashboard button,
+.subscription-dashboard select,
+.subscription-dashboard textarea {
     font-family: Arial, Helvetica, sans-serif;
 }
 
-.subscription-page { padding: 20px; }
-.subscription-box {
+.subscription-dashboard {
+    padding: 20px;
+    color: var(--els-text, #1e293b);
+}
+
+.subscription-shell {
     max-width: 1240px;
     margin: 0 auto;
-    background: var(--els-surface);
-    border-radius: 10px;
-    box-shadow: 0 2px 12px rgba(0,0,0,0.08);
-    overflow: hidden;
 }
-.subscription-title {
-    background: linear-gradient(90deg, var(--els-primary) 0%, var(--els-primary-dark) 100%);
-    color: #fff;
-    padding: 16px 20px;
-    font-size: 22px;
-    font-weight: 600;
-}
-.subscription-body { padding: 20px; }
-.subscription-note {
-    border: 1px solid var(--els-border);
-    border-radius: 8px;
-    background: var(--els-accent);
-    padding: 14px;
-    margin-bottom: 16px;
-    color: var(--els-text);
-    line-height: 1.55;
-}
-.subscription-status-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+
+.subscription-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
     gap: 12px;
     margin-bottom: 16px;
 }
-.subscription-status-card {
-    border: 1px solid var(--els-border);
-    border-radius: 8px;
-    padding: 10px 12px;
-    background: #fff;
-}
-.subscription-status-label {
-    color: #6b7280;
-    font-size: 12px;
-    margin-bottom: 3px;
-}
-.subscription-status-value {
-    font-size: 14px;
+
+.subscription-header h1 {
+    margin: 0;
+    font-size: 30px;
     font-weight: 700;
-    color: var(--els-text);
+    color: var(--els-primary, #173B70);
 }
+
+.subscription-header p {
+    margin: 6px 0 0;
+    color: var(--els-text-muted, #64748b);
+    font-size: 14px;
+}
+
+.subscription-refresh {
+    border: 1px solid var(--els-border, #dbe3ef);
+    border-radius: 10px;
+    min-height: 40px;
+    padding: 0 16px;
+    background: #fff;
+    color: var(--els-primary, #173B70);
+    font-weight: 700;
+    cursor: pointer;
+}
+
 .subscription-msg {
     display: none;
-    margin-bottom: 12px;
-    border-radius: 8px;
-    padding: 10px 12px;
+    margin-bottom: 14px;
+    border-radius: 10px;
+    padding: 12px 14px;
     font-size: 13px;
     font-weight: 600;
 }
+
 .subscription-msg.success {
     display: block;
     background: rgba(22, 163, 74, 0.12);
     color: #166534;
-    border: 1px solid #15803d;
-}
-.subscription-msg.error {
-    display: block;
-    background: rgba(201, 48, 44, 0.12);
-    color: #991b1b;
-    border: 1px solid var(--els-danger);
+    border: 1px solid rgba(22, 163, 74, 0.42);
 }
 
-.subscription-table {
+.subscription-msg.error {
+    display: block;
+    background: rgba(217, 72, 72, 0.12);
+    color: #991b1b;
+    border: 1px solid rgba(217, 72, 72, 0.42);
+}
+
+.subscription-card {
+    background: var(--els-surface, #fff);
+    border: 1px solid var(--els-border, #dbe3ef);
+    border-radius: 16px;
+    box-shadow: 0 8px 24px rgba(15, 23, 42, 0.06);
+}
+
+.summary-card {
+    margin-bottom: 16px;
+    padding: 18px;
+}
+
+.summary-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 12px;
+    margin-bottom: 12px;
+}
+
+.summary-title {
+    font-size: 20px;
+    font-weight: 700;
+    margin: 0;
+}
+
+.summary-tenant {
+    color: var(--els-text-muted, #64748b);
+    font-size: 13px;
+    margin-top: 4px;
+}
+
+.status-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 4px 10px;
+    border-radius: 999px;
+    border: 1px solid transparent;
+    font-size: 12px;
+    font-weight: 700;
+}
+
+.status-active { background: rgba(22, 163, 106, 0.15); border-color: rgba(22, 163, 106, 0.45); color: #0f7a4f; }
+.status-trial { background: rgba(37, 99, 235, 0.16); border-color: rgba(37, 99, 235, 0.45); color: #1d4ed8; }
+.status-expired { background: rgba(217, 72, 72, 0.14); border-color: rgba(217, 72, 72, 0.45); color: #b42318; }
+.status-suspended { background: rgba(217, 149, 32, 0.16); border-color: rgba(217, 149, 32, 0.45); color: #9a670e; }
+.status-neutral { background: rgba(100, 116, 139, 0.16); border-color: rgba(100, 116, 139, 0.4); color: #475569; }
+
+.summary-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 10px;
+}
+
+.metric {
+    border: 1px solid var(--els-border, #dbe3ef);
+    border-radius: 12px;
+    padding: 10px;
+    background: #fff;
+}
+
+.metric-label {
+    font-size: 11px;
+    color: var(--els-text-muted, #64748b);
+    text-transform: uppercase;
+    letter-spacing: .04em;
+}
+
+.metric-value {
+    margin-top: 4px;
+    font-size: 14px;
+    font-weight: 700;
+}
+
+.summary-note {
+    margin-top: 12px;
+    border-radius: 12px;
+    padding: 10px 12px;
+    border: 1px dashed var(--els-border, #dbe3ef);
+    background: var(--els-accent, #f4f8ff);
+    font-size: 13px;
+}
+
+.summary-note.trial {
+    background: rgba(37, 99, 235, 0.08);
+    border-color: rgba(37, 99, 235, 0.35);
+}
+
+.section-card {
+    margin-bottom: 16px;
+    padding: 16px;
+}
+
+.section-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 12px;
+}
+
+.section-head h2 {
+    margin: 0;
+    font-size: 18px;
+}
+
+.section-sub {
+    margin-top: 4px;
+    color: var(--els-text-muted, #64748b);
+    font-size: 13px;
+}
+
+.plan-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 12px;
+}
+
+.plan-card {
+    border: 1px solid var(--els-border, #dbe3ef);
+    border-radius: 14px;
+    padding: 14px;
+    background: #fff;
+}
+
+.plan-card.current-plan {
+    border-color: rgba(23, 59, 112, 0.6);
+    box-shadow: 0 0 0 1px rgba(23, 59, 112, 0.25);
+}
+
+.plan-title-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+}
+
+.plan-title {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--els-primary, #173B70);
+}
+
+.plan-cycle {
+    border: 1px solid var(--els-border, #dbe3ef);
+    border-radius: 10px;
+    padding: 10px;
+    margin-bottom: 8px;
+}
+
+.plan-cycle-head {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+    font-size: 13px;
+    margin-bottom: 6px;
+}
+
+.plan-amount {
+    font-size: 20px;
+    font-weight: 800;
+}
+
+.plan-currency {
+    font-size: 12px;
+    color: var(--els-text-muted, #64748b);
+}
+
+.subscription-btn {
+    width: 100%;
+    min-height: 36px;
+    border: 1px solid transparent;
+    border-radius: 10px;
+    background: linear-gradient(180deg, var(--els-primary-light, #2878C8) 0%, var(--els-primary, #173B70) 100%);
+    color: #fff;
+    font-weight: 700;
+    cursor: pointer;
+    padding: 0 12px;
+}
+
+.subscription-btn[disabled] {
+    opacity: 0.58;
+    cursor: not-allowed;
+}
+
+.subscription-wrap {
+    overflow-x: auto;
+}
+
+.payment-table {
     width: 100%;
     border-collapse: collapse;
     min-width: 900px;
 }
-.subscription-table th,
-.subscription-table td {
+
+.payment-table th,
+.payment-table td {
+    border-bottom: 1px solid var(--els-border, #dbe3ef);
     padding: 10px 12px;
-    border-bottom: 1px solid var(--els-border);
     text-align: left;
     font-size: 13px;
+    vertical-align: top;
 }
-.subscription-table th {
-    background: #f1f5ff;
-    font-weight: 700;
+
+.payment-table th {
+    color: var(--els-text-muted, #64748b);
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: .03em;
 }
-.subscription-wrap { overflow-x: auto; }
-.subscription-btn {
-    min-height: 36px;
-    border: 1px solid transparent;
-    border-radius: 8px;
-    background: linear-gradient(180deg, var(--els-primary-light) 0%, var(--els-primary) 100%);
-    color: #fff;
-    font-weight: 600;
-    cursor: pointer;
-    padding: 0 14px;
+
+.payment-cards {
+    display: none;
+    gap: 10px;
 }
-.subscription-btn[disabled] {
-    opacity: 0.6;
-    cursor: not-allowed;
+
+.payment-card {
+    border: 1px solid var(--els-border, #dbe3ef);
+    border-radius: 12px;
+    padding: 10px;
 }
-.subscription-btn.secondary {
-    background: linear-gradient(180deg, #8f99a4 0%, #6f7a86 100%);
+
+.payment-kv {
+    display: grid;
+    grid-template-columns: 110px 1fr;
+    gap: 6px;
+    font-size: 12px;
+    margin-bottom: 4px;
+}
+
+.payment-k {
+    color: var(--els-text-muted, #64748b);
+}
+
+.muted-note {
+    color: var(--els-text-muted, #64748b);
+    font-size: 12px;
+}
+
+@@media (max-width: 900px) {
+    .subscription-header {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .subscription-refresh {
+        width: 100%;
+    }
+}
+
+@@media (max-width: 768px) {
+    .payment-table-wrap {
+        display: none;
+    }
+
+    .payment-cards {
+        display: grid;
+    }
 }
 </style>
 
-<section class="subscription-page">
-    <div class="subscription-box">
-        <div class="subscription-title">Subscription Plans & Renewal</div>
-        <div class="subscription-body">
-            <div class="subscription-note">
-                Signed in tenant: <strong>@tenantName</strong><br />
-                Subscription activation and pricing are verified server-side from Identity API plan catalog.
+<section class="subscription-dashboard">
+    <div class="subscription-shell">
+        <div class="subscription-header">
+            <div>
+                <h1>Subscription &amp; Billing</h1>
+                <p>Manage your plan, renewals, checkout, and payment history from one place.</p>
+            </div>
+            <button type="button" class="subscription-refresh" id="refreshSubscriptionOverviewBtn">Refresh</button>
+        </div>
+
+        <div id="subscriptionStatusMessage" class="subscription-msg"></div>
+
+        <div class="subscription-card summary-card">
+            <div class="summary-top">
+                <div>
+                    <h2 class="summary-title">Current Subscription</h2>
+                    <div class="summary-tenant">Tenant: <strong>@tenantName</strong></div>
+                </div>
+                <span id="currentStatusBadge" class="status-badge status-neutral">Unknown</span>
             </div>
 
-            <div id="subscriptionStatusMessage" class="subscription-msg"></div>
-
-            <div class="subscription-status-grid">
-                <div class="subscription-status-card">
-                    <div class="subscription-status-label">Current Plan</div>
-                    <div id="currentPlanValue" class="subscription-status-value">-</div>
+            <div class="summary-grid">
+                <div class="metric">
+                    <div class="metric-label">Plan</div>
+                    <div id="currentPlanValue" class="metric-value">-</div>
                 </div>
-                <div class="subscription-status-card">
-                    <div class="subscription-status-label">Status</div>
-                    <div id="currentStatusValue" class="subscription-status-value">-</div>
+                <div class="metric">
+                    <div class="metric-label">Billing Cycle</div>
+                    <div id="currentBillingCycleValue" class="metric-value">-</div>
                 </div>
-                <div class="subscription-status-card">
-                    <div class="subscription-status-label">Subscription Expiry (UTC)</div>
-                    <div id="subscriptionEndValue" class="subscription-status-value">-</div>
+                <div class="metric">
+                    <div class="metric-label">Subscription Expiry (UTC)</div>
+                    <div id="subscriptionEndValue" class="metric-value">-</div>
                 </div>
-                <div class="subscription-status-card">
-                    <div class="subscription-status-label">Trial End (UTC)</div>
-                    <div id="trialEndValue" class="subscription-status-value">-</div>
+                <div class="metric">
+                    <div class="metric-label">Next Renewal Amount</div>
+                    <div id="renewalAmountValue" class="metric-value">-</div>
                 </div>
             </div>
 
-            @if (!canCheckout)
-            {
-                <div class="subscription-note">Only tenant admin users can subscribe or renew from this screen.</div>
-            }
+            <div id="summaryInfoMessage" class="summary-note">Loading subscription details...</div>
+            <div id="trialInfoCard" class="summary-note trial" style="display:none;">
+                <strong>Free Trial</strong><br />
+                Trial ends on <span id="trialEndValue">-</span> (<span id="trialDaysRemainingValue">-</span> days remaining).
+            </div>
+        </div>
 
-            <div class="subscription-note">
-                <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">
-                    <strong>Available Active Plans</strong>
-                    <button type="button" class="subscription-btn secondary" id="refreshSubscriptionOverviewBtn">Refresh</button>
+        @if (!canCheckout)
+        {
+            <div class="subscription-card section-card">
+                <span class="muted-note">Only tenant admin users can subscribe, upgrade, or renew from this page.</span>
+            </div>
+        }
+
+        <div class="subscription-card section-card">
+            <div class="section-head">
+                <div>
+                    <h2>Available Plans</h2>
+                    <div class="section-sub">Live pricing from Identity API plan catalog.</div>
                 </div>
-                <div id="tenantPlansHost" style="margin-top:10px;">Loading plans...</div>
             </div>
+            <div id="tenantPlansHost">Loading plans...</div>
+        </div>
 
-            <div class="subscription-note">
-                <strong>Payment History</strong>
-                <div id="tenantPaymentHistoryHost" style="margin-top:10px;">No payment history available.</div>
+        <div class="subscription-card section-card">
+            <div class="section-head">
+                <div>
+                    <h2>Payment History</h2>
+                    <div class="section-sub">Your recent subscription transactions and statuses.</div>
+                </div>
             </div>
+            <div id="tenantPaymentHistoryHost">No payment history available.</div>
         </div>
     </div>
 </section>
@@ -178,9 +424,14 @@
     var canCheckout = @canCheckout.ToString().ToLowerInvariant();
     var statusMessage = document.getElementById("subscriptionStatusMessage");
     var currentPlanValue = document.getElementById("currentPlanValue");
-    var currentStatusValue = document.getElementById("currentStatusValue");
+    var currentBillingCycleValue = document.getElementById("currentBillingCycleValue");
     var subscriptionEndValue = document.getElementById("subscriptionEndValue");
+    var renewalAmountValue = document.getElementById("renewalAmountValue");
+    var currentStatusBadge = document.getElementById("currentStatusBadge");
+    var summaryInfoMessage = document.getElementById("summaryInfoMessage");
+    var trialInfoCard = document.getElementById("trialInfoCard");
     var trialEndValue = document.getElementById("trialEndValue");
+    var trialDaysRemainingValue = document.getElementById("trialDaysRemainingValue");
     var plansHost = document.getElementById("tenantPlansHost");
     var historyHost = document.getElementById("tenantPaymentHistoryHost");
     var refreshBtn = document.getElementById("refreshSubscriptionOverviewBtn");
@@ -194,17 +445,244 @@
         statusMessage.classList.add(type === "success" ? "success" : "error");
     }
 
+    function pad2(n) {
+        return n < 10 ? "0" + n : String(n);
+    }
+
     function toDateText(value) {
         if (!value) return "-";
         var d = new Date(value);
-        return isNaN(d.getTime()) ? "-" : d.toISOString().replace("T", " ").replace(".000Z", "Z");
+        if (isNaN(d.getTime())) return "-";
+        return d.getUTCFullYear() + "-"
+            + pad2(d.getUTCMonth() + 1) + "-"
+            + pad2(d.getUTCDate()) + " "
+            + pad2(d.getUTCHours()) + ":"
+            + pad2(d.getUTCMinutes()) + ":"
+            + pad2(d.getUTCSeconds()) + "Z";
     }
 
-    function formatInr(amount) {
+    function formatAmount(amount, currency) {
         var n = Number(amount || 0);
-        return isFinite(n)
-            ? n.toLocaleString("en-IN", { style: "currency", currency: "INR", minimumFractionDigits: 2, maximumFractionDigits: 2 })
-            : "₹0.00";
+        var c = currency || "INR";
+        if (!isFinite(n)) {
+            return "-";
+        }
+
+        try {
+            return new Intl.NumberFormat("en-IN", {
+                style: "currency",
+                currency: c,
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2
+            }).format(n);
+        } catch (e) {
+            return n.toFixed(2) + " " + c;
+        }
+    }
+
+    function normalizeStatus(status) {
+        return (status || "").trim().toLowerCase();
+    }
+
+    function statusClass(status) {
+        var key = normalizeStatus(status);
+        if (key === "active") return "status-active";
+        if (key === "trialactive" || key === "trial") return "status-trial";
+        if (key === "expired") return "status-expired";
+        if (key === "suspended") return "status-suspended";
+        return "status-neutral";
+    }
+
+    function isTrialStatus(status) {
+        var key = normalizeStatus(status);
+        return key === "trialactive" || key === "trial";
+    }
+
+    function isExpiredStatus(status) {
+        var key = normalizeStatus(status);
+        return key === "expired" || key === "suspended";
+    }
+
+    function findRenewalPlan(overview, plans) {
+        var currentPlan = (overview.planCode || "").trim().toLowerCase();
+        var currentCycle = (overview.billingCycle || "").trim().toLowerCase();
+
+        if (!currentPlan || !currentCycle) {
+            return null;
+        }
+
+        return plans.find(function (p) {
+            return (p.planCode || "").trim().toLowerCase() === currentPlan
+                && (p.billingCycle || "").trim().toLowerCase() === currentCycle;
+        }) || null;
+    }
+
+    function renewalCycleSuffix(billingCycle) {
+        var cycle = (billingCycle || "").trim().toLowerCase();
+        if (cycle === "monthly") return "month";
+        if (cycle === "yearly") return "year";
+        return "";
+    }
+
+    function daysRemaining(endUtc) {
+        if (!endUtc) return null;
+        var end = new Date(endUtc);
+        if (isNaN(end.getTime())) return null;
+        var now = new Date();
+        var diff = end.getTime() - now.getTime();
+        if (diff <= 0) return 0;
+        return Math.ceil(diff / 86400000);
+    }
+
+    function renderSummary(overview, plans) {
+        var status = overview.subscriptionStatus || "Not configured";
+        var trial = isTrialStatus(status);
+        var expired = isExpiredStatus(status);
+        var activePaid = !trial && normalizeStatus(status) === "active";
+
+        currentPlanValue.textContent = overview.planCode || "-";
+        currentBillingCycleValue.textContent = overview.billingCycle || "-";
+        subscriptionEndValue.textContent = toDateText(overview.subscriptionEndUtc);
+
+        currentStatusBadge.className = "status-badge " + statusClass(status);
+        currentStatusBadge.textContent = status;
+
+        var renewalPlan = findRenewalPlan(overview, plans);
+        if (renewalPlan) {
+            var suffix = renewalCycleSuffix(overview.billingCycle);
+            renewalAmountValue.textContent = suffix
+                ? (formatAmount(renewalPlan.amount, renewalPlan.currency) + " / " + suffix)
+                : formatAmount(renewalPlan.amount, renewalPlan.currency);
+        } else {
+            renewalAmountValue.textContent = "-";
+        }
+
+        trialInfoCard.style.display = "none";
+
+        if (trial) {
+            trialInfoCard.style.display = "block";
+            trialEndValue.textContent = toDateText(overview.trialEndUtc);
+            var remaining = daysRemaining(overview.trialEndUtc);
+            trialDaysRemainingValue.textContent = remaining === null ? "-" : String(remaining);
+            summaryInfoMessage.textContent = "Your trial is active. Upgrade to continue uninterrupted after the trial period.";
+            summaryInfoMessage.className = "summary-note trial";
+            return;
+        }
+
+        if (activePaid) {
+            summaryInfoMessage.textContent = "Your subscription is active. Renewal pricing and activation are validated server-side.";
+            summaryInfoMessage.className = "summary-note";
+            return;
+        }
+
+        if (expired) {
+            summaryInfoMessage.textContent = "Your subscription has expired or is inactive. Renew now to restore active access.";
+            summaryInfoMessage.className = "summary-note";
+            return;
+        }
+
+        summaryInfoMessage.textContent = "Select a plan below to start or manage your subscription.";
+        summaryInfoMessage.className = "summary-note";
+    }
+
+    function getPlanSortRank(planCode) {
+        var p = (planCode || "").trim().toLowerCase();
+        if (p === "standard") return 1;
+        if (p === "premium") return 2;
+        return 99;
+    }
+
+    function renderPlans(plans, overview) {
+        if (!plans || !plans.length) {
+            plansHost.textContent = "No active plans available.";
+            return;
+        }
+
+        var grouped = {};
+        plans.forEach(function (p) {
+            var key = (p.planCode || "Unknown").trim();
+            if (!grouped[key]) {
+                grouped[key] = [];
+            }
+            grouped[key].push(p);
+        });
+
+        var planNames = Object.keys(grouped).sort(function (a, b) {
+            var r = getPlanSortRank(a) - getPlanSortRank(b);
+            return r !== 0 ? r : a.localeCompare(b);
+        });
+
+        var currentPlan = (overview.planCode || "").trim().toLowerCase();
+        var currentCycle = (overview.billingCycle || "").trim().toLowerCase();
+        var status = overview.subscriptionStatus || "";
+        var trial = isTrialStatus(status);
+        var expired = isExpiredStatus(status);
+
+        var html = "<div class='plan-grid'>";
+
+        planNames.forEach(function (name) {
+            var cycles = grouped[name].slice().sort(function (x, y) {
+                return (x.billingCycle || "").localeCompare(y.billingCycle || "");
+            });
+
+            var isCurrentPlan = name.trim().toLowerCase() === currentPlan;
+            html += "<article class='plan-card" + (isCurrentPlan ? " current-plan" : "") + "'>";
+            html += "<div class='plan-title-row'><h3 class='plan-title'>" + name + "</h3>"
+                + (isCurrentPlan ? "<span class='status-badge status-active'>Current</span>" : "")
+                + "</div>";
+
+            cycles.forEach(function (cycle) {
+                var cycleKey = (cycle.billingCycle || "").trim().toLowerCase();
+                var isCurrentCycle = isCurrentPlan && cycleKey === currentCycle;
+                var action = "Subscribe";
+
+                if (isCurrentCycle && !trial && !expired) {
+                    action = "Renew";
+                } else if (trial) {
+                    action = "Upgrade";
+                } else if (expired && isCurrentPlan) {
+                    action = "Renew";
+                } else if (currentPlan && !isCurrentPlan) {
+                    action = "Upgrade";
+                }
+
+                html += "<div class='plan-cycle'>"
+                    + "<div class='plan-cycle-head'><strong>" + (cycle.billingCycle || "-") + "</strong>"
+                    + (isCurrentCycle ? "<span class='muted-note'>Current cycle</span>" : "")
+                    + "</div>"
+                    + "<div class='plan-amount'>" + formatAmount(cycle.amount, cycle.currency) + "</div>"
+                    + "<div class='plan-currency'>" + (cycle.currency || "INR") + "</div>"
+                    + "<div style='margin-top:10px;'><button type='button' class='subscription-btn subscribe-renew-btn'"
+                    + " data-plan='" + (cycle.planCode || "") + "'"
+                    + " data-cycle='" + (cycle.billingCycle || "") + "'"
+                    + (canCheckout ? "" : " disabled")
+                    + ">" + action + "</button></div>"
+                    + "</div>";
+            });
+
+            html += "</article>";
+        });
+
+        html += "</div>";
+        plansHost.innerHTML = html;
+
+        Array.prototype.forEach.call(plansHost.querySelectorAll(".subscribe-renew-btn"), function (btn) {
+            btn.addEventListener("click", function () {
+                if (!canCheckout) {
+                    return;
+                }
+
+                startCheckout(btn.getAttribute("data-plan"), btn.getAttribute("data-cycle"), btn);
+            });
+        });
+    }
+
+    function historyBadgeClass(status) {
+        var key = normalizeStatus(status);
+        if (key === "paid") return "status-active";
+        if (key === "expired") return "status-expired";
+        if (key === "superseded") return "status-suspended";
+        return "status-neutral";
     }
 
     function renderHistory(history) {
@@ -213,23 +691,46 @@
             return;
         }
 
-        var html = "<div class='subscription-wrap'><table class='subscription-table'>"
-            + "<thead><tr><th>Order</th><th>Plan</th><th>Cycle</th><th>Amount</th><th>Status</th><th>Payment</th><th>Updated</th></tr></thead><tbody>";
+        var table = "<div class='payment-table-wrap subscription-wrap'><table class='payment-table'>"
+            + "<thead><tr>"
+            + "<th>Order #</th><th>Plan</th><th>Billing Cycle</th><th>Amount</th><th>Payment Status</th><th>Payment ID</th><th>Updated (UTC)</th>"
+            + "</tr></thead><tbody>";
+
+        var cards = "<div class='payment-cards'>";
 
         history.forEach(function (h) {
-            html += "<tr>"
+            var updated = toDateText(h.modifiedUtc || h.createdUtc);
+            var amount = formatAmount(h.amount, h.currency);
+            var statusText = h.orderStatus || "-";
+            var statusBadge = "<span class='status-badge " + historyBadgeClass(statusText) + "'>" + statusText + "</span>";
+
+            table += "<tr>"
                 + "<td>" + (h.paymentOrderId || "-") + "</td>"
                 + "<td>" + (h.planCode || "-") + "</td>"
                 + "<td>" + (h.billingCycle || "-") + "</td>"
-                + "<td>" + formatInr(h.amount) + " " + (h.currency || "INR") + "</td>"
-                + "<td>" + (h.orderStatus || "-") + "</td>"
+                + "<td>" + amount + "</td>"
+                + "<td>" + statusBadge + "</td>"
                 + "<td>" + (h.gatewayPaymentId || "-") + "</td>"
-                + "<td>" + toDateText(h.modifiedUtc || h.createdUtc) + "</td>"
+                + "<td>" + updated + "</td>"
                 + "</tr>";
+
+            cards += "<article class='payment-card'>"
+                + "<div style='display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;'>"
+                + "<strong>Order #" + (h.paymentOrderId || "-") + "</strong>"
+                + statusBadge
+                + "</div>"
+                + "<div class='payment-kv'><div class='payment-k'>Plan</div><div>" + (h.planCode || "-") + "</div></div>"
+                + "<div class='payment-kv'><div class='payment-k'>Billing</div><div>" + (h.billingCycle || "-") + "</div></div>"
+                + "<div class='payment-kv'><div class='payment-k'>Amount</div><div>" + amount + "</div></div>"
+                + "<div class='payment-kv'><div class='payment-k'>Payment ID</div><div>" + (h.gatewayPaymentId || "-") + "</div></div>"
+                + "<div class='payment-kv'><div class='payment-k'>Updated</div><div>" + updated + "</div></div>"
+                + "</article>";
         });
 
-        html += "</tbody></table></div>";
-        historyHost.innerHTML = html;
+        table += "</tbody></table></div>";
+        cards += "</div>";
+
+        historyHost.innerHTML = table + cards;
     }
 
     function verifyCheckout(result, onDone) {
@@ -306,7 +807,7 @@
                     }
                 },
                 theme: {
-                    color: "#1e40af"
+                    color: "#173B70"
                 }
             };
 
@@ -326,45 +827,6 @@
         });
     }
 
-    function renderPlans(plans) {
-        if (!plans || !plans.length) {
-            plansHost.textContent = "No active plans available.";
-            return;
-        }
-
-        var html = "<div class='subscription-wrap'><table class='subscription-table'>"
-            + "<thead><tr><th>Plan</th><th>Billing Cycle</th><th>Price</th><th>Currency</th><th>Action</th></tr></thead><tbody>";
-
-        plans.forEach(function (p) {
-            var buttonHtml = "<button type='button' class='subscription-btn subscribe-renew-btn'"
-                + " data-plan='" + (p.planCode || "") + "'"
-                + " data-cycle='" + (p.billingCycle || "") + "'"
-                + (canCheckout ? "" : " disabled")
-                + ">Subscribe / Renew</button>";
-
-            html += "<tr>"
-                + "<td>" + (p.planCode || "-") + "</td>"
-                + "<td>" + (p.billingCycle || "-") + "</td>"
-                + "<td>" + formatInr(p.amount) + "</td>"
-                + "<td>" + (p.currency || "INR") + "</td>"
-                + "<td>" + buttonHtml + "</td>"
-                + "</tr>";
-        });
-
-        html += "</tbody></table></div>";
-        plansHost.innerHTML = html;
-
-        Array.prototype.forEach.call(plansHost.querySelectorAll(".subscribe-renew-btn"), function (btn) {
-            btn.addEventListener("click", function () {
-                if (!canCheckout) {
-                    return;
-                }
-
-                startCheckout(btn.getAttribute("data-plan"), btn.getAttribute("data-cycle"), btn);
-            });
-        });
-    }
-
     function loadOverview() {
         setMessage("", "");
         plansHost.textContent = "Loading plans...";
@@ -380,13 +842,12 @@
                 }
 
                 var o = data.overview;
-                currentPlanValue.textContent = o.planCode || "-";
-                currentStatusValue.textContent = o.subscriptionStatus || "-";
-                subscriptionEndValue.textContent = toDateText(o.subscriptionEndUtc);
-                trialEndValue.textContent = toDateText(o.trialEndUtc);
+                var plans = o.availablePlans || [];
+                var history = o.paymentHistory || [];
 
-                renderPlans(o.availablePlans || []);
-                renderHistory(o.paymentHistory || []);
+                renderSummary(o, plans);
+                renderPlans(plans, o);
+                renderHistory(history);
             })
             .catch(function () {
                 plansHost.textContent = "Unable to load tenant subscription details.";

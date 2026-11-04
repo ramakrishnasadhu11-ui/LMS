@@ -63,6 +63,16 @@ namespace LMS.Identity.DTO
         /// </summary>
          public string Country {get;set;}
 
+         public string CountryCode { get; set; }
+
+         public string TimeZoneIana { get; set; }
+
+         public string PhoneDialingCode { get; set; }
+
+         public string CurrencyCode { get; set; }
+
+         public string CurrencySymbol { get; set; }
+
         /// <summary>
         /// Tenant membership start date
         /// </summary>

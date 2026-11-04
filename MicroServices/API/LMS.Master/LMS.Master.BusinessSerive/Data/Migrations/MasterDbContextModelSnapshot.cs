@@ -17,9 +17,10 @@ namespace LMS.Master.BusinessSerive.Data.Migrations
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasAnnotation("ProductVersion", "10.0.12")
+                .HasAnnotation("ProductVersion", "8.0.31")
                 .HasAnnotation("Relational:MaxIdentifierLength", 128);
 
+            SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
 
             modelBuilder.Entity("LMS.Master.DTO.Entity.BarcodeTagSettingsEntity", b =>
                 {
@@ -27,6 +28,7 @@ namespace LMS.Master.BusinessSerive.Data.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("int");
 
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
                     b.Property<DateTime>("CreatedDate")
                         .HasColumnType("datetime2");
@@ -78,6 +80,7 @@ namespace LMS.Master.BusinessSerive.Data.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("int");
 
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
                     b.Property<decimal>("AdvanceAmount")
                         .HasColumnType("decimal(18,2)");
@@ -122,6 +125,7 @@ namespace LMS.Master.BusinessSerive.Data.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("int");
 
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
                     b.Property<string>("Address")
                         .IsRequired()
@@ -147,8 +151,6 @@ namespace LMS.Master.BusinessSerive.Data.Migrations
                     b.Property<string>("Email")
                         .HasMaxLength(256)
                         .HasColumnType("nvarchar(256)");
-
-                    // MembershipId removed by migration 20261004_RemoveMembershipId
 
                     b.Property<DateTime>("ModifiedDate")
                         .HasColumnType("datetime2");
@@ -183,6 +185,7 @@ namespace LMS.Master.BusinessSerive.Data.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("int");
 
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
                     b.Property<bool>("AllowDuplicatePhoneNumber")
                         .HasColumnType("bit");
@@ -250,6 +253,7 @@ namespace LMS.Master.BusinessSerive.Data.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("int");
 
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
                     b.Property<string>("Category")
                         .IsRequired()
@@ -302,6 +306,7 @@ namespace LMS.Master.BusinessSerive.Data.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("int");
 
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
                     b.Property<decimal>("AdvanceUsed")
                         .HasColumnType("decimal(18,2)");
@@ -346,10 +351,16 @@ namespace LMS.Master.BusinessSerive.Data.Migrations
                         .HasMaxLength(64)
                         .HasColumnType("nvarchar(64)");
 
+                    b.Property<decimal>("PaidNow")
+                        .HasColumnType("decimal(18,2)");
+
                     b.Property<string>("PaymentMode")
                         .IsRequired()
                         .HasMaxLength(64)
                         .HasColumnType("nvarchar(64)");
+
+                    b.Property<decimal>("PendingAmount")
+                        .HasColumnType("decimal(18,2)");
 
                     b.Property<decimal>("RatePerKg")
                         .HasColumnType("decimal(18,2)");
@@ -407,6 +418,7 @@ namespace LMS.Master.BusinessSerive.Data.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("int");
 
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
                     b.Property<string>("Category")
                         .HasMaxLength(64)
@@ -463,6 +475,7 @@ namespace LMS.Master.BusinessSerive.Data.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("int");
 
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
                     b.Property<bool>("AllowCredit")
                         .HasColumnType("bit");
@@ -520,12 +533,124 @@ namespace LMS.Master.BusinessSerive.Data.Migrations
                     b.ToTable("PaymentSettings", (string)null);
                 });
 
+            modelBuilder.Entity("LMS.Master.DTO.Entity.PaymentTransactionsEntity", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<decimal>("AmountAuthorized")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("AmountCaptured")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("AmountRequested")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("ClientRequestId")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<DateTime>("CreatedDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Currency")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(8)
+                        .HasColumnType("nvarchar(8)")
+                        .HasDefaultValue("INR");
+
+                    b.Property<string>("CustCode")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<string>("FailureCode")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<string>("FailureReason")
+                        .HasMaxLength(512)
+                        .HasColumnType("nvarchar(512)");
+
+                    b.Property<string>("GatewayOrderId")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<string>("GatewayPaymentId")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<string>("GatewayProvider")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<string>("GatewaySignature")
+                        .HasMaxLength(512)
+                        .HasColumnType("nvarchar(512)");
+
+                    b.Property<string>("InvoiceNo")
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<bool>("IsLiveMode")
+                        .HasColumnType("bit");
+
+                    b.Property<DateTime>("ModifiedDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("OrderNo")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<string>("StoreCode")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<string>("TenantName")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("GatewayOrderId")
+                        .IsUnique()
+                        .HasFilter("[GatewayOrderId] IS NOT NULL");
+
+                    b.HasIndex("TenantName", "StoreCode", "ClientRequestId")
+                        .IsUnique();
+
+                    b.HasIndex("TenantName", "StoreCode", "OrderNo");
+
+                    b.ToTable("PaymentTransactions", (string)null);
+                });
+
             modelBuilder.Entity("LMS.Master.DTO.Entity.PricingRulesEntity", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("int");
 
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
                     b.Property<DateTime>("CreatedDate")
                         .HasColumnType("datetime2");
@@ -582,6 +707,7 @@ namespace LMS.Master.BusinessSerive.Data.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("int");
 
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
                     b.Property<string>("Category")
                         .IsRequired()
@@ -635,6 +761,7 @@ namespace LMS.Master.BusinessSerive.Data.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("int");
 
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
                     b.Property<DateTime>("CreatedDate")
                         .HasColumnType("datetime2");
@@ -677,15 +804,107 @@ namespace LMS.Master.BusinessSerive.Data.Migrations
                     b.ToTable("StoreServiceMaster", (string)null);
                 });
 
+            modelBuilder.Entity("LMS.Master.DTO.Entity.TaxInvoiceComponentEntity", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<DateTime>("CreatedDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("DisplayName")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<DateTime?>("EffectiveFromUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("EffectiveToUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsCompound")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Jurisdiction")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<string>("JurisdictionNormalizedKey")
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)")
+                        .HasComputedColumnSql("COALESCE(NULLIF(LTRIM(RTRIM([Jurisdiction])),N''),N'__NULL__')", true);
+
+                    b.Property<DateTime>("ModifiedDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("Priority")
+                        .HasColumnType("int");
+
+                    b.Property<decimal>("RatePercent")
+                        .HasColumnType("decimal(5,2)");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.Property<string>("StoreCode")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<int>("TaxInvoiceSettingsId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("TenantName")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TaxInvoiceSettingsId", "Code", "IsActive");
+
+                    b.HasIndex("TenantName", "StoreCode", "IsActive");
+
+                    b.HasIndex("TenantName", "StoreCode", "Code", "Priority", "JurisdictionNormalizedKey")
+                        .IsUnique()
+                        .HasFilter("[IsActive] = 1");
+
+                    b.ToTable("TaxInvoiceComponents", (string)null);
+                });
+
             modelBuilder.Entity("LMS.Master.DTO.Entity.TaxInvoiceSettingsEntity", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("int");
 
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("CountryCode")
+                        .HasMaxLength(8)
+                        .HasColumnType("nvarchar(8)");
 
                     b.Property<DateTime>("CreatedDate")
                         .HasColumnType("datetime2");
+
+                    b.Property<string>("CurrencyCode")
+                        .HasMaxLength(8)
+                        .HasColumnType("nvarchar(8)");
 
                     b.Property<bool>("EnableTax")
                         .HasColumnType("bit");
@@ -699,6 +918,9 @@ namespace LMS.Master.BusinessSerive.Data.Migrations
                     b.Property<string>("InvoicePrefix")
                         .HasMaxLength(16)
                         .HasColumnType("nvarchar(16)");
+
+                    b.Property<bool?>("IsPricesInclusive")
+                        .HasColumnType("bit");
 
                     b.Property<DateTime>("ModifiedDate")
                         .HasColumnType("datetime2");
@@ -716,10 +938,19 @@ namespace LMS.Master.BusinessSerive.Data.Migrations
                     b.Property<bool>("ResetInvoiceNumberYearly")
                         .HasColumnType("bit");
 
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
                     b.Property<string>("StoreCode")
                         .IsRequired()
                         .HasMaxLength(64)
                         .HasColumnType("nvarchar(64)");
+
+                    b.Property<string>("TaxMode")
+                        .HasMaxLength(24)
+                        .HasColumnType("nvarchar(24)");
 
                     b.Property<string>("TenantName")
                         .IsRequired()
@@ -734,12 +965,82 @@ namespace LMS.Master.BusinessSerive.Data.Migrations
                     b.ToTable("TaxInvoiceSettings", (string)null);
                 });
 
+            modelBuilder.Entity("LMS.Master.DTO.Entity.TenantIntegrationSettingsEntity", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Category")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<DateTime>("CreatedDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("EncryptedSettingsJson")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<bool>("HasSecretsConfigured")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsEnabled")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsTestMode")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("LastTestMessage")
+                        .HasMaxLength(512)
+                        .HasColumnType("nvarchar(512)");
+
+                    b.Property<string>("LastTestStatus")
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<DateTime?>("LastTestedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("ModifiedDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("ProviderDisplayName")
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<string>("ProviderKey")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<string>("StoreCode")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<string>("TenantName")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantName", "StoreCode", "Category", "ProviderKey")
+                        .IsUnique();
+
+                    b.ToTable("TenantIntegrationSettings", (string)null);
+                });
+
             modelBuilder.Entity("LMS.Master.DTO.Entity.WorkflowStatusEntity", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("int");
 
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
                     b.Property<string>("ColorCode")
                         .HasMaxLength(16)
@@ -784,6 +1085,22 @@ namespace LMS.Master.BusinessSerive.Data.Migrations
                         .IsUnique();
 
                     b.ToTable("WorkflowStatuses", (string)null);
+                });
+
+            modelBuilder.Entity("LMS.Master.DTO.Entity.TaxInvoiceComponentEntity", b =>
+                {
+                    b.HasOne("LMS.Master.DTO.Entity.TaxInvoiceSettingsEntity", "TaxInvoiceSettings")
+                        .WithMany("Components")
+                        .HasForeignKey("TaxInvoiceSettingsId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.Navigation("TaxInvoiceSettings");
+                });
+
+            modelBuilder.Entity("LMS.Master.DTO.Entity.TaxInvoiceSettingsEntity", b =>
+                {
+                    b.Navigation("Components");
                 });
 #pragma warning restore 612, 618
         }

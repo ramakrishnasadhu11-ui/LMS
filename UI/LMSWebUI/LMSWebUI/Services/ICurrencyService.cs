@@ -4,6 +4,7 @@ namespace LMSWebUI.Services
 {
     public class CurrencyConfig
     {
+        public string CountryCode { get; set; }
         public string CurrencyCode { get; set; }
         public string CurrencySymbol { get; set; }
         public string CurrencyLocale { get; set; }

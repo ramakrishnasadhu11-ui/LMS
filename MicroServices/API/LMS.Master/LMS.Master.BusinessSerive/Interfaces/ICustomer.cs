@@ -17,6 +17,12 @@ namespace LMS.Master.BusinessSerive.Interfaces
         Task<ActionReturnType> GetPaymentSettings(string tenantName, string storeCode);
         Task<ActionReturnType> SaveTaxInvoiceSettings(TaxInvoiceSettingsDto taxInvoiceSettingsDto);
         Task<ActionReturnType> GetTaxInvoiceSettings(string tenantName, string storeCode);
+        Task<ActionReturnType> GetTaxConfiguration(string tenantName, string storeCode);
+        Task<ActionReturnType> UpsertTaxConfiguration(TaxConfigurationUpsertRequestDto request);
+        Task<ActionReturnType> AddTaxInvoiceComponent(TaxInvoiceComponentUpsertRequestDto request);
+        Task<ActionReturnType> UpdateTaxInvoiceComponent(TaxInvoiceComponentUpsertRequestDto request);
+        Task<ActionReturnType> DeactivateTaxInvoiceComponent(TaxInvoiceComponentDeactivateRequestDto request);
+        Task<ActionReturnType> ResolveTaxMode(string tenantName, string storeCode);
         Task<ActionReturnType> SaveWorkflowStatusSettings(WorkflowStatusSettingsDto workflowStatusSettingsDto);
         Task<ActionReturnType> GetWorkflowStatusSettings(string tenantName, string storeCode);
         Task<ActionReturnType> SaveBarcodeTagSettings(BarcodeTagSettingsDto barcodeTagSettingsDto);

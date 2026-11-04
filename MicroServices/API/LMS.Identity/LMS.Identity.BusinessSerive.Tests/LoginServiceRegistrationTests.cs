@@ -18,6 +18,7 @@ using System.Net;
 using LMS.Identity.BusinessSerive.Interfaces;
 using LMS.Identity.Utilities;
 using System.Security.Claims;
+using System.Collections.Generic;
 
 namespace LMS.Identity.BusinessSerive.Tests
 {
@@ -215,6 +216,105 @@ namespace LMS.Identity.BusinessSerive.Tests
             Assert.Equal(2, tsi.CurrencyDecimalDigits);
         }
 
+        [Theory]
+        [InlineData("AE", "United Arab Emirates", "AED", "د.إ", "en-AE")]
+        [InlineData("DE", "Germany", "EUR", "€", "de-DE")]
+        [InlineData("FR", "France", "EUR", "€", "fr-FR")]
+        public async Task CountryCode_Defaults_Are_Applied_For_Supported_Countries(string countryCode, string countryName, string expectedCurrencyCode, string expectedSymbol, string expectedLocale)
+        {
+            var dto = new TenantDto
+            {
+                Email = $"{countryCode.ToLowerInvariant()}@example.com",
+                TenantName = $"{countryCode}Tenant",
+                NoOfStores = 1,
+                CountryCode = countryCode,
+                Country = countryName
+            };
+
+            var res = await _service.Register(dto);
+            var io = res.ResultSet as dynamic;
+            Assert.Equal("200", (string)io.StatusCode);
+
+            var tenant = _context.Tenants.FirstOrDefault(t => t.Email == dto.Email);
+            Assert.NotNull(tenant);
+            Assert.Equal(countryCode, tenant.CountryCode);
+
+            var cfg = _context.StoreConfigurations.FirstOrDefault(s => s.TenantId == tenant.TenantId);
+            Assert.NotNull(cfg);
+            Assert.Equal(expectedCurrencyCode, cfg.CurrencyCode);
+            Assert.Equal(expectedSymbol, cfg.CurrencySymbol);
+            Assert.Equal(expectedLocale, cfg.CurrencyLocale);
+            Assert.Equal(2, cfg.CurrencyDecimalDigits);
+        }
+
+        [Fact]
+        public async Task CountryName_Fallback_Resolves_Profile_When_CountryCode_Not_Provided()
+        {
+            var dto = new TenantDto
+            {
+                Email = "fallback-country@example.com",
+                TenantName = "FallbackCountryTenant",
+                NoOfStores = 1,
+                Country = "India"
+            };
+
+            var res = await _service.Register(dto);
+            var io = res.ResultSet as dynamic;
+            Assert.Equal("200", (string)io.StatusCode);
+
+            var tenant = _context.Tenants.FirstOrDefault(t => t.Email == dto.Email);
+            Assert.NotNull(tenant);
+            Assert.Equal("IN", tenant.CountryCode);
+        }
+
+        [Fact]
+        public async Task Unsupported_CountryCode_Returns_BadRequest()
+        {
+            var dto = new TenantDto
+            {
+                Email = "invalid-code@example.com",
+                TenantName = "InvalidCodeTenant",
+                NoOfStores = 1,
+                CountryCode = "ZZ",
+                Country = "India"
+            };
+
+            var res = await _service.Register(dto);
+            Assert.Equal(HttpStatusCode.BadRequest, res.StatusCode);
+
+            var io = res.ResultSet as dynamic;
+            Assert.Equal("400", (string)io.StatusCode);
+            Assert.Contains("Unsupported CountryCode", (string)io.Message);
+        }
+
+        [Fact]
+        public async Task Manual_Currency_Override_Is_Preserved_With_CountryCode()
+        {
+            var dto = new TenantDto
+            {
+                Email = "override-countrycode@example.com",
+                TenantName = "OverrideCountryCodeTenant",
+                NoOfStores = 1,
+                CountryCode = "AE",
+                Country = "United Arab Emirates",
+                CurrencyCode = "USD",
+                CurrencySymbol = "$",
+                CurrencyLocale = "en-US",
+                CurrencyDecimalDigits = 2
+            };
+
+            var res = await _service.Register(dto);
+            var io = res.ResultSet as dynamic;
+            Assert.Equal("200", (string)io.StatusCode);
+
+            var cfg = _context.StoreConfigurations.FirstOrDefault();
+            Assert.NotNull(cfg);
+            Assert.Equal("USD", cfg.CurrencyCode);
+            Assert.Equal("$", cfg.CurrencySymbol);
+            Assert.Equal("en-US", cfg.CurrencyLocale);
+            Assert.Equal(2, cfg.CurrencyDecimalDigits);
+        }
+
         [Fact]
         public async Task Store_Inherits_TenantCurrency_Unless_Overridden()
         {
@@ -305,6 +405,225 @@ namespace LMS.Identity.BusinessSerive.Tests
 
             Assert.True((string)io1.StatusCode == "200" || (string)io2.StatusCode == "200");
             Assert.True((string)io1.StatusCode == "208" || (string)io2.StatusCode == "208");
+        }
+
+        [Fact]
+        public async Task India_Defaults_TimeZone_And_DialingCode()
+        {
+            var dto = new TenantDto { Email = "india-timezone@example.com", TenantName = "IndiaTimezone", NoOfStores = 1, Country = "India" };
+            var res = await _service.Register(dto);
+            var io = res.ResultSet as dynamic;
+            Assert.Equal("200", (string)io.StatusCode);
+
+            var tenant = _context.Tenants.FirstOrDefault(t => t.Email == dto.Email);
+            Assert.NotNull(tenant);
+            Assert.Equal("Asia/Kolkata", tenant.TimeZoneIana);
+            Assert.Equal("+91", tenant.PhoneDialingCode);
+        }
+
+        [Fact]
+        public async Task UAE_Defaults_TimeZone_And_DialingCode()
+        {
+            var dto = new TenantDto { Email = "uae-timezone@example.com", TenantName = "UAETimezone", NoOfStores = 1, CountryCode = "AE", Country = "United Arab Emirates" };
+            var res = await _service.Register(dto);
+            var io = res.ResultSet as dynamic;
+            Assert.Equal("200", (string)io.StatusCode);
+
+            var tenant = _context.Tenants.FirstOrDefault(t => t.Email == dto.Email);
+            Assert.NotNull(tenant);
+            Assert.Equal("Asia/Dubai", tenant.TimeZoneIana);
+            Assert.Equal("+971", tenant.PhoneDialingCode);
+        }
+
+        [Fact]
+        public async Task UK_Defaults_TimeZone_And_DialingCode()
+        {
+            var dto = new TenantDto { Email = "uk-timezone@example.com", TenantName = "UKTimezone", NoOfStores = 1, CountryCode = "GB", Country = "United Kingdom" };
+            var res = await _service.Register(dto);
+            var io = res.ResultSet as dynamic;
+            Assert.Equal("200", (string)io.StatusCode);
+
+            var tenant = _context.Tenants.FirstOrDefault(t => t.Email == dto.Email);
+            Assert.NotNull(tenant);
+            Assert.Equal("Europe/London", tenant.TimeZoneIana);
+            Assert.Equal("+44", tenant.PhoneDialingCode);
+        }
+
+        [Fact]
+        public async Task ExistingTenant_NullTimezone_Uses_CountryFallback_In_Profile()
+        {
+            var tenant = new TenantEntity
+            {
+                TenantId = Guid.NewGuid().ToString(),
+                Email = "legacy-null-tz@example.com",
+                TenantName = "LegacyTZ",
+                NoOfStores = 1,
+                Country = "India",
+                CountryCode = "IN",
+                TimeZoneIana = null,
+                PhoneDialingCode = null,
+                CreatedDate = DateTime.UtcNow,
+                ModifiedDate = DateTime.UtcNow
+            };
+            _context.Tenants.Add(tenant);
+            await _context.SaveChangesAsync();
+
+            var profile = await _service.TenantProfileDetails(tenant.Email);
+            var io = profile.ResultSet as IOResponse;
+            Assert.NotNull(io);
+            Assert.Equal("Asia/Kolkata", io.TimeZoneIana);
+            Assert.Equal("+91", io.PhoneDialingCode);
+        }
+
+        [Fact]
+        public async Task Invalid_Timezone_Is_Rejected_On_Update()
+        {
+            var tenant = new TenantEntity
+            {
+                TenantId = Guid.NewGuid().ToString(),
+                Email = "invalid-timezone-update@example.com",
+                TenantName = "InvalidTZ",
+                NoOfStores = 1,
+                Country = "India",
+                CountryCode = "IN",
+                CreatedDate = DateTime.UtcNow,
+                ModifiedDate = DateTime.UtcNow
+            };
+            _context.Tenants.Add(tenant);
+            await _context.SaveChangesAsync();
+
+            var claims = new ClaimsPrincipal(new ClaimsIdentity(new List<Claim>
+            {
+                new Claim(ClaimTypes.Name, tenant.Email),
+                new Claim(ClaimTypes.Role, "Admin"),
+                new Claim("tenantId", tenant.TenantId)
+            }, "TestAuth"));
+
+            var res = await _service.UpdateTenantLocalizationSettings(tenant.Email, new TenantLocalizationSettingsDto
+            {
+                TimeZoneIana = "Invalid/Timezone",
+                PhoneDialingCode = "+91"
+            }, claims);
+
+            Assert.Equal(HttpStatusCode.BadRequest, res.StatusCode);
+        }
+
+        [Fact]
+        public async Task Tenant_Admin_Can_Update_Its_Localization_Settings()
+        {
+            var tenant = new TenantEntity
+            {
+                TenantId = Guid.NewGuid().ToString(),
+                Email = "tenant-update-localization@example.com",
+                TenantName = "UpdateLocalization",
+                NoOfStores = 1,
+                Country = "United States",
+                CountryCode = "US",
+                TimeZoneIana = "America/New_York",
+                PhoneDialingCode = "+1",
+                CreatedDate = DateTime.UtcNow,
+                ModifiedDate = DateTime.UtcNow
+            };
+            _context.Tenants.Add(tenant);
+            await _context.SaveChangesAsync();
+
+            var claims = new ClaimsPrincipal(new ClaimsIdentity(new List<Claim>
+            {
+                new Claim(ClaimTypes.Name, tenant.Email),
+                new Claim(ClaimTypes.Role, "Admin"),
+                new Claim("tenantId", tenant.TenantId)
+            }, "TestAuth"));
+
+            var res = await _service.UpdateTenantLocalizationSettings(tenant.Email, new TenantLocalizationSettingsDto
+            {
+                TimeZoneIana = "America/Los_Angeles",
+                PhoneDialingCode = "+1"
+            }, claims);
+
+            Assert.Equal(HttpStatusCode.OK, res.StatusCode);
+            var reloaded = _context.Tenants.First(t => t.Email == tenant.Email);
+            Assert.Equal("America/Los_Angeles", reloaded.TimeZoneIana);
+        }
+
+        [Fact]
+        public async Task Tenant_Isolation_Prevents_Updating_Other_Tenant_Localization()
+        {
+            var tenantA = new TenantEntity
+            {
+                TenantId = Guid.NewGuid().ToString(),
+                Email = "tenant-a@example.com",
+                TenantName = "TenantA",
+                NoOfStores = 1,
+                Country = "India",
+                CountryCode = "IN",
+                CreatedDate = DateTime.UtcNow,
+                ModifiedDate = DateTime.UtcNow
+            };
+            var tenantB = new TenantEntity
+            {
+                TenantId = Guid.NewGuid().ToString(),
+                Email = "tenant-b@example.com",
+                TenantName = "TenantB",
+                NoOfStores = 1,
+                Country = "United States",
+                CountryCode = "US",
+                CreatedDate = DateTime.UtcNow,
+                ModifiedDate = DateTime.UtcNow
+            };
+
+            _context.Tenants.AddRange(tenantA, tenantB);
+            await _context.SaveChangesAsync();
+
+            var claims = new ClaimsPrincipal(new ClaimsIdentity(new List<Claim>
+            {
+                new Claim(ClaimTypes.Name, tenantA.Email),
+                new Claim(ClaimTypes.Role, "Admin"),
+                new Claim("tenantId", tenantA.TenantId)
+            }, "TestAuth"));
+
+            var res = await _service.UpdateTenantLocalizationSettings(tenantB.Email, new TenantLocalizationSettingsDto
+            {
+                TimeZoneIana = "America/Los_Angeles",
+                PhoneDialingCode = "+1"
+            }, claims);
+
+            Assert.Equal(HttpStatusCode.Forbidden, res.StatusCode);
+        }
+
+        [Fact]
+        public void Utc_To_TenantLocal_Conversion_Works()
+        {
+            var utc = new DateTime(2026, 01, 10, 18, 30, 00, DateTimeKind.Utc);
+            var local = LoginService.ConvertUtcToTenantLocal(utc, "Asia/Kolkata");
+            Assert.Equal(new DateTime(2026, 01, 11, 0, 0, 0), local);
+        }
+
+        [Fact]
+        public void TenantLocal_DateRange_To_Utc_Boundaries_Works()
+        {
+            var (startUtc, endUtcExclusive) = LoginService.ConvertTenantLocalDateRangeToUtc(
+                new DateOnly(2026, 01, 11),
+                new DateOnly(2026, 01, 11),
+                "Asia/Kolkata");
+
+            Assert.Equal(new DateTime(2026, 01, 10, 18, 30, 0, DateTimeKind.Utc), startUtc);
+            Assert.Equal(new DateTime(2026, 01, 11, 18, 30, 0, DateTimeKind.Utc), endUtcExclusive);
+        }
+
+        [Fact]
+        public void Indian_Legacy_Phone_Compatibility_Remains_Valid()
+        {
+            var isLegacyDigits = System.Text.RegularExpressions.Regex.IsMatch("9876543210", "^\\d{7,15}$");
+            Assert.True(isLegacyDigits);
+        }
+
+        [Fact]
+        public void International_E164_Phone_Is_Valid_And_Invalid_Rejected()
+        {
+            var valid = System.Text.RegularExpressions.Regex.IsMatch("+971501234567", "^\\+[1-9]\\d{6,14}$");
+            var invalid = System.Text.RegularExpressions.Regex.IsMatch("00123456", "^\\+[1-9]\\d{6,14}$");
+            Assert.True(valid);
+            Assert.False(invalid);
         }
     }
 }

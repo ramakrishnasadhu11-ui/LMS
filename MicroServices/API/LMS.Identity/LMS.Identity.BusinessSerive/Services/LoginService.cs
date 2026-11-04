@@ -30,11 +30,15 @@ using System.Security.Cryptography;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using IdentityModelTokens = Microsoft.IdentityModel.Tokens;
+using System.Text.RegularExpressions;
 
 namespace LMS.Identity.BusinessSerive.Services
 {
     public class LoginService : ILoginService
     {
+        private const string FallbackTimeZoneIana = "Asia/Kolkata";
+        private static readonly Regex DialingCodeRegex = new Regex("^\\+[1-9]\\d{0,6}$", RegexOptions.Compiled);
+
         // Prevent concurrent registration requests for the same email from creating
         // duplicate tenant records. SemaphoreSlim per-email serializes Register calls
         // for a given email address in-process.
@@ -68,6 +72,83 @@ namespace LMS.Identity.BusinessSerive.Services
         private static bool IsLegacySubject(string subject)
             => string.Equals((subject ?? string.Empty).Trim(), "Registration Status Report", StringComparison.OrdinalIgnoreCase)
                || string.Equals((subject ?? string.Empty).Trim(), "Registration Status Alert", StringComparison.OrdinalIgnoreCase);
+
+        private static string NormalizeDialingCode(string dialingCode)
+        {
+            if (string.IsNullOrWhiteSpace(dialingCode))
+            {
+                return null;
+            }
+
+            var normalized = dialingCode.Trim().Replace(" ", string.Empty);
+            if (!normalized.StartsWith("+", StringComparison.Ordinal))
+            {
+                normalized = "+" + normalized.TrimStart('0');
+            }
+
+            return normalized;
+        }
+
+        private static bool IsValidTimeZoneIana(string timeZoneIana)
+        {
+            if (string.IsNullOrWhiteSpace(timeZoneIana))
+            {
+                return false;
+            }
+
+            try
+            {
+                _ = TimeZoneInfo.FindSystemTimeZoneById(timeZoneIana.Trim());
+                return true;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        private static string ResolveEffectiveTimeZoneIana(TenantEntity tenant)
+        {
+            if (!string.IsNullOrWhiteSpace(tenant?.TimeZoneIana) && IsValidTimeZoneIana(tenant.TimeZoneIana))
+            {
+                return tenant.TimeZoneIana.Trim();
+            }
+
+            var profileTimeZone = CountryCurrencyMapping.Resolve(tenant?.CountryCode, tenant?.Country)?.TimeZoneIana;
+            if (!string.IsNullOrWhiteSpace(profileTimeZone) && IsValidTimeZoneIana(profileTimeZone))
+            {
+                return profileTimeZone.Trim();
+            }
+
+            return FallbackTimeZoneIana;
+        }
+
+        internal static DateTime ConvertUtcToTenantLocal(DateTime utcDateTime, string timeZoneIana)
+        {
+            var utc = utcDateTime.Kind == DateTimeKind.Utc
+                ? utcDateTime
+                : DateTime.SpecifyKind(utcDateTime, DateTimeKind.Utc);
+
+            var tz = IsValidTimeZoneIana(timeZoneIana)
+                ? TimeZoneInfo.FindSystemTimeZoneById(timeZoneIana.Trim())
+                : TimeZoneInfo.FindSystemTimeZoneById(FallbackTimeZoneIana);
+
+            return TimeZoneInfo.ConvertTimeFromUtc(utc, tz);
+        }
+
+        internal static (DateTime UtcStart, DateTime UtcEndExclusive) ConvertTenantLocalDateRangeToUtc(DateOnly fromDate, DateOnly toDate, string timeZoneIana)
+        {
+            var tz = IsValidTimeZoneIana(timeZoneIana)
+                ? TimeZoneInfo.FindSystemTimeZoneById(timeZoneIana.Trim())
+                : TimeZoneInfo.FindSystemTimeZoneById(FallbackTimeZoneIana);
+
+            var localStart = fromDate.ToDateTime(TimeOnly.MinValue, DateTimeKind.Unspecified);
+            var localEndExclusive = toDate.AddDays(1).ToDateTime(TimeOnly.MinValue, DateTimeKind.Unspecified);
+
+            var utcStart = TimeZoneInfo.ConvertTimeToUtc(localStart, tz);
+            var utcEndExclusive = TimeZoneInfo.ConvertTimeToUtc(localEndExclusive, tz);
+            return (utcStart, utcEndExclusive);
+        }
 
         private (string Token, DateTime ExpiresAtUtc) GenerateAccessToken(
             string email,
@@ -179,6 +260,33 @@ namespace LMS.Identity.BusinessSerive.Services
 
                 tenantDto.Email = tenantDto.Email.Trim();
                 tenantDto.TenantName = tenantDto.TenantName.Trim();
+                tenantDto.Country = tenantDto.Country?.Trim();
+                tenantDto.CountryCode = tenantDto.CountryCode?.Trim()?.ToUpperInvariant();
+
+                var profileByCode = CountryCurrencyMapping.GetDefaultForCountryCode(tenantDto.CountryCode);
+                if (!string.IsNullOrWhiteSpace(tenantDto.CountryCode) && profileByCode == null)
+                {
+                    return ActionSet.ActionReturnType(HttpStatusCode.BadRequest, new IOResponse
+                    {
+                        StatusCode = "400",
+                        TenantId = string.Empty,
+                        Message = $"Unsupported CountryCode '{tenantDto.CountryCode}'. Supported values: IN, US, GB, AE, DE, FR."
+                    });
+                }
+
+                var countryProfile = profileByCode ?? CountryCurrencyMapping.GetDefaultForCountry(tenantDto.Country);
+
+                if (countryProfile != null)
+                {
+                    tenantDto.CountryCode = countryProfile.CountryCode;
+                    if (string.IsNullOrWhiteSpace(tenantDto.Country))
+                    {
+                        tenantDto.Country = countryProfile.CountryName;
+                    }
+
+                    tenantDto.TimeZoneIana = countryProfile.TimeZoneIana;
+                    tenantDto.PhoneDialingCode = countryProfile.DialingCode;
+                }
 
                 // Serialize concurrent registrations for the same email so two
                 // simultaneous requests cannot both create a tenant row. Hold the
@@ -206,6 +314,10 @@ namespace LMS.Identity.BusinessSerive.Services
                 tenantData.TrialStartUtc = nowUtc;
                 tenantData.TrialEndUtc = nowUtc.AddDays(45);
                 tenantData.SubscriptionStatus = "TrialActive";
+                tenantData.TimeZoneIana = !string.IsNullOrWhiteSpace(tenantDto.TimeZoneIana) && IsValidTimeZoneIana(tenantDto.TimeZoneIana)
+                    ? tenantDto.TimeZoneIana.Trim()
+                    : ResolveEffectiveTimeZoneIana(new TenantEntity { CountryCode = tenantDto.CountryCode, Country = tenantDto.Country });
+                tenantData.PhoneDialingCode = NormalizeDialingCode(tenantDto.PhoneDialingCode);
                 // New tenants stay pending until a super admin approves them.
                 tenantData.ApprovalStatus = TenantApprovalStatus.Pending;
 
@@ -217,7 +329,7 @@ namespace LMS.Identity.BusinessSerive.Services
                 var providedCurrencyLocale = tenantDto.CurrencyLocale?.Trim();
                 int? providedCurrencyDigits = tenantDto.CurrencyDecimalDigits;
 
-                var defaultCfg = CountryCurrencyMapping.GetDefaultForCountry(tenantDto.Country);
+                var defaultCfg = countryProfile;
 
                 var configurationJson = Newtonsoft.Json.JsonConvert.SerializeObject(new
                 {
@@ -226,7 +338,12 @@ namespace LMS.Identity.BusinessSerive.Services
                     CurrencyCode = string.IsNullOrWhiteSpace(providedCurrencyCode) ? defaultCfg?.CurrencyCode : providedCurrencyCode,
                     CurrencySymbol = string.IsNullOrWhiteSpace(providedCurrencySymbol) ? defaultCfg?.CurrencySymbol : providedCurrencySymbol,
                     CurrencyLocale = string.IsNullOrWhiteSpace(providedCurrencyLocale) ? defaultCfg?.CurrencyLocale : providedCurrencyLocale,
-                    CurrencyDecimalDigits = providedCurrencyDigits ?? defaultCfg?.DecimalDigits
+                    CurrencyDecimalDigits = providedCurrencyDigits ?? defaultCfg?.DecimalDigits,
+                    CountryCode = tenantDto.CountryCode,
+                    CountryName = tenantDto.Country,
+                    TimeZoneIana = tenantData.TimeZoneIana,
+                    DialingCode = tenantData.PhoneDialingCode,
+                    TaxProfileCode = defaultCfg?.TaxProfileCode
                 });
 
                 // Add both tenant and tenant-level configuration and save in one transaction so failure leaves no partial state.
@@ -974,7 +1091,7 @@ namespace LMS.Identity.BusinessSerive.Services
 
                     if (string.IsNullOrWhiteSpace(currencyCode) || string.IsNullOrWhiteSpace(currencySymbol) || string.IsNullOrWhiteSpace(currencyLocale) || currencyDigits == null)
                     {
-                        var defaultCfg = CountryCurrencyMapping.GetDefaultForCountry(tenant.Country);
+                        var defaultCfg = CountryCurrencyMapping.Resolve(tenant.CountryCode, tenant.Country);
                         if (defaultCfg != null)
                         {
                             currencyCode = currencyCode ?? defaultCfg.CurrencyCode;
@@ -1645,6 +1762,87 @@ namespace LMS.Identity.BusinessSerive.Services
             return await _razorpayIntegrationService.GetTenantSubscriptionOverview(user);
         }
 
+        public async Task<ActionReturnType> UpdateTenantLocalizationSettings(string tenantEmail, TenantLocalizationSettingsDto model, ClaimsPrincipal user)
+        {
+            var normalizedEmail = (tenantEmail ?? string.Empty).Trim();
+            if (string.IsNullOrWhiteSpace(normalizedEmail) || model == null)
+            {
+                return ActionSet.ActionReturnType(HttpStatusCode.BadRequest, new IOResponse
+                {
+                    StatusCode = "400",
+                    Message = "Tenant email and localization settings are required."
+                });
+            }
+
+            var callerEmail = user?.FindFirst(ClaimTypes.Name)?.Value
+                              ?? user?.FindFirst(JwtRegisteredClaimNames.Email)?.Value;
+            var callerRole = user?.FindFirst(ClaimTypes.Role)?.Value;
+
+            var isSuperAdmin = string.Equals(callerRole, "SuperAdmin", StringComparison.OrdinalIgnoreCase);
+            if (!isSuperAdmin && !string.Equals((callerEmail ?? string.Empty).Trim(), normalizedEmail, StringComparison.OrdinalIgnoreCase))
+            {
+                return ActionSet.ActionReturnType(HttpStatusCode.Forbidden, new IOResponse
+                {
+                    StatusCode = "403",
+                    Message = "You are not authorized to update localization settings for this tenant."
+                });
+            }
+
+            var normalizedTimeZone = model.TimeZoneIana?.Trim();
+            if (!IsValidTimeZoneIana(normalizedTimeZone))
+            {
+                return ActionSet.ActionReturnType(HttpStatusCode.BadRequest, new IOResponse
+                {
+                    StatusCode = "400",
+                    Message = "Invalid timezone. Provide a valid IANA timezone identifier."
+                });
+            }
+
+            var normalizedDialingCode = NormalizeDialingCode(model.PhoneDialingCode);
+            if (string.IsNullOrWhiteSpace(normalizedDialingCode) || !DialingCodeRegex.IsMatch(normalizedDialingCode))
+            {
+                return ActionSet.ActionReturnType(HttpStatusCode.BadRequest, new IOResponse
+                {
+                    StatusCode = "400",
+                    Message = "Invalid phone country calling code. Expected format like +91 or +971."
+                });
+            }
+
+            var tenant = await _unitOfWork.DbContext.Tenants.FirstOrDefaultAsync(x => x.Email == normalizedEmail);
+            if (tenant == null)
+            {
+                return ActionSet.ActionReturnType(HttpStatusCode.NotFound, new IOResponse
+                {
+                    StatusCode = "404",
+                    Message = "Tenant not found."
+                });
+            }
+
+            if (!isSuperAdmin && !string.Equals((user?.FindFirst("tenantId")?.Value ?? string.Empty).Trim(), (tenant.TenantId ?? string.Empty).Trim(), StringComparison.OrdinalIgnoreCase))
+            {
+                return ActionSet.ActionReturnType(HttpStatusCode.Forbidden, new IOResponse
+                {
+                    StatusCode = "403",
+                    Message = "You are not authorized to update localization settings for this tenant."
+                });
+            }
+
+            tenant.TimeZoneIana = normalizedTimeZone;
+            tenant.PhoneDialingCode = normalizedDialingCode;
+            tenant.ModifiedDate = DateTime.UtcNow;
+            await _unitOfWork.SaveChangesAsync();
+
+            return ActionSet.ActionReturnType(HttpStatusCode.OK, new IOResponse
+            {
+                StatusCode = "200",
+                Email = tenant.Email,
+                TenantId = tenant.TenantId,
+                TimeZoneIana = tenant.TimeZoneIana,
+                PhoneDialingCode = tenant.PhoneDialingCode,
+                Message = "Tenant localization settings updated successfully."
+            });
+        }
+
         private static string NormalizeBillingCycle(string billingCycle)
         {
             var normalized = (billingCycle ?? string.Empty).Trim();
@@ -2200,7 +2398,33 @@ namespace LMS.Identity.BusinessSerive.Services
                 if (tenantregistryresult == null)
                     return ActionSet.ActionReturnType(HttpStatusCode.NotFound, new IOResponse { StatusCode = "404", Email = eMail, Message = IdentityValidationMessage.IDENTITY_DATANOTFOUND_EMAIL_MESSAGE });
                 else
-                    return ActionSet.ActionReturnType(HttpStatusCode.OK, new IOResponse { StatusCode = "200", Address = tenantregistryresult.Address, Country = tenantregistryresult.Country, PhoneNumber = tenantregistryresult.PhoneNumber, Email = eMail, TenantName = tenantregistryresult.TenantName, CreatedDate = tenantregistryresult.CreatedDate, PlanCode = tenantregistryresult.PlanCode, SubscriptionStatus = tenantregistryresult.SubscriptionStatus, TrialEndUtc = tenantregistryresult.TrialEndUtc, Message = IdentityValidationMessage.IDENTITY_DATAFOUND_EMAIL_MESSAGE });
+                {
+                    var defaultProfile = CountryCurrencyMapping.Resolve(tenantregistryresult.CountryCode, tenantregistryresult.Country);
+                    var effectiveTimeZone = ResolveEffectiveTimeZoneIana(tenantregistryresult);
+                    var effectiveDialingCode = !string.IsNullOrWhiteSpace(tenantregistryresult.PhoneDialingCode)
+                        ? NormalizeDialingCode(tenantregistryresult.PhoneDialingCode)
+                        : NormalizeDialingCode(defaultProfile?.DialingCode);
+
+                    return ActionSet.ActionReturnType(HttpStatusCode.OK, new IOResponse
+                    {
+                        StatusCode = "200",
+                        Address = tenantregistryresult.Address,
+                        Country = tenantregistryresult.Country,
+                        CountryCode = tenantregistryresult.CountryCode,
+                        PhoneNumber = tenantregistryresult.PhoneNumber,
+                        PhoneDialingCode = effectiveDialingCode,
+                        TimeZoneIana = effectiveTimeZone,
+                        CurrencyCode = defaultProfile?.CurrencyCode,
+                        CurrencySymbol = defaultProfile?.CurrencySymbol,
+                        Email = eMail,
+                        TenantName = tenantregistryresult.TenantName,
+                        CreatedDate = tenantregistryresult.CreatedDate,
+                        PlanCode = tenantregistryresult.PlanCode,
+                        SubscriptionStatus = tenantregistryresult.SubscriptionStatus,
+                        TrialEndUtc = tenantregistryresult.TrialEndUtc,
+                        Message = IdentityValidationMessage.IDENTITY_DATAFOUND_EMAIL_MESSAGE
+                    });
+                }
             }
             return ActionSet.ActionReturnType(HttpStatusCode.InternalServerError, new IOResponse { StatusCode = "500", Email = "", Message = IdentityValidationMessage.IDENTITY_LOGINTENANT_ERROR_MESSAGE });
         }
@@ -2284,7 +2508,7 @@ namespace LMS.Identity.BusinessSerive.Services
             var providedCurrencyLocale = tenantDto.CurrencyLocale?.Trim();
             int? providedCurrencyDigits = tenantDto.CurrencyDecimalDigits;
 
-            var defaultCfg = CountryCurrencyMapping.GetDefaultForCountry(tenantDto.Country);
+            var defaultCfg = CountryCurrencyMapping.Resolve(tenantDto.CountryCode, tenantDto.Country);
             TenantStoreInfoEntity.CurrencyCode = string.IsNullOrWhiteSpace(providedCurrencyCode) ? defaultCfg?.CurrencyCode : providedCurrencyCode;
             TenantStoreInfoEntity.CurrencySymbol = string.IsNullOrWhiteSpace(providedCurrencySymbol) ? defaultCfg?.CurrencySymbol : providedCurrencySymbol;
             TenantStoreInfoEntity.CurrencyLocale = string.IsNullOrWhiteSpace(providedCurrencyLocale) ? defaultCfg?.CurrencyLocale : providedCurrencyLocale;
@@ -2855,7 +3079,7 @@ ORDER BY CASE WHEN ISNULL([StoreCode], '') = '' THEN 0 ELSE 1 END, [ModifiedDate
 
                         if (string.IsNullOrWhiteSpace(currencyCode) || string.IsNullOrWhiteSpace(currencySymbol) || string.IsNullOrWhiteSpace(currencyLocale) || currencyDigits == null)
                         {
-                            var defaultCfg = CountryCurrencyMapping.GetDefaultForCountry(tenantregistryresult.Country);
+                            var defaultCfg = CountryCurrencyMapping.Resolve(tenantregistryresult.CountryCode, tenantregistryresult.Country);
                             if (defaultCfg != null)
                             {
                                 currencyCode = currencyCode ?? defaultCfg.CurrencyCode;
@@ -3045,6 +3269,11 @@ ORDER BY CASE WHEN ISNULL([StoreCode], '') = '' THEN 0 ELSE 1 END, [ModifiedDate
                     TenantId = em.TenantId,
                     TenantName = em.TenantName,
                     Email = em.Email,
+                    PhoneNumber = em.PhoneNumber,
+                    Country = em.Country,
+                    CountryCode = em.CountryCode,
+                    TimeZoneIana = em.TimeZoneIana,
+                    PhoneDialingCode = em.PhoneDialingCode,
                     CreatedDate = em.CreatedDate,
                     ModifiedDate = em.ModifiedDate,
                     PlanCode = em.PlanCode,
@@ -3072,6 +3301,11 @@ ORDER BY CASE WHEN ISNULL([StoreCode], '') = '' THEN 0 ELSE 1 END, [ModifiedDate
                     TenantId = em.TenantId,
                     TenantName = em.TenantName,
                     Email = em.Email,
+                    PhoneNumber = em.PhoneNumber,
+                    Country = em.Country,
+                    CountryCode = em.CountryCode,
+                    TimeZoneIana = em.TimeZoneIana,
+                    PhoneDialingCode = em.PhoneDialingCode,
                     CreatedDate = em.CreatedDate,
                     ModifiedDate = em.ModifiedDate,
                     PlanCode = em.PlanCode,

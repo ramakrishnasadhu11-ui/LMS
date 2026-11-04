@@ -13,6 +13,16 @@ namespace LMSWebUI.Models.Login
 
         public string Country { get; set; }
 
+        public string CountryCode { get; set; }
+
+        public string TimeZoneIana { get; set; }
+
+        public string PhoneDialingCode { get; set; }
+
+        public string CurrencyCode { get; set; }
+
+        public string CurrencySymbol { get; set; }
+
         public string UserRole { get; set; }
 
         public DateTime? CreatedDate { get; set; }

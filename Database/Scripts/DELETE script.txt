@@ -7,19 +7,31 @@
 --DELETE FROM Tenants
 --DELETE FROM TenantStoreInfos
 --DELETE FROM TenantStoreStatuses
---DELETE FROM CustomerAdvances
---DELETE FROM CustomerPreferences
---DELETE FROM Customers
---DELETE FROM LaundryItemPrices
---DELETE FROM LaundryOrders
---DELETE FROM PaymentSettings
---DELETE FROM StoreItemMaster
---DELETE FROM StoreServiceMaster
---DELETE FROM TaxInvoiceSettings
---DELETE FROM WorkflowStatuses
---DELETE FROM OrderActionAuditLogs
---DELETE FROM PricingRules
---DELETE FROM TenantIntegrationSettings
+DELETE FROM CustomerAdvances;
+DELETE FROM CustomerPreferences;
+DELETE FROM OrderActionAuditLogs;
+DELETE FROM BarcodeTagSettings;
+DELETE FROM LaundryOrderItems;
+DELETE FROM LaundryOrders;
+DELETE FROM PaymentSettings;
+DELETE FROM LaundryItemPrices;
+DELETE FROM StoreItemMaster;
+DELETE FROM StoreServiceMaster;
+DELETE FROM TaxInvoiceSettings;
+DELETE FROM WorkflowStatuses;
+DELETE FROM PricingRules;
+DELETE FROM TenantIntegrationSettings;
+DELETE FROM Customers;
+DELETE FROM StoreConfigurations;
+DELETE FROM StoreUsers;
+DELETE FROM TenantStoreStatuses;
+DELETE FROM TenantStoreInfos;
+DELETE FROM TenantSubscriptionWebhookEvents;
+DELETE FROM TenantSubscriptionPaymentTransactions;
+DELETE FROM TenantSubscriptionStateHistories;
+DELETE FROM TenantSubscriptionPaymentOrders;
+DELETE FROM SubscriptionPlans;
+DELETE FROM Tenants;
 
 
 
