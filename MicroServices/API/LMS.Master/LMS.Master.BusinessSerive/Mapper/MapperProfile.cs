@@ -13,7 +13,13 @@ namespace LMS.Master.BusinessSerive.Mapper
             CreateMap<CustomerPreferenceEntity, CustomerPreferenceDto>().ReverseMap();
             CreateMap<PricingRulesEntity, PricingRulesDto>().ReverseMap();
             CreateMap<PaymentSettingsEntity, PaymentSettingsDto>().ReverseMap();
-            CreateMap<TaxInvoiceSettingsEntity, TaxInvoiceSettingsDto>().ReverseMap();
+            CreateMap<TaxInvoiceSettingsEntity, TaxInvoiceSettingsDto>()
+                .ReverseMap()
+                .ForMember(dest => dest.Id, opt => opt.Ignore())
+                .ForMember(dest => dest.CreatedDate, opt => opt.Ignore())
+                .ForMember(dest => dest.ModifiedDate, opt => opt.Ignore())
+                .ForMember(dest => dest.RowVersion, opt => opt.Ignore())
+                .ForMember(dest => dest.Components, opt => opt.Ignore());
             CreateMap<TaxInvoiceComponentEntity, TaxInvoiceComponentDto>().ReverseMap();
             CreateMap<BarcodeTagSettingsEntity, BarcodeTagSettingsDto>().ReverseMap();
             CreateMap<WorkflowStatusEntity, WorkflowStatusDto>().ReverseMap();

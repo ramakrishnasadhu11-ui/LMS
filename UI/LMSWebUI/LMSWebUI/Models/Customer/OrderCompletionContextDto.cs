@@ -17,6 +17,8 @@ namespace LMSWebUI.Models.Customer
         public decimal SubTotal { get; set; }
         public decimal TaxPercent { get; set; }
         public decimal TaxAmount { get; set; }
+        public decimal CgstAmount { get; set; }
+        public decimal SgstAmount { get; set; }
         public decimal TotalAmount { get; set; }
         public decimal AdvanceUsed { get; set; }
         public decimal PaidNow { get; set; }
@@ -27,5 +29,6 @@ namespace LMSWebUI.Models.Customer
         public int TotalPieces { get; set; }
         public DateTime CreatedDate { get; set; }
         public List<LaundryOrderItemDto> Items { get; set; } = new List<LaundryOrderItemDto>();
+        public List<LaundryOrderTaxLineDto> TaxLines { get; set; } = new List<LaundryOrderTaxLineDto>();
     }
 }

@@ -5,6 +5,7 @@ using LMS.Master.DTO;
 using LMS.Master.DTO.Entity;
 using LMS.Master.Utilities;
 using MailKit.Security;
+using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using MimeKit;
@@ -2201,11 +2202,6 @@ namespace LMS.Master.BusinessSerive.Services
                 });
             }
 
-            if (!taxInvoiceSettingsDto.EnableTax)
-            {
-                taxInvoiceSettingsDto.GstPercent = 0;
-            }
-
             taxInvoiceSettingsDto.TenantName = taxInvoiceSettingsDto.TenantName.Trim();
             taxInvoiceSettingsDto.StoreCode = taxInvoiceSettingsDto.StoreCode.Trim();
             taxInvoiceSettingsDto.InvoicePrefix = string.IsNullOrWhiteSpace(taxInvoiceSettingsDto.InvoicePrefix)
@@ -2334,8 +2330,40 @@ namespace LMS.Master.BusinessSerive.Services
 
         public async Task<ActionReturnType> UpsertTaxConfiguration(TaxConfigurationUpsertRequestDto request)
         {
-            await EnsureTaxInvoiceSettingsTableExistsAsync();
-            await EnsureTaxInvoiceComponentsTableExistsAsync();
+            try
+            {
+                await EnsureTaxInvoiceSettingsTableExistsAsync();
+                await EnsureTaxInvoiceComponentsTableExistsAsync();
+            }
+            catch (Exception ex)
+            {
+                var sqlEx = TryGetSqlException(ex);
+                if (sqlEx != null)
+                {
+                    _logger?.LogError(
+                        ex,
+                        "UpsertTaxConfiguration table-initialization failed. Tenant={TenantName}, Store={StoreCode}, SqlErrorNumber={SqlErrorNumber}, SqlState={SqlState}, SqlClass={SqlClass}, Procedure={Procedure}, LineNumber={LineNumber}, Server={Server}, Message={SqlMessage}",
+                        request?.TenantName ?? string.Empty,
+                        request?.StoreCode ?? string.Empty,
+                        sqlEx.Number,
+                        sqlEx.State,
+                        sqlEx.Class,
+                        sqlEx.Procedure ?? string.Empty,
+                        sqlEx.LineNumber,
+                        sqlEx.Server ?? string.Empty,
+                        sqlEx.Message);
+                }
+                else
+                {
+                    _logger?.LogError(
+                        ex,
+                        "UpsertTaxConfiguration table-initialization failed. Tenant={TenantName}, Store={StoreCode}",
+                        request?.TenantName ?? string.Empty,
+                        request?.StoreCode ?? string.Empty);
+                }
+
+                throw;
+            }
 
             if (request == null || string.IsNullOrWhiteSpace(request.TenantName) || string.IsNullOrWhiteSpace(request.StoreCode))
             {
@@ -2483,8 +2511,57 @@ namespace LMS.Master.BusinessSerive.Services
                     Message = "Tax configuration update conflict detected. Please retry."
                 });
             }
+            catch (Exception ex)
+            {
+                var sqlEx = TryGetSqlException(ex);
+                if (sqlEx != null)
+                {
+                    _logger?.LogError(
+                        ex,
+                        "UpsertTaxConfiguration SaveChanges failed. Tenant={TenantName}, Store={StoreCode}, SqlErrorNumber={SqlErrorNumber}, SqlState={SqlState}, SqlClass={SqlClass}, Procedure={Procedure}, LineNumber={LineNumber}, Server={Server}, Message={SqlMessage}",
+                        request?.TenantName ?? string.Empty,
+                        request?.StoreCode ?? string.Empty,
+                        sqlEx.Number,
+                        sqlEx.State,
+                        sqlEx.Class,
+                        sqlEx.Procedure ?? string.Empty,
+                        sqlEx.LineNumber,
+                        sqlEx.Server ?? string.Empty,
+                        sqlEx.Message);
+                }
+                else
+                {
+                    _logger?.LogError(
+                        ex,
+                        "UpsertTaxConfiguration SaveChanges failed. Tenant={TenantName}, Store={StoreCode}",
+                        request?.TenantName ?? string.Empty,
+                        request?.StoreCode ?? string.Empty);
+                }
+
+                throw;
+            }
 
             return await GetTaxConfiguration(request.TenantName, request.StoreCode);
+        }
+
+        private static SqlException TryGetSqlException(Exception ex)
+        {
+            if (ex == null)
+            {
+                return null;
+            }
+
+            if (ex is SqlException direct)
+            {
+                return direct;
+            }
+
+            if (ex is DbUpdateException dbUpdateEx && dbUpdateEx.InnerException is SqlException dbSqlEx)
+            {
+                return dbSqlEx;
+            }
+
+            return ex.InnerException as SqlException;
         }
 
         public async Task<ActionReturnType> AddTaxInvoiceComponent(TaxInvoiceComponentUpsertRequestDto request)
@@ -3394,14 +3471,65 @@ namespace LMS.Master.BusinessSerive.Services
             }
 
             await EnsureTaxInvoiceSettingsTableExistsAsync();
+            await EnsureTaxInvoiceComponentsTableExistsAsync();
 
             var taxSettings = await _masterDbContext.TaxInvoiceSettings.FirstOrDefaultAsync(x =>
                 x.TenantName == orderDto.TenantName && x.StoreCode == orderDto.StoreCode);
 
-            var breakup = CalculateTaxBreakup(orderDto.OrderAmount, taxSettings);
+            var resolvedTaxMode = ResolveTaxModeFromSettings(taxSettings).ResolvedTaxMode;
+            var utcNow = DateTime.UtcNow;
+            var configuredTaxComponents = await _masterDbContext.TaxInvoiceComponents
+                .AsNoTracking()
+                .Where(x => x.TenantName == orderDto.TenantName
+                            && x.StoreCode == orderDto.StoreCode
+                            && x.IsActive
+                            && (!x.EffectiveFromUtc.HasValue || x.EffectiveFromUtc.Value <= utcNow)
+                            && (!x.EffectiveToUtc.HasValue || x.EffectiveToUtc.Value >= utcNow))
+                .OrderBy(x => x.Priority)
+                .ThenBy(x => x.Code)
+                .ToListAsync();
 
-            orderDto.AdvanceUsed = Math.Min(Math.Max(0, orderDto.AdvanceUsed), breakup.TotalAmount);
-            var netAfterAdvance = Math.Max(0, breakup.TotalAmount - orderDto.AdvanceUsed);
+            var taxCalculation = TaxCalculationHelper.Calculate(new TaxCalculationRequest
+            {
+                OrderAmount = orderDto.OrderAmount,
+                TaxMode = resolvedTaxMode,
+                EnableTax = taxSettings?.EnableTax ?? false,
+                PricesIncludeTax = taxSettings?.IsPricesInclusive ?? taxSettings?.PricesIncludeTax ?? false,
+                GstPercent = taxSettings?.GstPercent ?? 0m,
+                Components = configuredTaxComponents.Select(x => new TaxCalculationComponent
+                {
+                    Code = x.Code,
+                    DisplayName = x.DisplayName,
+                    RatePercent = x.RatePercent,
+                    Priority = x.Priority,
+                    IsCompound = x.IsCompound,
+                    IsActive = x.IsActive
+                })
+            });
+
+            var computedTaxPercent = Math.Round(Math.Max(0m, taxCalculation.ComponentBreakdowns.Sum(x => x.RatePercent)), 2, MidpointRounding.AwayFromZero);
+            var computedCgst = 0m;
+            var computedSgst = 0m;
+
+            if (string.Equals(taxCalculation.TaxMode, "GST", StringComparison.OrdinalIgnoreCase))
+            {
+                computedCgst = Math.Round(Math.Max(0m, taxCalculation.ComponentBreakdowns
+                    .Where(x => string.Equals(x.Code, "CGST", StringComparison.OrdinalIgnoreCase))
+                    .Sum(x => x.TaxAmount)), 2, MidpointRounding.AwayFromZero);
+
+                computedSgst = Math.Round(Math.Max(0m, taxCalculation.ComponentBreakdowns
+                    .Where(x => string.Equals(x.Code, "SGST", StringComparison.OrdinalIgnoreCase))
+                    .Sum(x => x.TaxAmount)), 2, MidpointRounding.AwayFromZero);
+
+                if (computedCgst == 0m && computedSgst == 0m && taxCalculation.TotalTax > 0m)
+                {
+                    computedCgst = Math.Round(taxCalculation.TotalTax / 2m, 2, MidpointRounding.AwayFromZero);
+                    computedSgst = Math.Round(taxCalculation.TotalTax - computedCgst, 2, MidpointRounding.AwayFromZero);
+                }
+            }
+
+            orderDto.AdvanceUsed = Math.Min(Math.Max(0, orderDto.AdvanceUsed), taxCalculation.TotalAmount);
+            var netAfterAdvance = Math.Max(0, taxCalculation.TotalAmount - orderDto.AdvanceUsed);
             if (orderDto.PaidNow < 0)
             {
                 return ActionSet.ActionReturnType(HttpStatusCode.BadRequest, new CustomerIOResponse
@@ -3434,12 +3562,12 @@ namespace LMS.Master.BusinessSerive.Services
                     WeightInKg = orderDto.OrderMode == "weight" ? Math.Round(orderDto.WeightInKg, 3, MidpointRounding.AwayFromZero) : 0,
                     RatePerKg = orderDto.OrderMode == "weight" ? Math.Round(orderDto.RatePerKg, 2, MidpointRounding.AwayFromZero) : 0,
                     OrderAmount = orderDto.OrderAmount,
-                    SubTotal = breakup.SubTotal,
-                    TaxPercent = breakup.TaxPercent,
-                    TaxAmount = breakup.TaxAmount,
-                    CgstAmount = breakup.CgstAmount,
-                    SgstAmount = breakup.SgstAmount,
-                    TotalAmount = breakup.TotalAmount,
+                    SubTotal = taxCalculation.SubTotal,
+                    TaxPercent = computedTaxPercent,
+                    TaxAmount = taxCalculation.TotalTax,
+                    CgstAmount = computedCgst,
+                    SgstAmount = computedSgst,
+                    TotalAmount = taxCalculation.TotalAmount,
                     InvoiceNo = invoiceNo,
                     Status = defaultStatus,
                     AdvanceUsed = orderDto.AdvanceUsed,
@@ -3452,6 +3580,44 @@ namespace LMS.Master.BusinessSerive.Services
                 };
 
                 _masterDbContext.LaundryOrders.Add(orderEntity);
+                await _masterDbContext.SaveChangesAsync();
+
+                if (taxCalculation.ComponentBreakdowns.Count > 0)
+                {
+                    var currencyCode = NormalizeCurrencyCode(taxSettings?.CurrencyCode);
+                    if (string.IsNullOrWhiteSpace(currencyCode) && TryGetCountryTaxProfile(taxSettings?.CountryCode, out var profile))
+                    {
+                        currencyCode = profile.DefaultCurrencyCode;
+                    }
+
+                    if (string.IsNullOrWhiteSpace(currencyCode))
+                    {
+                        currencyCode = "INR";
+                    }
+
+                    var lineNo = 1;
+                    foreach (var component in taxCalculation.ComponentBreakdowns)
+                    {
+                        _masterDbContext.LaundryOrderTaxLines.Add(new LaundryOrderTaxLineEntity
+                        {
+                            LaundryOrderId = orderEntity.Id,
+                            TenantName = orderEntity.TenantName,
+                            StoreCode = orderEntity.StoreCode,
+                            OrderNo = orderEntity.OrderNo,
+                            LineNo = lineNo++,
+                            TaxMode = NormalizeTaxMode(taxCalculation.TaxMode) ?? "NoTax",
+                            CurrencyCode = currencyCode,
+                            ComponentCode = NormalizeTaxComponentCode(component.Code) ?? "TAX",
+                            ComponentDisplayName = string.IsNullOrWhiteSpace(component.DisplayName) ? (component.Code ?? "Tax") : component.DisplayName.Trim(),
+                            Jurisdiction = null,
+                            Priority = component.Priority,
+                            IsCompound = component.IsCompound,
+                            RatePercent = component.RatePercent,
+                            TaxableBaseAmount = Math.Round(component.TaxableAmount, 4, MidpointRounding.AwayFromZero),
+                            TaxAmount = Math.Round(component.TaxAmount, 2, MidpointRounding.AwayFromZero)
+                        });
+                    }
+                }
 
                 if (string.Equals(orderDto.OrderMode, "pieces", StringComparison.OrdinalIgnoreCase) && submittedItems.Count > 0)
                 {
@@ -5567,6 +5733,70 @@ SELECT
                 StatusCode = "200",
                 CustCode = custCode,
                 Orders = orders
+            });
+        }
+
+        public async Task<ActionReturnType> GetLaundryOrderTaxLines(string tenantName, string storeCode, string orderNo)
+        {
+            if (string.IsNullOrWhiteSpace(tenantName)
+                || string.IsNullOrWhiteSpace(storeCode)
+                || string.IsNullOrWhiteSpace(orderNo))
+            {
+                return ActionSet.ActionReturnType(HttpStatusCode.BadRequest, new CustomerIOResponse
+                {
+                    StatusCode = "400",
+                    Message = "Invalid order tax lines request."
+                });
+            }
+
+            tenantName = tenantName.Trim();
+            storeCode = storeCode.Trim();
+            orderNo = orderNo.Trim();
+
+            var orderExists = await _masterDbContext.LaundryOrders
+                .AsNoTracking()
+                .AnyAsync(x => x.TenantName == tenantName
+                               && x.StoreCode == storeCode
+                               && x.OrderNo == orderNo);
+
+            if (!orderExists)
+            {
+                return ActionSet.ActionReturnType(HttpStatusCode.NotFound, new CustomerIOResponse
+                {
+                    StatusCode = "404",
+                    Message = "Order not found for selected store."
+                });
+            }
+
+            var lines = await _masterDbContext.LaundryOrderTaxLines
+                .AsNoTracking()
+                .Where(x => x.TenantName == tenantName
+                            && x.StoreCode == storeCode
+                            && x.OrderNo == orderNo)
+                .OrderBy(x => x.LineNo)
+                .ThenBy(x => x.Priority)
+                .ThenBy(x => x.ComponentCode)
+                .Select(x => new LaundryOrderTaxLineDto
+                {
+                    LineNo = x.LineNo,
+                    TaxMode = x.TaxMode,
+                    CurrencyCode = x.CurrencyCode,
+                    ComponentCode = x.ComponentCode,
+                    ComponentDisplayName = x.ComponentDisplayName,
+                    Jurisdiction = x.Jurisdiction,
+                    Priority = x.Priority,
+                    IsCompound = x.IsCompound,
+                    RatePercent = x.RatePercent,
+                    TaxableBaseAmount = x.TaxableBaseAmount,
+                    TaxAmount = x.TaxAmount
+                })
+                .ToListAsync();
+
+            return ActionSet.ActionReturnType(HttpStatusCode.OK, new LaundryOrderTaxLinesResponseDto
+            {
+                StatusCode = "200",
+                OrderNo = orderNo,
+                TaxLines = lines
             });
         }
 

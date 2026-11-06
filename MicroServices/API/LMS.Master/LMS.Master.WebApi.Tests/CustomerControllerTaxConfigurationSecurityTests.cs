@@ -24,7 +24,8 @@ namespace LMS.Master.WebApi.Tests
             var controller = CreateController(customer.Object,
                 role: "Admin",
                 tenantNameClaim: "tenant@example.com",
-                storeCodeClaim: "S1");
+                storeCodeClaim: null,
+                storeCodesClaim: "S1,S2");
 
             var result = await controller.GetTaxConfiguration("tenant@example.com", "S1");
 
@@ -56,7 +57,8 @@ namespace LMS.Master.WebApi.Tests
             var controller = CreateController(customer.Object,
                 role: "Admin",
                 tenantNameClaim: "tenant@example.com",
-                storeCodeClaim: null);
+                storeCodeClaim: null,
+                storeCodesClaim: null);
 
             var result = await controller.GetTaxConfiguration("tenant@example.com", "S1");
 
@@ -75,7 +77,8 @@ namespace LMS.Master.WebApi.Tests
             var controller = CreateController(customer.Object,
                 role: "Admin",
                 tenantNameClaim: "tenant@example.com",
-                storeCodeClaim: "S1");
+                storeCodeClaim: null,
+                storeCodesClaim: "S1,S2");
 
             var result = await controller.ResolveTaxMode("tenant@example.com", "S1");
 
@@ -107,7 +110,8 @@ namespace LMS.Master.WebApi.Tests
             var controller = CreateController(customer.Object,
                 role: "Admin",
                 tenantNameClaim: "tenant@example.com",
-                storeCodeClaim: null);
+                storeCodeClaim: null,
+                storeCodesClaim: null);
 
             var result = await controller.ResolveTaxMode("tenant@example.com", "S1");
 
@@ -116,7 +120,61 @@ namespace LMS.Master.WebApi.Tests
             customer.VerifyNoOtherCalls();
         }
 
-        private static CustomerController CreateController(ICustomer customerService, string role, string tenantNameClaim, string storeCodeClaim)
+        [Fact]
+        public async Task GetTaxConfiguration_StoreNotInAllowedStoreCodes_ReturnsForbidden()
+        {
+            var customer = new Mock<ICustomer>(MockBehavior.Strict);
+            var controller = CreateController(customer.Object,
+                role: "Admin",
+                tenantNameClaim: "tenant@example.com",
+                storeCodeClaim: null,
+                storeCodesClaim: "S2,S3");
+
+            var result = await controller.GetTaxConfiguration("tenant@example.com", "S1");
+
+            var objectResult = Assert.IsType<ObjectResult>(result);
+            Assert.Equal(StatusCodes.Status403Forbidden, objectResult.StatusCode);
+            customer.VerifyNoOtherCalls();
+        }
+
+        [Fact]
+        public async Task GetTaxConfiguration_TenantMismatch_ReturnsForbidden()
+        {
+            var customer = new Mock<ICustomer>(MockBehavior.Strict);
+            var controller = CreateController(customer.Object,
+                role: "Admin",
+                tenantNameClaim: "tenant@example.com",
+                storeCodeClaim: null,
+                storeCodesClaim: "S1,S2");
+
+            var result = await controller.GetTaxConfiguration("other@example.com", "S1");
+
+            var objectResult = Assert.IsType<ObjectResult>(result);
+            Assert.Equal(StatusCodes.Status403Forbidden, objectResult.StatusCode);
+            customer.VerifyNoOtherCalls();
+        }
+
+        [Fact]
+        public async Task GetTaxConfiguration_MultiStoreSwitch_AllowedStore_ReturnsSuccess()
+        {
+            var customer = new Mock<ICustomer>(MockBehavior.Strict);
+            customer.Setup(x => x.GetTaxConfiguration("tenant@example.com", "S2"))
+                .ReturnsAsync(ActionSet.ActionReturnType(HttpStatusCode.OK, new { ok = true }));
+
+            var controller = CreateController(customer.Object,
+                role: "Admin",
+                tenantNameClaim: "tenant@example.com",
+                storeCodeClaim: null,
+                storeCodesClaim: "S1,S2");
+
+            var result = await controller.GetTaxConfiguration("tenant@example.com", "S2");
+
+            var objectResult = Assert.IsType<ObjectResult>(result);
+            Assert.Equal(StatusCodes.Status200OK, objectResult.StatusCode);
+            customer.VerifyAll();
+        }
+
+        private static CustomerController CreateController(ICustomer customerService, string role, string tenantNameClaim, string storeCodeClaim, string storeCodesClaim = null)
         {
             var claims = new List<Claim>();
             if (role != null)
@@ -132,6 +190,11 @@ namespace LMS.Master.WebApi.Tests
             if (storeCodeClaim != null)
             {
                 claims.Add(new Claim("storeCode", storeCodeClaim));
+            }
+
+            if (storeCodesClaim != null)
+            {
+                claims.Add(new Claim("storeCodes", storeCodesClaim));
             }
 
             var identity = new ClaimsIdentity(claims, "testAuth");

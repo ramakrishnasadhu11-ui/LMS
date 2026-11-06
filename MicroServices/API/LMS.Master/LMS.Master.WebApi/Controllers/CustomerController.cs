@@ -839,6 +839,21 @@ namespace LMS.Master.WebApi.Controllers
             return StatusCode((int)orderResult.StatusCode, orderResult.ResultSet);
         }
 
+        [HttpGet(nameof(GetLaundryOrderTaxLines))]
+        [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(Result<LaundryOrderTaxLinesResponseDto>))]
+        [ProducesResponseType(StatusCodes.Status500InternalServerError, Type = typeof(Result<object>))]
+        [ProducesResponseType(StatusCodes.Status400BadRequest, Type = typeof(Result<object>))]
+        public async Task<ActionResult> GetLaundryOrderTaxLines(string tenantName, string storeCode, string orderNo)
+        {
+            if (!TryResolveStrictPricingScope(tenantName, storeCode, out var scopedTenantName, out var scopedStoreCode, out var scopeValidationError))
+            {
+                return StatusCode(StatusCodes.Status403Forbidden, scopeValidationError);
+            }
+
+            var orderResult = await _customer.GetLaundryOrderTaxLines(scopedTenantName, scopedStoreCode, orderNo);
+            return StatusCode((int)orderResult.StatusCode, orderResult.ResultSet);
+        }
+
         [HttpPost(nameof(UpdateLaundryOrderStatus))]
         [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(Result<CustomerIOResponse>))]
         [ProducesResponseType(StatusCodes.Status500InternalServerError, Type = typeof(Result<object>))]
@@ -1013,11 +1028,28 @@ namespace LMS.Master.WebApi.Controllers
             resolvedStoreCode = requestedStoreCode?.Trim();
 
             var claimTenant = User?.FindFirst("tenantName")?.Value?.Trim();
-            var claimStore = User?.FindFirst("storeCode")?.Value?.Trim();
+            if (string.IsNullOrWhiteSpace(claimTenant))
+            {
+                claimTenant = User?.FindFirst("email")?.Value?.Trim();
+            }
+
+            if (string.IsNullOrWhiteSpace(claimTenant))
+            {
+                claimTenant = User?.FindFirst(System.Security.Claims.ClaimTypes.Email)?.Value?.Trim();
+            }
+
+            var claimStoreCodes = User?.FindFirst("storeCodes")?.Value;
+            var allowedStores = (claimStoreCodes ?? string.Empty)
+                .Split(',', StringSplitOptions.RemoveEmptyEntries)
+                .Select(x => x?.Trim())
+                .Where(x => !string.IsNullOrWhiteSpace(x))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
             var headerTenant = Request?.Headers["X-TenantName"].ToString()?.Trim();
             var headerStore = Request?.Headers["X-StoreCode"].ToString()?.Trim();
 
-            if (string.IsNullOrWhiteSpace(claimTenant) || string.IsNullOrWhiteSpace(claimStore))
+            if (string.IsNullOrWhiteSpace(claimTenant) || allowedStores.Count == 0)
             {
                 validationError = "Tenant/store scope claims are required for this operation.";
                 return false;
@@ -1035,11 +1067,13 @@ namespace LMS.Master.WebApi.Controllers
                 return false;
             }
 
-            if (!string.Equals(claimStore, resolvedStoreCode, StringComparison.OrdinalIgnoreCase))
+            if (!allowedStores.Contains(resolvedStoreCode, StringComparer.OrdinalIgnoreCase))
             {
                 validationError = "Unauthorized store access.";
                 return false;
             }
+
+            resolvedTenantName = claimTenant;
 
             if (!string.IsNullOrWhiteSpace(headerTenant)
                 && !string.Equals(headerTenant, resolvedTenantName, StringComparison.OrdinalIgnoreCase))

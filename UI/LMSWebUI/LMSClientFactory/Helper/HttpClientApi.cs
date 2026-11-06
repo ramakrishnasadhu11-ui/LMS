@@ -88,6 +88,14 @@ namespace LMSClientFactory.Helper
                 throw response.ErrorException ?? new Exception("The API returned 404.");
             }
 
+            if (response.StatusCode == HttpStatusCode.NotFound
+                && request?.Method == Method.GET
+                && string.Equals(request.Resource?.TrimStart('/'), "GetTaxConfiguration", StringComparison.OrdinalIgnoreCase)
+                && !string.IsNullOrWhiteSpace(response.Content))
+            {
+                return default;
+            }
+
             if (typeof(T) == typeof(JObject))
             {
                 var statusCodeText = response.StatusCode == 0
