@@ -7,12 +7,24 @@
     var invoiceNo = string.IsNullOrWhiteSpace(Model?.InvoiceNo) ? Model?.OrderNo : Model.InvoiceNo;
     var issueDate = (Model?.CreatedDate ?? DateTime.UtcNow);
     var dueDate = issueDate;
-    var subTotal = (Model?.OrderAmount ?? 0);
+    var subTotal = (Model?.SubTotal ?? 0);
     var tax = (Model?.TaxAmount ?? 0);
     var advanceUsed = (Model?.AdvanceUsed ?? 0);
     var paidNow = (Model?.PaidNow ?? 0);
     var pendingAmount = (Model?.PendingAmount ?? Model?.NetPayable ?? 0);
     var totalDue = (Model?.NetPayable ?? 0);
+    var taxLines = (Model?.TaxLines ?? new List<LMSWebUI.Models.Customer.LaundryOrderTaxLineDto>())
+        .Where(x => x != null)
+        .OrderBy(x => x.LineNo)
+        .ThenBy(x => x.Priority)
+        .ThenBy(x => x.ComponentCode)
+        .ToList();
+    var taxFromLines = taxLines.Sum(x => x.TaxAmount);
+    if (taxLines.Count > 0)
+    {
+        tax = taxFromLines;
+    }
+    var totalAmount = (Model?.TotalAmount ?? Math.Max(0m, subTotal + tax));
     var isPaid = pendingAmount <= 0;
     var paymentBadgeText = isPaid ? "PAID" : "BALANCE DUE";
     var paymentBadgeClass = isPaid ? "paid" : "due";
@@ -367,9 +379,31 @@
                     <span>Subtotal</span>
                     <span>@await ((IHtmlHelper)Html).FormatCurrencyAsync(subTotal)</span>
                 </div>
+                @if (taxLines.Count > 0)
+                {
+                    foreach (var taxLine in taxLines)
+                    {
+                        var label = string.IsNullOrWhiteSpace(taxLine.ComponentDisplayName) ? (taxLine.ComponentCode ?? "Tax") : taxLine.ComponentDisplayName;
+                        <div class="summary-row">
+                            <span>@label</span>
+                            <span>@await ((IHtmlHelper)Html).FormatCurrencyAsync(taxLine.TaxAmount)</span>
+                        </div>
+                    }
+                }
+                else
+                {
+                    <div class="summary-row">
+                        <span>Tax</span>
+                        <span>@await ((IHtmlHelper)Html).FormatCurrencyAsync(tax)</span>
+                    </div>
+                }
                 <div class="summary-row">
-                    <span>Tax</span>
+                    <span>Total Tax</span>
                     <span>@await ((IHtmlHelper)Html).FormatCurrencyAsync(tax)</span>
+                </div>
+                <div class="summary-row">
+                    <span>Total</span>
+                    <span>@await ((IHtmlHelper)Html).FormatCurrencyAsync(totalAmount)</span>
                 </div>
                 <div class="summary-row">
                     <span>Advance Utilized (-)</span>

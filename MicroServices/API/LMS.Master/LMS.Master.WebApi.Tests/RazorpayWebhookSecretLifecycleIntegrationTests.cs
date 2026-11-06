@@ -4,6 +4,7 @@ using LMS.Master.BusinessSerive.Services;
 using LMS.Master.DTO;
 using LMS.Master.DTO.Entity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging.Abstractions;
 using System;
@@ -405,11 +406,32 @@ namespace LMS.Master.WebApi.Tests
             return new MasterDbContext(_dbOptions);
         }
 
+        public MasterDbContext CreateDbContext(params IInterceptor[] interceptors)
+        {
+            if (interceptors == null || interceptors.Length == 0)
+            {
+                return new MasterDbContext(_dbOptions);
+            }
+
+            var builder = new DbContextOptionsBuilder<MasterDbContext>()
+                .UseSqlServer(ConnectionString)
+                .AddInterceptors(interceptors);
+
+            return new MasterDbContext(builder.Options);
+        }
+
         public Customerservice CreateService(MasterDbContext context)
         {
             var mapperConfig = new MapperConfiguration(cfg =>
             {
                 cfg.CreateMap<TenantIntegrationSettingsEntity, TenantIntegrationSettingsDto>();
+                cfg.CreateMap<TaxInvoiceSettingsEntity, TaxInvoiceSettingsDto>();
+                cfg.CreateMap<TaxInvoiceSettingsDto, TaxInvoiceSettingsEntity>()
+                    .ForMember(dest => dest.Id, opt => opt.Ignore())
+                    .ForMember(dest => dest.CreatedDate, opt => opt.Ignore())
+                    .ForMember(dest => dest.ModifiedDate, opt => opt.Ignore())
+                    .ForMember(dest => dest.RowVersion, opt => opt.Ignore())
+                    .ForMember(dest => dest.Components, opt => opt.Ignore());
             });
 
             var configuration = new ConfigurationBuilder()

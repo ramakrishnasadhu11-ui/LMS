@@ -155,6 +155,7 @@ namespace LMS.Identity.BusinessSerive.Services
             string userRole,
             string tenantId,
             IEnumerable<string> storeCodes,
+            string tenantName = null,
             string subscriptionStatus = null,
             DateTime? trialEndUtc = null)
         {
@@ -187,6 +188,11 @@ namespace LMS.Identity.BusinessSerive.Services
             if (!string.IsNullOrWhiteSpace(tenantId))
             {
                 claims.Add(new Claim("tenantId", tenantId.Trim()));
+            }
+
+            if (!string.IsNullOrWhiteSpace(tenantName))
+            {
+                claims.Add(new Claim("tenantName", tenantName.Trim()));
             }
 
             if (!string.IsNullOrWhiteSpace(subscriptionStatus))
@@ -750,6 +756,7 @@ namespace LMS.Identity.BusinessSerive.Services
                             string.IsNullOrWhiteSpace(primaryStoreUser.Role) ? "StoreUser" : primaryStoreUser.Role,
                             primaryStoreUser.TenantId,
                             matchedStores,
+                            tenantForStoreUser?.Email ?? eMail,
                             tenantForStoreUser?.SubscriptionStatus,
                             tenantForStoreUser?.TrialEndUtc);
 
@@ -814,7 +821,14 @@ namespace LMS.Identity.BusinessSerive.Services
 
                         if (tenantstoreinforesult.IsPasswordChanged == false)
                         {
-                            var (tenantPasswordChangeToken, tenantPasswordChangeTokenExpiresAtUtc) = GenerateAccessToken(eMail, "Admin", tenantId, tenantStoreCodes, tenantregistryresult.SubscriptionStatus, tenantregistryresult.TrialEndUtc);
+                            var (tenantPasswordChangeToken, tenantPasswordChangeTokenExpiresAtUtc) = GenerateAccessToken(
+                                eMail,
+                                "Admin",
+                                tenantId,
+                                tenantStoreCodes,
+                                tenantregistryresult.Email ?? eMail,
+                                tenantregistryresult.SubscriptionStatus,
+                                tenantregistryresult.TrialEndUtc);
                             return ActionSet.ActionReturnType(HttpStatusCode.OK, new IOResponse { StatusCode = "200", Email = eMail, Storecodes = tenantStoreCodes, Message = IdentityValidationMessage.IDENTITY_DATAFOUND_PASSWORDCHANGE_MESSAGE, UserRole = "Admin", AccessToken = tenantPasswordChangeToken, AccessTokenExpiresAtUtc = tenantPasswordChangeTokenExpiresAtUtc });
                         }
 
@@ -834,7 +848,14 @@ namespace LMS.Identity.BusinessSerive.Services
                             return ActionSet.ActionReturnType(HttpStatusCode.Forbidden, new IOResponse { StatusCode = "403", Email = eMail, Storecodes = tenantStoreCodes, Message = StorePendingActivationMessage });
                         }
 
-                        var (tenantLoginToken, tenantLoginTokenExpiresAtUtc) = GenerateAccessToken(eMail, "Admin", tenantId, tenantStoreCodes, tenantregistryresult.SubscriptionStatus, tenantregistryresult.TrialEndUtc);
+                        var (tenantLoginToken, tenantLoginTokenExpiresAtUtc) = GenerateAccessToken(
+                            eMail,
+                            "Admin",
+                            tenantId,
+                            tenantStoreCodes,
+                            tenantregistryresult.Email ?? eMail,
+                            tenantregistryresult.SubscriptionStatus,
+                            tenantregistryresult.TrialEndUtc);
                         return ActionSet.ActionReturnType(HttpStatusCode.OK, new IOResponse { StatusCode = "200", Email = eMail, Storecodes = tenantStoreCodes, Message = IdentityValidationMessage.IDENTITY_DATAFOUND_LOGIN_MESSAGE, UserRole = "Admin", AccessToken = tenantLoginToken, AccessTokenExpiresAtUtc = tenantLoginTokenExpiresAtUtc });
                     }
                 }
@@ -935,6 +956,7 @@ namespace LMS.Identity.BusinessSerive.Services
                             string.IsNullOrWhiteSpace(primaryStoreUser.Role) ? "StoreUser" : primaryStoreUser.Role,
                             primaryStoreUser.TenantId,
                             matchedStores,
+                            tenantForStoreUser?.Email ?? eMail,
                             tenantForStoreUser?.SubscriptionStatus,
                             tenantForStoreUser?.TrialEndUtc);
 

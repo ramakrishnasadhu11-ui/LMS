@@ -30,6 +30,7 @@ namespace LMS.Master.BusinessSerive.Interfaces
         Task<ActionReturnType> SaveCustomerAdvance(CustomerAdvanceDto advanceDto);
         Task<ActionReturnType> GetCustomerAdvances(string tenantName, string storeCode, string custCode);
         Task<ActionReturnType> CreateLaundryOrder(LaundryOrderDto orderDto);
+        Task<ActionReturnType> GetLaundryOrderTaxLines(string tenantName, string storeCode, string orderNo);
         Task<ActionReturnType> GetLaundryOrders(string tenantName, string storeCode, string custCode);
         Task<ActionReturnType> GetStoreLaundryOrders(string tenantName, string storeCode, string status = null, string searchText = null);
         Task<ActionReturnType> UpdateLaundryOrderStatus(string tenantName, string storeCode, string orderNo, string status);

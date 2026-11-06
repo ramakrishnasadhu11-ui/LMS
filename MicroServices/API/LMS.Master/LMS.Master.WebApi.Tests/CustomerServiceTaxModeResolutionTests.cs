@@ -286,6 +286,133 @@ namespace LMS.Master.WebApi.Tests
             Assert.Equal("LegacyGSTFallback", resolved.ResolutionSource);
         }
 
+        [Fact]
+        public async Task SaveTaxInvoiceSettings_DisableThenReenable_PreservesGstPercent()
+        {
+            EnsureFixtureReady();
+            var (tenant, store) = NewScope();
+
+            await using var context = _fixture.CreateDbContext();
+            var service = _fixture.CreateService(context);
+
+            var disable = await service.SaveTaxInvoiceSettings(new TaxInvoiceSettingsDto
+            {
+                TenantName = tenant,
+                StoreCode = store,
+                EnableTax = false,
+                GstPercent = 18m,
+                PricesIncludeTax = false,
+                InvoicePrefix = "INV",
+                NextInvoiceNumber = 1,
+                InvoiceNumberPadding = 4,
+                ResetInvoiceNumberYearly = false,
+                Notes = "Disable only"
+            });
+
+            Assert.Equal(HttpStatusCode.OK, disable.StatusCode);
+
+            var afterDisable = await service.GetTaxInvoiceSettings(tenant, store);
+            Assert.Equal(HttpStatusCode.OK, afterDisable.StatusCode);
+            var disabledDto = Assert.IsType<TaxInvoiceSettingsDto>(afterDisable.ResultSet);
+            Assert.False(disabledDto.EnableTax);
+            Assert.Equal(18m, disabledDto.GstPercent);
+
+            var reenable = await service.SaveTaxInvoiceSettings(new TaxInvoiceSettingsDto
+            {
+                TenantName = tenant,
+                StoreCode = store,
+                EnableTax = true,
+                GstPercent = disabledDto.GstPercent,
+                PricesIncludeTax = false,
+                InvoicePrefix = disabledDto.InvoicePrefix,
+                NextInvoiceNumber = disabledDto.NextInvoiceNumber,
+                InvoiceNumberPadding = disabledDto.InvoiceNumberPadding,
+                ResetInvoiceNumberYearly = disabledDto.ResetInvoiceNumberYearly,
+                Notes = disabledDto.Notes
+            });
+
+            Assert.Equal(HttpStatusCode.OK, reenable.StatusCode);
+
+            var afterReenable = await service.GetTaxInvoiceSettings(tenant, store);
+            Assert.Equal(HttpStatusCode.OK, afterReenable.StatusCode);
+            var enabledDto = Assert.IsType<TaxInvoiceSettingsDto>(afterReenable.ResultSet);
+            Assert.True(enabledDto.EnableTax);
+            Assert.Equal(18m, enabledDto.GstPercent);
+        }
+
+        [Fact]
+        public async Task GetTaxConfiguration_ReturnsCgstSgstComponents_WhenEnableTaxIsFalse()
+        {
+            EnsureFixtureReady();
+            var (tenant, store) = NewScope();
+
+            await using var context = _fixture.CreateDbContext();
+            var settings = new TaxInvoiceSettingsEntity
+            {
+                TenantName = tenant,
+                StoreCode = store,
+                EnableTax = false,
+                GstPercent = 18m,
+                PricesIncludeTax = false,
+                InvoicePrefix = "INV",
+                NextInvoiceNumber = 1,
+                InvoiceNumberPadding = 4,
+                ResetInvoiceNumberYearly = false,
+                TaxMode = "GST",
+                CountryCode = "IN",
+                CurrencyCode = "INR",
+                IsPricesInclusive = false,
+                CreatedDate = DateTime.UtcNow,
+                ModifiedDate = DateTime.UtcNow
+            };
+
+            context.TaxInvoiceSettings.Add(settings);
+            await context.SaveChangesAsync();
+
+            context.TaxInvoiceComponents.AddRange(
+                new TaxInvoiceComponentEntity
+                {
+                    TaxInvoiceSettingsId = settings.Id,
+                    TenantName = tenant,
+                    StoreCode = store,
+                    Code = "CGST",
+                    DisplayName = "Central GST",
+                    RatePercent = 9m,
+                    Priority = 1,
+                    IsCompound = false,
+                    IsActive = true,
+                    CreatedDate = DateTime.UtcNow,
+                    ModifiedDate = DateTime.UtcNow
+                },
+                new TaxInvoiceComponentEntity
+                {
+                    TaxInvoiceSettingsId = settings.Id,
+                    TenantName = tenant,
+                    StoreCode = store,
+                    Code = "SGST",
+                    DisplayName = "State GST",
+                    RatePercent = 9m,
+                    Priority = 2,
+                    IsCompound = false,
+                    IsActive = true,
+                    CreatedDate = DateTime.UtcNow,
+                    ModifiedDate = DateTime.UtcNow
+                });
+            await context.SaveChangesAsync();
+
+            var service = _fixture.CreateService(context);
+            var get = await service.GetTaxConfiguration(tenant, store);
+
+            Assert.Equal(HttpStatusCode.OK, get.StatusCode);
+            var dto = Assert.IsType<TaxConfigurationDto>(get.ResultSet);
+            Assert.Equal("GST", dto.TaxMode);
+            Assert.False(dto.EnableTax);
+            Assert.Equal(18m, dto.GstPercent);
+            Assert.Equal(2, dto.Components.Count);
+            Assert.Contains(dto.Components, c => c.Code == "CGST" && c.RatePercent == 9m);
+            Assert.Contains(dto.Components, c => c.Code == "SGST" && c.RatePercent == 9m);
+        }
+
         private void EnsureFixtureReady()
         {
             Assert.True(_fixture.IsAvailable, _fixture.UnavailableReason ?? "SQL Server test fixture unavailable.");

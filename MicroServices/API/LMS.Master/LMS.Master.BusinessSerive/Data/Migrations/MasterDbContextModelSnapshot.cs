@@ -469,6 +469,83 @@ namespace LMS.Master.BusinessSerive.Data.Migrations
                     b.ToTable("LaundryOrderItems", (string)null);
                 });
 
+            modelBuilder.Entity("LMS.Master.DTO.Entity.LaundryOrderTaxLineEntity", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("ComponentCode")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<string>("ComponentDisplayName")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<string>("CurrencyCode")
+                        .IsRequired()
+                        .HasMaxLength(8)
+                        .HasColumnType("nvarchar(8)");
+
+                    b.Property<bool>("IsCompound")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Jurisdiction")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<int>("LaundryOrderId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("LineNo")
+                        .HasColumnType("int");
+
+                    b.Property<string>("OrderNo")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<int>("Priority")
+                        .HasColumnType("int");
+
+                    b.Property<decimal>("RatePercent")
+                        .HasColumnType("decimal(9,4)");
+
+                    b.Property<string>("StoreCode")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<decimal>("TaxAmount")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("TaxMode")
+                        .IsRequired()
+                        .HasMaxLength(24)
+                        .HasColumnType("nvarchar(24)");
+
+                    b.Property<decimal>("TaxableBaseAmount")
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<string>("TenantName")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("LaundryOrderId", "LineNo");
+
+                    b.HasIndex("TenantName", "StoreCode", "OrderNo", "LineNo");
+
+                    b.ToTable("LaundryOrderTaxLines", (string)null);
+                });
+
             modelBuilder.Entity("LMS.Master.DTO.Entity.PaymentSettingsEntity", b =>
                 {
                     b.Property<int>("Id")
@@ -1085,6 +1162,15 @@ namespace LMS.Master.BusinessSerive.Data.Migrations
                         .IsUnique();
 
                     b.ToTable("WorkflowStatuses", (string)null);
+                });
+
+            modelBuilder.Entity("LMS.Master.DTO.Entity.LaundryOrderTaxLineEntity", b =>
+                {
+                    b.HasOne("LMS.Master.DTO.Entity.LaundryOrderEntity", null)
+                        .WithMany()
+                        .HasForeignKey("LaundryOrderId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("LMS.Master.DTO.Entity.TaxInvoiceComponentEntity", b =>

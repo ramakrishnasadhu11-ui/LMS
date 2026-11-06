@@ -20,6 +20,7 @@ namespace LMS.Master.BusinessSerive.Data
         public DbSet<WorkflowStatusEntity> WorkflowStatuses => Set<WorkflowStatusEntity>();
         public DbSet<CustomerAdvanceEntity> CustomerAdvances => Set<CustomerAdvanceEntity>();
         public DbSet<LaundryOrderEntity> LaundryOrders => Set<LaundryOrderEntity>();
+        public DbSet<LaundryOrderTaxLineEntity> LaundryOrderTaxLines => Set<LaundryOrderTaxLineEntity>();
         public DbSet<LaundryOrderItemEntity> LaundryOrderItems => Set<LaundryOrderItemEntity>();
         public DbSet<LaundryItemPriceEntity> LaundryItemPrices => Set<LaundryItemPriceEntity>();
         public DbSet<StoreServiceMasterEntity> StoreServiceMasters => Set<StoreServiceMasterEntity>();
@@ -202,6 +203,32 @@ namespace LMS.Master.BusinessSerive.Data
 
                 entity.HasIndex(x => x.OrderNo).IsUnique();
                 entity.HasIndex(x => new { x.TenantName, x.StoreCode, x.CustCode });
+            });
+
+            modelBuilder.Entity<LaundryOrderTaxLineEntity>(entity =>
+            {
+                entity.ToTable("LaundryOrderTaxLines");
+                entity.HasKey(x => x.Id);
+
+                entity.Property(x => x.TenantName).HasMaxLength(256).IsRequired();
+                entity.Property(x => x.StoreCode).HasMaxLength(64).IsRequired();
+                entity.Property(x => x.OrderNo).HasMaxLength(64).IsRequired();
+                entity.Property(x => x.TaxMode).HasMaxLength(24).IsRequired();
+                entity.Property(x => x.CurrencyCode).HasMaxLength(8).IsRequired();
+                entity.Property(x => x.ComponentCode).HasMaxLength(32).IsRequired();
+                entity.Property(x => x.ComponentDisplayName).HasMaxLength(128).IsRequired();
+                entity.Property(x => x.Jurisdiction).HasMaxLength(64);
+                entity.Property(x => x.RatePercent).HasColumnType("decimal(9,4)");
+                entity.Property(x => x.TaxableBaseAmount).HasColumnType("decimal(18,4)");
+                entity.Property(x => x.TaxAmount).HasColumnType("decimal(18,2)");
+
+                entity.HasOne<LaundryOrderEntity>()
+                    .WithMany()
+                    .HasForeignKey(x => x.LaundryOrderId)
+                    .OnDelete(DeleteBehavior.NoAction);
+
+                entity.HasIndex(x => new { x.LaundryOrderId, x.LineNo });
+                entity.HasIndex(x => new { x.TenantName, x.StoreCode, x.OrderNo, x.LineNo });
             });
 
             modelBuilder.Entity<LaundryOrderItemEntity>(entity =>

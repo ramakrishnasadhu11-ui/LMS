@@ -625,5 +625,87 @@ namespace LMS.Identity.BusinessSerive.Tests
             Assert.True(valid);
             Assert.False(invalid);
         }
+
+        [Fact]
+        public async Task TenantLogin_IssuesToken_WithTenantName_TenantId_AndStoreCodesClaims()
+        {
+            var email = "tenant-login@example.com";
+            var password = "Pass@123";
+            Environment.SetEnvironmentVariable("Jwt__Issuer", "lms-identity-tests");
+            Environment.SetEnvironmentVariable("Jwt__Audience", "lms-master-tests");
+            Environment.SetEnvironmentVariable("Jwt__SigningKey", "0123456789ABCDEF0123456789ABCDEF");
+            Environment.SetEnvironmentVariable("Jwt__ExpiryMinutes", "60");
+
+            try
+            {
+            var tenant = new TenantEntity
+            {
+                TenantId = Guid.NewGuid().ToString(),
+                Email = email,
+                TenantName = "Tenant Login",
+                ApprovalStatus = TenantApprovalStatus.Approved,
+                SubscriptionStatus = "TrialActive",
+                TrialEndUtc = DateTime.UtcNow.AddDays(10),
+                CreatedDate = DateTime.UtcNow,
+                ModifiedDate = DateTime.UtcNow
+            };
+
+            _context.Tenants.Add(tenant);
+            _context.TenantStoreInfos.Add(new TenantStoreInfoEntity
+            {
+                TenantId = tenant.TenantId,
+                Name = email,
+                Password = password,
+                Storecodes = new List<string> { "S1", "S2" },
+                IsPasswordChanged = true,
+                Status = "Active"
+            });
+
+            _context.TenantStoreStatuses.AddRange(
+                new TenantStoreStatusEntity { TenantId = tenant.TenantId, StoreCode = "S1", IsActive = true, CreatedDate = DateTime.UtcNow, ActivatedBy = "test", ActivatedDate = DateTime.UtcNow },
+                new TenantStoreStatusEntity { TenantId = tenant.TenantId, StoreCode = "S2", IsActive = true, CreatedDate = DateTime.UtcNow, ActivatedBy = "test", ActivatedDate = DateTime.UtcNow });
+
+            await _context.SaveChangesAsync();
+
+            var result = await _service.TenantLogin(tenant.Email, password, "S1");
+            Assert.Equal(HttpStatusCode.OK, result.StatusCode);
+
+            var io = Assert.IsType<IOResponse>(result.ResultSet);
+            Assert.False(string.IsNullOrWhiteSpace(io.AccessToken));
+
+            var payload = DecodeJwtPayload(io.AccessToken);
+            Assert.Equal(email, payload["tenantName"]?.ToString());
+            Assert.Equal(tenant.TenantId, payload["tenantId"]?.ToString());
+            var storeCodesClaim = payload["storeCodes"]?.ToString();
+            Assert.False(string.IsNullOrWhiteSpace(storeCodesClaim));
+            Assert.Contains("S1", storeCodesClaim, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("S2", storeCodesClaim, StringComparison.OrdinalIgnoreCase);
+            }
+            finally
+            {
+                Environment.SetEnvironmentVariable("Jwt__Issuer", null);
+                Environment.SetEnvironmentVariable("Jwt__Audience", null);
+                Environment.SetEnvironmentVariable("Jwt__SigningKey", null);
+                Environment.SetEnvironmentVariable("Jwt__ExpiryMinutes", null);
+            }
+        }
+
+        private static JObject DecodeJwtPayload(string jwt)
+        {
+            Assert.False(string.IsNullOrWhiteSpace(jwt));
+
+            var parts = jwt.Split('.');
+            Assert.True(parts.Length >= 2);
+
+            var payloadSegment = parts[1].Replace('-', '+').Replace('_', '/');
+            var remainder = payloadSegment.Length % 4;
+            if (remainder > 0)
+            {
+                payloadSegment = payloadSegment.PadRight(payloadSegment.Length + (4 - remainder), '=');
+            }
+
+            var json = System.Text.Encoding.UTF8.GetString(Convert.FromBase64String(payloadSegment));
+            return JObject.Parse(json);
+        }
     }
 }

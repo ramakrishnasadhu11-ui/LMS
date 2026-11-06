@@ -5,6 +5,7 @@ using System.IO;
 using System.Linq;
 using System.Net;
 using System.Net.Mail;
+using Microsoft.Data.SqlClient;
 using System.Text.RegularExpressions;
 using System.Text;
 using System.Threading.Tasks;
@@ -87,6 +88,7 @@ namespace LMSWebUI.Controllers
                         StatusCode = StatusCodes.Status401Unauthorized
                     };
                 }
+
                 else
                 {
                     TempData["UserMessage"] = JsonConvert.SerializeObject(new MessageDto
@@ -1169,13 +1171,17 @@ namespace LMSWebUI.Controllers
                 return RedirectToAction("Login", "Login");
             }
 
-            var model = await LoadTaxInvoiceSettingsAsync(tenantName, storeCode);
+            var model = await LoadTaxConfigurationScreenModelAsync(tenantName, storeCode, autoCreateDefault: true);
+            var recommendationContext = await BuildTaxRecommendationContextAsync(tenantName, model.CountryCode, model.TaxMode);
+            model.RecommendedTaxMode = recommendationContext.RecommendedTaxMode;
+            model.TenantRegisteredCountryCode = recommendationContext.RegisteredCountryCode;
+            model.OriginalCountryCode = recommendationContext.OriginalCountryCode;
             return View(model);
         }
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> TaxInvoiceSettings(TaxInvoiceSettingsViewModel model)
+        public async Task<IActionResult> TaxInvoiceSettings(TaxConfigurationViewModel model)
         {
             if (!IsAdminUser())
             {
@@ -1206,12 +1212,144 @@ namespace LMSWebUI.Controllers
             model.StoreCode = storeCode;
             model.CompanyName = await GetCompanyNameAsync(tenantName, storeCode);
 
-            if (!ModelState.IsValid)
+            var (profileCountryCode, profileCurrencyCode) = await GetTenantCountryCurrencyAsync(tenantName);
+            if (!string.IsNullOrWhiteSpace(profileCountryCode))
             {
-                return View(model);
+                model.CountryCode = profileCountryCode;
             }
 
-            if (!ValidateTaxInvoiceSettings(model, out var validationError))
+            if (!string.IsNullOrWhiteSpace(profileCurrencyCode))
+            {
+                model.CurrencyCode = profileCurrencyCode;
+            }
+
+            var recommendationContext = await BuildTaxRecommendationContextAsync(tenantName, model.CountryCode, model.TaxMode);
+            model.RecommendedTaxMode = recommendationContext.RecommendedTaxMode;
+            model.TenantRegisteredCountryCode = recommendationContext.RegisteredCountryCode;
+            model.OriginalCountryCode = string.IsNullOrWhiteSpace(model.OriginalCountryCode)
+                ? recommendationContext.OriginalCountryCode
+                : model.OriginalCountryCode;
+
+            var configQuery = new Dictionary<string, string>
+            {
+                { "tenantName", tenantName },
+                { "storeCode", storeCode }
+            };
+
+            TaxConfigurationDto currentConfig = null;
+            try
+            {
+                currentConfig = await _clientApi.SendRequestAsync<TaxConfigurationDto>("/GetTaxConfiguration", configQuery, Method.GET);
+
+                var existingConfigResponseBody = SafeSerializeForLogging(currentConfig);
+                var (existingConfigStatusCode, existingConfigMessage) = TryExtractApiStatusAndMessage(existingConfigResponseBody);
+                var existingConfigHttpStatusCode = string.IsNullOrWhiteSpace(existingConfigStatusCode) ? "200" : existingConfigStatusCode;
+
+                _logger?.LogInformation(
+                    "GetTaxConfiguration API response. Tenant={TenantName}, Store={StoreCode}, HttpStatusCode={HttpStatusCode}, Message={Message}, ResponseBody={ResponseBody}",
+                    tenantName,
+                    storeCode,
+                    existingConfigHttpStatusCode,
+                    existingConfigMessage ?? string.Empty,
+                    existingConfigResponseBody);
+
+                if (!string.IsNullOrWhiteSpace(existingConfigStatusCode)
+                    && !IsSuccessfulApiStatusCode(existingConfigStatusCode))
+                {
+                    currentConfig = null;
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogError(
+                    ex,
+                    "GetTaxConfiguration API call failed during TaxInvoiceSettings POST. Tenant={TenantName}, Store={StoreCode}, HttpStatusCode={HttpStatusCode}, ResponseBody={ResponseBody}",
+                    tenantName,
+                    storeCode,
+                    (ex as ApiUnavailableException)?.StatusCode?.ToString() ?? "NotAvailable",
+                    (ex as ApiUnavailableException)?.ResponseContent ?? string.Empty);
+            }
+
+            ModelState.Remove(nameof(TaxConfigurationViewModel.ComponentEditor) + "." + nameof(TaxComponentEditorViewModel.Code));
+            ModelState.Remove(nameof(TaxConfigurationViewModel.ComponentEditor) + "." + nameof(TaxComponentEditorViewModel.DisplayName));
+
+            if (!ModelState.IsValid)
+            {
+                var reloaded = await LoadTaxConfigurationScreenModelAsync(tenantName, storeCode, autoCreateDefault: true);
+                reloaded.ComponentEditor = model.ComponentEditor ?? new TaxComponentEditorViewModel();
+                return View(reloaded);
+            }
+
+            if (!ValidateTaxModeSelectionConfirmation(model, out var confirmationError))
+            {
+                TempData["UserMessage"] = JsonConvert.SerializeObject(new MessageDto
+                {
+                    CssClassName = "alert-warning",
+                    Title = "Confirmation Required.",
+                    DisplayMessage = confirmationError
+                });
+
+                var reloaded = await LoadTaxConfigurationScreenModelAsync(tenantName, storeCode, autoCreateDefault: true);
+                reloaded.ComponentEditor = model.ComponentEditor ?? new TaxComponentEditorViewModel();
+                reloaded.TaxMode = model.TaxMode;
+                reloaded.CountryCode = model.CountryCode;
+                reloaded.CurrencyCode = model.CurrencyCode;
+                reloaded.IsPricesInclusive = model.IsPricesInclusive;
+                reloaded.EnableTax = model.EnableTax;
+                reloaded.GstPercent = model.GstPercent;
+                reloaded.PricesIncludeTax = model.PricesIncludeTax;
+                reloaded.InvoicePrefix = model.InvoicePrefix;
+                reloaded.NextInvoiceNumber = model.NextInvoiceNumber;
+                reloaded.InvoiceNumberPadding = model.InvoiceNumberPadding;
+                reloaded.ResetInvoiceNumberYearly = model.ResetInvoiceNumberYearly;
+                reloaded.Notes = model.Notes;
+                reloaded.TaxModeOverrideConfirmed = model.TaxModeOverrideConfirmed;
+                reloaded.NoTaxConfirmed = model.NoTaxConfirmed;
+                reloaded.CountryChangeAcknowledged = model.CountryChangeAcknowledged;
+                reloaded.RecommendedTaxMode = model.RecommendedTaxMode;
+                reloaded.TenantRegisteredCountryCode = model.TenantRegisteredCountryCode;
+                reloaded.OriginalCountryCode = model.OriginalCountryCode;
+                reloaded.CgstRatePercent = model.CgstRatePercent;
+                reloaded.SgstRatePercent = model.SgstRatePercent;
+                return View(reloaded);
+            }
+
+            var gstSplitValidationError = ValidateGstSplitAgainstTotal(model, currentConfig);
+            if (!string.IsNullOrWhiteSpace(gstSplitValidationError))
+            {
+                TempData["UserMessage"] = JsonConvert.SerializeObject(new MessageDto
+                {
+                    CssClassName = "alert-warning",
+                    Title = "Warning.",
+                    DisplayMessage = gstSplitValidationError
+                });
+
+                var reloaded = await LoadTaxConfigurationScreenModelAsync(tenantName, storeCode, autoCreateDefault: true);
+                reloaded.ComponentEditor = model.ComponentEditor ?? new TaxComponentEditorViewModel();
+                reloaded.TaxMode = model.TaxMode;
+                reloaded.CountryCode = model.CountryCode;
+                reloaded.CurrencyCode = model.CurrencyCode;
+                reloaded.IsPricesInclusive = model.IsPricesInclusive;
+                reloaded.EnableTax = model.EnableTax;
+                reloaded.GstPercent = model.GstPercent;
+                reloaded.PricesIncludeTax = model.PricesIncludeTax;
+                reloaded.InvoicePrefix = model.InvoicePrefix;
+                reloaded.NextInvoiceNumber = model.NextInvoiceNumber;
+                reloaded.InvoiceNumberPadding = model.InvoiceNumberPadding;
+                reloaded.ResetInvoiceNumberYearly = model.ResetInvoiceNumberYearly;
+                reloaded.Notes = model.Notes;
+                reloaded.TaxModeOverrideConfirmed = model.TaxModeOverrideConfirmed;
+                reloaded.NoTaxConfirmed = model.NoTaxConfirmed;
+                reloaded.CountryChangeAcknowledged = model.CountryChangeAcknowledged;
+                reloaded.RecommendedTaxMode = model.RecommendedTaxMode;
+                reloaded.TenantRegisteredCountryCode = model.TenantRegisteredCountryCode;
+                reloaded.OriginalCountryCode = model.OriginalCountryCode;
+                reloaded.CgstRatePercent = model.CgstRatePercent;
+                reloaded.SgstRatePercent = model.SgstRatePercent;
+                return View(reloaded);
+            }
+
+            if (!ValidateTaxConfigurationViewModel(model, out var validationError))
             {
                 TempData["UserMessage"] = JsonConvert.SerializeObject(new MessageDto
                 {
@@ -1220,28 +1358,81 @@ namespace LMSWebUI.Controllers
                     DisplayMessage = validationError
                 });
 
-                return View(model);
-            }
-
-            if (!model.EnableTax)
-            {
-                model.GstPercent = 0;
+                var reloaded = await LoadTaxConfigurationScreenModelAsync(tenantName, storeCode, autoCreateDefault: true);
+                reloaded.ComponentEditor = model.ComponentEditor ?? new TaxComponentEditorViewModel();
+                reloaded.CgstRatePercent = model.CgstRatePercent;
+                reloaded.SgstRatePercent = model.SgstRatePercent;
+                return View(reloaded);
             }
 
             try
             {
-                var response = await _clientApi.SendRequestAsync<CustomerIOResponse>("/SaveTaxInvoiceSettings", model, Method.POST);
+                var request = new TaxConfigurationUpsertRequestDto
+                {
+                    TenantName = tenantName,
+                    StoreCode = storeCode,
+                    TaxMode = model.TaxMode,
+                    CountryCode = model.CountryCode,
+                    CurrencyCode = model.CurrencyCode,
+                    IsPricesInclusive = model.IsPricesInclusive,
+                    EnableTax = model.EnableTax,
+                    GstPercent = model.GstPercent,
+                    PricesIncludeTax = model.PricesIncludeTax,
+                    InvoicePrefix = model.InvoicePrefix,
+                    NextInvoiceNumber = model.NextInvoiceNumber,
+                    InvoiceNumberPadding = model.InvoiceNumberPadding,
+                    ResetInvoiceNumberYearly = model.ResetInvoiceNumberYearly,
+                    Notes = model.Notes,
+                    ConcurrencyToken = model.ConcurrencyToken
+                };
+
+                var response = await _clientApi.SendRequestAsync<TaxConfigurationDto>("/UpsertTaxConfiguration", request, Method.POST);
+                var upsertResponseBody = SafeSerializeForLogging(response);
+                var (upsertStatusCode, upsertMessage) = TryExtractApiStatusAndMessage(upsertResponseBody);
+                var upsertHttpStatusCode = string.IsNullOrWhiteSpace(upsertStatusCode) ? "200" : upsertStatusCode;
+
+                _logger?.LogInformation(
+                    "UpsertTaxConfiguration API response. Tenant={TenantName}, Store={StoreCode}, HttpStatusCode={HttpStatusCode}, Message={Message}, ResponseBody={ResponseBody}",
+                    tenantName,
+                    storeCode,
+                    upsertHttpStatusCode,
+                    upsertMessage ?? string.Empty,
+                    upsertResponseBody);
+
+                var hasValidUpsertPayload = response != null
+                    && !string.IsNullOrWhiteSpace(response.TenantName)
+                    && !string.IsNullOrWhiteSpace(response.StoreCode);
+                if (!IsApiCallSuccessful(upsertStatusCode, hasValidUpsertPayload))
+                {
+                    throw new InvalidOperationException(
+                        $"UpsertTaxConfiguration failed. HttpStatusCode={upsertHttpStatusCode}. Message={upsertMessage ?? string.Empty}. ResponseBody={upsertResponseBody}");
+                }
+
+                await UpsertIndiaGstComponentsAsync(tenantName, storeCode, model, currentConfig ?? response);
+
+                var auditMessage = BuildTaxModeAuditMessage(model);
+                if (!string.IsNullOrWhiteSpace(auditMessage))
+                {
+                    await LogOrderActionAuditAsync(tenantName, storeCode, "TAX-CONFIG", "TAX-CONFIG", "TaxModeSelectionReview", auditMessage);
+                }
+
                 TempData["UserMessage"] = JsonConvert.SerializeObject(new MessageDto
                 {
                     CssClassName = "alert alert-success",
                     Title = "Success!",
-                    DisplayMessage = string.IsNullOrWhiteSpace(response?.Message)
-                        ? "Tax and invoice settings saved successfully."
-                        : response.Message
+                    DisplayMessage = "Tax and invoice settings saved successfully."
                 });
             }
             catch (Exception ex)
             {
+                _logger?.LogError(
+                    ex,
+                    "TaxInvoiceSettings POST failed. Tenant={TenantName}, Store={StoreCode}, ModelTaxMode={TaxMode}, ModelCountryCode={CountryCode}",
+                    tenantName,
+                    storeCode,
+                    model?.TaxMode ?? string.Empty,
+                    model?.CountryCode ?? string.Empty);
+
                 TempData["UserMessage"] = JsonConvert.SerializeObject(new MessageDto
                 {
                     CssClassName = "alert alert-danger",
@@ -1253,6 +1444,877 @@ namespace LMSWebUI.Controllers
             }
 
             return RedirectToAction(nameof(TaxInvoiceSettings));
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> SaveTaxComponent(TaxConfigurationViewModel model)
+        {
+            if (!IsAdminUser())
+            {
+                TempData["UserMessage"] = JsonConvert.SerializeObject(new MessageDto
+                {
+                    CssClassName = "alert alert-danger",
+                    Title = "Access Denied!",
+                    DisplayMessage = "Only admin users can manage tax components."
+                });
+                return RedirectToAction("Index", "Dashboard");
+            }
+
+            var tenantName = HttpContext.Session.GetString("TenantName");
+            var storeCode = HttpContext.Session.GetString("TenantStore");
+            if (string.IsNullOrWhiteSpace(tenantName) || string.IsNullOrWhiteSpace(storeCode))
+            {
+                TempData["UserMessage"] = JsonConvert.SerializeObject(new MessageDto
+                {
+                    CssClassName = "alert alert-danger",
+                    Title = "Failed.",
+                    DisplayMessage = "Session expired. Please log in again."
+                });
+                return RedirectToAction("Login", "Login");
+            }
+
+            if (!ValidateTaxComponentEditor(model?.ComponentEditor, out var validationError))
+            {
+                TempData["UserMessage"] = JsonConvert.SerializeObject(new MessageDto
+                {
+                    CssClassName = "alert-warning",
+                    Title = "Warning.",
+                    DisplayMessage = validationError
+                });
+
+                return RedirectToAction(nameof(TaxInvoiceSettings));
+            }
+
+            try
+            {
+                var editor = model.ComponentEditor;
+                var request = new TaxInvoiceComponentUpsertRequestDto
+                {
+                    TenantName = tenantName,
+                    StoreCode = storeCode,
+                    ComponentId = editor.ComponentId,
+                    Code = editor.Code,
+                    DisplayName = editor.DisplayName,
+                    RatePercent = editor.RatePercent,
+                    Jurisdiction = editor.Jurisdiction,
+                    Priority = editor.Priority,
+                    IsCompound = editor.IsCompound,
+                    IsActive = editor.IsActive,
+                    EffectiveFromUtc = ParseUtcDateTimeOrNull(editor.EffectiveFromUtcText),
+                    EffectiveToUtc = ParseUtcDateTimeOrNull(editor.EffectiveToUtcText),
+                    ConcurrencyToken = editor.ConcurrencyToken
+                };
+
+                if (editor.IsEdit && editor.ComponentId.HasValue)
+                {
+                    await _clientApi.SendRequestAsync<TaxInvoiceComponentDto>("/UpdateTaxInvoiceComponent", request, Method.PUT);
+                }
+                else
+                {
+                    await _clientApi.SendRequestAsync<TaxInvoiceComponentDto>("/AddTaxInvoiceComponent", request, Method.POST);
+                }
+
+                TempData["UserMessage"] = JsonConvert.SerializeObject(new MessageDto
+                {
+                    CssClassName = "alert alert-success",
+                    Title = "Success!",
+                    DisplayMessage = "Tax component saved successfully."
+                });
+            }
+            catch (Exception ex)
+            {
+                TempData["UserMessage"] = JsonConvert.SerializeObject(new MessageDto
+                {
+                    CssClassName = "alert alert-danger",
+                    Title = "Failed.",
+                    DisplayMessage = BuildApiErrorMessage(ex, "Unable to save tax component.")
+                });
+            }
+
+            return RedirectToAction(nameof(TaxInvoiceSettings));
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> DeactivateTaxComponent(int componentId, string concurrencyToken)
+        {
+            if (!IsAdminUser())
+            {
+                TempData["UserMessage"] = JsonConvert.SerializeObject(new MessageDto
+                {
+                    CssClassName = "alert alert-danger",
+                    Title = "Access Denied!",
+                    DisplayMessage = "Only admin users can manage tax components."
+                });
+                return RedirectToAction("Index", "Dashboard");
+            }
+
+            var tenantName = HttpContext.Session.GetString("TenantName");
+            var storeCode = HttpContext.Session.GetString("TenantStore");
+            if (string.IsNullOrWhiteSpace(tenantName) || string.IsNullOrWhiteSpace(storeCode))
+            {
+                TempData["UserMessage"] = JsonConvert.SerializeObject(new MessageDto
+                {
+                    CssClassName = "alert alert-danger",
+                    Title = "Failed.",
+                    DisplayMessage = "Session expired. Please log in again."
+                });
+                return RedirectToAction("Login", "Login");
+            }
+
+            try
+            {
+                var request = new TaxInvoiceComponentDeactivateRequestDto
+                {
+                    TenantName = tenantName,
+                    StoreCode = storeCode,
+                    ComponentId = componentId,
+                    ConcurrencyToken = concurrencyToken
+                };
+
+                await _clientApi.SendRequestAsync<TaxInvoiceComponentDto>("/DeactivateTaxInvoiceComponent", request, Method.POST);
+                TempData["UserMessage"] = JsonConvert.SerializeObject(new MessageDto
+                {
+                    CssClassName = "alert alert-success",
+                    Title = "Success!",
+                    DisplayMessage = "Tax component deactivated successfully."
+                });
+            }
+            catch (Exception ex)
+            {
+                TempData["UserMessage"] = JsonConvert.SerializeObject(new MessageDto
+                {
+                    CssClassName = "alert alert-danger",
+                    Title = "Failed.",
+                    DisplayMessage = BuildApiErrorMessage(ex, "Unable to deactivate tax component.")
+                });
+            }
+
+            return RedirectToAction(nameof(TaxInvoiceSettings));
+        }
+
+        private async Task<TaxConfigurationViewModel> LoadTaxConfigurationScreenModelAsync(string tenantName, string storeCode, bool autoCreateDefault)
+        {
+            var companyName = await GetCompanyNameAsync(tenantName, storeCode);
+            var parameters = new Dictionary<string, string>
+            {
+                { "tenantName", tenantName },
+                { "storeCode", storeCode }
+            };
+
+            TaxConfigurationDto config = null;
+            try
+            {
+                config = await _clientApi.SendRequestAsync<TaxConfigurationDto>("/GetTaxConfiguration", parameters, Method.GET);
+            }
+            catch
+            {
+            }
+
+            var isAutoCreated = false;
+            if (config == null && autoCreateDefault)
+            {
+                var defaultRequest = await BuildDefaultTaxConfigurationRequestAsync(tenantName, storeCode, companyName);
+                try
+                {
+                    await _clientApi.SendRequestAsync<TaxConfigurationDto>("/UpsertTaxConfiguration", defaultRequest, Method.POST);
+                    config = await _clientApi.SendRequestAsync<TaxConfigurationDto>("/GetTaxConfiguration", parameters, Method.GET);
+                    isAutoCreated = true;
+                }
+                catch
+                {
+                }
+            }
+
+            var resolvedMode = config?.TaxMode;
+            try
+            {
+                var modeResolution = await _clientApi.SendRequestAsync<TaxModeResolutionDto>("/ResolveTaxMode", parameters, Method.GET);
+                if (!string.IsNullOrWhiteSpace(modeResolution?.TaxMode))
+                {
+                    resolvedMode = modeResolution.TaxMode;
+                }
+            }
+            catch
+            {
+            }
+
+            if (config == null)
+            {
+                var defaults = await BuildDefaultTaxConfigurationRequestAsync(tenantName, storeCode, companyName);
+                return new TaxConfigurationViewModel
+                {
+                    TenantName = tenantName,
+                    StoreCode = storeCode,
+                    CompanyName = companyName,
+                    TaxMode = defaults.TaxMode,
+                    CountryCode = defaults.CountryCode,
+                    CurrencyCode = defaults.CurrencyCode,
+                    IsPricesInclusive = defaults.IsPricesInclusive,
+                    EnableTax = defaults.EnableTax ?? false,
+                    GstPercent = defaults.GstPercent ?? 0,
+                    PricesIncludeTax = defaults.PricesIncludeTax ?? false,
+                    InvoicePrefix = defaults.InvoicePrefix,
+                    NextInvoiceNumber = defaults.NextInvoiceNumber ?? 1,
+                    InvoiceNumberPadding = defaults.InvoiceNumberPadding ?? 4,
+                    ResetInvoiceNumberYearly = defaults.ResetInvoiceNumberYearly ?? false,
+                    Notes = defaults.Notes,
+                    ResolvedTaxMode = defaults.TaxMode,
+                    IsAutoCreatedDefault = isAutoCreated,
+                    ComponentEditor = new TaxComponentEditorViewModel()
+                };
+            }
+
+            var model = new TaxConfigurationViewModel
+            {
+                TenantName = tenantName,
+                StoreCode = storeCode,
+                CompanyName = companyName,
+                TaxMode = string.IsNullOrWhiteSpace(config.TaxMode) ? "GST" : config.TaxMode,
+                CountryCode = string.IsNullOrWhiteSpace(config.CountryCode) ? "IN" : config.CountryCode,
+                CurrencyCode = string.IsNullOrWhiteSpace(config.CurrencyCode) ? "INR" : config.CurrencyCode,
+                IsPricesInclusive = config.IsPricesInclusive,
+                EnableTax = config.EnableTax,
+                GstPercent = ResolveTotalTaxPercent(config),
+                PricesIncludeTax = config.PricesIncludeTax,
+                InvoicePrefix = string.IsNullOrWhiteSpace(config.InvoicePrefix) ? BuildStoreInvoicePrefix(companyName, storeCode) : config.InvoicePrefix,
+                NextInvoiceNumber = config.NextInvoiceNumber < 1 ? 1 : config.NextInvoiceNumber,
+                InvoiceNumberPadding = config.InvoiceNumberPadding < 1 || config.InvoiceNumberPadding > 12 ? 4 : config.InvoiceNumberPadding,
+                ResetInvoiceNumberYearly = config.ResetInvoiceNumberYearly,
+                Notes = config.Notes,
+                ConcurrencyToken = config.ConcurrencyToken,
+                LegacyFallbackSource = config.LegacyFallbackSource,
+                ResolvedTaxMode = string.IsNullOrWhiteSpace(resolvedMode) ? config.TaxMode : resolvedMode,
+                IsAutoCreatedDefault = isAutoCreated
+            };
+
+            model.Components = (config.Components ?? new List<TaxInvoiceComponentDto>())
+                .OrderBy(x => x.Priority)
+                .ThenBy(x => x.Code)
+                .Select(x => new TaxConfigurationComponentViewModel
+                {
+                    Id = x.Id,
+                    Code = x.Code,
+                    DisplayName = x.DisplayName,
+                    RatePercent = x.RatePercent,
+                    Jurisdiction = x.Jurisdiction,
+                    Priority = x.Priority,
+                    IsCompound = x.IsCompound,
+                    IsActive = x.IsActive,
+                    EffectiveFromUtcText = x.EffectiveFromUtc?.ToString("yyyy-MM-ddTHH:mm"),
+                    EffectiveToUtcText = x.EffectiveToUtc?.ToString("yyyy-MM-ddTHH:mm"),
+                    ConcurrencyToken = x.ConcurrencyToken
+                })
+                .ToList();
+
+            var activeGstComponents = model.Components
+                .Where(x => x.IsActive)
+                .ToList();
+
+            model.CgstRatePercent = activeGstComponents
+                .Where(x => string.Equals(x.Code, "CGST", StringComparison.OrdinalIgnoreCase))
+                .Select(x => (decimal?)x.RatePercent)
+                .FirstOrDefault();
+
+            model.SgstRatePercent = activeGstComponents
+                .Where(x => string.Equals(x.Code, "SGST", StringComparison.OrdinalIgnoreCase))
+                .Select(x => (decimal?)x.RatePercent)
+                .FirstOrDefault();
+
+            model.ComponentEditor = new TaxComponentEditorViewModel
+            {
+                Priority = model.Components.Count == 0 ? 1 : model.Components.Max(x => x.Priority) + 1,
+                IsActive = true
+            };
+
+            return model;
+        }
+
+        private async Task<(string RecommendedTaxMode, string RegisteredCountryCode, string OriginalCountryCode)> BuildTaxRecommendationContextAsync(string tenantName, string modelCountryCode, string currentTaxMode)
+        {
+            var (registeredCountryCode, _) = await GetTenantCountryCurrencyAsync(tenantName);
+            var normalizedRegisteredCountry = string.IsNullOrWhiteSpace(registeredCountryCode)
+                ? "IN"
+                : registeredCountryCode.Trim().ToUpperInvariant();
+
+            var recommendedMode = ResolveTaxModeByCountry(normalizedRegisteredCountry);
+
+            var normalizedModelCountry = string.IsNullOrWhiteSpace(modelCountryCode)
+                ? normalizedRegisteredCountry
+                : modelCountryCode.Trim().ToUpperInvariant();
+
+            if (string.IsNullOrWhiteSpace(currentTaxMode))
+            {
+                currentTaxMode = recommendedMode;
+            }
+
+            return (recommendedMode, normalizedRegisteredCountry, normalizedModelCountry);
+        }
+
+        private static string ResolveTaxModeByCountry(string countryCode)
+        {
+            switch ((countryCode ?? string.Empty).Trim().ToUpperInvariant())
+            {
+                case "US":
+                    return "SalesTax";
+                case "GB":
+                case "AE":
+                case "DE":
+                case "FR":
+                    return "VAT";
+                case "IN":
+                    return "GST";
+                default:
+                    return "GST";
+            }
+        }
+
+        private static bool ValidateTaxModeSelectionConfirmation(TaxConfigurationViewModel model, out string message)
+        {
+            message = null;
+            if (model == null)
+            {
+                message = "Invalid tax selection.";
+                return false;
+            }
+
+            var selectedMode = (model.TaxMode ?? string.Empty).Trim();
+            var recommendedMode = (model.RecommendedTaxMode ?? string.Empty).Trim();
+
+            if (!string.IsNullOrWhiteSpace(recommendedMode)
+                && !string.Equals(selectedMode, recommendedMode, StringComparison.OrdinalIgnoreCase)
+                && !model.TaxModeOverrideConfirmed)
+            {
+                message = "The selected tax system differs from the country recommendation. Please confirm this override before saving.";
+                return false;
+            }
+
+            if (string.Equals(selectedMode, "NoTax", StringComparison.OrdinalIgnoreCase)
+                && !model.NoTaxConfirmed)
+            {
+                message = "Please confirm No Tax selection before saving.";
+                return false;
+            }
+
+            if (!string.IsNullOrWhiteSpace(model.OriginalCountryCode)
+                && !string.IsNullOrWhiteSpace(model.CountryCode)
+                && !string.Equals(model.OriginalCountryCode, model.CountryCode, StringComparison.OrdinalIgnoreCase)
+                && !model.CountryChangeAcknowledged)
+            {
+                message = "Country has changed. Please acknowledge that tax settings were reviewed before saving.";
+                return false;
+            }
+
+            return true;
+        }
+
+        private static string ValidateGstSplitAgainstTotal(TaxConfigurationViewModel model, TaxConfigurationDto currentConfig)
+        {
+            if (model == null
+                || !model.EnableTax
+                || !string.Equals(model.TaxMode, "GST", StringComparison.OrdinalIgnoreCase))
+            {
+                return null;
+            }
+
+            if (!string.Equals(model.CountryCode, "IN", StringComparison.OrdinalIgnoreCase))
+            {
+                return null;
+            }
+
+            var cgstRate = model.CgstRatePercent;
+            var sgstRate = model.SgstRatePercent;
+
+            if (!cgstRate.HasValue || !sgstRate.HasValue)
+            {
+                var activeComponents = (currentConfig?.Components ?? new List<TaxInvoiceComponentDto>())
+                    .Where(c => c.IsActive)
+                    .ToList();
+
+                cgstRate ??= activeComponents
+                    .Where(c => string.Equals(c.Code, "CGST", StringComparison.OrdinalIgnoreCase))
+                    .Select(c => (decimal?)c.RatePercent)
+                    .FirstOrDefault();
+
+                sgstRate ??= activeComponents
+                    .Where(c => string.Equals(c.Code, "SGST", StringComparison.OrdinalIgnoreCase))
+                    .Select(c => (decimal?)c.RatePercent)
+                    .FirstOrDefault();
+            }
+
+            if (!cgstRate.HasValue && !sgstRate.HasValue)
+            {
+                return null;
+            }
+
+            if (!cgstRate.HasValue || !sgstRate.HasValue)
+            {
+                return "Enter both CGST and SGST rates for India GST configuration.";
+            }
+
+            if (cgstRate.Value < 0m)
+            {
+                return "CGST rate cannot be negative.";
+            }
+
+            if (sgstRate.Value < 0m)
+            {
+                return "SGST rate cannot be negative.";
+            }
+
+            if (model.GstPercent < 0m)
+            {
+                return "Total GST rate cannot be negative.";
+            }
+
+            var combinedSplitPercent = Math.Round(cgstRate.Value + sgstRate.Value, 2, MidpointRounding.AwayFromZero);
+            var totalTaxPercent = Math.Round(model.GstPercent, 2, MidpointRounding.AwayFromZero);
+
+            if (combinedSplitPercent <= 0)
+            {
+                return null;
+            }
+
+            if (combinedSplitPercent > totalTaxPercent)
+            {
+                return $"CGST + SGST total ({combinedSplitPercent:0.##}%) cannot exceed Total Tax Rate ({totalTaxPercent:0.##}%). Update Total Tax Rate or component rates before saving.";
+            }
+
+            if (combinedSplitPercent < totalTaxPercent)
+            {
+                return $"CGST + SGST total ({combinedSplitPercent:0.##}%) must equal Total Tax Rate ({totalTaxPercent:0.##}%) before saving.";
+            }
+
+            return null;
+        }
+
+        private async Task UpsertIndiaGstComponentsAsync(string tenantName, string storeCode, TaxConfigurationViewModel model, TaxConfigurationDto currentConfig)
+        {
+            if (model == null
+                || !string.Equals(model.TaxMode, "GST", StringComparison.OrdinalIgnoreCase)
+                || !string.Equals(model.CountryCode, "IN", StringComparison.OrdinalIgnoreCase)
+                || !model.CgstRatePercent.HasValue
+                || !model.SgstRatePercent.HasValue)
+            {
+                return;
+            }
+
+            var componentIndex = (currentConfig?.Components ?? new List<TaxInvoiceComponentDto>())
+                .Where(c => c.IsActive
+                    && (string.Equals(c.Code, "CGST", StringComparison.OrdinalIgnoreCase)
+                        || string.Equals(c.Code, "SGST", StringComparison.OrdinalIgnoreCase)))
+                .OrderBy(c => c.Priority)
+                .ThenBy(c => c.Id)
+                .ToList();
+
+            var highestPriority = (currentConfig?.Components ?? new List<TaxInvoiceComponentDto>())
+                .DefaultIfEmpty()
+                .Max(c => c == null ? 0 : c.Priority);
+
+            async Task SaveComponentAsync(string code, string displayName, decimal ratePercent, int defaultPriority)
+            {
+                var existing = componentIndex.FirstOrDefault(c => string.Equals(c.Code, code, StringComparison.OrdinalIgnoreCase));
+
+                var request = new TaxInvoiceComponentUpsertRequestDto
+                {
+                    TenantName = tenantName,
+                    StoreCode = storeCode,
+                    ComponentId = existing?.Id,
+                    Code = code,
+                    DisplayName = string.IsNullOrWhiteSpace(existing?.DisplayName) ? displayName : existing.DisplayName,
+                    RatePercent = ratePercent,
+                    Jurisdiction = string.IsNullOrWhiteSpace(existing?.Jurisdiction) ? "IN" : existing.Jurisdiction,
+                    Priority = existing?.Priority > 0 ? existing.Priority : Math.Max(defaultPriority, highestPriority + 1),
+                    IsCompound = existing?.IsCompound ?? false,
+                    IsActive = true,
+                    EffectiveFromUtc = existing?.EffectiveFromUtc,
+                    EffectiveToUtc = existing?.EffectiveToUtc,
+                    ConcurrencyToken = existing?.ConcurrencyToken
+                };
+
+                if (existing != null)
+                {
+                    var updateResponse = await _clientApi.SendRequestAsync<TaxInvoiceComponentDto>("/UpdateTaxInvoiceComponent", request, Method.PUT);
+                    var updateResponseBody = SafeSerializeForLogging(updateResponse);
+                    var (updateStatusCode, updateMessage) = TryExtractApiStatusAndMessage(updateResponseBody);
+                    var updateHttpStatusCode = string.IsNullOrWhiteSpace(updateStatusCode) ? "200" : updateStatusCode;
+
+                    _logger?.LogInformation(
+                        "Tax component save API response. Tenant={TenantName}, Store={StoreCode}, ComponentCode={ComponentCode}, Operation=UpdateTaxInvoiceComponent, HttpStatusCode={HttpStatusCode}, Message={Message}, ResponseBody={ResponseBody}",
+                        tenantName,
+                        storeCode,
+                        code,
+                        updateHttpStatusCode,
+                        updateMessage ?? string.Empty,
+                        updateResponseBody);
+
+                    var hasValidUpdatePayload = updateResponse != null && !string.IsNullOrWhiteSpace(updateResponse.Code);
+                    if (!IsApiCallSuccessful(updateStatusCode, hasValidUpdatePayload))
+                    {
+                        throw new InvalidOperationException(
+                            $"UpdateTaxInvoiceComponent failed for {code}. HttpStatusCode={updateHttpStatusCode}. Message={updateMessage ?? string.Empty}. ResponseBody={updateResponseBody}");
+                    }
+                }
+                else
+                {
+                    var addResponse = await _clientApi.SendRequestAsync<TaxInvoiceComponentDto>("/AddTaxInvoiceComponent", request, Method.POST);
+                    var addResponseBody = SafeSerializeForLogging(addResponse);
+                    var (addStatusCode, addMessage) = TryExtractApiStatusAndMessage(addResponseBody);
+                    var addHttpStatusCode = string.IsNullOrWhiteSpace(addStatusCode) ? "200" : addStatusCode;
+
+                    _logger?.LogInformation(
+                        "Tax component save API response. Tenant={TenantName}, Store={StoreCode}, ComponentCode={ComponentCode}, Operation=AddTaxInvoiceComponent, HttpStatusCode={HttpStatusCode}, Message={Message}, ResponseBody={ResponseBody}",
+                        tenantName,
+                        storeCode,
+                        code,
+                        addHttpStatusCode,
+                        addMessage ?? string.Empty,
+                        addResponseBody);
+
+                    var hasValidAddPayload = addResponse != null && !string.IsNullOrWhiteSpace(addResponse.Code);
+                    if (!IsApiCallSuccessful(addStatusCode, hasValidAddPayload))
+                    {
+                        throw new InvalidOperationException(
+                            $"AddTaxInvoiceComponent failed for {code}. HttpStatusCode={addHttpStatusCode}. Message={addMessage ?? string.Empty}. ResponseBody={addResponseBody}");
+                    }
+                }
+            }
+
+            await SaveComponentAsync("CGST", "Central GST", model.CgstRatePercent.Value, 1);
+            await SaveComponentAsync("SGST", "State GST", model.SgstRatePercent.Value, 2);
+        }
+
+        private static string BuildTaxModeAuditMessage(TaxConfigurationViewModel model)
+        {
+            if (model == null)
+            {
+                return null;
+            }
+
+            var tokens = new List<string>();
+            if (!string.IsNullOrWhiteSpace(model.RecommendedTaxMode)
+                && !string.Equals(model.TaxMode, model.RecommendedTaxMode, StringComparison.OrdinalIgnoreCase))
+            {
+                tokens.Add($"Override confirmed. Selected: {model.TaxMode}, Recommended: {model.RecommendedTaxMode}, Country: {model.CountryCode}");
+            }
+
+            if (string.Equals(model.TaxMode, "NoTax", StringComparison.OrdinalIgnoreCase) && model.NoTaxConfirmed)
+            {
+                tokens.Add("No Tax selection explicitly confirmed by administrator.");
+            }
+
+            if (!string.IsNullOrWhiteSpace(model.OriginalCountryCode)
+                && !string.Equals(model.OriginalCountryCode, model.CountryCode, StringComparison.OrdinalIgnoreCase)
+                && model.CountryChangeAcknowledged)
+            {
+                tokens.Add($"Country changed from {model.OriginalCountryCode} to {model.CountryCode}; review acknowledged.");
+            }
+
+            return tokens.Count == 0 ? null : string.Join(" ", tokens);
+        }
+
+        private async Task<bool> EnsureIndiaGstDefaultComponentsAsync(TaxConfigurationDto config, string tenantName, string storeCode)
+        {
+            if (config == null)
+            {
+                return false;
+            }
+
+            if (!string.Equals(config.TaxMode, "GST", StringComparison.OrdinalIgnoreCase)
+                || !string.Equals(config.CountryCode, "IN", StringComparison.OrdinalIgnoreCase))
+            {
+                return false;
+            }
+
+            if ((config.Components?.Count ?? 0) > 0)
+            {
+                return false;
+            }
+
+            if (config.GstPercent <= 0)
+            {
+                return false;
+            }
+
+            var cgstRate = Math.Round(config.GstPercent / 2m, 2, MidpointRounding.AwayFromZero);
+            var sgstRate = Math.Round(config.GstPercent - cgstRate, 2, MidpointRounding.AwayFromZero);
+
+            var defaults = new[]
+            {
+                new TaxInvoiceComponentUpsertRequestDto
+                {
+                    TenantName = tenantName,
+                    StoreCode = storeCode,
+                    Code = "CGST",
+                    DisplayName = "Central GST",
+                    RatePercent = cgstRate,
+                    Jurisdiction = "IN",
+                    Priority = 1,
+                    IsCompound = false,
+                    IsActive = true
+                },
+                new TaxInvoiceComponentUpsertRequestDto
+                {
+                    TenantName = tenantName,
+                    StoreCode = storeCode,
+                    Code = "SGST",
+                    DisplayName = "State GST",
+                    RatePercent = sgstRate,
+                    Jurisdiction = "IN",
+                    Priority = 2,
+                    IsCompound = false,
+                    IsActive = true
+                }
+            };
+
+            var createdCount = 0;
+            foreach (var component in defaults)
+            {
+                try
+                {
+                    await _clientApi.SendRequestAsync<TaxInvoiceComponentDto>("/AddTaxInvoiceComponent", component, Method.POST);
+                    createdCount++;
+                }
+                catch
+                {
+                }
+            }
+
+            return createdCount > 0;
+        }
+
+        private static decimal ResolveTotalTaxPercent(TaxConfigurationDto config)
+        {
+            if (config == null)
+            {
+                return 0;
+            }
+
+            var activeComponents = (config.Components ?? new List<TaxInvoiceComponentDto>())
+                .Where(x => x.IsActive)
+                .ToList();
+
+            return activeComponents.Count > 0
+                ? activeComponents.Sum(x => x.RatePercent)
+                : config.GstPercent;
+        }
+
+        private async Task<TaxConfigurationUpsertRequestDto> BuildDefaultTaxConfigurationRequestAsync(string tenantName, string storeCode, string companyName)
+        {
+            var (countryCode, currencyCode) = await GetTenantCountryCurrencyAsync(tenantName);
+            var normalizedCountry = string.IsNullOrWhiteSpace(countryCode) ? "IN" : countryCode.Trim().ToUpperInvariant();
+            var normalizedCurrency = string.IsNullOrWhiteSpace(currencyCode) ? null : currencyCode.Trim().ToUpperInvariant();
+
+            var mode = "GST";
+            switch (normalizedCountry)
+            {
+                case "US":
+                    mode = "SalesTax";
+                    normalizedCurrency ??= "USD";
+                    break;
+                case "GB":
+                    mode = "VAT";
+                    normalizedCurrency ??= "GBP";
+                    break;
+                case "AE":
+                    mode = "VAT";
+                    normalizedCurrency ??= "AED";
+                    break;
+                case "DE":
+                case "FR":
+                    mode = "VAT";
+                    normalizedCurrency ??= "EUR";
+                    break;
+                default:
+                    mode = "GST";
+                    normalizedCountry = "IN";
+                    normalizedCurrency ??= "INR";
+                    break;
+            }
+
+            return new TaxConfigurationUpsertRequestDto
+            {
+                TenantName = tenantName,
+                StoreCode = storeCode,
+                TaxMode = mode,
+                CountryCode = normalizedCountry,
+                CurrencyCode = normalizedCurrency,
+                IsPricesInclusive = false,
+                EnableTax = string.Equals(mode, "NoTax", StringComparison.OrdinalIgnoreCase) ? false : true,
+                GstPercent = 18m,
+                PricesIncludeTax = false,
+                InvoicePrefix = BuildStoreInvoicePrefix(companyName, storeCode),
+                NextInvoiceNumber = 1,
+                InvoiceNumberPadding = 4,
+                ResetInvoiceNumberYearly = false,
+                Notes = null
+            };
+        }
+
+        private async Task<(string CountryCode, string CurrencyCode)> GetTenantCountryCurrencyAsync(string tenantName)
+        {
+            if (string.IsNullOrWhiteSpace(tenantName))
+            {
+                return ("IN", "INR");
+            }
+
+            try
+            {
+                var parms = new Dictionary<string, string>
+                {
+                    { "eMail", tenantName }
+                };
+
+                var profile = await _loginApi.SendRequestAsync<LoginIoResponse>("/TenantprofileDetails", parms, Method.GET);
+                var countryCode = NormalizeTenantCountryCode(profile?.CountryCode, profile?.Country);
+                var currencyCode = profile?.CurrencyCode;
+                return (countryCode, currencyCode);
+            }
+            catch
+            {
+                return ("IN", "INR");
+            }
+        }
+
+        private static string NormalizeTenantCountryCode(string countryCode, string countryName)
+        {
+            if (!string.IsNullOrWhiteSpace(countryCode))
+            {
+                var normalizedCode = countryCode.Trim().ToUpperInvariant();
+                if (normalizedCode.Length == 2)
+                {
+                    return normalizedCode;
+                }
+            }
+
+            if (string.IsNullOrWhiteSpace(countryName))
+            {
+                return countryCode;
+            }
+
+            switch (countryName.Trim().ToUpperInvariant())
+            {
+                case "INDIA":
+                    return "IN";
+                case "UNITED STATES":
+                case "UNITED STATES OF AMERICA":
+                case "USA":
+                    return "US";
+                case "UNITED KINGDOM":
+                case "GREAT BRITAIN":
+                case "UK":
+                    return "GB";
+                case "UNITED ARAB EMIRATES":
+                case "UAE":
+                    return "AE";
+                case "GERMANY":
+                    return "DE";
+                case "FRANCE":
+                    return "FR";
+                default:
+                    return countryCode;
+            }
+        }
+
+        private static bool ValidateTaxConfigurationViewModel(TaxConfigurationViewModel model, out string validationError)
+        {
+            validationError = null;
+
+            if (model == null)
+            {
+                validationError = "Invalid tax configuration request.";
+                return false;
+            }
+
+            var taxMode = model.TaxMode?.Trim();
+            if (string.IsNullOrWhiteSpace(taxMode)
+                || !(string.Equals(taxMode, "NoTax", StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(taxMode, "GST", StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(taxMode, "VAT", StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(taxMode, "SalesTax", StringComparison.OrdinalIgnoreCase)))
+            {
+                validationError = "Select a valid tax mode.";
+                return false;
+            }
+
+            if (string.IsNullOrWhiteSpace(model.CountryCode) || model.CountryCode.Trim().Length != 2)
+            {
+                validationError = "Country code must be a valid 2-letter ISO code.";
+                return false;
+            }
+
+            if (string.IsNullOrWhiteSpace(model.CurrencyCode) || model.CurrencyCode.Trim().Length < 3)
+            {
+                validationError = "Currency code is required.";
+                return false;
+            }
+
+            if (model.EnableTax && model.GstPercent <= 0)
+            {
+                validationError = "Tax percentage must be greater than 0 when tax is enabled.";
+                return false;
+            }
+
+            if (!string.IsNullOrWhiteSpace(model.InvoicePrefix)
+                && !model.InvoicePrefix.Trim().All(ch => char.IsLetterOrDigit(ch) || ch == '-' || ch == '/'))
+            {
+                validationError = "Invoice prefix can contain only letters, numbers, hyphen and slash.";
+                return false;
+            }
+
+            return true;
+        }
+
+        private static bool ValidateTaxComponentEditor(TaxComponentEditorViewModel model, out string validationError)
+        {
+            validationError = null;
+            if (model == null)
+            {
+                validationError = "Invalid tax component request.";
+                return false;
+            }
+
+            if (string.IsNullOrWhiteSpace(model.Code))
+            {
+                validationError = "Component code is required.";
+                return false;
+            }
+
+            if (string.IsNullOrWhiteSpace(model.DisplayName))
+            {
+                validationError = "Component display name is required.";
+                return false;
+            }
+
+            if (model.RatePercent < 0 || model.RatePercent > 100)
+            {
+                validationError = "Component rate must be between 0 and 100.";
+                return false;
+            }
+
+            if (model.Priority < 1)
+            {
+                validationError = "Priority must be 1 or greater.";
+                return false;
+            }
+
+            return true;
+        }
+
+        private static DateTime? ParseUtcDateTimeOrNull(string value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                return null;
+            }
+
+            if (!DateTime.TryParse(value, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal, out var parsed))
+            {
+                return null;
+            }
+
+            return DateTime.SpecifyKind(parsed, DateTimeKind.Utc);
         }
 
         private async Task<TaxInvoiceSettingsViewModel> LoadTaxInvoiceSettingsAsync(string tenantName, string storeCode)
@@ -5583,6 +6645,8 @@ namespace LMSWebUI.Controllers
                     var responseSubTotal = ReadResponseAmount("SubTotal");
                     var responseTaxPercent = ReadResponseAmount("TaxPercent");
                     var responseTaxAmount = ReadResponseAmount("TaxAmount");
+                    var responseCgstAmount = ReadResponseAmount("CgstAmount");
+                    var responseSgstAmount = ReadResponseAmount("SgstAmount");
                     var responseTotalAmount = ReadResponseAmount("TotalAmount");
                     var responseAdvanceUsed = ReadResponseAmount("AdvanceUsed");
                     var responsePaidNow = ReadResponseAmount("PaidNow");
@@ -5593,6 +6657,8 @@ namespace LMSWebUI.Controllers
                     var resolvedSubTotal = responseSubTotal != decimal.MinValue ? responseSubTotal : resolvedOrderAmount;
                     var resolvedTaxPercent = responseTaxPercent != decimal.MinValue ? responseTaxPercent : model.TaxPercent;
                     var resolvedTaxAmount = responseTaxAmount != decimal.MinValue ? responseTaxAmount : model.TaxAmount;
+                    var resolvedCgstAmount = responseCgstAmount != decimal.MinValue ? responseCgstAmount : model.CgstAmount;
+                    var resolvedSgstAmount = responseSgstAmount != decimal.MinValue ? responseSgstAmount : model.SgstAmount;
                     var resolvedTotalAmount = responseTotalAmount != decimal.MinValue
                         ? responseTotalAmount
                         : Math.Round(Math.Max(0m, resolvedSubTotal + resolvedTaxAmount), 2, MidpointRounding.AwayFromZero);
@@ -5628,6 +6694,8 @@ namespace LMSWebUI.Controllers
                         SubTotal = summary.SubTotal,
                         TaxPercent = resolvedTaxPercent,
                         TaxAmount = summary.TaxAmount,
+                        CgstAmount = resolvedCgstAmount,
+                        SgstAmount = resolvedSgstAmount,
                         TotalAmount = summary.TotalAmount,
                         AdvanceUsed = summary.AdvanceUsed,
                         PaidNow = summary.PaidNow,
@@ -5638,6 +6706,11 @@ namespace LMSWebUI.Controllers
                         TotalPieces = createdTotalPieces,
                         Items = responseItems
                     };
+
+                    var snapshotTaxLines = await TryGetOrderTaxLinesAsync(model.TenantName, model.StoreCode, orderNo);
+                    completionContext.TaxLines = snapshotTaxLines.Count > 0
+                        ? snapshotTaxLines
+                        : BuildLegacyTaxFallbackLines(completionContext);
 
                     var orderToastMessage = $"Order created successfully. Order No: {orderNo}";
                     var autoEmailAddress = completionContext.CustomerEmail?.Trim();
@@ -5824,6 +6897,7 @@ namespace LMSWebUI.Controllers
             var fallback = await TryBuildOrderCompletionContextFromStoreOrderAsync(orderNo.Trim());
             if (fallback != null)
             {
+                fallback = await EnrichOrderCompletionContextTaxLinesAsync(fallback);
                 if (!string.IsNullOrWhiteSpace(context?.CustomerEmail) && string.IsNullOrWhiteSpace(fallback.CustomerEmail))
                 {
                     fallback.CustomerEmail = context.CustomerEmail;
@@ -5832,7 +6906,13 @@ namespace LMSWebUI.Controllers
                 TempData["OrderCompletionContext"] = JsonConvert.SerializeObject(fallback);
             }
 
-            return fallback ?? context;
+            if (fallback != null)
+            {
+                return fallback;
+            }
+
+            context = await EnrichOrderCompletionContextTaxLinesAsync(context);
+            return context;
         }
 
         private static List<LaundryOrderItemDto> NormalizeOrderItems(IEnumerable<LaundryOrderItemDto> items)
@@ -6017,6 +7097,8 @@ namespace LMSWebUI.Controllers
                     SubTotal = order.SubTotal,
                     TaxPercent = order.TaxPercent,
                     TaxAmount = order.TaxAmount,
+                    CgstAmount = order.CgstAmount,
+                    SgstAmount = order.SgstAmount,
                     TotalAmount = order.TotalAmount,
                     AdvanceUsed = order.AdvanceUsed,
                     PaidNow = order.PaidNow,
@@ -6032,6 +7114,158 @@ namespace LMSWebUI.Controllers
             {
                 return null;
             }
+        }
+
+        private async Task<List<LaundryOrderTaxLineDto>> TryGetOrderTaxLinesAsync(string tenantName, string storeCode, string orderNo)
+        {
+            if (string.IsNullOrWhiteSpace(tenantName) || string.IsNullOrWhiteSpace(storeCode) || string.IsNullOrWhiteSpace(orderNo))
+            {
+                return new List<LaundryOrderTaxLineDto>();
+            }
+
+            try
+            {
+                var response = await _clientApi.SendRequestAsync<LaundryOrderTaxLinesResponseDto>("/GetLaundryOrderTaxLines", new Dictionary<string, string>
+                {
+                    { "tenantName", tenantName },
+                    { "storeCode", storeCode },
+                    { "orderNo", orderNo }
+                }, Method.GET);
+
+                var lines = response?.TaxLines ?? new List<LaundryOrderTaxLineDto>();
+                return lines
+                    .Where(x => x != null)
+                    .OrderBy(x => x.LineNo)
+                    .ThenBy(x => x.Priority)
+                    .ThenBy(x => x.ComponentCode)
+                    .ToList();
+            }
+            catch
+            {
+                return new List<LaundryOrderTaxLineDto>();
+            }
+        }
+
+        private static List<LaundryOrderTaxLineDto> BuildLegacyTaxFallbackLines(OrderCompletionContextDto context)
+        {
+            var fallback = new List<LaundryOrderTaxLineDto>();
+            if (context == null)
+            {
+                return fallback;
+            }
+
+            var safeTaxAmount = Math.Round(Math.Max(0m, context.TaxAmount), 2, MidpointRounding.AwayFromZero);
+            if (safeTaxAmount <= 0m)
+            {
+                return fallback;
+            }
+
+            var cgst = Math.Round(Math.Max(0m, context.CgstAmount), 2, MidpointRounding.AwayFromZero);
+            var sgst = Math.Round(Math.Max(0m, context.SgstAmount), 2, MidpointRounding.AwayFromZero);
+            if (cgst > 0m || sgst > 0m)
+            {
+                var lineNo = 1;
+                if (cgst > 0m)
+                {
+                    fallback.Add(new LaundryOrderTaxLineDto
+                    {
+                        LineNo = lineNo++,
+                        TaxMode = "GST",
+                        CurrencyCode = string.Empty,
+                        ComponentCode = "CGST",
+                        ComponentDisplayName = "CGST",
+                        Priority = 1,
+                        IsCompound = false,
+                        RatePercent = context.TaxPercent > 0 ? Math.Round(context.TaxPercent / 2m, 2, MidpointRounding.AwayFromZero) : 0m,
+                        TaxableBaseAmount = Math.Round(Math.Max(0m, context.SubTotal), 4, MidpointRounding.AwayFromZero),
+                        TaxAmount = cgst
+                    });
+                }
+
+                if (sgst > 0m)
+                {
+                    fallback.Add(new LaundryOrderTaxLineDto
+                    {
+                        LineNo = lineNo++,
+                        TaxMode = "GST",
+                        CurrencyCode = string.Empty,
+                        ComponentCode = "SGST",
+                        ComponentDisplayName = "SGST",
+                        Priority = 2,
+                        IsCompound = false,
+                        RatePercent = context.TaxPercent > 0 ? Math.Round(context.TaxPercent / 2m, 2, MidpointRounding.AwayFromZero) : 0m,
+                        TaxableBaseAmount = Math.Round(Math.Max(0m, context.SubTotal), 4, MidpointRounding.AwayFromZero),
+                        TaxAmount = sgst
+                    });
+                }
+
+                var sumLines = Math.Round(fallback.Sum(x => x.TaxAmount), 2, MidpointRounding.AwayFromZero);
+                if (sumLines < safeTaxAmount && fallback.Count > 0)
+                {
+                    fallback[fallback.Count - 1].TaxAmount = Math.Round(fallback[fallback.Count - 1].TaxAmount + (safeTaxAmount - sumLines), 2, MidpointRounding.AwayFromZero);
+                }
+
+                return fallback;
+            }
+
+            fallback.Add(new LaundryOrderTaxLineDto
+            {
+                LineNo = 1,
+                TaxMode = context.TaxPercent > 0 ? "GST" : "NoTax",
+                CurrencyCode = string.Empty,
+                ComponentCode = "TAX",
+                ComponentDisplayName = context.TaxPercent > 0 ? $"Tax ({context.TaxPercent:0.##}%)" : "Tax",
+                Priority = 1,
+                IsCompound = false,
+                RatePercent = Math.Max(0m, context.TaxPercent),
+                TaxableBaseAmount = Math.Round(Math.Max(0m, context.SubTotal), 4, MidpointRounding.AwayFromZero),
+                TaxAmount = safeTaxAmount
+            });
+
+            return fallback;
+        }
+
+        private static List<LaundryOrderTaxLineDto> ResolveInvoiceTaxLines(OrderCompletionContextDto context)
+        {
+            var snapshot = (context?.TaxLines ?? new List<LaundryOrderTaxLineDto>())
+                .Where(x => x != null)
+                .OrderBy(x => x.LineNo)
+                .ThenBy(x => x.Priority)
+                .ThenBy(x => x.ComponentCode)
+                .ToList();
+
+            if (snapshot.Count > 0)
+            {
+                return snapshot;
+            }
+
+            return BuildLegacyTaxFallbackLines(context);
+        }
+
+        private static decimal ResolveInvoiceTaxTotal(OrderCompletionContextDto context, IReadOnlyCollection<LaundryOrderTaxLineDto> taxLines)
+        {
+            var fromLines = Math.Round((taxLines ?? Array.Empty<LaundryOrderTaxLineDto>()).Where(x => x != null).Sum(x => x.TaxAmount), 2, MidpointRounding.AwayFromZero);
+            if (fromLines > 0m)
+            {
+                return fromLines;
+            }
+
+            return Math.Round(Math.Max(0m, context?.TaxAmount ?? 0m), 2, MidpointRounding.AwayFromZero);
+        }
+
+        private async Task<OrderCompletionContextDto> EnrichOrderCompletionContextTaxLinesAsync(OrderCompletionContextDto context)
+        {
+            if (context == null || string.IsNullOrWhiteSpace(context.TenantName) || string.IsNullOrWhiteSpace(context.StoreCode) || string.IsNullOrWhiteSpace(context.OrderNo))
+            {
+                return context;
+            }
+
+            var snapshotTaxLines = await TryGetOrderTaxLinesAsync(context.TenantName, context.StoreCode, context.OrderNo);
+            context.TaxLines = snapshotTaxLines.Count > 0
+                ? snapshotTaxLines
+                : BuildLegacyTaxFallbackLines(context);
+
+            return context;
         }
 
         private async Task<(bool Success, string Message)> SendOrderBillEmailInternalAsync(OrderCompletionContextDto context, string toEmail)
@@ -6176,8 +7410,37 @@ namespace LMSWebUI.Controllers
 
                 await _dbContext.SaveChangesAsync();
             }
-            catch
+            catch (Exception ex)
             {
+                var sqlEx = TryGetSqlException(ex);
+                if (sqlEx != null)
+                {
+                    _logger?.LogError(
+                        ex,
+                        "OrderActionAudit log insert failed. Tenant={TenantName}, Store={StoreCode}, OrderNo={OrderNo}, ActionName={ActionName}, SqlErrorNumber={SqlErrorNumber}, SqlState={SqlState}, SqlClass={SqlClass}, Procedure={Procedure}, LineNumber={LineNumber}, Server={Server}, Message={SqlMessage}",
+                        tenantName,
+                        storeCode,
+                        orderNo,
+                        actionName,
+                        sqlEx.Number,
+                        sqlEx.State,
+                        sqlEx.Class,
+                        sqlEx.Procedure ?? string.Empty,
+                        sqlEx.LineNumber,
+                        sqlEx.Server ?? string.Empty,
+                        sqlEx.Message);
+                }
+                else
+                {
+                    _logger?.LogError(
+                        ex,
+                        "OrderActionAudit log insert failed. Tenant={TenantName}, Store={StoreCode}, OrderNo={OrderNo}, ActionName={ActionName}",
+                        tenantName,
+                        storeCode,
+                        orderNo,
+                        actionName);
+                }
+
                 // Do not block order flow when audit insert fails.
             }
         }
@@ -6251,6 +7514,8 @@ namespace LMSWebUI.Controllers
                 context?.PaidNow ?? 0m,
                 context?.PendingAmount ?? 0m,
                 context?.NetPayable ?? 0m);
+            var taxLines = ResolveInvoiceTaxLines(context);
+            var resolvedTaxTotal = ResolveInvoiceTaxTotal(context, taxLines);
             var lines = new List<string>
             {
                 $"Bill From: {resolvedCompanyName}",
@@ -6291,7 +7556,15 @@ namespace LMSWebUI.Controllers
             if (currencyService != null && currencyCfg != null)
             {
                 lines.Add($"Subtotal: {currencyService.Format(summary.SubTotal, currencyCfg)}");
-                lines.Add($"Tax ({context.TaxPercent:0.##}%): {currencyService.Format(summary.TaxAmount, currencyCfg)}");
+                if (taxLines.Count > 0)
+                {
+                    foreach (var taxLine in taxLines)
+                    {
+                        var label = string.IsNullOrWhiteSpace(taxLine.ComponentDisplayName) ? (taxLine.ComponentCode ?? "Tax") : taxLine.ComponentDisplayName;
+                        lines.Add($"{label}: {currencyService.Format(taxLine.TaxAmount, currencyCfg)}");
+                    }
+                }
+                lines.Add($"Total Tax: {currencyService.Format(resolvedTaxTotal, currencyCfg)}");
                 lines.Add($"Total: {currencyService.Format(summary.TotalAmount, currencyCfg)}");
                 lines.Add($"Advance Utilized (-): {currencyService.Format(summary.AdvanceUsed, currencyCfg)}");
                 lines.Add($"Paid Now (-): {currencyService.Format(summary.PaidNow, currencyCfg)}");
@@ -6301,7 +7574,15 @@ namespace LMSWebUI.Controllers
             else
             {
                 lines.Add($"Subtotal: {summary.SubTotal:0.00}");
-                lines.Add($"Tax ({context.TaxPercent:0.##}%): {summary.TaxAmount:0.00}");
+                if (taxLines.Count > 0)
+                {
+                    foreach (var taxLine in taxLines)
+                    {
+                        var label = string.IsNullOrWhiteSpace(taxLine.ComponentDisplayName) ? (taxLine.ComponentCode ?? "Tax") : taxLine.ComponentDisplayName;
+                        lines.Add($"{label}: {taxLine.TaxAmount:0.00}");
+                    }
+                }
+                lines.Add($"Total Tax: {resolvedTaxTotal:0.00}");
                 lines.Add($"Total: {summary.TotalAmount:0.00}");
                 lines.Add($"Advance Utilized (-): {summary.AdvanceUsed:0.00}");
                 lines.Add($"Paid Now (-): {summary.PaidNow:0.00}");
@@ -6321,6 +7602,8 @@ namespace LMSWebUI.Controllers
             var issueDate = context.CreatedDate == default ? DateTime.UtcNow : context.CreatedDate;
             var companyName = string.IsNullOrWhiteSpace(billFromCompanyName) ? "Laundry Service" : billFromCompanyName.Trim();
             var summary = ResolveOrderFinancialSummary(context.OrderAmount, context.SubTotal, context.TaxAmount, context.TotalAmount, context.AdvanceUsed, context.PaidNow, context.PendingAmount, context.NetPayable);
+            var taxLines = ResolveInvoiceTaxLines(context);
+            var resolvedTaxTotal = ResolveInvoiceTaxTotal(context, taxLines);
 
             var pendingAmount = summary.PendingAmount;
             var isPaid = pendingAmount <= 0;
@@ -6360,6 +7643,17 @@ namespace LMSWebUI.Controllers
             {
                 rows.Append("<tr><td colspan='3' style='padding:10px;color:#6b7280;'>No item lines available.</td></tr>");
             }
+
+            var taxRows = new StringBuilder();
+            if (taxLines.Count > 0)
+            {
+                foreach (var taxLine in taxLines)
+                {
+                    var label = E(string.IsNullOrWhiteSpace(taxLine.ComponentDisplayName) ? (taxLine.ComponentCode ?? "Tax") : taxLine.ComponentDisplayName);
+                    taxRows.Append($"<tr><td style='padding:5px 0;color:#6b7280;'>{label}</td><td style='padding:5px 0;text-align:right;font-weight:700;'>{F(taxLine.TaxAmount)}</td></tr>");
+                }
+            }
+            taxRows.Append($"<tr><td style='padding:5px 0;color:#6b7280;'>Total Tax</td><td style='padding:5px 0;text-align:right;font-weight:700;'>{F(resolvedTaxTotal)}</td></tr>");
 
             return $@"<!DOCTYPE html>
 <html>
@@ -6421,7 +7715,7 @@ namespace LMSWebUI.Controllers
 
       <table role='presentation' style='width:100%;border-collapse:collapse;font-size:13px;margin-top:12px;'>
         <tr><td style='padding:5px 0;color:#6b7280;'>Subtotal</td><td style='padding:5px 0;text-align:right;font-weight:700;'>{F(summary.SubTotal)}</td></tr>
-        <tr><td style='padding:5px 0;color:#6b7280;'>Tax ({context.TaxPercent:0.##}%)</td><td style='padding:5px 0;text-align:right;font-weight:700;'>{F(summary.TaxAmount)}</td></tr>
+        {taxRows}
         <tr><td style='padding:5px 0;color:#6b7280;'>Total</td><td style='padding:5px 0;text-align:right;font-weight:700;'>{F(summary.TotalAmount)}</td></tr>
         <tr><td style='padding:5px 0;color:#6b7280;'>Advance utilized</td><td style='padding:5px 0;text-align:right;font-weight:700;'>{F(summary.AdvanceUsed)}</td></tr>
         <tr><td style='padding:5px 0;color:#6b7280;'>Paid now</td><td style='padding:5px 0;text-align:right;font-weight:700;'>{F(summary.PaidNow)}</td></tr>
@@ -6450,7 +7744,8 @@ namespace LMSWebUI.Controllers
             var dueDate = issueDate;
             var summary = ResolveOrderFinancialSummary(context.OrderAmount, context.SubTotal, context.TaxAmount, context.TotalAmount, context.AdvanceUsed, context.PaidNow, context.PendingAmount, context.NetPayable);
             var subTotal = summary.SubTotal;
-            var tax = summary.TaxAmount;
+            var taxLines = ResolveInvoiceTaxLines(context);
+            var tax = ResolveInvoiceTaxTotal(context, taxLines);
             var advanceUsed = summary.AdvanceUsed;
             var totalDue = summary.NetPayable;
 
@@ -6594,7 +7889,15 @@ namespace LMSWebUI.Controllers
                             }
 
                             sumRow("Subtotal", FormatAmount(subTotal, currencyCfg));
-                            sumRow($"Tax ({context.TaxPercent:0.##}%)", FormatAmount(tax, currencyCfg));
+                            if (taxLines.Count > 0)
+                            {
+                                foreach (var taxLine in taxLines)
+                                {
+                                    var label = string.IsNullOrWhiteSpace(taxLine.ComponentDisplayName) ? (taxLine.ComponentCode ?? "Tax") : taxLine.ComponentDisplayName;
+                                    sumRow(label, FormatAmount(taxLine.TaxAmount, currencyCfg));
+                                }
+                            }
+                            sumRow("Total Tax", FormatAmount(tax, currencyCfg));
                             sumRow("Total", FormatAmount(summary.TotalAmount, currencyCfg));
                             sumRow("Advance Utilized (-)", FormatAmount(advanceUsed, currencyCfg));
                             sumRow("Paid Now (-)", FormatAmount(summary.PaidNow, currencyCfg));
@@ -8950,6 +10253,83 @@ namespace LMSWebUI.Controllers
             {
                 return false;
             }
+        }
+
+        private static string SafeSerializeForLogging(object payload)
+        {
+            if (payload == null)
+            {
+                return "null";
+            }
+
+            try
+            {
+                return JsonConvert.SerializeObject(payload);
+            }
+            catch (Exception ex)
+            {
+                return $"<serialization-failed:{ex.GetType().Name}:{ex.Message}>";
+            }
+        }
+
+        private static (string StatusCode, string Message) TryExtractApiStatusAndMessage(string responseBody)
+        {
+            if (string.IsNullOrWhiteSpace(responseBody)
+                || !responseBody.TrimStart().StartsWith("{", StringComparison.Ordinal))
+            {
+                return (null, null);
+            }
+
+            try
+            {
+                var token = JToken.Parse(responseBody);
+                var statusCode = token["StatusCode"]?.ToString()
+                                 ?? token["statusCode"]?.ToString()
+                                 ?? token["ResultSet"]?["StatusCode"]?.ToString()
+                                 ?? token["resultSet"]?["statusCode"]?.ToString();
+
+                var message = token["Message"]?.ToString()
+                              ?? token["message"]?.ToString()
+                              ?? token["ResultSet"]?["Message"]?.ToString()
+                              ?? token["resultSet"]?["message"]?.ToString();
+
+                return (statusCode, message);
+            }
+            catch
+            {
+                return (null, null);
+            }
+        }
+
+        private static bool IsApiCallSuccessful(string statusCode, bool hasValidPayload)
+        {
+            if (!string.IsNullOrWhiteSpace(statusCode))
+            {
+                return IsSuccessfulApiStatusCode(statusCode);
+            }
+
+            return hasValidPayload;
+        }
+
+        private static bool IsSuccessfulApiStatusCode(string statusCode)
+        {
+            return string.Equals(statusCode, "200", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(statusCode, "201", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static SqlException TryGetSqlException(Exception ex)
+        {
+            if (ex == null)
+            {
+                return null;
+            }
+
+            if (ex is SqlException direct)
+            {
+                return direct;
+            }
+
+            return ex.InnerException as SqlException;
         }
     }
 }

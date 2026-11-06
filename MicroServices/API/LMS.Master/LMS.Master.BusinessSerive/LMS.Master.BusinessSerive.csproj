@@ -9,6 +9,18 @@
     <Compile Remove="Common\**" />
     <EmbeddedResource Remove="Common\**" />
     <None Remove="Common\**" />
+    <Build Remove="Data\Migrations\Scripts\PhaseC1TaxConfiguration_Recovery_db_acff11_lmsdb.sql" />
+    <Content Remove="Data\Migrations\Scripts\PhaseC1TaxConfiguration_Recovery_db_acff11_lmsdb.sql" />
+    <EmbeddedResource Remove="Data\Migrations\Scripts\PhaseC1TaxConfiguration_Recovery_db_acff11_lmsdb.sql" />
+    <AdditionalFiles Remove="Data\Migrations\Scripts\PhaseC1TaxConfiguration_Recovery_db_acff11_lmsdb.sql" />
+    <SqlCompile Remove="Data\Migrations\Scripts\PhaseC1TaxConfiguration_Recovery_db_acff11_lmsdb.sql" />
+    <PreDeploy Remove="Data\Migrations\Scripts\PhaseC1TaxConfiguration_Recovery_db_acff11_lmsdb.sql" />
+    <PostDeploy Remove="Data\Migrations\Scripts\PhaseC1TaxConfiguration_Recovery_db_acff11_lmsdb.sql" />
+    <None Update="Data\Migrations\Scripts\PhaseC1TaxConfiguration_Recovery_db_acff11_lmsdb.sql">
+      <CopyToOutputDirectory>Never</CopyToOutputDirectory>
+      <Pack>false</Pack>
+      <Visible>true</Visible>
+    </None>
   </ItemGroup>
 
   <ItemGroup>
