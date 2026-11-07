@@ -18,4 +18,4 @@ payment.captured
 payment.failed
 order.paid
 
-secret         :  ELS_Live_Webhook_Secret_YourRandomValue
+secret         :  ELS_Live_Webhook_Secret_Value

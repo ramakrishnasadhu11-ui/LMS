@@ -8348,6 +8348,23 @@ namespace LMSWebUI.Controllers
 
                 var orders = response?.Orders ?? new List<LaundryOrderDto>();
 
+                var normalizedSearchText = searchText?.Trim();
+                if (!string.IsNullOrWhiteSpace(normalizedSearchText) && orders.Count > 1)
+                {
+                    var exactMatches = orders
+                        .Where(x => x != null &&
+                            (
+                                string.Equals((x.OrderNo ?? string.Empty).Trim(), normalizedSearchText, StringComparison.OrdinalIgnoreCase)
+                                || string.Equals((x.InvoiceNo ?? string.Empty).Trim(), normalizedSearchText, StringComparison.OrdinalIgnoreCase)
+                            ))
+                        .ToList();
+
+                    if (exactMatches.Count > 0)
+                    {
+                        orders = exactMatches;
+                    }
+                }
+
                 foreach (var order in orders)
                 {
                     order.Status = NormalizeWorkflowStatus(order.Status);

@@ -430,6 +430,11 @@
     }
 
     function wfById(id) { return document.getElementById(id); }
+    function wfSetText(id, value) {
+        var element = wfById(id);
+        if (!element) return;
+        element.textContent = value ?? "";
+    }
     var wfFocusMode = "all";
     function wfEsc(v) {
         return String(v || "")
@@ -662,6 +667,14 @@
         }
     }
     function wfNum(v) { v = Number(v); return isNaN(v) ? 0 : v; }
+    function firstDefined() {
+        for (var i = 0; i < arguments.length; i++) {
+            if (arguments[i] !== null && arguments[i] !== undefined) {
+                return arguments[i];
+            }
+        }
+        return undefined;
+    }
     function wfPieces(o) {
         var p = parseInt(o.TotalPieces || o.totalPieces || 0, 10);
         if (!isNaN(p) && p > 0) return p;
@@ -843,6 +856,19 @@
                 wfSyncToolbarState();
                 wfLoad();
             };
+        }
+    }
+    function wfSyncToolbarState() {
+        var mode = ((wfFocusMode || "all") + "").toLowerCase();
+        var btns = document.querySelectorAll("#wfToolbar .wf-tool-btn[data-focus]");
+        for (var i = 0; i < btns.length; i++) {
+            var btn = btns[i];
+            var focus = ((btn.getAttribute("data-focus") || "") + "").toLowerCase();
+            if (focus === mode) {
+                btn.classList.add("active");
+            } else {
+                btn.classList.remove("active");
+            }
         }
     }
     function wfBindActions() {
@@ -1132,12 +1158,47 @@
         var statusFilter = wfById("wfStatusFilter");
         if (statusFilter) statusFilter.onchange = wfLoad;
         var searchInput = wfById("wfSearchText");
+
+        function readQueryParamSafe(name) {
+            var query = (window.location && window.location.search ? window.location.search : "") || "";
+            if (!query) {
+                return "";
+            }
+
+            var raw = query.charAt(0) === "?" ? query.substring(1) : query;
+            var parts = raw.split("&");
+
+            for (var i = 0; i < parts.length; i++) {
+                var pair = parts[i].split("=");
+                var key = pair.length > 0 ? (pair[0] || "") : "";
+
+                try {
+                    key = decodeURIComponent(key.replace(/\+/g, " "));
+                } catch (e) {
+                    key = key.replace(/\+/g, " ");
+                }
+
+                if (key !== name) {
+                    continue;
+                }
+
+                var value = pair.length > 1 ? pair.slice(1).join("=") : "";
+                try {
+                    return decodeURIComponent((value || "").replace(/\+/g, " ")).trim();
+                } catch (e) {
+                    return (value || "").replace(/\+/g, " ").trim();
+                }
+            }
+
+            return "";
+        }
+
         var initialQueryStatus = "";
         var initialQuerySearch = "";
 
         try {
-            initialQueryStatus = getQueryParam("status") || "";
-            initialQuerySearch = getQueryParam("searchText") || "";
+            initialQueryStatus = readQueryParamSafe("status") || "";
+            initialQuerySearch = readQueryParamSafe("searchText") || "";
         } catch (e) {
             initialQueryStatus = "";
             initialQuerySearch = "";

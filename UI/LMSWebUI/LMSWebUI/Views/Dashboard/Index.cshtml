@@ -2833,6 +2833,7 @@
         body.innerHTML = (orders || []).map(function (order) {
             var orderNo = (order.OrderNo || order.orderNo || "").toString();
             var invoiceNo = (order.InvoiceNo || order.invoiceNo || orderNo || "").toString();
+            var workflowSearchValue = (orderNo || invoiceNo || "").toString().trim();
             var createdDate = (order.CreatedDate || order.createdDate || "").toString().replace("T", " ").substring(0, 16);
             var status = (order.Status || order.status || "Received").toString();
             var itemsText = summarizeItemsForDashboard(order);
@@ -2842,8 +2843,17 @@
             var paidAmount = amounts.paidNow;
             var pendingAmount = amounts.pendingAmount;
 
+            var orderCellHtml = escapeHtml(orderNo || "-");
+            if (workflowSearchValue) {
+                orderCellHtml = "<a class='customer-order-link' href='@Url.Action("OrderWorkflow", "Customer")?searchText="
+                    + encodeURIComponent(workflowSearchValue)
+                    + "'>"
+                    + escapeHtml(orderNo || workflowSearchValue)
+                    + "</a>";
+            }
+
             return "<tr>"
-                + "<td><a class='customer-order-link' href='@Url.Action("OrderWorkflow", "Customer")?searchText=" + encodeURIComponent(orderNo) + "'>" + escapeHtml(orderNo) + "</a></td>"
+                + "<td>" + orderCellHtml + "</td>"
                 + "<td>" + escapeHtml(invoiceNo) + "</td>"
                 + "<td>" + escapeHtml(createdDate || "-") + "</td>"
                 + "<td>" + escapeHtml(status) + "</td>"
