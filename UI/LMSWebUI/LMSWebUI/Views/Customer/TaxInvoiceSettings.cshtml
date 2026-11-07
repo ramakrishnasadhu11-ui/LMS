@@ -14,6 +14,9 @@
     var hasBothIndiaGstComponents = activeCgstComponent != null && activeSgstComponent != null;
     var isIndiaGstSelection = string.Equals(Model.CountryCode, "IN", StringComparison.OrdinalIgnoreCase)
         && string.Equals(Model.TaxMode, "GST", StringComparison.OrdinalIgnoreCase);
+    var isVatSelection = string.Equals(Model.TaxMode, "VAT", StringComparison.OrdinalIgnoreCase);
+    var isSalesTaxSelection = string.Equals(Model.TaxMode, "SalesTax", StringComparison.OrdinalIgnoreCase);
+    var isNoTaxSelection = string.Equals(Model.TaxMode, "NoTax", StringComparison.OrdinalIgnoreCase);
     var initialTotalGstRate = isIndiaGstSelection && hasBothIndiaGstComponents
         ? activeCgstComponent.RatePercent + activeSgstComponent.RatePercent
         : Model.GstPercent;
@@ -23,6 +26,18 @@
     var initialCombinedGstRate = isIndiaGstSelection
         ? ((initialCgstRate ?? 0m) + (initialSgstRate ?? 0m))
         : activeGstSplitPercent;
+    var initialTaxRateLabel = isVatSelection
+        ? "VAT Rate (%)"
+        : isSalesTaxSelection
+            ? "Sales Tax Rate (%)"
+            : "Total Tax Rate (%)";
+    var initialTaxRateHelpText = isIndiaGstSelection
+        ? "For India GST, set and validate the total GST split below."
+        : isVatSelection
+            ? "Set the VAT percentage to apply on customer invoices."
+            : isSalesTaxSelection
+                ? "Set the Sales Tax percentage to apply on customer invoices."
+                : "Set the total tax percentage to apply on customer invoices.";
     var recommendedTaxMode = string.IsNullOrWhiteSpace(Model.ResolvedTaxMode) ? Model.TaxMode : Model.ResolvedTaxMode;
     var recommendedTaxModeLabel = recommendedTaxMode switch
     {
@@ -426,11 +441,11 @@
                                     </div>
                                 }
                             </div>
-                            <div class="tax-field">
-                                <label asp-for="GstPercent">Total Tax Rate (%)</label>
+                            <div class="tax-field" id="taxRateConfiguration" style="display:@(isNoTaxSelection ? "none" : "block")">
+                                <label asp-for="GstPercent" id="taxRateLabel">@initialTaxRateLabel</label>
                                 <input asp-for="GstPercent" value="@initialTotalGstRate.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture)" class="tax-input" id="gstPercent" type="number" step="0.01" min="0" max="100" />
-                                <small style="color:#64748b;" id="gstPercentHelpText">For India GST, set and validate the total GST split below.</small>
-                                <div id="gstSplitSummary" class="tax-inline-validation">
+                                <small style="color:#64748b;" id="gstPercentHelpText">@initialTaxRateHelpText</small>
+                                <div id="gstSplitSummary" class="tax-inline-validation" style="display:@(isIndiaGstSelection ? "block" : "none")">
                                     CGST + SGST Combined: @activeGstSplitPercent.ToString("0.##")%
                                 </div>
                                 <div id="gstSplitValidationMessage" class="tax-inline-validation error" style="display:none;">
@@ -589,6 +604,9 @@
             var sgstRatePercent = document.getElementById('sgstRatePercent');
             var combinedGstRatePercent = document.getElementById('combinedGstRatePercent');
             var gstRateConfiguration = document.getElementById('gstRateConfiguration');
+            var taxRateConfiguration = document.getElementById('taxRateConfiguration');
+            var taxRateLabel = document.getElementById('taxRateLabel');
+            var gstPercentHelpText = document.getElementById('gstPercentHelpText');
             var saveTaxConfigButton = document.getElementById('saveTaxConfigButton');
             var gstSplitSummary = document.getElementById('gstSplitSummary');
             var gstSplitValidationMessage = document.getElementById('gstSplitValidationMessage');
@@ -618,6 +636,53 @@
                 }
             ];
 
+            function getSelectedMode() {
+                return (taxMode && taxMode.value ? taxMode.value : '').toLowerCase();
+            }
+
+            function getSelectedCountryCode() {
+                return countryCodeInput && countryCodeInput.value ? countryCodeInput.value.toUpperCase() : '';
+            }
+
+            function refreshTaxRateConfigurationUi() {
+                var mode = getSelectedMode();
+                var country = getSelectedCountryCode();
+                var isIndiaGst = mode === 'gst' && country === 'IN';
+                var isVat = mode === 'vat';
+                var isSalesTax = mode === 'salestax';
+                var isNoTax = mode === 'notax';
+
+                if (taxRateConfiguration) {
+                    taxRateConfiguration.style.display = isNoTax ? 'none' : 'block';
+                }
+
+                if (taxRateLabel) {
+                    taxRateLabel.textContent = isVat
+                        ? 'VAT Rate (%)'
+                        : isSalesTax
+                            ? 'Sales Tax Rate (%)'
+                            : 'Total Tax Rate (%)';
+                }
+
+                if (gstPercentHelpText) {
+                    gstPercentHelpText.textContent = isIndiaGst
+                        ? 'For India GST, set and validate the total GST split below.'
+                        : isVat
+                            ? 'Set the VAT percentage to apply on customer invoices.'
+                            : isSalesTax
+                                ? 'Set the Sales Tax percentage to apply on customer invoices.'
+                                : 'Set the total tax percentage to apply on customer invoices.';
+                }
+
+                if (gstRateConfiguration) {
+                    gstRateConfiguration.style.display = isIndiaGst ? 'block' : 'none';
+                }
+
+                if (gstSplitSummary) {
+                    gstSplitSummary.style.display = isIndiaGst ? 'block' : 'none';
+                }
+            }
+
             function getCombinedGstSplitPercent() {
                 if (cgstRatePercent || sgstRatePercent) {
                     return toNumber(cgstRatePercent ? cgstRatePercent.value : '0') + toNumber(sgstRatePercent ? sgstRatePercent.value : '0');
@@ -637,12 +702,14 @@
             function validateGstSplit() {
                 var combined = getCombinedGstSplitPercent();
                 var totalRate = toNumber(gstPercent ? gstPercent.value : '0');
-                var mode = (taxMode && taxMode.value ? taxMode.value : '').toLowerCase();
-                var country = countryCodeInput && countryCodeInput.value ? countryCodeInput.value.toUpperCase() : '';
+                var mode = getSelectedMode();
+                var country = getSelectedCountryCode();
                 var isIndiaGst = mode === 'gst' && country === 'IN';
                 var shouldValidate = !!(enableTax && enableTax.checked) && isIndiaGst;
                 var isInvalid = false;
                 var message = '';
+
+                refreshTaxRateConfigurationUi();
 
                 if (shouldValidate) {
                     var cgst = toNumber(cgstRatePercent ? cgstRatePercent.value : '0');
@@ -660,29 +727,29 @@
                     }
                 }
 
-                if (gstSplitSummary) {
+                if (gstSplitSummary && isIndiaGst) {
                     gstSplitSummary.textContent = 'CGST + SGST Combined: ' + combined.toFixed(2) + '%';
                 }
 
-                if (combinedGstRatePercent) {
+                if (combinedGstRatePercent && isIndiaGst) {
                     combinedGstRatePercent.value = combined.toFixed(2);
                 }
 
-                if (gstRateConfiguration) {
-                    gstRateConfiguration.style.display = isIndiaGst ? 'block' : 'none';
-                }
-
                 if (gstSplitValidationMessage) {
-                    gstSplitValidationMessage.style.display = isInvalid ? 'block' : 'none';
-                    if (isInvalid) {
+                    gstSplitValidationMessage.style.display = isIndiaGst && isInvalid ? 'block' : 'none';
+                    if (isIndiaGst && isInvalid) {
                         gstSplitValidationMessage.textContent = message;
+                    } else {
+                        gstSplitValidationMessage.textContent = '';
                     }
                 }
 
                 if (formSubmitValidationMessage) {
-                    formSubmitValidationMessage.style.display = isInvalid ? 'block' : 'none';
-                    if (isInvalid) {
+                    formSubmitValidationMessage.style.display = isIndiaGst && isInvalid ? 'block' : 'none';
+                    if (isIndiaGst && isInvalid) {
                         formSubmitValidationMessage.textContent = message;
+                    } else {
+                        formSubmitValidationMessage.textContent = '';
                     }
                 }
 
@@ -755,7 +822,12 @@
                 return (a || '').toString().trim().toLowerCase() === (b || '').toString().trim().toLowerCase();
             }
 
-            if (taxMode) taxMode.addEventListener('change', renderPreview);
+            if (taxMode) {
+                taxMode.addEventListener('change', function () {
+                    renderPreview();
+                    validateGstSplit();
+                });
+            }
             if (enableTax) enableTax.addEventListener('change', renderPreview);
             if (gstPercent) {
                 gstPercent.addEventListener('input', function () {
@@ -800,6 +872,8 @@
             if (countryCodeInput) {
                 countryCodeInput.addEventListener('input', function () {
                     setHiddenFlag(countryChangeAcknowledgedInput, false);
+                    renderPreview();
+                    validateGstSplit();
                 });
             }
 

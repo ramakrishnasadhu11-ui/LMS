@@ -214,6 +214,35 @@
     gap: 10px;
     flex-wrap: wrap;
 }
+.show-removed-callout {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 10px 12px;
+    border: 1px solid #ffe39f;
+    border-radius: 10px;
+    background: #fff8e1;
+    color: #7a4b00;
+}
+.show-removed-checkbox {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0;
+    font-weight: 700;
+    color: #7a4b00;
+}
+.show-removed-checkbox input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    accent-color: #c28a00;
+}
+.show-removed-helper {
+    font-size: 12px;
+    color: #8a5a00;
+    font-weight: 600;
+    margin-top: 2px;
+}
 .master-import {
     border: 1px solid #d7e3f7;
     border-radius: 12px;
@@ -727,9 +756,14 @@
 
             <div class="master-toolbar">
                 <div class="master-toolbar-left">
-                    <label style="display:flex; align-items:center; gap:6px;">
-                        <input type="checkbox" id="showInactiveChk" /> Show Removed Records
-                    </label>
+                    <div class="show-removed-callout">
+                        <div>
+                            <label class="show-removed-checkbox">
+                                <input type="checkbox" id="showInactiveChk" /> Show Removed Records
+                            </label>
+                            <div class="show-removed-helper">Enable this option to view archived records and restore them.</div>
+                        </div>
+                    </div>
                     <span style="font-weight:500; color:#5f739c;">Use refresh to pull latest store master changes.</span>
                 </div>
                 <button type="button" class="master-btn secondary" id="refreshMastersBtn">Refresh</button>
@@ -859,7 +893,7 @@
 
         function getActiveCount(rows) {
             return (rows || []).filter(function (row) {
-                return !!prop(row, "IsActive", "isActive");
+                return resolveItemIsActive(row);
             }).length;
         }
 
@@ -867,22 +901,33 @@
             return (value || "").toString().trim().toLowerCase();
         }
 
-        function getUniqueActiveNameCount(rows) {
+        function summarizeUniqueMasterNames(rows) {
             var seen = {};
             (rows || []).forEach(function (row) {
-                if (!prop(row, "IsActive", "isActive")) {
-                    return;
-                }
-
                 var name = normalizeKeyPart(prop(row, "Name", "name"));
                 if (!name) {
                     return;
                 }
 
-                seen[name] = true;
+                if (!seen[name]) {
+                    seen[name] = { isActive: false };
+                }
+
+                if (resolveItemIsActive(row)) {
+                    seen[name].isActive = true;
+                }
             });
 
-            return Object.keys(seen).length;
+            var keys = Object.keys(seen);
+            var total = keys.length;
+            var active = 0;
+            keys.forEach(function (key) {
+                if (seen[key].isActive) {
+                    active++;
+                }
+            });
+
+            return { total: total, active: active };
         }
 
         function summarizeUniqueItems(rows) {
@@ -898,7 +943,7 @@
                 }
 
                 var key = serviceType + "|" + category + "|" + itemName;
-                var isActive = !!prop(row, "IsActive", "isActive");
+                var isActive = resolveItemIsActive(row);
                 if (!byKey[key]) {
                     byKey[key] = { isActive: isActive };
                 } else if (isActive) {
@@ -934,8 +979,8 @@
         }
 
         function updateSummaryCards() {
-            var serviceCount = getUniqueActiveNameCount(masterData.serviceTypes);
-            var categoryCount = getUniqueActiveNameCount(masterData.categories);
+            var serviceSummary = summarizeUniqueMasterNames(masterData.serviceTypes);
+            var categorySummary = summarizeUniqueMasterNames(masterData.categories);
             var itemSummary = summarizeUniqueItems(masterData.items);
             var itemCount = itemSummary.total;
             var activeItemsCount = itemSummary.active;
@@ -945,9 +990,9 @@
             var itemEl = document.getElementById("summaryItemsCount");
             var activeItemEl = document.getElementById("summaryActiveItemsCount");
 
-            if (serviceEl) { serviceEl.textContent = String(serviceCount); }
-            if (categoryEl) { categoryEl.textContent = String(categoryCount); }
-            if (itemEl) { itemEl.textContent = String(itemCount); }
+            if (serviceEl) { serviceEl.textContent = serviceSummary.active + " Active / " + serviceSummary.total + " Total"; }
+            if (categoryEl) { categoryEl.textContent = categorySummary.active + " Active / " + categorySummary.total + " Total"; }
+            if (itemEl) { itemEl.textContent = String(itemCount) + " Total"; }
             if (activeItemEl) { activeItemEl.textContent = String(activeItemsCount); }
         }
 
@@ -1012,7 +1057,7 @@
             var categorySeen = {};
 
             (masterData.items || []).forEach(function (item) {
-                var isActive = !!prop(item, "IsActive", "isActive");
+                var isActive = resolveItemIsActive(item);
                 if (!showInactive() && !isActive) {
                     return;
                 }
@@ -1285,7 +1330,7 @@
 
             var displayRows = showInactive()
                 ? (rows || [])
-                : (rows || []).filter(function (row) { return !!prop(row, "IsActive", "isActive"); });
+                : (rows || []).filter(function (row) { return resolveItemIsActive(row); });
 
             if (!displayRows.length) {
                 wrap.innerHTML = '<div class="master-empty">' + emptyText + '</div>';
@@ -1298,7 +1343,7 @@
 
             displayRows.forEach(function (row) {
                 var name = prop(row, "Name", "name");
-                var isActive = !!prop(row, "IsActive", "isActive");
+                var isActive = resolveItemIsActive(row);
                 html += '<tr>'
                     + '<td>' + escapeHtml(name) + '</td>'
                     + '<td>' + escapeHtml(prop(row, "Description", "description") || "-") + '</td>'
@@ -1511,7 +1556,7 @@
             var options = '<option value="">' + placeholder + '</option>';
 
             rows.filter(function (row) {
-                return !!prop(row, "IsActive", "isActive");
+                return resolveItemIsActive(row);
             }).forEach(function (row) {
                 var name = prop(row, "Name", "name");
                 options += '<option value="' + escapeHtml(name) + '">' + escapeHtml(name) + '</option>';
@@ -1538,8 +1583,9 @@
         }
 
         function loadMasters() {
+            var includeInactive = "true";
             var url = '@Url.Action("GetStoreMasters", "Customer")'
-                + '?includeInactive=true'
+                + '?includeInactive=' + includeInactive
                 + '&_ts=' + Date.now();
 
             return fetch(url, {

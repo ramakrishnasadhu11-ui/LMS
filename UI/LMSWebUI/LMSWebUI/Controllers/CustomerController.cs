@@ -9188,8 +9188,7 @@ namespace LMSWebUI.Controllers
                                ?? new List<StoreServiceMasterDto>();
                 if (!services.Any())
                 {
-                    var wrappedServices = await _clientApi.SendRequestAsync<JObject>("/GetStoreServiceMasters", query, Method.GET);
-                    services = ExtractStoreServiceMasters(wrappedServices);
+                    services = await TryGetWrappedStoreServiceMastersAsync(query);
                 }
 
                 var items = await GetScopedStoreItemMastersAsync(tenantName, storeCode, includeInactive);
@@ -9197,41 +9196,283 @@ namespace LMSWebUI.Controllers
                 var defaultPrices = await _clientApi.SendRequestAsync<List<LaundryItemPriceDto>>("/GetLaundryItemPrices", query, Method.GET)
                                    ?? new List<LaundryItemPriceDto>();
 
+                if (services.Any())
+                {
+                    static string NormalizeServiceMasterTypeAlias(string masterType)
+                    {
+                        if (string.IsNullOrWhiteSpace(masterType))
+                        {
+                            return masterType;
+                        }
+
+                        var trimmed = masterType.Trim();
+                        if (string.Equals(trimmed, "Service", StringComparison.OrdinalIgnoreCase)
+                            || string.Equals(trimmed, "ServiceType", StringComparison.OrdinalIgnoreCase))
+                        {
+                            return "Service";
+                        }
+
+                        if (string.Equals(trimmed, "Category", StringComparison.OrdinalIgnoreCase)
+                            || string.Equals(trimmed, "ServiceCategory", StringComparison.OrdinalIgnoreCase))
+                        {
+                            return "Category";
+                        }
+
+                        return trimmed;
+                    }
+
+                    var knownServiceNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                    var knownCategoryNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+                    foreach (var item in items)
+                    {
+                        var serviceName = item?.ServiceType?.Trim();
+                        if (!string.IsNullOrWhiteSpace(serviceName))
+                        {
+                            knownServiceNames.Add(serviceName);
+                        }
+
+                        var categoryName = item?.Category?.Trim();
+                        if (!string.IsNullOrWhiteSpace(categoryName))
+                        {
+                            knownCategoryNames.Add(categoryName);
+                        }
+                    }
+
+                    foreach (var price in defaultPrices)
+                    {
+                        var serviceName = price?.ServiceType?.Trim();
+                        if (!string.IsNullOrWhiteSpace(serviceName))
+                        {
+                            knownServiceNames.Add(serviceName);
+                        }
+
+                        var categoryName = price?.Category?.Trim();
+                        if (!string.IsNullOrWhiteSpace(categoryName))
+                        {
+                            knownCategoryNames.Add(categoryName);
+                        }
+                    }
+
+                    foreach (var service in services)
+                    {
+                        if (service == null || !string.IsNullOrWhiteSpace(service.MasterType))
+                        {
+                            continue;
+                        }
+
+                        var name = service.Name?.Trim();
+                        if (string.IsNullOrWhiteSpace(name))
+                        {
+                            continue;
+                        }
+
+                        var isKnownService = knownServiceNames.Contains(name);
+                        var isKnownCategory = knownCategoryNames.Contains(name);
+
+                        if (isKnownService && !isKnownCategory)
+                        {
+                            service.MasterType = "Service";
+                        }
+                        else if (isKnownCategory && !isKnownService)
+                        {
+                            service.MasterType = "Category";
+                        }
+                    }
+
+                    if (services.Any(x => x != null && string.IsNullOrWhiteSpace(x.MasterType)))
+                    {
+                        var supplementalServices = await TryGetWrappedStoreServiceMastersAsync(query);
+                        if (supplementalServices.Any())
+                        {
+                            static string NormalizeNameKey(string value)
+                            {
+                                return string.IsNullOrWhiteSpace(value)
+                                    ? null
+                                    : value.Trim().ToLowerInvariant();
+                            }
+
+                            static string BuildTypedIdentity(StoreServiceMasterDto row)
+                            {
+                                if (row == null
+                                    || string.IsNullOrWhiteSpace(row.MasterType)
+                                    || string.IsNullOrWhiteSpace(row.Name))
+                                {
+                                    return null;
+                                }
+
+                                return BuildStoreMasterKey(row.MasterType, row.Name);
+                            }
+
+                            static void MergeService(StoreServiceMasterDto target, StoreServiceMasterDto source)
+                            {
+                                if (target == null || source == null)
+                                {
+                                    return;
+                                }
+
+                                if (target.Id <= 0 && source.Id > 0)
+                                {
+                                    target.Id = source.Id;
+                                }
+
+                                target.TenantName ??= source.TenantName;
+                                target.StoreCode ??= source.StoreCode;
+                                target.Name ??= source.Name;
+
+                                if (string.IsNullOrWhiteSpace(target.MasterType) && !string.IsNullOrWhiteSpace(source.MasterType))
+                                {
+                                    target.MasterType = source.MasterType;
+                                }
+
+                                if (string.IsNullOrWhiteSpace(target.Description) && !string.IsNullOrWhiteSpace(source.Description))
+                                {
+                                    target.Description = source.Description;
+                                }
+
+                                if (target.IsActive != source.IsActive)
+                                {
+                                    target.IsActive = false;
+                                }
+                            }
+
+                            var mergedServices = new List<StoreServiceMasterDto>();
+                            var byId = new Dictionary<int, StoreServiceMasterDto>();
+                            var byTypedIdentity = new Dictionary<string, StoreServiceMasterDto>(StringComparer.OrdinalIgnoreCase);
+                            var byName = new Dictionary<string, List<StoreServiceMasterDto>>(StringComparer.OrdinalIgnoreCase);
+
+                            StoreServiceMasterDto FindMatch(StoreServiceMasterDto row)
+                            {
+                                if (row == null)
+                                {
+                                    return null;
+                                }
+
+                                if (row.Id > 0 && byId.TryGetValue(row.Id, out var byIdMatch))
+                                {
+                                    return byIdMatch;
+                                }
+
+                                var typedIdentity = BuildTypedIdentity(row);
+                                if (!string.IsNullOrWhiteSpace(typedIdentity)
+                                    && byTypedIdentity.TryGetValue(typedIdentity, out var byTypedMatch))
+                                {
+                                    return byTypedMatch;
+                                }
+
+                                if (string.IsNullOrWhiteSpace(row.MasterType))
+                                {
+                                    var nameKey = NormalizeNameKey(row.Name);
+                                    if (!string.IsNullOrWhiteSpace(nameKey)
+                                        && byName.TryGetValue(nameKey, out var candidates)
+                                        && candidates.Count == 1)
+                                    {
+                                        return candidates[0];
+                                    }
+                                }
+
+                                return null;
+                            }
+
+                            void Register(StoreServiceMasterDto row)
+                            {
+                                if (row == null)
+                                {
+                                    return;
+                                }
+
+                                if (row.Id > 0)
+                                {
+                                    byId[row.Id] = row;
+                                }
+
+                                var typedIdentity = BuildTypedIdentity(row);
+                                if (!string.IsNullOrWhiteSpace(typedIdentity))
+                                {
+                                    byTypedIdentity[typedIdentity] = row;
+                                }
+
+                                var nameKey = NormalizeNameKey(row.Name);
+                                if (!string.IsNullOrWhiteSpace(nameKey))
+                                {
+                                    if (!byName.TryGetValue(nameKey, out var list))
+                                    {
+                                        list = new List<StoreServiceMasterDto>();
+                                        byName[nameKey] = list;
+                                    }
+
+                                    if (!list.Contains(row))
+                                    {
+                                        list.Add(row);
+                                    }
+                                }
+                            }
+
+                            void AddOrMerge(StoreServiceMasterDto row)
+                            {
+                                if (row == null || string.IsNullOrWhiteSpace(row.Name))
+                                {
+                                    return;
+                                }
+
+                                var existing = FindMatch(row);
+                                if (existing == null)
+                                {
+                                    mergedServices.Add(row);
+                                    Register(row);
+                                    return;
+                                }
+
+                                MergeService(existing, row);
+                                Register(existing);
+                            }
+
+                            foreach (var row in services)
+                            {
+                                AddOrMerge(row);
+                            }
+
+                            foreach (var row in supplementalServices)
+                            {
+                                AddOrMerge(row);
+                            }
+
+                            services = mergedServices;
+                        }
+                    }
+
+                    foreach (var service in services)
+                    {
+                        if (service == null || string.IsNullOrWhiteSpace(service.MasterType))
+                        {
+                            continue;
+                        }
+
+                        service.MasterType = NormalizeServiceMasterTypeAlias(service.MasterType);
+                    }
+                }
+
                 if (defaultPrices.Any())
                 {
                     var now = DateTime.UtcNow;
 
-                    var defaultServiceMasters = defaultPrices
-                        .Select(x => (x.ServiceType ?? string.Empty).Trim())
-                        .Where(x => !string.IsNullOrWhiteSpace(x))
-                        .Distinct(StringComparer.OrdinalIgnoreCase)
-                        .Select(x => new StoreServiceMasterDto
-                        {
-                            TenantName = tenantName,
-                            StoreCode = storeCode,
-                            MasterType = "Service",
-                            Name = x,
-                            IsActive = true,
-                            CreatedDate = now,
-                            ModifiedDate = now
-                        })
-                        .ToList();
+                    var allowedServiceNames = new HashSet<string>(
+                        services
+                            .Where(x => x != null
+                                && (includeInactive || x.IsActive)
+                                && string.Equals(x.MasterType, "Service", StringComparison.OrdinalIgnoreCase)
+                                && !string.IsNullOrWhiteSpace(x.Name))
+                            .Select(x => x.Name.Trim()),
+                        StringComparer.OrdinalIgnoreCase);
 
-                    var defaultCategoryMasters = defaultPrices
-                        .Select(x => (x.Category ?? string.Empty).Trim())
-                        .Where(x => !string.IsNullOrWhiteSpace(x))
-                        .Distinct(StringComparer.OrdinalIgnoreCase)
-                        .Select(x => new StoreServiceMasterDto
-                        {
-                            TenantName = tenantName,
-                            StoreCode = storeCode,
-                            MasterType = "Category",
-                            Name = x,
-                            IsActive = true,
-                            CreatedDate = now,
-                            ModifiedDate = now
-                        })
-                        .ToList();
+                    var allowedCategoryNames = new HashSet<string>(
+                        services
+                            .Where(x => x != null
+                                && (includeInactive || x.IsActive)
+                                && string.Equals(x.MasterType, "Category", StringComparison.OrdinalIgnoreCase)
+                                && !string.IsNullOrWhiteSpace(x.Name))
+                            .Select(x => x.Name.Trim()),
+                        StringComparer.OrdinalIgnoreCase);
 
                     var defaultItems = defaultPrices
                         .Where(x => !string.IsNullOrWhiteSpace(x.ServiceType)
@@ -9260,21 +9501,13 @@ namespace LMSWebUI.Controllers
                         })
                         .ToList();
 
-                    var existingServiceKeys = new HashSet<string>(
-                        services
-                            .Where(x => string.Equals(x.MasterType, "Service", StringComparison.OrdinalIgnoreCase))
-                            .Select(x => x.Name ?? string.Empty),
-                        StringComparer.OrdinalIgnoreCase);
-
-                    var existingCategoryKeys = new HashSet<string>(
-                        services
-                            .Where(x => string.Equals(x.MasterType, "Category", StringComparison.OrdinalIgnoreCase))
-                            .Select(x => x.Name ?? string.Empty),
-                        StringComparer.OrdinalIgnoreCase);
-
-                    var mergedServices = services.ToList();
-                    mergedServices.AddRange(defaultServiceMasters.Where(x => !existingServiceKeys.Contains(x.Name ?? string.Empty)));
-                    mergedServices.AddRange(defaultCategoryMasters.Where(x => !existingCategoryKeys.Contains(x.Name ?? string.Empty)));
+                    var mergedServices = services
+                        .Where(x => x != null
+                            && (includeInactive || x.IsActive)
+                            && !string.IsNullOrWhiteSpace(x.Name)
+                            && (string.Equals(x.MasterType, "Service", StringComparison.OrdinalIgnoreCase)
+                                || string.Equals(x.MasterType, "Category", StringComparison.OrdinalIgnoreCase)))
+                        .ToList();
 
                     var mergedItemsByKey = new Dictionary<string, StoreItemMasterDto>(StringComparer.OrdinalIgnoreCase);
 
@@ -9285,11 +9518,29 @@ namespace LMSWebUI.Controllers
                             return;
                         }
 
-                        var key = BuildLaundryItemKey(source.ServiceType, source.Category, source.ItemName);
+                        var normalizedService = source.ServiceType?.Trim();
+                        var normalizedCategory = source.Category?.Trim();
+                        var normalizedItemName = source.ItemName?.Trim();
+
+                        if (string.IsNullOrWhiteSpace(normalizedService)
+                            || !allowedServiceNames.Contains(normalizedService)
+                            || string.IsNullOrWhiteSpace(normalizedCategory)
+                            || !allowedCategoryNames.Contains(normalizedCategory)
+                            || string.IsNullOrWhiteSpace(normalizedItemName)
+                            || (!includeInactive && !source.IsActive))
+                        {
+                            return;
+                        }
+
+                        var key = BuildLaundryItemKey(normalizedService, normalizedCategory, normalizedItemName);
                         if (string.IsNullOrWhiteSpace(key) || key == "||")
                         {
                             return;
                         }
+
+                        source.ServiceType = normalizedService;
+                        source.Category = normalizedCategory;
+                        source.ItemName = normalizedItemName;
 
                         if (!mergedItemsByKey.TryGetValue(key, out var existing))
                         {
@@ -9896,59 +10147,122 @@ namespace LMSWebUI.Controllers
 
             var directItems = await _clientApi.SendRequestAsync<List<StoreItemMasterDto>>("/GetStoreItemMasters", query, Method.GET)
                 ?? new List<StoreItemMasterDto>();
+            var wrappedItems = await TryGetWrappedStoreItemMastersAsync(query);
 
-            var wrappedItemsResponse = await _clientApi.SendRequestAsync<JObject>("/GetStoreItemMasters", query, Method.GET);
-            var wrappedItems = ExtractStoreItemMasters(wrappedItemsResponse);
-
-            if (!wrappedItems.Any())
+            static string BuildCompositeKey(StoreItemMasterDto item)
             {
-                return directItems;
-            }
-
-            if (!directItems.Any())
-            {
-                return wrappedItems;
-            }
-
-            var mergedByKey = new Dictionary<string, StoreItemMasterDto>(StringComparer.OrdinalIgnoreCase);
-
-            void AddOrMerge(IEnumerable<StoreItemMasterDto> source)
-            {
-                foreach (var item in source ?? Enumerable.Empty<StoreItemMasterDto>())
+                if (item == null)
                 {
-                    var key = BuildLaundryItemKey(item?.ServiceType, item?.Category, item?.ItemName);
-                    if (string.IsNullOrWhiteSpace(key) || key == "||")
-                    {
-                        continue;
-                    }
+                    return null;
+                }
 
-                    if (!mergedByKey.TryGetValue(key, out var existing))
-                    {
-                        mergedByKey[key] = item;
-                        continue;
-                    }
+                var key = BuildLaundryItemKey(item.ServiceType, item.Category, item.ItemName);
+                return string.IsNullOrWhiteSpace(key) || key == "||"
+                    ? null
+                    : key;
+            }
 
-                    if (existing.Id <= 0 && item.Id > 0)
-                    {
-                        existing.Id = item.Id;
-                    }
+            static void MergeInto(StoreItemMasterDto target, StoreItemMasterDto source)
+            {
+                if (target == null || source == null)
+                {
+                    return;
+                }
 
-                    if (string.IsNullOrWhiteSpace(existing.Description) && !string.IsNullOrWhiteSpace(item.Description))
-                    {
-                        existing.Description = item.Description;
-                    }
+                if (target.Id <= 0 && source.Id > 0)
+                {
+                    target.Id = source.Id;
+                }
 
-                    if (!existing.IsActive && item.IsActive)
-                    {
-                        existing.IsActive = true;
-                    }
+                target.TenantName ??= source.TenantName;
+                target.StoreCode ??= source.StoreCode;
+                target.ServiceType ??= source.ServiceType;
+                target.Category ??= source.Category;
+                target.ItemName ??= source.ItemName;
+
+                if (string.IsNullOrWhiteSpace(target.Description) && !string.IsNullOrWhiteSpace(source.Description))
+                {
+                    target.Description = source.Description;
+                }
+
+                if (target.IsActive != source.IsActive)
+                {
+                    target.IsActive = false;
                 }
             }
 
-            AddOrMerge(directItems);
-            AddOrMerge(wrappedItems);
+            var byId = new Dictionary<int, StoreItemMasterDto>();
+            var byComposite = new Dictionary<string, StoreItemMasterDto>(StringComparer.OrdinalIgnoreCase);
 
-            return mergedByKey.Values.ToList();
+            void AddOrMerge(StoreItemMasterDto item)
+            {
+                if (item == null)
+                {
+                    return;
+                }
+
+                var compositeKey = BuildCompositeKey(item);
+                var hasId = item.Id > 0;
+
+                if (hasId)
+                {
+                    if (byId.TryGetValue(item.Id, out var existingById))
+                    {
+                        MergeInto(existingById, item);
+                        return;
+                    }
+
+                    if (!string.IsNullOrWhiteSpace(compositeKey)
+                        && byComposite.TryGetValue(compositeKey, out var existingByComposite))
+                    {
+                        MergeInto(existingByComposite, item);
+                        byId[item.Id] = existingByComposite;
+                        return;
+                    }
+
+                    byId[item.Id] = item;
+                    if (!string.IsNullOrWhiteSpace(compositeKey))
+                    {
+                        byComposite[compositeKey] = item;
+                    }
+
+                    return;
+                }
+
+                if (string.IsNullOrWhiteSpace(compositeKey))
+                {
+                    return;
+                }
+
+                if (byComposite.TryGetValue(compositeKey, out var existingWithoutId))
+                {
+                    MergeInto(existingWithoutId, item);
+                    return;
+                }
+
+                byComposite[compositeKey] = item;
+            }
+
+            foreach (var item in directItems)
+            {
+                AddOrMerge(item);
+            }
+
+            foreach (var item in wrappedItems)
+            {
+                AddOrMerge(item);
+            }
+
+            var merged = byId.Values.ToList();
+            foreach (var item in byComposite.Values)
+            {
+                if (item.Id <= 0 || !byId.ContainsKey(item.Id))
+                {
+                    merged.Add(item);
+                }
+            }
+
+            return merged;
         }
 
         private static List<StoreServiceMasterDto> ExtractStoreServiceMasters(JObject response)
@@ -9958,37 +10272,145 @@ namespace LMSWebUI.Controllers
                 return new List<StoreServiceMasterDto>();
             }
 
-            JToken token = response["serviceTypes"]
-                ?? response["ServiceTypes"]
-                ?? response["categories"]
-                ?? response["Categories"]
-                ?? response["items"]
-                ?? response["Items"]
-                ?? response["result"]
-                ?? response["Result"]
-                ?? response["data"]
-                ?? response["Data"];
-
-            if (token is JObject obj)
+            static IEnumerable<JObject> EnumerateContainers(JObject root)
             {
-                token = obj["serviceTypes"]
-                    ?? obj["ServiceTypes"]
-                    ?? obj["categories"]
-                    ?? obj["Categories"]
-                    ?? obj["items"]
-                    ?? obj["Items"]
-                    ?? obj["result"]
-                    ?? obj["Result"]
-                    ?? obj["data"]
-                    ?? obj["Data"]
-                    ?? obj["$values"];
+                if (root == null)
+                {
+                    yield break;
+                }
+
+                yield return root;
+
+                var firstLevel = new[] { "result", "Result", "data", "Data", "resultSet", "ResultSet" }
+                    .Select(name => root[name])
+                    .OfType<JObject>();
+
+                foreach (var container in firstLevel)
+                {
+                    yield return container;
+
+                    var secondLevel = new[] { "result", "Result", "data", "Data", "resultSet", "ResultSet" }
+                        .Select(name => container[name])
+                        .OfType<JObject>();
+
+                    foreach (var nested in secondLevel)
+                    {
+                        yield return nested;
+                    }
+                }
             }
 
-            var array = token as JArray
-                ?? token?["$values"] as JArray
-                ?? (token != null && token.Type != JTokenType.Null && token.Type != JTokenType.Undefined ? JArray.FromObject(token) : null);
+            static JArray GetArrayFromContainer(JObject container, string camelName, string pascalName)
+            {
+                if (container == null)
+                {
+                    return null;
+                }
 
-            return array?.ToObject<List<StoreServiceMasterDto>>() ?? new List<StoreServiceMasterDto>();
+                var token = container[camelName] ?? container[pascalName];
+                return token as JArray ?? token?["$values"] as JArray;
+            }
+
+            static List<StoreServiceMasterDto> ParseArray(JArray source, string fallbackMasterType)
+            {
+                var parsed = source?.ToObject<List<StoreServiceMasterDto>>() ?? new List<StoreServiceMasterDto>();
+                foreach (var row in parsed)
+                {
+                    if (row != null && string.IsNullOrWhiteSpace(row.MasterType))
+                    {
+                        row.MasterType = fallbackMasterType;
+                    }
+                }
+
+                return parsed;
+            }
+
+            var combined = new List<StoreServiceMasterDto>();
+
+            foreach (var container in EnumerateContainers(response))
+            {
+                combined.AddRange(ParseArray(GetArrayFromContainer(container, "serviceTypes", "ServiceTypes"), "Service"));
+                combined.AddRange(ParseArray(GetArrayFromContainer(container, "categories", "Categories"), "Category"));
+            }
+
+            if (!combined.Any())
+            {
+                var fallbackArray = response["$values"] as JArray;
+                combined = ParseArray(fallbackArray, fallbackMasterType: null);
+            }
+
+            var byId = new Dictionary<int, StoreServiceMasterDto>();
+            var byKey = new Dictionary<string, StoreServiceMasterDto>(StringComparer.OrdinalIgnoreCase);
+
+            foreach (var row in combined)
+            {
+                if (row == null || string.IsNullOrWhiteSpace(row.Name))
+                {
+                    continue;
+                }
+
+                if (row.Id > 0)
+                {
+                    if (!byId.TryGetValue(row.Id, out var existingById))
+                    {
+                        byId[row.Id] = row;
+                    }
+                    else
+                    {
+                        if (string.IsNullOrWhiteSpace(existingById.MasterType) && !string.IsNullOrWhiteSpace(row.MasterType))
+                        {
+                            existingById.MasterType = row.MasterType;
+                        }
+
+                        if (existingById.IsActive != row.IsActive)
+                        {
+                            existingById.IsActive = false;
+                        }
+                    }
+
+                    var idKey = BuildStoreMasterKey(row.MasterType, row.Name);
+                    if (!string.IsNullOrWhiteSpace(idKey))
+                    {
+                        byKey[idKey] = byId[row.Id];
+                    }
+
+                    continue;
+                }
+
+                var key = BuildStoreMasterKey(row.MasterType, row.Name);
+                if (string.IsNullOrWhiteSpace(key))
+                {
+                    continue;
+                }
+
+                if (!byKey.TryGetValue(key, out var existingByKey))
+                {
+                    byKey[key] = row;
+                }
+                else
+                {
+                    if (string.IsNullOrWhiteSpace(existingByKey.MasterType) && !string.IsNullOrWhiteSpace(row.MasterType))
+                    {
+                        existingByKey.MasterType = row.MasterType;
+                    }
+
+                    if (existingByKey.IsActive != row.IsActive)
+                    {
+                        existingByKey.IsActive = false;
+                    }
+                }
+            }
+
+            var merged = byId.Values.ToList();
+            foreach (var row in byKey.Values)
+            {
+                if (row.Id <= 0 || !byId.ContainsKey(row.Id))
+                {
+                    merged.Add(row);
+                }
+            }
+
+            return merged;
         }
 
         private static List<StoreItemMasterDto> ExtractStoreItemMasters(JObject response)
@@ -10088,6 +10510,38 @@ namespace LMSWebUI.Controllers
             return items.Where(x => !string.IsNullOrWhiteSpace(x.ServiceType)
                 && !string.IsNullOrWhiteSpace(x.Category)
                 && !string.IsNullOrWhiteSpace(x.ItemName)).ToList();
+        }
+
+        private async Task<List<StoreServiceMasterDto>> TryGetWrappedStoreServiceMastersAsync(Dictionary<string, string> query)
+        {
+            try
+            {
+                var wrappedServices = await _clientApi.SendRequestAsync<JObject>("/GetStoreServiceMasters", query, Method.GET);
+                return ExtractStoreServiceMasters(wrappedServices);
+            }
+            catch (ApiUnavailableException ex) when (IsInvalidJsonObjectDiagnostic(ex))
+            {
+                return new List<StoreServiceMasterDto>();
+            }
+        }
+
+        private async Task<List<StoreItemMasterDto>> TryGetWrappedStoreItemMastersAsync(Dictionary<string, string> query)
+        {
+            try
+            {
+                var wrappedItemsResponse = await _clientApi.SendRequestAsync<JObject>("/GetStoreItemMasters", query, Method.GET);
+                return ExtractStoreItemMasters(wrappedItemsResponse);
+            }
+            catch (ApiUnavailableException ex) when (IsInvalidJsonObjectDiagnostic(ex))
+            {
+                return new List<StoreItemMasterDto>();
+            }
+        }
+
+        private static bool IsInvalidJsonObjectDiagnostic(ApiUnavailableException ex)
+        {
+            return !string.IsNullOrWhiteSpace(ex?.Message)
+                && ex.Message.Contains("BodyState=InvalidJsonObject", StringComparison.OrdinalIgnoreCase);
         }
 
         private static int ResolveStoreItemMasterId(JObject itemObject)

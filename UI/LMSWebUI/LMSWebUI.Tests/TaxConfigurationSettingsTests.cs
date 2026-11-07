@@ -11,6 +11,7 @@ using LMSWebUI.Controllers;
 using LMSWebUI.Data;
 using LMSWebUI.Models;
 using LMSWebUI.Models.Admin;
+using LMSWebUI.Models.Customer;
 using LMSWebUI.Services;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Features;
@@ -21,7 +22,9 @@ using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging.Abstractions;
 using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 using RestSharp;
+using Jint;
 using Xunit;
 
 namespace LMSWebUI.Tests
@@ -338,6 +341,85 @@ namespace LMSWebUI.Tests
             Assert.Contains("var initialTotalGstRate = isIndiaGstSelection && hasBothIndiaGstComponents", viewContent);
             Assert.Contains("var isIndiaGst = mode === 'gst' && country === 'IN';", viewContent);
             Assert.Contains("gstRateConfiguration.style.display = isIndiaGst ? 'block' : 'none';", viewContent);
+            Assert.Contains("gstSplitSummary.style.display = isIndiaGst ? 'block' : 'none';", viewContent);
+            Assert.Contains("if (gstSplitSummary && isIndiaGst)", viewContent);
+        }
+
+        [Fact]
+        public void TaxInvoiceSettings_View_UkVat_DoesNotRenderIndiaGstAsDefault()
+        {
+            var viewPath = Path.GetFullPath(Path.Combine(
+                AppContext.BaseDirectory,
+                "..", "..", "..", "..",
+                "LMSWebUI",
+                "Views",
+                "Customer",
+                "TaxInvoiceSettings.cshtml"));
+
+            var viewContent = File.ReadAllText(viewPath);
+
+            Assert.Contains("var isVatSelection = string.Equals(Model.TaxMode, \"VAT\", StringComparison.OrdinalIgnoreCase);", viewContent);
+            Assert.Contains("var initialTaxRateLabel = isVatSelection", viewContent);
+            Assert.Contains("? \"VAT Rate (%)\"", viewContent);
+            Assert.Contains("id=\"gstSplitSummary\" class=\"tax-inline-validation\" style=\"display:@(isIndiaGstSelection ? \"block\" : \"none\")\"", viewContent);
+            Assert.Contains("if (gstSplitSummary && isIndiaGst)", viewContent);
+        }
+
+        [Fact]
+        public void TaxInvoiceSettings_View_UsSalesTax_UsesSalesTaxLabeling()
+        {
+            var viewPath = Path.GetFullPath(Path.Combine(
+                AppContext.BaseDirectory,
+                "..", "..", "..", "..",
+                "LMSWebUI",
+                "Views",
+                "Customer",
+                "TaxInvoiceSettings.cshtml"));
+
+            var viewContent = File.ReadAllText(viewPath);
+
+            Assert.Contains("var isSalesTaxSelection = string.Equals(Model.TaxMode, \"SalesTax\", StringComparison.OrdinalIgnoreCase);", viewContent);
+            Assert.Contains("? \"Sales Tax Rate (%)\"", viewContent);
+            Assert.Contains("? 'Sales Tax Rate (%)'", viewContent);
+            Assert.Contains("Set the Sales Tax percentage to apply on customer invoices.", viewContent);
+        }
+
+        [Fact]
+        public void TaxInvoiceSettings_View_NoTax_HidesRateConfiguration()
+        {
+            var viewPath = Path.GetFullPath(Path.Combine(
+                AppContext.BaseDirectory,
+                "..", "..", "..", "..",
+                "LMSWebUI",
+                "Views",
+                "Customer",
+                "TaxInvoiceSettings.cshtml"));
+
+            var viewContent = File.ReadAllText(viewPath);
+
+            Assert.Contains("var isNoTaxSelection = string.Equals(Model.TaxMode, \"NoTax\", StringComparison.OrdinalIgnoreCase);", viewContent);
+            Assert.Contains("id=\"taxRateConfiguration\" style=\"display:@(isNoTaxSelection ? \"none\" : \"block\")\"", viewContent);
+            Assert.Contains("taxRateConfiguration.style.display = isNoTax ? 'none' : 'block';", viewContent);
+        }
+
+        [Fact]
+        public void TaxInvoiceSettings_View_ModeSwitch_RefreshesTaxRateUi()
+        {
+            var viewPath = Path.GetFullPath(Path.Combine(
+                AppContext.BaseDirectory,
+                "..", "..", "..", "..",
+                "LMSWebUI",
+                "Views",
+                "Customer",
+                "TaxInvoiceSettings.cshtml"));
+
+            var viewContent = File.ReadAllText(viewPath);
+
+            Assert.Contains("function refreshTaxRateConfigurationUi()", viewContent);
+            Assert.Contains("taxMode.addEventListener('change', function ()", viewContent);
+            Assert.Contains("validateGstSplit();", viewContent);
+            Assert.Contains("countryCodeInput.addEventListener('input', function ()", viewContent);
+            Assert.Contains("refreshTaxRateConfigurationUi();", viewContent);
         }
 
         [Fact]
@@ -1090,6 +1172,219 @@ namespace LMSWebUI.Tests
         }
 
         [Fact]
+        public void SetupCreateOrder_View_NewOrderDefaultsPaidNowToZero()
+        {
+            var viewPath = Path.GetFullPath(Path.Combine(
+                AppContext.BaseDirectory,
+                "..", "..", "..", "..",
+                "LMSWebUI",
+                "Views",
+                "Customer",
+                "SetupCreateOrder.cshtml"));
+
+            var content = File.ReadAllText(viewPath);
+
+            Assert.Contains("if (paidNowInput && !((paidNowInput.value || \"\").trim()))", content, StringComparison.Ordinal);
+            Assert.Contains("paidNowInput.value = \"0.00\";", content, StringComparison.Ordinal);
+        }
+
+        [Fact]
+        public void SetupCreateOrder_View_FullAndPartialManualPayment_ArePreservedAndClamped()
+        {
+            var viewPath = Path.GetFullPath(Path.Combine(
+                AppContext.BaseDirectory,
+                "..", "..", "..", "..",
+                "LMSWebUI",
+                "Views",
+                "Customer",
+                "SetupCreateOrder.cshtml"));
+
+            var content = File.ReadAllText(viewPath);
+
+            Assert.Contains("if (paidNow > netBeforePayment)", content, StringComparison.Ordinal);
+            Assert.Contains("paidNowInput.value = netBeforePayment.toFixed(2);", content, StringComparison.Ordinal);
+            Assert.Contains("var pendingAmount = netBeforePayment - paidNow;", content, StringComparison.Ordinal);
+            Assert.Contains("if (paidNow < 0)", content, StringComparison.Ordinal);
+            Assert.Contains("paidNowInput.value = \"0.00\";", content, StringComparison.Ordinal);
+        }
+
+        [Fact]
+        public void SetupCreateOrder_View_AdvanceUsedWithZeroPayment_ComputesPendingFromNetBeforePayment()
+        {
+            var viewPath = Path.GetFullPath(Path.Combine(
+                AppContext.BaseDirectory,
+                "..", "..", "..", "..",
+                "LMSWebUI",
+                "Views",
+                "Customer",
+                "SetupCreateOrder.cshtml"));
+
+            var content = File.ReadAllText(viewPath);
+
+            Assert.Contains("var netBeforePayment = breakup.total - advanceUsed;", content, StringComparison.Ordinal);
+            Assert.Contains("if (netBeforePayment < 0) netBeforePayment = 0;", content, StringComparison.Ordinal);
+            Assert.Contains("var pendingAmount = netBeforePayment - paidNow;", content, StringComparison.Ordinal);
+        }
+
+        [Fact]
+        public void SetupCreateOrder_View_TaxOrOrderAmountChanges_RecalculatePendingAfterManualPayment()
+        {
+            var viewPath = Path.GetFullPath(Path.Combine(
+                AppContext.BaseDirectory,
+                "..", "..", "..", "..",
+                "LMSWebUI",
+                "Views",
+                "Customer",
+                "SetupCreateOrder.cshtml"));
+
+            var content = File.ReadAllText(viewPath);
+
+            Assert.Contains("function syncTotals()", content, StringComparison.Ordinal);
+            Assert.Contains("document.getElementById(\"advanceUsed\").addEventListener(\"input\", syncTotals);", content, StringComparison.Ordinal);
+            Assert.Contains("document.getElementById(\"paidNow\").addEventListener(\"input\", syncTotals);", content, StringComparison.Ordinal);
+            Assert.Contains("document.getElementById(\"weightInKg\").addEventListener(\"input\", syncTotals);", content, StringComparison.Ordinal);
+            Assert.Contains("document.getElementById(\"ratePerKg\").addEventListener(\"input\", syncTotals);", content, StringComparison.Ordinal);
+            Assert.Contains("renderOrderLines();", content, StringComparison.Ordinal);
+            Assert.Contains("syncTotals();", content, StringComparison.Ordinal);
+        }
+
+        [Fact]
+        public void SetupCreateOrder_Js_NewOrderStartsWithPaidNowZero()
+        {
+            var engine = CreateSetupCreateOrderCalculationEngine(allowPartialPayment: true, taxEnabled: false, gstPercent: 0m, pricesIncludeTax: false, currentAdvanceBalance: 0m);
+
+            engine.Execute("syncTotals();");
+
+            Assert.Equal(0m, ReadJsDecimal(engine, "elements.paidNow.value"));
+            Assert.Equal(0m, ReadJsDecimal(engine, "elements.pendingAmountInput.value"));
+        }
+
+        [Fact]
+        public void SetupCreateOrder_Js_AddFirstItem_KeepsPaidNowZero()
+        {
+            var engine = CreateSetupCreateOrderCalculationEngine(allowPartialPayment: true, taxEnabled: false, gstPercent: 0m, pricesIncludeTax: false, currentAdvanceBalance: 0m);
+
+            engine.Execute("addLine(100, 1);");
+
+            Assert.Equal(0m, ReadJsDecimal(engine, "elements.paidNow.value"));
+            Assert.Equal(100m, ReadJsDecimal(engine, "elements.pendingAmountInput.value"));
+        }
+
+        [Fact]
+        public void SetupCreateOrder_Js_AddSecondItem_KeepsPaidNowZero()
+        {
+            var engine = CreateSetupCreateOrderCalculationEngine(allowPartialPayment: true, taxEnabled: false, gstPercent: 0m, pricesIncludeTax: false, currentAdvanceBalance: 0m);
+
+            engine.Execute("addLine(100, 1); addLine(50, 1);");
+
+            Assert.Equal(0m, ReadJsDecimal(engine, "elements.paidNow.value"));
+            Assert.Equal(150m, ReadJsDecimal(engine, "elements.pendingAmountInput.value"));
+        }
+
+        [Fact]
+        public void SetupCreateOrder_Js_ManualPartialPayment_PersistsAfterAmountChange()
+        {
+            var engine = CreateSetupCreateOrderCalculationEngine(allowPartialPayment: true, taxEnabled: true, gstPercent: 10m, pricesIncludeTax: false, currentAdvanceBalance: 0m);
+
+            engine.Execute("addLine(100, 1);");
+            engine.Execute("elements.paidNow.value = '40.00'; syncTotals();");
+            engine.Execute("addLine(50, 1);");
+
+            Assert.Equal(40m, ReadJsDecimal(engine, "elements.paidNow.value"));
+            Assert.Equal(125m, ReadJsDecimal(engine, "elements.pendingAmountInput.value"));
+        }
+
+        [Fact]
+        public void SetupCreateOrder_Js_AdvanceUsedWithZeroPayment_ComputesPendingCorrectly()
+        {
+            var engine = CreateSetupCreateOrderCalculationEngine(allowPartialPayment: true, taxEnabled: false, gstPercent: 0m, pricesIncludeTax: false, currentAdvanceBalance: 100m);
+
+            engine.Execute("addLine(200, 1); elements.advanceUsed.value = '50.00'; elements.paidNow.value = '0.00'; syncTotals();");
+
+            Assert.Equal(0m, ReadJsDecimal(engine, "elements.paidNow.value"));
+            Assert.Equal(150m, ReadJsDecimal(engine, "elements.pendingAmountInput.value"));
+        }
+
+        [Fact]
+        public void SetupCreateOrder_Js_ManualFullPayment_ProducesZeroPending()
+        {
+            var engine = CreateSetupCreateOrderCalculationEngine(allowPartialPayment: true, taxEnabled: false, gstPercent: 0m, pricesIncludeTax: false, currentAdvanceBalance: 0m);
+
+            engine.Execute("addLine(120, 1); elements.paidNow.value = '120.00'; syncTotals();");
+
+            Assert.Equal(120m, ReadJsDecimal(engine, "elements.paidNow.value"));
+            Assert.Equal(0m, ReadJsDecimal(engine, "elements.pendingAmountInput.value"));
+        }
+
+        [Fact]
+        public void SetupCreateOrder_Js_LoadStoreMasters_Success_PopulatesServiceTypesWithoutDuplicates()
+        {
+            var engine = CreateSetupCreateOrderStoreMastersEngine();
+
+            engine.Execute(@"
+                loadStoreMastersFromData({
+                    success: true,
+                    serviceTypes: [
+                        { Name: 'Dry Clean', IsActive: true },
+                        { Name: 'Wash', IsActive: true },
+                        { Name: 'Dry Clean', IsActive: true }
+                    ],
+                    items: []
+                });
+            ");
+
+            Assert.Equal(3m, ReadJsDecimal(engine, "elements.cfgServiceType.options.length"));
+            Assert.Equal(0m, ReadJsDecimal(engine, "toastLog.length"));
+            Assert.Equal("Select service type", engine.Evaluate("elements.cfgServiceType.options[0].textContent").ToString());
+        }
+
+        [Fact]
+        public void SetupCreateOrder_Js_LoadStoreMasters_SuccessWithNoActiveServices_ShowsEmptyStateMessage()
+        {
+            var engine = CreateSetupCreateOrderStoreMastersEngine();
+
+            engine.Execute(@"
+                loadStoreMastersFromData({
+                    success: true,
+                    serviceTypes: [
+                        { Name: 'Dry Clean', IsActive: false }
+                    ],
+                    items: []
+                });
+            ");
+
+            Assert.Equal("No active service types configured", engine.Evaluate("elements.cfgServiceType.options[0].textContent").ToString());
+            Assert.Equal("No active service types configured for this store.", engine.Evaluate("toastLog[0].message").ToString());
+        }
+
+        [Fact]
+        public void SetupCreateOrder_Js_LoadStoreMasters_SessionExpired_ShowsReturnedErrorMessage()
+        {
+            var engine = CreateSetupCreateOrderStoreMastersEngine();
+
+            engine.Execute(@"
+                loadStoreMastersFromData({
+                    success: false,
+                    message: 'Session expired. Please log in again.'
+                });
+            ");
+
+            Assert.Equal("No active service types configured", engine.Evaluate("elements.cfgServiceType.options[0].textContent").ToString());
+            Assert.Equal("Session expired. Please log in again.", engine.Evaluate("toastLog[0].message").ToString());
+        }
+
+        [Fact]
+        public void SetupCreateOrder_Js_LoadStoreMasters_RequestFailure_ShowsFailureMessage()
+        {
+            var engine = CreateSetupCreateOrderStoreMastersEngine();
+
+            engine.Execute("loadStoreMastersError(new Error('Unable to load store master data.')); ");
+
+            Assert.Equal("No active service types configured", engine.Evaluate("elements.cfgServiceType.options[0].textContent").ToString());
+            Assert.Equal("Unable to load store master data.", engine.Evaluate("toastLog[0].message").ToString());
+        }
+
+        [Fact]
         public async Task TaxInvoiceSettings_Post_UsesPreloadedComponentMetadata_WhenUpsertResponseOmitsComponents()
         {
             var customerApi = new InMemoryCustomerApiClient
@@ -1637,6 +1932,120 @@ namespace LMSWebUI.Tests
         }
 
         [Fact]
+        public async Task GetStoreMasters_EmptyArrayResponses_AreHandledAsEmptyCollections()
+        {
+            var customerApi = new InMemoryCustomerApiClient
+            {
+                StoreServiceMastersRawResponse = "[]",
+                StoreItemMastersRawResponse = "[]"
+            };
+
+            var controller = CreateController(customerApi, new InMemoryTaxLoginApiClient());
+            SetControllerSession(controller, "tenant@example.com", "S1", "Admin");
+
+            var result = await controller.GetStoreMasters(includeInactive: false);
+            var json = Assert.IsType<JsonResult>(result);
+            var payload = JObject.FromObject(json.Value);
+
+            Assert.True(payload.Value<bool>("success"));
+            Assert.Empty(payload["serviceTypes"] as JArray ?? new JArray());
+            Assert.Empty(payload["items"] as JArray ?? new JArray());
+        }
+
+        [Fact]
+        public async Task GetStoreMasters_NonEmptyArrayResponses_AreReturned()
+        {
+            var customerApi = new InMemoryCustomerApiClient
+            {
+                StoreServiceMastersListResponse = new List<StoreServiceMasterDto>
+                {
+                    new StoreServiceMasterDto { MasterType = "Service", Name = "Dry Clean", IsActive = true }
+                },
+                StoreItemMastersListResponse = new List<StoreItemMasterDto>
+                {
+                    new StoreItemMasterDto { ServiceType = "Dry Clean", Category = "Men", ItemName = "Shirt", IsActive = true }
+                }
+            };
+
+            var controller = CreateController(customerApi, new InMemoryTaxLoginApiClient());
+            SetControllerSession(controller, "tenant@example.com", "S1", "Admin");
+
+            var result = await controller.GetStoreMasters(includeInactive: false);
+            var json = Assert.IsType<JsonResult>(result);
+            var payload = JObject.FromObject(json.Value);
+
+            Assert.True(payload.Value<bool>("success"));
+            Assert.Contains(payload["serviceTypes"] as JArray ?? new JArray(), x => string.Equals(x?["Name"]?.ToString(), "Dry Clean", StringComparison.Ordinal));
+            Assert.Contains(payload["items"] as JArray ?? new JArray(), x => string.Equals(x?["ItemName"]?.ToString(), "Shirt", StringComparison.Ordinal));
+        }
+
+        [Fact]
+        public async Task GetStoreMasters_ObjectResponses_AreReturned()
+        {
+            var customerApi = new InMemoryCustomerApiClient
+            {
+                StoreServiceMastersRawResponse = "{\"serviceTypes\":[{\"MasterType\":\"Service\",\"Name\":\"Wash\",\"IsActive\":true}]}",
+                StoreItemMastersRawResponse = "{\"items\":[{\"ServiceType\":\"Wash\",\"Category\":\"Household\",\"ItemName\":\"Blanket\",\"IsActive\":true}]}"
+            };
+
+            var controller = CreateController(customerApi, new InMemoryTaxLoginApiClient());
+            SetControllerSession(controller, "tenant@example.com", "S1", "Admin");
+
+            var result = await controller.GetStoreMasters(includeInactive: false);
+            var json = Assert.IsType<JsonResult>(result);
+            var payload = JObject.FromObject(json.Value);
+
+            Assert.True(payload.Value<bool>("success"));
+            Assert.Contains(payload["serviceTypes"] as JArray ?? new JArray(), x => string.Equals(x?["Name"]?.ToString(), "Wash", StringComparison.Ordinal));
+            Assert.Contains(payload["items"] as JArray ?? new JArray(), x => string.Equals(x?["ItemName"]?.ToString(), "Blanket", StringComparison.Ordinal));
+        }
+
+        [Fact]
+        public async Task GetStoreMasters_ErrorResponse_ReturnsFailurePayload()
+        {
+            var customerApi = new InMemoryCustomerApiClient
+            {
+                ThrowOnStoreServiceMastersRaw = new InvalidOperationException("Master API unavailable")
+            };
+
+            var controller = CreateController(customerApi, new InMemoryTaxLoginApiClient());
+            SetControllerSession(controller, "tenant@example.com", "S1", "Admin");
+
+            var result = await controller.GetStoreMasters(includeInactive: false);
+            var json = Assert.IsType<JsonResult>(result);
+            var payload = JObject.FromObject(json.Value);
+
+            Assert.False(payload.Value<bool>("success"));
+            Assert.Contains("Unable to load store master data", payload["message"]?.ToString() ?? string.Empty, StringComparison.OrdinalIgnoreCase);
+        }
+
+        [Fact]
+        public async Task GetStoreMasters_PassesTenantStoreAndIncludeInactive_QueryParameters()
+        {
+            var customerApi = new InMemoryCustomerApiClient
+            {
+                StoreServiceMastersRawResponse = "[]",
+                StoreItemMastersRawResponse = "[]"
+            };
+
+            var controller = CreateController(customerApi, new InMemoryTaxLoginApiClient());
+            SetControllerSession(controller, "tenant@example.com", "S1", "Admin");
+
+            await controller.GetStoreMasters(includeInactive: true);
+
+            var serviceQuery = customerApi.QueryCalls.First(x => x.RequestUrl == "/GetStoreServiceMasters");
+            var itemQuery = customerApi.QueryCalls.First(x => x.RequestUrl == "/GetStoreItemMasters");
+
+            Assert.Equal("tenant@example.com", GetQueryValue(serviceQuery.Query, "tenantName"));
+            Assert.Equal("S1", GetQueryValue(serviceQuery.Query, "storeCode"));
+            Assert.Equal("true", GetQueryValue(serviceQuery.Query, "includeInactive"), ignoreCase: true);
+
+            Assert.Equal("tenant@example.com", GetQueryValue(itemQuery.Query, "tenantName"));
+            Assert.Equal("S1", GetQueryValue(itemQuery.Query, "storeCode"));
+            Assert.Equal("true", GetQueryValue(itemQuery.Query, "includeInactive"), ignoreCase: true);
+        }
+
+        [Fact]
         public async Task DeactivateTaxComponent_CallsDeactivateEndpoint()
         {
             var customerApi = new InMemoryCustomerApiClient();
@@ -1713,6 +2122,204 @@ namespace LMSWebUI.Tests
             return result;
         }
 
+        private static Engine CreateSetupCreateOrderCalculationEngine(bool allowPartialPayment, bool taxEnabled, decimal gstPercent, bool pricesIncludeTax, decimal currentAdvanceBalance)
+        {
+            var viewPath = Path.GetFullPath(Path.Combine(
+                AppContext.BaseDirectory,
+                "..", "..", "..", "..",
+                "LMSWebUI",
+                "Views",
+                "Customer",
+                "SetupCreateOrder.cshtml"));
+
+            var content = File.ReadAllText(viewPath);
+            var parseAmountFunction = ExtractFunctionBlock(content, "parseAmount");
+            var computeOrderAmountFunction = ExtractFunctionBlock(content, "computeOrderAmount");
+            var computeTaxBreakupFunction = ExtractFunctionBlock(content, "computeTaxBreakup");
+            var syncTotalsFunction = ExtractFunctionBlock(content, "syncTotals");
+
+            var script = $@"
+                var setupOnly = false;
+                var currentOrderMode = 'pieces';
+                var selectedService = 'Dry Clean';
+                var orderLines = [];
+                var taxEnabled = {(taxEnabled ? "true" : "false")};
+                var gstPercent = {gstPercent.ToString(System.Globalization.CultureInfo.InvariantCulture)};
+                var pricesIncludeTax = {(pricesIncludeTax ? "true" : "false")};
+                var allowPartialPayment = {(allowPartialPayment ? "true" : "false")};
+                var currentAdvanceBalance = {currentAdvanceBalance.ToString(System.Globalization.CultureInfo.InvariantCulture)};
+
+                function makeElement(initialValue) {{
+                    return {{
+                        value: initialValue || '',
+                        textContent: '',
+                        style: {{}},
+                        classList: {{ toggle: function () {{ }} }},
+                        disabled: false
+                    }};
+                }}
+
+                var elements = {{
+                    advanceUsed: makeElement('0.00'),
+                    paidNow: makeElement('0.00'),
+                    orderAmountDisplay: makeElement(''),
+                    netPayableDisplay: makeElement(''),
+                    paidNowDisplay: makeElement(''),
+                    pendingAmountDisplay: makeElement(''),
+                    advUsedDisplay: makeElement(''),
+                    advRemainingDisplay: makeElement(''),
+                    orderAmount: makeElement('0.00'),
+                    netPayableInput: makeElement('0.00'),
+                    pendingAmountInput: makeElement('0.00'),
+                    orderMode: makeElement('pieces'),
+                    subTotalDisplay: makeElement(''),
+                    cgstDisplay: makeElement(''),
+                    sgstDisplay: makeElement(''),
+                    totalAmountDisplay: makeElement(''),
+                    serviceType: makeElement('Dry Clean'),
+                    weightAmountDisplay: makeElement('0.00'),
+                    weightInKg: makeElement('0'),
+                    ratePerKg: makeElement('0'),
+                    weightServiceType: makeElement('Wash & Fold')
+                }};
+
+                var document = {{
+                    getElementById: function (id) {{
+                        if (!elements[id]) {{
+                            elements[id] = makeElement('');
+                        }}
+                        return elements[id];
+                    }}
+                }};
+
+                function formatCurrency(value) {{
+                    var n = Number(value);
+                    return isNaN(n) ? '0.00' : n.toFixed(2);
+                }}
+
+                {parseAmountFunction}
+                {computeOrderAmountFunction}
+                {computeTaxBreakupFunction}
+                {syncTotalsFunction}
+
+                function addLine(price, qty) {{
+                    orderLines.push({{ service: selectedService, category: 'General', name: 'Item ' + orderLines.length, price: Number(price || 0), qty: Number(qty || 0) }});
+                    syncTotals();
+                }}
+            ";
+
+            var engine = new Engine();
+            engine.Execute(script);
+            return engine;
+        }
+
+        private static Engine CreateSetupCreateOrderStoreMastersEngine()
+        {
+            var viewPath = Path.GetFullPath(Path.Combine(
+                AppContext.BaseDirectory,
+                "..", "..", "..", "..",
+                "LMSWebUI",
+                "Views",
+                "Customer",
+                "SetupCreateOrder.cshtml"));
+
+            var content = File.ReadAllText(viewPath);
+            var fillMasterSelectFunction = ExtractFunctionBlock(content, "fillMasterSelect");
+
+            var applyStartToken = "function applyStoreMastersResponse(data)";
+            var applyStart = content.IndexOf(applyStartToken, StringComparison.Ordinal);
+            Assert.True(applyStart >= 0, "Unable to locate applyStoreMastersResponse in SetupCreateOrder.cshtml.");
+            var applyFunction = ExtractFunctionBlock(content.Substring(applyStart), "applyStoreMastersResponse");
+
+            var failStartToken = "function handleStoreMastersLoadFailure(error)";
+            var failStart = content.IndexOf(failStartToken, StringComparison.Ordinal);
+            Assert.True(failStart >= 0, "Unable to locate handleStoreMastersLoadFailure in SetupCreateOrder.cshtml.");
+            var failFunction = ExtractFunctionBlock(content.Substring(failStart), "handleStoreMastersLoadFailure");
+
+            var script = $@"
+                var masterItems = [];
+                var toastLog = [];
+                var refreshCalls = 0;
+                var updateCalls = 0;
+
+                function makeSelect() {{
+                    return {{
+                        value: '',
+                        options: [],
+                        appendChild: function (option) {{ this.options.push(option); }},
+                        set innerHTML(v) {{ this.options = []; }},
+                        get innerHTML() {{ return ''; }}
+                    }};
+                }}
+
+                var elements = {{
+                    cfgServiceType: makeSelect(),
+                    cfgCategory: makeSelect()
+                }};
+
+                var document = {{
+                    getElementById: function (id) {{ return elements[id] || null; }},
+                    createElement: function () {{ return {{ value: '', textContent: '' }}; }}
+                }};
+
+                function showToast(message, isSuccess) {{ toastLog.push({{ message: message, isSuccess: !!isSuccess }}); }}
+                function refreshCategoryOptionsForSelectedService() {{ refreshCalls++; }}
+                function updateConfigItemSuggestions() {{ updateCalls++; }}
+
+                {fillMasterSelectFunction}
+                {applyFunction}
+                {failFunction}
+
+                function loadStoreMastersFromData(data) {{ applyStoreMastersResponse(data); }}
+                function loadStoreMastersError(error) {{ handleStoreMastersLoadFailure(error); }}
+            ";
+
+            var engine = new Engine();
+            engine.Execute(script);
+            return engine;
+        }
+
+        private static string ExtractFunctionBlock(string content, string functionName)
+        {
+            var signature = $"function {functionName}(";
+            var start = content.IndexOf(signature, StringComparison.Ordinal);
+            Assert.True(start >= 0, $"Unable to find function '{functionName}' in SetupCreateOrder.cshtml.");
+
+            var openingBrace = content.IndexOf('{', start);
+            Assert.True(openingBrace >= 0, $"Unable to find opening brace for function '{functionName}'.");
+
+            var depth = 0;
+            for (var i = openingBrace; i < content.Length; i++)
+            {
+                if (content[i] == '{')
+                {
+                    depth++;
+                }
+                else if (content[i] == '}')
+                {
+                    depth--;
+                    if (depth == 0)
+                    {
+                        return content.Substring(start, i - start + 1);
+                    }
+                }
+            }
+
+            throw new InvalidOperationException($"Unable to extract complete function block for '{functionName}'.");
+        }
+
+        private static decimal ReadJsDecimal(Engine engine, string expression)
+        {
+            var value = engine.Evaluate($"Number({expression})").ToObject();
+            return Convert.ToDecimal(value);
+        }
+
+        private static string GetQueryValue(Dictionary<string, string> query, string key)
+        {
+            var pair = query.First(kvp => string.Equals(kvp.Key, key, StringComparison.OrdinalIgnoreCase));
+            return pair.Value;
+        }
+
         private sealed class TestSessionFeature : ISessionFeature
         {
             public ISession Session { get; set; } = null!;
@@ -1731,6 +2338,12 @@ namespace LMSWebUI.Tests
             public TaxModeResolutionDto ResolveTaxModeResponse { get; set; } = new TaxModeResolutionDto { TaxMode = "GST" };
             public TaxConfigurationDto UpsertTaxConfigurationResponse { get; set; }
             public bool ForceInvalidComponentSaveResponse { get; set; }
+            public List<StoreServiceMasterDto> StoreServiceMastersListResponse { get; set; } = new List<StoreServiceMasterDto>();
+            public string StoreServiceMastersRawResponse { get; set; } = string.Empty;
+            public List<StoreItemMasterDto> StoreItemMastersListResponse { get; set; } = new List<StoreItemMasterDto>();
+            public string StoreItemMastersRawResponse { get; set; } = string.Empty;
+            public List<LaundryItemPriceDto> LaundryItemPricesResponse { get; set; } = new List<LaundryItemPriceDto>();
+            public Exception ThrowOnStoreServiceMastersRaw { get; set; }
             public int UpsertTaxConfigurationCount { get; private set; }
             public TaxConfigurationUpsertRequestDto LastUpsertTaxConfigurationRequest { get; private set; }
             public TaxInvoiceComponentUpsertRequestDto LastAddOrUpdateComponentRequest { get; private set; }
@@ -1738,6 +2351,8 @@ namespace LMSWebUI.Tests
             public List<TaxInvoiceComponentUpsertRequestDto> AddComponentRequests { get; } = new List<TaxInvoiceComponentUpsertRequestDto>();
             public List<TaxInvoiceComponentUpsertRequestDto> UpdateComponentRequests { get; } = new List<TaxInvoiceComponentUpsertRequestDto>();
             public List<(string RequestUrl, Method Method)> Calls { get; } = new List<(string RequestUrl, Method Method)>();
+            public List<(string RequestUrl, Method Method, Dictionary<string, string> Query)> QueryCalls { get; } = new List<(string RequestUrl, Method Method, Dictionary<string, string> Query)>();
+            public Exception ThrowOnStoreItemMastersRaw { get; set; }
 
             public Task<T> SendRequestAsync<T>(string requestUrl, Method method) where T : new()
             {
@@ -1863,6 +2478,9 @@ namespace LMSWebUI.Tests
             public Task<T> SendRequestAsync<T>(string requestUrl, Dictionary<string, string> queryParams, Method method) where T : new()
             {
                 Calls.Add((requestUrl, method));
+                QueryCalls.Add((requestUrl, method, queryParams != null
+                    ? queryParams.ToDictionary(k => k.Key, v => v.Value, StringComparer.OrdinalIgnoreCase)
+                    : new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)));
 
                 if (string.Equals(requestUrl, "/GetTaxConfiguration", StringComparison.OrdinalIgnoreCase))
                 {
@@ -1878,6 +2496,92 @@ namespace LMSWebUI.Tests
                 if (string.Equals(requestUrl, "/ResolveTaxMode", StringComparison.OrdinalIgnoreCase))
                 {
                     return Task.FromResult(ToGeneric<T>(ResolveTaxModeResponse));
+                }
+
+                if (string.Equals(requestUrl, "/GetStoreServiceMasters", StringComparison.OrdinalIgnoreCase))
+                {
+                    if (typeof(T) == typeof(List<StoreServiceMasterDto>))
+                    {
+                        return Task.FromResult(ToGeneric<T>(StoreServiceMastersListResponse));
+                    }
+
+                    if (typeof(T) == typeof(JObject))
+                    {
+                        if (ThrowOnStoreServiceMastersRaw != null)
+                        {
+                            throw ThrowOnStoreServiceMastersRaw;
+                        }
+
+                        var raw = StoreServiceMastersRawResponse ?? string.Empty;
+                        if (string.IsNullOrWhiteSpace(raw))
+                        {
+                            return Task.FromResult(default(T));
+                        }
+
+                        var token = JToken.Parse(raw);
+                        if (token is JObject serviceObject)
+                        {
+                            return Task.FromResult((T)(object)serviceObject);
+                        }
+
+                        if (token is JArray serviceArray)
+                        {
+                            throw new ApiUnavailableException(
+                                "Master API JSON diagnostic: HTTP 200; ContentType=application/json; ContentLength=2; BodyState=InvalidJsonObject.",
+                                null,
+                                200,
+                                serviceArray.ToString(Formatting.None));
+                        }
+
+                        return Task.FromResult(default(T));
+                    }
+                }
+
+                if (string.Equals(requestUrl, "/GetStoreItemMasters", StringComparison.OrdinalIgnoreCase))
+                {
+                    if (typeof(T) == typeof(List<StoreItemMasterDto>))
+                    {
+                        return Task.FromResult(ToGeneric<T>(StoreItemMastersListResponse));
+                    }
+
+                    if (typeof(T) == typeof(JObject))
+                    {
+                        if (ThrowOnStoreItemMastersRaw != null)
+                        {
+                            throw ThrowOnStoreItemMastersRaw;
+                        }
+
+                        var raw = StoreItemMastersRawResponse ?? string.Empty;
+                        if (string.IsNullOrWhiteSpace(raw))
+                        {
+                            return Task.FromResult(default(T));
+                        }
+
+                        var token = JToken.Parse(raw);
+                        if (token is JObject itemObject)
+                        {
+                            return Task.FromResult((T)(object)itemObject);
+                        }
+
+                        if (token is JArray itemArray)
+                        {
+                            throw new ApiUnavailableException(
+                                "Master API JSON diagnostic: HTTP 200; ContentType=application/json; ContentLength=2; BodyState=InvalidJsonObject.",
+                                null,
+                                200,
+                                itemArray.ToString(Formatting.None));
+                        }
+
+                        return Task.FromResult(default(T));
+                    }
+                }
+
+                if (string.Equals(requestUrl, "/GetLaundryItemPrices", StringComparison.OrdinalIgnoreCase))
+                {
+                    if (typeof(T) == typeof(List<LaundryItemPriceDto>))
+                    {
+                        return Task.FromResult(ToGeneric<T>(LaundryItemPricesResponse));
+                    }
                 }
 
                 return Task.FromResult(new T());
