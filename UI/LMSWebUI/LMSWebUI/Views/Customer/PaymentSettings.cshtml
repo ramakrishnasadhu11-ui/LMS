@@ -230,18 +230,44 @@
         var modeToggles = Array.prototype.slice.call(document.querySelectorAll(".payment-mode-toggle"));
         var allowCredit = document.getElementById("allowCredit");
         var creditLimit = document.getElementById("creditLimitAmount");
+        var supportedModes = ["Cash", "UPI", "Card", "Wallet"];
+        var preferredDefaultMode = defaultModeSelect ? (defaultModeSelect.value || "").trim() : "";
+
+        function equalsMode(left, right) {
+            return (left || "").toString().trim().toLowerCase() === (right || "").toString().trim().toLowerCase();
+        }
+
+        function getEnabledModes() {
+            return supportedModes.filter(function (mode) {
+                return modeToggles.some(function (toggle) {
+                    return equalsMode(toggle.getAttribute("data-mode"), mode) && toggle.checked;
+                });
+            });
+        }
 
         function refreshDefaultModes() {
             if (!defaultModeSelect) {
                 return;
             }
 
-            var selected = defaultModeSelect.value;
-            var enabledModes = modeToggles
-                .filter(function (toggle) { return toggle.checked; })
-                .map(function (toggle) { return toggle.getAttribute("data-mode"); });
+            var selected = (defaultModeSelect.value || "").trim();
+            var enabledModes = getEnabledModes();
 
             defaultModeSelect.innerHTML = "";
+
+            if (!enabledModes.length) {
+                var emptyOption = document.createElement("option");
+                emptyOption.value = "";
+                emptyOption.textContent = "No payment modes enabled";
+                emptyOption.disabled = true;
+                emptyOption.selected = true;
+                defaultModeSelect.appendChild(emptyOption);
+                defaultModeSelect.disabled = true;
+                preferredDefaultMode = "";
+                return;
+            }
+
+            defaultModeSelect.disabled = false;
             enabledModes.forEach(function (mode) {
                 var option = document.createElement("option");
                 option.value = mode;
@@ -249,8 +275,15 @@
                 defaultModeSelect.appendChild(option);
             });
 
-            if (enabledModes.indexOf(selected) >= 0) {
-                defaultModeSelect.value = selected;
+            var desiredMode = preferredDefaultMode || selected;
+            var matchedMode = enabledModes.find(function (mode) { return equalsMode(mode, desiredMode); });
+
+            if (matchedMode) {
+                defaultModeSelect.value = matchedMode;
+                preferredDefaultMode = matchedMode;
+            } else {
+                defaultModeSelect.value = enabledModes[0];
+                preferredDefaultMode = enabledModes[0];
             }
         }
 
@@ -268,6 +301,12 @@
         modeToggles.forEach(function (toggle) {
             toggle.addEventListener("change", refreshDefaultModes);
         });
+
+        if (defaultModeSelect) {
+            defaultModeSelect.addEventListener("change", function () {
+                preferredDefaultMode = (defaultModeSelect.value || "").trim();
+            });
+        }
 
         if (allowCredit) {
             allowCredit.addEventListener("change", refreshCreditLimit);

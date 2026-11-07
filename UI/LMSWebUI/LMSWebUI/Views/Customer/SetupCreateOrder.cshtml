@@ -179,6 +179,146 @@
 .import-summary-chip { border:1px solid var(--els-border); border-radius:6px; background:#fff; padding:6px 8px; font-size:12px; display:flex; justify-content:space-between; }
 .import-summary-lines { margin-top:8px; font-size:12px; color:#475467; word-break: break-word; }
 @@media (max-width: 1000px) { .setup-toolbar { grid-template-columns: repeat(2, minmax(220px, 1fr)); } .setup-content { grid-template-columns: 1fr; } .price-config-grid { grid-template-columns: 1fr 1fr; } .price-config-btn-row { grid-template-columns: 1fr; } }
+
+.setup-page { background: #f5f7fb; }
+.setup-box { border-radius: 16px; border: 1px solid #e8eef6; box-shadow: 0 18px 40px rgba(16, 24, 40, 0.08); }
+.setup-title { display: none; }
+.setup-body { padding: 20px; }
+
+.order-page-header {
+    border: 1px solid #dbe6f4;
+    border-radius: 14px;
+    background: linear-gradient(120deg, #f9fcff 0%, #edf4fd 100%);
+    box-shadow: 0 8px 24px rgba(29, 66, 121, 0.08);
+    padding: 14px 16px;
+    margin-bottom: 14px;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+.order-page-title { margin: 0; font-size: 22px; color: #1f3f66; font-weight: 700; display: inline-flex; align-items: center; gap: 8px; }
+.order-page-subtitle { margin: 4px 0 0; font-size: 12px; color: #5e6f87; }
+.order-context-wrap { display: flex; gap: 8px; flex-wrap: wrap; }
+.order-context-chip { border: 1px solid #d3dfef; border-radius: 999px; background: #fff; color: #2a4f7f; padding: 6px 10px; font-size: 11px; font-weight: 700; }
+
+.customer-card {
+    border: 1px solid #dbe6f4;
+    border-radius: 12px;
+    background: #fff;
+    padding: 12px;
+    margin-bottom: 12px;
+}
+.customer-card-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; flex-wrap: wrap; }
+.customer-card-title { margin: 0; color: #1f3f66; font-size: 14px; font-weight: 700; }
+.quick-add-btn {
+    border: 1px solid #d0dceb;
+    border-radius: 8px;
+    background: #f7fbff;
+    color: #1f4b7e;
+    font-size: 12px;
+    font-weight: 700;
+    padding: 7px 12px;
+    cursor: pointer;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.setup-toolbar { grid-template-columns: repeat(4, minmax(180px, 1fr)); gap: 10px; margin-bottom: 0; }
+.setup-field label { color: #344054; font-weight: 700; }
+.setup-field input, .setup-field select, .setup-field textarea {
+    border: 1px solid #d3ddea;
+    border-radius: 10px;
+    min-height: 38px;
+    background: #fff;
+}
+
+.order-mode-toggle { margin: 10px 0 12px; }
+.mode-btn { border-radius: 999px; padding: 8px 14px; }
+
+.setup-content { gap: 16px; align-items: flex-start; }
+.left-pane, .right-pane { border: 1px solid #d9e4f2; border-radius: 12px; background: #fff; }
+.left-pane { padding: 12px; }
+.right-pane { padding: 12px; position: sticky; top: 14px; }
+
+.tab-row { gap: 8px; }
+.tab-btn { border-radius: 999px; border-color: #d0dceb; background: #f8fafd; }
+.catalog-grid {
+    border-radius: 10px;
+    border: 1px solid #e1e8f2;
+    background: #fbfdff;
+    min-height: 430px;
+    padding: 12px;
+    grid-template-columns: repeat(auto-fill, minmax(146px, 1fr));
+}
+.item-card {
+    text-align: left;
+    border: 1px solid #dbe5f2;
+    border-radius: 10px;
+    padding: 10px;
+    box-shadow: 0 1px 2px rgba(16,24,40,0.05);
+}
+.item-card.active { border-color: #2f6cb6; box-shadow: 0 0 0 3px rgba(47,108,182,0.16); }
+.item-name { font-size: 13px; }
+.item-price { margin-top: 4px; }
+
+.catalog-grid .empty-state,
+.catalog-grid .loading-state {
+    grid-column: 1 / -1;
+    border: 1px dashed #cad8eb;
+    border-radius: 10px;
+    padding: 18px;
+    text-align: center;
+    color: #596b85;
+    background: #f8fbff;
+    font-size: 12px;
+}
+
+.side-block { border-radius: 10px; border-color: #dbe5f2; margin-bottom: 12px; }
+.side-title { font-size: 13px; color: #1f3f66; }
+.stat-chip { border-radius: 8px; border-color: #e0e7f2; background: #fbfdff; padding: 8px 10px; }
+.stat-chip.total-chip { border-color: #2f6cb6; background: #eef5ff; }
+.stat-chip.total-chip b { color: #164b8b; font-size: 14px; }
+.qty-row input#selectedQty { border: 1px solid #d3ddea; border-radius: 8px; text-align: center; }
+
+.order-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+}
+.order-actions .setup-btn { margin-bottom: 0; }
+
+.post-order-actions-row {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(120px, 1fr));
+    gap: 8px;
+}
+
+.setup-btn {
+    border-radius: 10px;
+    font-weight: 700;
+    min-height: 42px;
+    box-shadow: 0 4px 10px rgba(15, 46, 85, 0.18);
+}
+
+@@media (max-width: 1200px) {
+    .setup-toolbar { grid-template-columns: repeat(3, minmax(180px, 1fr)); }
+}
+
+@@media (max-width: 1000px) {
+    .setup-body { padding: 14px; }
+    .setup-toolbar { grid-template-columns: repeat(2, minmax(170px, 1fr)); }
+    .right-pane { position: static; }
+}
+
+@@media (max-width: 700px) {
+    .setup-toolbar { grid-template-columns: 1fr; }
+    .order-actions,
+    .post-order-actions-row { grid-template-columns: 1fr; }
+}
 </style>
 
 <div id="setupOrderToast" class="toast-message"></div>
@@ -230,38 +370,56 @@
 
                 @if (!setupOnly)
                 {
-                    <div class="setup-toolbar">
-                        <div class="setup-field">
-                            <label for="customerName">Customer Name</label>
-                            @Html.TextBoxFor(m => m.CustomerName, new { id = "customerName", placeholder = "Enter customer name", list = "customerNameSuggestions", autocomplete = "off" })
-                            <datalist id="customerNameSuggestions"></datalist>
+                    <div class="order-page-header">
+                        <div>
+                            <h2 class="order-page-title"><i class="fa fa-clipboard" aria-hidden="true"></i> Create Order</h2>
+                            <p class="order-page-subtitle">Professional order capture with active catalog and tenant-store scoped pricing.</p>
                         </div>
-                        <div class="setup-field">
-                            <label for="orderLookupText">Order/Invoice No</label>
-                            <input type="text" id="orderLookupText" placeholder="Enter Order No or Invoice No" list="orderLookupSuggestions" />
-                            <datalist id="orderLookupSuggestions"></datalist>
+                        <div class="order-context-wrap">
+                            <span class="order-context-chip">Order: @(!string.IsNullOrWhiteSpace(Model?.OrderNo) ? Model.OrderNo : "Auto-generated")</span>
+                            <span class="order-context-chip">Store: @(string.IsNullOrWhiteSpace(Model?.StoreCode) ? "-" : Model.StoreCode)</span>
+                            <span class="order-context-chip">Tenant: @(string.IsNullOrWhiteSpace(Model?.TenantName) ? "-" : Model.TenantName)</span>
                         </div>
-                        <div class="setup-field">
-                            <label for="customerCodeDisplay">Customer Code</label>
-                            <input type="text" id="customerCodeDisplay" value="@(Model?.CustCode ?? string.Empty)" readonly="readonly" />
+                    </div>
+
+                    <div class="customer-card">
+                        <div class="customer-card-head">
+                            <h3 class="customer-card-title"><i class="fa fa-user-circle" aria-hidden="true"></i> Customer Information</h3>
+                            <a class="quick-add-btn" href="@Url.Action("Index", "Customer")"><i class="fa fa-plus" aria-hidden="true"></i> Quick Add Customer</a>
                         </div>
-                        <div class="setup-field">
-                            <label for="paymentMode">Payment Mode</label>
-                            @Html.DropDownListFor(m => m.PaymentMode, new SelectList(ViewData["EnabledPaymentModes"] as List<string> ?? new List<string> { "Cash", "UPI", "Card", "Wallet" }, Model.PaymentMode), new { id = "paymentMode" })
-                        </div>
-                        <div class="setup-field">
-                            <label for="advanceUsed">Advance Used</label>
-                            @Html.TextBoxFor(m => m.AdvanceUsed, new { id = "advanceUsed", type = "number", min = "0", step = "0.01" })
-                        </div>
-                        <div class="setup-field">
-                            <label for="paidNow">Paid Now</label>
-                            @Html.TextBoxFor(m => m.PaidNow, new { id = "paidNow", type = "number", min = "0", step = "0.01" })
-                        </div>
-                        <div class="setup-field" style="align-self:end;">
-                            <button type="button" class="setup-btn" id="findOrderRefBtn" style="margin-bottom:0;">Find by Order/Invoice</button>
-                        </div>
-                        <div class="setup-field" style="align-self:end;">
-                            <button type="button" class="setup-btn tertiary" id="loadOrderDataBtn" style="margin-bottom:0;">Load Customer Details</button>
+                        <div class="setup-toolbar">
+                            <div class="setup-field">
+                                <label for="customerName">Customer Name</label>
+                                @Html.TextBoxFor(m => m.CustomerName, new { id = "customerName", placeholder = "Search or enter customer name", list = "customerNameSuggestions", autocomplete = "off" })
+                                <datalist id="customerNameSuggestions"></datalist>
+                            </div>
+                            <div class="setup-field">
+                                <label for="orderLookupText">Order/Invoice No</label>
+                                <input type="text" id="orderLookupText" placeholder="Search by Order No or Invoice No" list="orderLookupSuggestions" />
+                                <datalist id="orderLookupSuggestions"></datalist>
+                            </div>
+                            <div class="setup-field">
+                                <label for="customerCodeDisplay">Customer Code</label>
+                                <input type="text" id="customerCodeDisplay" value="@(Model?.CustCode ?? string.Empty)" readonly="readonly" />
+                            </div>
+                            <div class="setup-field">
+                                <label for="paymentMode">Payment Mode</label>
+                                @Html.DropDownListFor(m => m.PaymentMode, new SelectList(ViewData["EnabledPaymentModes"] as List<string> ?? new List<string> { "Cash", "UPI", "Card", "Wallet" }, Model.PaymentMode), new { id = "paymentMode" })
+                            </div>
+                            <div class="setup-field">
+                                <label for="advanceUsed">Advance Used</label>
+                                @Html.TextBoxFor(m => m.AdvanceUsed, new { id = "advanceUsed", type = "number", min = "0", step = "0.01" })
+                            </div>
+                            <div class="setup-field">
+                                <label for="paidNow">Paid Now</label>
+                                @Html.TextBoxFor(m => m.PaidNow, new { id = "paidNow", type = "number", min = "0", step = "0.01" })
+                            </div>
+                            <div class="setup-field" style="align-self:end;">
+                                <button type="button" class="setup-btn" id="findOrderRefBtn" style="margin-bottom:0;">Find by Order/Invoice</button>
+                            </div>
+                            <div class="setup-field" style="align-self:end;">
+                                <button type="button" class="setup-btn tertiary" id="loadOrderDataBtn" style="margin-bottom:0;">Load Customer Details</button>
+                            </div>
                         </div>
                     </div>
 
@@ -433,20 +591,23 @@
                                 <div class="stat-chip"><span>Advance Utilized</span><b id="advUsedDisplay">@await ((IHtmlHelper)Html).FormatCurrencyAsync(0m)</b></div>
                                 <div class="stat-chip"><span>Advance Remaining</span><b id="advRemainingDisplay">@await ((IHtmlHelper)Html).FormatCurrencyAsync(0m)</b></div>
                                 <div class="stat-chip"><span>Order Amount</span><b id="orderAmountDisplay">@await ((IHtmlHelper)Html).FormatCurrencyAsync(0m)</b></div>
+                                <div class="stat-chip"><span>Discount</span><b>0.00</b></div>
                                 @if (taxEnabled)
                                 {
                                     <div class="stat-chip"><span>Sub Total</span><b id="subTotalDisplay">@await ((IHtmlHelper)Html).FormatCurrencyAsync(0m)</b></div>
                                     <div class="stat-chip"><span>CGST @((gstPercent / 2).ToString("0.##"))%</span><b id="cgstDisplay">@await ((IHtmlHelper)Html).FormatCurrencyAsync(0m)</b></div>
                                     <div class="stat-chip"><span>SGST @((gstPercent / 2).ToString("0.##"))%</span><b id="sgstDisplay">@await ((IHtmlHelper)Html).FormatCurrencyAsync(0m)</b></div>
-                                    <div class="stat-chip"><span>Total (incl. GST)</span><b id="totalAmountDisplay">@await ((IHtmlHelper)Html).FormatCurrencyAsync(0m)</b></div>
+                                    <div class="stat-chip total-chip"><span>Total (incl. GST)</span><b id="totalAmountDisplay">@await ((IHtmlHelper)Html).FormatCurrencyAsync(0m)</b></div>
                                 }
-                                <div class="stat-chip"><span>Net Before Payment</span><b id="netPayableDisplay">@await ((IHtmlHelper)Html).FormatCurrencyAsync(0m)</b></div>
+                                <div class="stat-chip total-chip"><span>Net Before Payment</span><b id="netPayableDisplay">@await ((IHtmlHelper)Html).FormatCurrencyAsync(0m)</b></div>
                                 <div class="stat-chip"><span>Paid Now</span><b id="paidNowDisplay">0.00</b></div>
-                                <div class="stat-chip"><span>Pending Amount</span><b id="pendingAmountDisplay">0.00</b></div>
+                                <div class="stat-chip total-chip"><span>Pending Amount</span><b id="pendingAmountDisplay">0.00</b></div>
                             </div>
 
-                            <button type="button" class="setup-btn secondary" onclick="window.location.href='@Url.Action("Index", "Customer")'">Back to Customer</button>
-                            <button type="submit" class="setup-btn" id="createOrderBtn">Create Order</button>
+                            <div class="order-actions">
+                                <button type="button" class="setup-btn secondary" onclick="window.location.href='@Url.Action("Index", "Customer")'">Cancel</button>
+                                <button type="submit" class="setup-btn" id="createOrderBtn">Save Order</button>
+                            </div>
                         </div>
                     </div>
 
@@ -717,7 +878,7 @@
         var catalogStatsEl = document.getElementById("catalogStats");
 
         if (serviceTabsEl) {
-            serviceTabsEl.innerHTML = "<span style='font-size:12px;color:#7a5d00;'>" + text + "</span>";
+            serviceTabsEl.innerHTML = "<span class='loading-state'>" + text + "</span>";
         }
 
         if (categoryTabsEl) {
@@ -725,7 +886,7 @@
         }
 
         if (catalogGridEl) {
-            catalogGridEl.innerHTML = "<div style='font-size:12px;color:#7a5d00;'>" + text + "</div>";
+            catalogGridEl.innerHTML = "<div class='loading-state'>" + text + "</div>";
         }
 
         if (catalogStatsEl) {
@@ -1289,7 +1450,7 @@
             }
 
             if (!fallback.length) {
-                grid.innerHTML = "<div style='font-size:12px;color:#b63838;'>No items configured for selected service/category.</div>";
+                grid.innerHTML = "<div class='empty-state'>No items configured for selected service/category.</div>";
                 return;
             }
 
@@ -1344,7 +1505,7 @@
         container.innerHTML = "";
 
         if (!orderLines.length) {
-            container.innerHTML = "<div class='order-line'><span>No items added.</span></div>";
+            container.innerHTML = "<div class='order-line'><span>No items added yet. Select an item and click Add To Order.</span></div>";
             syncTotals();
             return;
         }
@@ -3211,7 +3372,7 @@
                     showToast("Partial payments are disabled for this store. Please use customer's advance or collect full payment before creating the order.", false);
                     if (createOrderBtn) {
                         createOrderBtn.disabled = false;
-                        createOrderBtn.textContent = "Create Order";
+                        createOrderBtn.textContent = "Save Order";
                     }
                     return;
                 }
@@ -3225,7 +3386,7 @@
 
                 if (createOrderBtn) {
                     createOrderBtn.disabled = true;
-                    createOrderBtn.textContent = "Submitting...";
+                    createOrderBtn.textContent = "Saving...";
                 }
 
                 showToast("Submitting order. Please wait...", true);
