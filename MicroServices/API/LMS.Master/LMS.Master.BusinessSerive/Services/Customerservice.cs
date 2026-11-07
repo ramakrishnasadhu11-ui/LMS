@@ -6415,24 +6415,7 @@ SELECT
             tenantName = tenantName.Trim();
             storeCode = storeCode.Trim();
 
-            var hasAnyConfiguredItems = await _masterDbContext.LaundryItemPrices
-                .AsNoTracking()
-                .AnyAsync(x => x.TenantName == tenantName && x.StoreCode == storeCode);
-
-            if (!hasAnyConfiguredItems)
-            {
-                var now = DateTime.UtcNow;
-                var defaults = BuildDefaultLaundryItemPrices(tenantName, storeCode);
-                defaults.ForEach(x =>
-                {
-                    x.CreatedDate = now;
-                    x.ModifiedDate = now;
-                    x.IsActive = true;
-                });
-
-                _masterDbContext.LaundryItemPrices.AddRange(defaults);
-                await _masterDbContext.SaveChangesAsync();
-            }
+            await EnsureLaundryItemPriceDefaultsInitializedAsync(tenantName, storeCode);
 
             var query = _masterDbContext.LaundryItemPrices
                 .AsNoTracking()
@@ -6464,6 +6447,180 @@ SELECT
                 .ToListAsync();
 
             return ActionSet.ActionReturnType(HttpStatusCode.OK, prices);
+        }
+
+        private async Task EnsureLaundryItemPriceDefaultsInitializedAsync(string tenantName, string storeCode)
+        {
+            var hasAnyConfiguredItems = await _masterDbContext.LaundryItemPrices
+                .AsNoTracking()
+                .AnyAsync(x => x.TenantName == tenantName && x.StoreCode == storeCode);
+
+            if (hasAnyConfiguredItems)
+            {
+                return;
+            }
+
+            var now = DateTime.UtcNow;
+            var defaults = BuildDefaultLaundryItemPrices(tenantName, storeCode);
+            defaults.ForEach(x =>
+            {
+                x.CreatedDate = now;
+                x.ModifiedDate = now;
+                x.IsActive = true;
+            });
+
+            if (defaults.Count == 0)
+            {
+                return;
+            }
+
+            _masterDbContext.LaundryItemPrices.AddRange(defaults);
+            await _masterDbContext.SaveChangesAsync();
+        }
+
+        private async Task EnsureStoreMasterDefaultsInitializedAsync(string tenantName, string storeCode)
+        {
+            await EnsureLaundryItemPricesTableExistsAsync();
+            await EnsureLaundryItemPriceDefaultsInitializedAsync(tenantName, storeCode);
+
+            var sourceItems = await _masterDbContext.LaundryItemPrices
+                .AsNoTracking()
+                .Where(x => x.TenantName == tenantName && x.StoreCode == storeCode)
+                .Select(x => new
+                {
+                    ServiceType = x.ServiceType,
+                    Category = x.Category,
+                    ItemName = x.ItemName,
+                    x.IsActive
+                })
+                .ToListAsync();
+
+            if (sourceItems.Count == 0)
+            {
+                return;
+            }
+
+            var normalizedItems = sourceItems
+                .Where(x => !string.IsNullOrWhiteSpace(x.ServiceType)
+                            && !string.IsNullOrWhiteSpace(x.Category)
+                            && !string.IsNullOrWhiteSpace(x.ItemName))
+                .Select(x => new
+                {
+                    ServiceType = x.ServiceType.Trim(),
+                    Category = x.Category.Trim(),
+                    ItemName = x.ItemName.Trim(),
+                    x.IsActive
+                })
+                .ToList();
+
+            if (normalizedItems.Count == 0)
+            {
+                return;
+            }
+
+            var existingServiceMasters = await _masterDbContext.StoreServiceMasters
+                .Where(x => x.TenantName == tenantName && x.StoreCode == storeCode)
+                .Select(x => new { x.MasterType, x.Name })
+                .ToListAsync();
+
+            var serviceMasterKeys = new HashSet<string>(
+                existingServiceMasters
+                    .Where(x => !string.IsNullOrWhiteSpace(x.MasterType)
+                                && !string.IsNullOrWhiteSpace(x.Name))
+                    .Select(x => $"{x.MasterType.Trim()}|{x.Name.Trim()}"),
+                StringComparer.OrdinalIgnoreCase);
+
+            var existingItemMasterKeys = new HashSet<string>(
+                await _masterDbContext.StoreItemMasters
+                    .Where(x => x.TenantName == tenantName && x.StoreCode == storeCode)
+                    .Select(x => x.ServiceType + "|" + x.Category + "|" + x.ItemName)
+                    .ToListAsync(),
+                StringComparer.OrdinalIgnoreCase);
+
+            var now = DateTime.UtcNow;
+            var changed = false;
+
+            foreach (var serviceType in normalizedItems
+                .Select(x => x.ServiceType)
+                .Distinct(StringComparer.OrdinalIgnoreCase))
+            {
+                var key = $"Service|{serviceType}";
+                if (serviceMasterKeys.Contains(key))
+                {
+                    continue;
+                }
+
+                _masterDbContext.StoreServiceMasters.Add(new StoreServiceMasterEntity
+                {
+                    TenantName = tenantName,
+                    StoreCode = storeCode,
+                    MasterType = "Service",
+                    Name = serviceType,
+                    Description = null,
+                    IsActive = normalizedItems.Any(x => string.Equals(x.ServiceType, serviceType, StringComparison.OrdinalIgnoreCase) && x.IsActive),
+                    CreatedDate = now,
+                    ModifiedDate = now
+                });
+
+                serviceMasterKeys.Add(key);
+                changed = true;
+            }
+
+            foreach (var category in normalizedItems
+                .Select(x => x.Category)
+                .Distinct(StringComparer.OrdinalIgnoreCase))
+            {
+                var key = $"Category|{category}";
+                if (serviceMasterKeys.Contains(key))
+                {
+                    continue;
+                }
+
+                _masterDbContext.StoreServiceMasters.Add(new StoreServiceMasterEntity
+                {
+                    TenantName = tenantName,
+                    StoreCode = storeCode,
+                    MasterType = "Category",
+                    Name = category,
+                    Description = null,
+                    IsActive = normalizedItems.Any(x => string.Equals(x.Category, category, StringComparison.OrdinalIgnoreCase) && x.IsActive),
+                    CreatedDate = now,
+                    ModifiedDate = now
+                });
+
+                serviceMasterKeys.Add(key);
+                changed = true;
+            }
+
+            foreach (var item in normalizedItems)
+            {
+                var key = $"{item.ServiceType}|{item.Category}|{item.ItemName}";
+                if (existingItemMasterKeys.Contains(key))
+                {
+                    continue;
+                }
+
+                _masterDbContext.StoreItemMasters.Add(new StoreItemMasterEntity
+                {
+                    TenantName = tenantName,
+                    StoreCode = storeCode,
+                    ServiceType = item.ServiceType,
+                    Category = item.Category,
+                    ItemName = item.ItemName,
+                    Description = null,
+                    IsActive = item.IsActive,
+                    CreatedDate = now,
+                    ModifiedDate = now
+                });
+
+                existingItemMasterKeys.Add(key);
+                changed = true;
+            }
+
+            if (changed)
+            {
+                await _masterDbContext.SaveChangesAsync();
+            }
         }
 
         public async Task<ActionReturnType> ImportDefaultLaundryItemPrices(string tenantName, string storeCode, bool overwriteExisting)
@@ -6657,6 +6814,8 @@ SELECT
             tenantName = tenantName.Trim();
             storeCode = storeCode.Trim();
 
+            await EnsureStoreMasterDefaultsInitializedAsync(tenantName, storeCode);
+
             var query = _masterDbContext.StoreServiceMasters
                 .AsNoTracking()
                 .Where(x => x.TenantName == tenantName && x.StoreCode == storeCode);
@@ -6839,6 +6998,8 @@ SELECT
 
             tenantName = tenantName.Trim();
             storeCode = storeCode.Trim();
+
+            await EnsureStoreMasterDefaultsInitializedAsync(tenantName, storeCode);
 
             var query = _masterDbContext.StoreItemMasters
                 .AsNoTracking()

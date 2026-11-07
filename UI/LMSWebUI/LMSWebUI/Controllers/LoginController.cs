@@ -21,6 +21,7 @@ using System.Text;
 using Microsoft.AspNetCore.Hosting;
 using Newtonsoft.Json.Linq;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.Extensions.Options;
 
 namespace LMSWebUI.Controllers
 {
@@ -30,6 +31,8 @@ namespace LMSWebUI.Controllers
         private readonly ILogger<LoginController> _logger;
         private readonly IWebHostEnvironment _environment;
         private readonly SignInManager<ApplicationUser> _signInManager;
+        private readonly IOptions<ServiceEndpointsOptions> _serviceEndpointsOptions;
+        private readonly IHttpContextAccessor _httpContextAccessor;
         private const string AllowedStoresSessionKey = "TenantAllowedStores";
         private const string MemberSinceSessionKey = "TenantMemberSince";
         private const string ProfileImageSessionKey = "TenantProfileImageUrl";
@@ -46,12 +49,20 @@ namespace LMSWebUI.Controllers
             ".png"
         };
 
-        public LoginController(ILoginApiClient clientAPI, ILogger<LoginController> logger, IWebHostEnvironment environment, SignInManager<ApplicationUser> signInManager)
+        public LoginController(
+            ILoginApiClient clientAPI,
+            ILogger<LoginController> logger,
+            IWebHostEnvironment environment,
+            SignInManager<ApplicationUser> signInManager,
+            IOptions<ServiceEndpointsOptions> serviceEndpointsOptions,
+            IHttpContextAccessor httpContextAccessor)
         {
             _clientApi = clientAPI;
             _logger = logger;
             _environment = environment;
             _signInManager = signInManager;
+            _serviceEndpointsOptions = serviceEndpointsOptions;
+            _httpContextAccessor = httpContextAccessor;
         }
 
         [HttpGet]
@@ -496,9 +507,11 @@ namespace LMSWebUI.Controllers
                             return "success";
                         }
 
-                        var tenantSessionEmail = string.IsNullOrWhiteSpace(responseMessage.Email)
+                        var authenticatedUserEmail = string.IsNullOrWhiteSpace(responseMessage.Email)
                             ? Email
                             : responseMessage.Email;
+
+                        var tenantSessionEmail = authenticatedUserEmail;
 
                         var role = string.IsNullOrWhiteSpace(responseMessage.UserRole) ? "StoreUser" : responseMessage.UserRole.Trim();
                         var isStoreUser = !string.Equals(role, "Admin", StringComparison.OrdinalIgnoreCase)
@@ -555,6 +568,20 @@ namespace LMSWebUI.Controllers
 
                         if (IsTenantLoginSuccessMessage(responseMessage.Message))
                         {
+                            if (isStoreUser)
+                            {
+                                var freshAuthenticatedClient = CreateFreshAuthenticatedLoginApiClient();
+                                var tenantOwnerResolution = await TryResolveTenantOwnerEmailForAssignedStoreAsync(
+                                    resolvedStore,
+                                    freshAuthenticatedClient);
+                                if (!tenantOwnerResolution.IsValid || string.IsNullOrWhiteSpace(tenantOwnerResolution.TenantOwnerEmail))
+                                {
+                                    return "invalidStore";
+                                }
+
+                                tenantSessionEmail = tenantOwnerResolution.TenantOwnerEmail;
+                            }
+
                             HttpContext.Session.SetString("TenantName", tenantSessionEmail);
                             if (!string.IsNullOrWhiteSpace(responseMessage.TenantId))
                             {
@@ -570,7 +597,7 @@ namespace LMSWebUI.Controllers
                             await SetTenantMemberSinceSessionAsync(tenantSessionEmail, responseMessage.TenantName);
                             HttpContext.Session.SetString("UserRole", role);
                             await SignInUserAsync(
-                                tenantSessionEmail,
+                                authenticatedUserEmail,
                                 role,
                                 resolvedStore,
                                 HttpContext.Session.GetString(TenantIdSessionKey));
@@ -1136,6 +1163,158 @@ namespace LMSWebUI.Controllers
                 .Select(x => x.Trim())
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .ToList();
+        }
+
+        private ILoginApiClient CreateFreshAuthenticatedLoginApiClient()
+        {
+            return new LoginApiClient(_serviceEndpointsOptions, _httpContextAccessor);
+        }
+
+        private async Task<(bool IsValid, string TenantOwnerEmail)> TryResolveTenantOwnerEmailForAssignedStoreAsync(
+            string assignedStoreCode,
+            ILoginApiClient authenticatedClient)
+        {
+            if (string.IsNullOrWhiteSpace(assignedStoreCode))
+            {
+                return (false, string.Empty);
+            }
+
+            if (authenticatedClient == null)
+            {
+                return (false, string.Empty);
+            }
+
+            var normalizedStoreCode = assignedStoreCode.Trim();
+            var attemptId = Guid.NewGuid().ToString("N");
+
+            _logger.LogInformation(
+                "Store-user tenant-owner resolution started. AttemptId={AttemptId} StoreCode={StoreCode}",
+                attemptId,
+                normalizedStoreCode);
+
+            try
+            {
+                _logger.LogInformation(
+                    "Calling GetAllStoreStatuses for tenant-owner resolution. AttemptId={AttemptId} StoreCode={StoreCode}",
+                    attemptId,
+                    normalizedStoreCode);
+
+                var statusResponse = await authenticatedClient.SendRequestAsync<JObject>(
+                    "/GetAllStoreStatuses",
+                    new Dictionary<string, string>(),
+                    RestSharp.Method.GET);
+
+                var statusResponseCode = (statusResponse?["StatusCode"] ?? statusResponse?["statusCode"])?.ToString();
+
+                var statusesToken = statusResponse?["StoreStatuses"] ?? statusResponse?["storeStatuses"] ?? new JArray();
+                var statusesArray = statusesToken as JArray ?? statusesToken?["$values"] as JArray ?? new JArray();
+
+                _logger.LogInformation(
+                    "GetAllStoreStatuses response parsed. AttemptId={AttemptId} StoreCode={StoreCode} ResponseStatusCode={ResponseStatusCode} StatusRowCount={StatusRowCount}",
+                    attemptId,
+                    normalizedStoreCode,
+                    string.IsNullOrWhiteSpace(statusResponseCode) ? "(missing)" : statusResponseCode,
+                    statusesArray.Count);
+
+                var matchingStoreRecords = statusesArray
+                    .Select(x => new
+                    {
+                        StoreCode = (x?["StoreCode"] ?? x?["storeCode"])?.ToString()?.Trim(),
+                        IsActive = (bool?)(x?["IsActive"] ?? x?["isActive"]) ?? false,
+                        TenantEmail = (x?["TenantEmail"] ?? x?["tenantEmail"])?.ToString()?.Trim()
+                    })
+                    .Where(x => string.Equals(x.StoreCode, normalizedStoreCode, StringComparison.OrdinalIgnoreCase))
+                    .ToList();
+
+                _logger.LogInformation(
+                    "Store status matching complete. AttemptId={AttemptId} StoreCode={StoreCode} MatchingStoreRowCount={MatchingStoreRowCount}",
+                    attemptId,
+                    normalizedStoreCode,
+                    matchingStoreRecords.Count);
+
+                var tenantOwnerEmails = matchingStoreRecords
+                    .Where(x => x.IsActive
+                        && !string.IsNullOrWhiteSpace(x.TenantEmail)
+                        && EmailValidator.IsValid(x.TenantEmail))
+                    .Select(x => x.TenantEmail)
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .ToList();
+
+                _logger.LogInformation(
+                    "Active tenant-owner candidate evaluation completed. AttemptId={AttemptId} StoreCode={StoreCode} DistinctActiveTenantOwnerCount={DistinctActiveTenantOwnerCount}",
+                    attemptId,
+                    normalizedStoreCode,
+                    tenantOwnerEmails.Count);
+
+                if (tenantOwnerEmails.Count != 1)
+                {
+                    _logger.LogWarning(
+                        "Tenant-owner resolution failed due to non-unique active owner set. AttemptId={AttemptId} StoreCode={StoreCode} DistinctActiveTenantOwnerCount={DistinctActiveTenantOwnerCount}",
+                        attemptId,
+                        normalizedStoreCode,
+                        tenantOwnerEmails.Count);
+                    return (false, string.Empty);
+                }
+
+                var tenantOwnerEmail = tenantOwnerEmails[0];
+
+                _logger.LogInformation(
+                    "Calling GetTenantStoreDetails for resolved owner. AttemptId={AttemptId} StoreCode={StoreCode}",
+                    attemptId,
+                    normalizedStoreCode);
+
+                var tenantStoreResponse = await authenticatedClient.SendRequestAsync<LoginIoResponse>(
+                    "/GetTenantStoreDetails",
+                    new Dictionary<string, string>
+                    {
+                        { "eMail", tenantOwnerEmail }
+                    },
+                    RestSharp.Method.GET);
+
+                var tenantStoreStatusCode = tenantStoreResponse?.StatusCode;
+
+                if (tenantStoreResponse == null
+                    || !string.Equals(tenantStoreResponse.StatusCode, "200", StringComparison.OrdinalIgnoreCase))
+                {
+                    _logger.LogWarning(
+                        "GetTenantStoreDetails returned non-success status for resolved owner. AttemptId={AttemptId} StoreCode={StoreCode} ResponseStatusCode={ResponseStatusCode}",
+                        attemptId,
+                        normalizedStoreCode,
+                        string.IsNullOrWhiteSpace(tenantStoreStatusCode) ? "(missing)" : tenantStoreStatusCode);
+                    return (false, string.Empty);
+                }
+
+                var registeredStores = NormalizeStoreCodes(tenantStoreResponse.Storecodes ?? new List<string>());
+                var containsAssignedStore = registeredStores.Contains(normalizedStoreCode, StringComparer.OrdinalIgnoreCase);
+
+                _logger.LogInformation(
+                    "Resolved owner store membership validated. AttemptId={AttemptId} StoreCode={StoreCode} RegisteredStoreCount={RegisteredStoreCount} ContainsAssignedStore={ContainsAssignedStore}",
+                    attemptId,
+                    normalizedStoreCode,
+                    registeredStores.Count,
+                    containsAssignedStore);
+
+                if (!registeredStores.Contains(normalizedStoreCode, StringComparer.OrdinalIgnoreCase))
+                {
+                    return (false, string.Empty);
+                }
+
+                _logger.LogInformation(
+                    "Store-user tenant-owner resolution succeeded. AttemptId={AttemptId} StoreCode={StoreCode}",
+                    attemptId,
+                    normalizedStoreCode);
+
+                return (true, tenantOwnerEmail);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(
+                    ex,
+                    "Store-user tenant-owner resolution failed with exception. AttemptId={AttemptId} StoreCode={StoreCode}",
+                    attemptId,
+                    normalizedStoreCode);
+                return (false, string.Empty);
+            }
         }
 
         private async Task<HashSet<string>> GetEnabledStoreCodesForTenantAsync(string tenantEmail)

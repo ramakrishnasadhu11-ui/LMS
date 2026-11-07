@@ -513,13 +513,23 @@
     var allowPartialPayment = @Html.Raw(Convert.ToBoolean(ViewData["AllowPartialPayment"] ?? true).ToString().ToLowerInvariant());
     // Expose admin flag to client side so non-admins don't see price-edit controls
     var isAdminUser = @Html.Raw(Convert.ToBoolean(ViewData["IsAdminUser"] ?? false).ToString().ToLowerInvariant());
+    var currentTenantName = '@Html.Raw(System.Text.Encodings.Web.JavaScriptEncoder.Default.Encode(Model.TenantName ?? string.Empty))';
+    var currentStoreCode = '@Html.Raw(System.Text.Encodings.Web.JavaScriptEncoder.Default.Encode(Model.StoreCode ?? string.Empty))';
     var currentAdvanceBalance = 0;
-    var selectedService = "Dry Clean";
-    var selectedCategory = "Men";
+    var selectedService = "";
+    var selectedCategory = "";
     var selectedItem = null;
     var orderLines = [];
     var configuredItems = [];
+    var configuredItemsRaw = [];
     var masterItems = [];
+    var activeServiceTypes = [];
+    var activeMasterServiceLookup = {};
+    var activeMasterCategoryLookup = {};
+    var activeMasterItemLookup = {};
+    var storeMastersLoaded = false;
+    var storeMastersFailed = false;
+    var configuredItemsLoaded = false;
     var orderHistoryCache = [];
     var cfgPickerEntriesByKey = {};
     var loadItemsRequestId = 0;
@@ -615,6 +625,196 @@
         return Number.isFinite(n) ? n : 0;
     }
 
+    function normalizeText(value) {
+        return (value == null ? "" : String(value)).trim();
+    }
+
+    function equalsNormalized(left, right) {
+        return normalizeText(left).toLowerCase() === normalizeText(right).toLowerCase();
+    }
+
+    function findMatchingValue(values, target) {
+        var normalizedTarget = normalizeText(target);
+        if (!normalizedTarget) {
+            return "";
+        }
+        for (var i = 0; i < (values || []).length; i++) {
+            if (equalsNormalized(values[i], normalizedTarget)) {
+                return values[i];
+            }
+        }
+
+        return "";
+    }
+
+    function buildServiceCategoryKey(serviceType, category) {
+        return normalizeText(serviceType).toLowerCase() + "|" + normalizeText(category).toLowerCase();
+    }
+
+    function buildServiceCategoryItemKey(serviceType, category, itemName) {
+        return normalizeText(serviceType).toLowerCase()
+            + "|" + normalizeText(category).toLowerCase()
+            + "|" + normalizeText(itemName).toLowerCase();
+    }
+
+    function getStatusToken(row) {
+        if (!row) {
+            return { hasValue: false, value: false };
+        }
+
+        var candidates = [
+            row.IsActive,
+            row.isActive,
+            row.isactive,
+            row.Active,
+            row.active,
+            row.Status,
+            row.status
+        ];
+
+        for (var i = 0; i < candidates.length; i++) {
+            var raw = candidates[i];
+            if (raw === undefined || raw === null || raw === "") {
+                continue;
+            }
+
+            if (typeof raw === "boolean") {
+                return { hasValue: true, value: raw };
+            }
+
+            if (typeof raw === "number") {
+                return { hasValue: true, value: raw === 1 };
+            }
+
+            var normalized = String(raw).trim().toLowerCase();
+            if (!normalized) {
+                continue;
+            }
+
+            if (normalized === "true" || normalized === "1" || normalized === "yes" || normalized === "y" || normalized === "active") {
+                return { hasValue: true, value: true };
+            }
+
+            if (normalized === "false" || normalized === "0" || normalized === "no" || normalized === "n" || normalized === "inactive" || normalized === "removed" || normalized === "archived") {
+                return { hasValue: true, value: false };
+            }
+
+            return { hasValue: true, value: false };
+        }
+
+        return { hasValue: false, value: false };
+    }
+
+    function setCatalogLoadingState(message) {
+        if (setupOnly) {
+            return;
+        }
+
+        var text = message || "Loading active master data...";
+        var serviceTabsEl = document.getElementById("serviceTabs");
+        var categoryTabsEl = document.getElementById("categoryTabs");
+        var catalogGridEl = document.getElementById("catalogGrid");
+        var catalogStatsEl = document.getElementById("catalogStats");
+
+        if (serviceTabsEl) {
+            serviceTabsEl.innerHTML = "<span style='font-size:12px;color:#7a5d00;'>" + text + "</span>";
+        }
+
+        if (categoryTabsEl) {
+            categoryTabsEl.innerHTML = "";
+        }
+
+        if (catalogGridEl) {
+            catalogGridEl.innerHTML = "<div style='font-size:12px;color:#7a5d00;'>" + text + "</div>";
+        }
+
+        if (catalogStatsEl) {
+            catalogStatsEl.textContent = text;
+        }
+    }
+
+    function rebuildActiveMasterLookups(serviceRows, itemRows) {
+        activeMasterServiceLookup = {};
+        activeMasterCategoryLookup = {};
+        activeMasterItemLookup = {};
+
+        (itemRows || []).forEach(function (row) {
+            var persistedId = Number((row && (row.Id ?? row.id)) || 0);
+            if (!Number.isFinite(persistedId) || persistedId <= 0) {
+                return;
+            }
+
+            var statusToken = getStatusToken(row);
+            if (!statusToken.hasValue || !statusToken.value) {
+                return;
+            }
+
+            var rowTenant = normalizeText(row && (row.TenantName ?? row.tenantName ?? ""));
+            var rowStore = normalizeText(row && (row.StoreCode ?? row.storeCode ?? ""));
+            if (!rowTenant || !rowStore) {
+                return;
+            }
+
+            if (!equalsNormalized(rowTenant, currentTenantName) || !equalsNormalized(rowStore, currentStoreCode)) {
+                return;
+            }
+
+            var serviceName = normalizeText(row.ServiceType || row.serviceType || "");
+            var categoryName = normalizeText(row.Category || row.category || "");
+            var itemName = normalizeText(row.ItemName || row.itemName || "");
+            if (!serviceName || !categoryName || !itemName) {
+                return;
+            }
+
+            activeMasterServiceLookup[serviceName.toLowerCase()] = true;
+            activeMasterCategoryLookup[buildServiceCategoryKey(serviceName, categoryName)] = true;
+            activeMasterItemLookup[buildServiceCategoryItemKey(serviceName, categoryName, itemName)] = true;
+        });
+    }
+
+    function isBackedByActiveMasterHierarchy(row) {
+        var serviceName = normalizeText(row.ServiceType || row.serviceType || "");
+        var categoryName = normalizeText(row.Category || row.category || "");
+        var itemName = normalizeText(row.ItemName || row.itemName || "");
+        if (!serviceName || !categoryName || !itemName) {
+            return false;
+        }
+
+        if (!activeMasterItemLookup[buildServiceCategoryItemKey(serviceName, categoryName, itemName)]) {
+            return false;
+        }
+
+        return true;
+    }
+
+    function applyConfiguredItemHierarchyFilter() {
+        if (storeMastersFailed) {
+            configuredItems = [];
+            setCatalogLoadingState("Unable to load active master hierarchy. Items are hidden to prevent archived selections.");
+            return;
+        }
+
+        if (!storeMastersLoaded) {
+            configuredItems = [];
+            setCatalogLoadingState("Loading active master hierarchy before showing configured items...");
+            return;
+        }
+
+        if (!configuredItemsLoaded) {
+            configuredItems = [];
+            setCatalogLoadingState("Loading configured item prices...");
+            return;
+        }
+
+        configuredItems = filterActiveScopedRows(configuredItemsRaw || []).filter(function (row) {
+            return isBackedByActiveMasterHierarchy(row);
+        });
+
+        refreshCategoryOptionsForSelectedService();
+        updateConfigItemSuggestions();
+        renderAllTabsAndCatalog();
+    }
+
     function resolveOrderTaxAmount(order) {
         if (!order) {
             return 0;
@@ -651,9 +851,13 @@
     function groupConfiguredItems(items) {
         var grouped = {};
         (items || []).forEach(function (item) {
-            var service = item.ServiceType || item.serviceType || "Dry Clean";
-            var category = item.Category || item.category || "Others";
-            var itemName = item.ItemName || item.itemName || "Item";
+            var service = normalizeText(item.ServiceType || item.serviceType || "");
+            if (!service) {
+                return;
+            }
+
+            var category = normalizeText(item.Category || item.category || "Others") || "Others";
+            var itemName = normalizeText(item.ItemName || item.itemName || "Item") || "Item";
             var price = parseAmount(item.UnitPrice || item.unitPrice || 0);
 
             if (!grouped[service]) grouped[service] = {};
@@ -663,6 +867,28 @@
         });
 
         return grouped;
+    }
+
+    function isActiveRecord(row) {
+        return !!(row && (row.IsActive ?? row.isActive ?? true));
+    }
+
+    function isScopedRecord(row) {
+        if (!row) {
+            return false;
+        }
+
+        var rowTenant = (row.TenantName ?? row.tenantName ?? "").toString().trim();
+        var rowStore = (row.StoreCode ?? row.storeCode ?? "").toString().trim();
+        var tenantMatches = !rowTenant || !currentTenantName || rowTenant.toLowerCase() === currentTenantName.toLowerCase();
+        var storeMatches = !rowStore || !currentStoreCode || rowStore.toLowerCase() === currentStoreCode.toLowerCase();
+        return tenantMatches && storeMatches;
+    }
+
+    function filterActiveScopedRows(rows) {
+        return (rows || []).filter(function (row) {
+            return isActiveRecord(row) && isScopedRecord(row);
+        });
     }
 
     function computeOrderAmount() {
@@ -732,19 +958,18 @@
 
         var paidNowInput = document.getElementById("paidNow");
         var paidNow = parseAmount(paidNowInput ? paidNowInput.value : 0);
-        if (!allowPartialPayment) {
+        if (paidNow < 0) {
+            paidNow = 0;
+            if (paidNowInput) {
+                paidNowInput.value = "0.00";
+            }
+        }
+
+        if (paidNow > netBeforePayment) {
             paidNow = netBeforePayment;
             if (paidNowInput) {
                 paidNowInput.value = netBeforePayment.toFixed(2);
                 // Preserve numeric formatting for form input (use toFixed on hidden/display fields)
-            }
-        } else {
-            if (paidNow > netBeforePayment) {
-                paidNow = netBeforePayment;
-                if (paidNowInput) {
-                    paidNowInput.value = netBeforePayment.toFixed(2);
-                    // Preserve numeric formatting for form input (use toFixed on hidden/display fields)
-                }
             }
         }
 
@@ -830,13 +1055,14 @@
         var wrap = document.getElementById("serviceTabs");
         wrap.innerHTML = "";
 
-        var services = Object.keys(groupConfiguredItems(configuredItems));
+        var services = (activeServiceTypes || []).slice();
         if (!services.length) {
             wrap.innerHTML = "<span style='font-size:12px;color:#b63838;'>No configured items. Use Save Price or Import Default Items.</span>";
             return;
         }
 
-        if (services.indexOf(selectedService) === -1) selectedService = services[0];
+        var matchingService = findMatchingValue(services, selectedService);
+        selectedService = matchingService || services[0];
 
         services.forEach(function (service) {
             var btn = document.createElement("button");
@@ -845,13 +1071,73 @@
             btn.textContent = service;
             btn.onclick = function () {
                 selectedService = service;
-                var groups = groupConfiguredItems(configuredItems);
-                selectedCategory = Object.keys(groups[selectedService] || {})[0] || "Others";
+                var categories = getActiveCategoriesForService(selectedService);
+                selectedCategory = categories[0] || "";
                 selectedItem = null;
                 renderAllTabsAndCatalog();
             };
             wrap.appendChild(btn);
         });
+    }
+
+    function getActiveCategoriesForService(serviceName) {
+        var categoriesByKey = {};
+
+        (masterItems || []).forEach(function (item) {
+            if (!isScopedRecord(item) || !isActiveRecord(item)) {
+                return;
+            }
+
+            var itemService = normalizeText(item.ServiceType || item.serviceType || "");
+            var itemCategory = normalizeText(item.Category || item.category || "");
+            if (!itemService || !itemCategory || !equalsNormalized(itemService, serviceName)) {
+                return;
+            }
+
+            categoriesByKey[itemCategory.toLowerCase()] = itemCategory;
+        });
+
+        Object.keys(groupConfiguredItems(configuredItems) || {}).forEach(function (service) {
+            if (!equalsNormalized(service, serviceName)) {
+                return;
+            }
+
+            var serviceCategories = groupConfiguredItems(configuredItems)[service] || {};
+            Object.keys(serviceCategories).forEach(function (categoryName) {
+                var normalizedCategory = normalizeText(categoryName);
+                if (!normalizedCategory) {
+                    return;
+                }
+
+                categoriesByKey[normalizedCategory.toLowerCase()] = normalizedCategory;
+            });
+        });
+
+        return Object.keys(categoriesByKey)
+            .map(function (key) { return categoriesByKey[key]; })
+            .sort(function (a, b) { return a.localeCompare(b); });
+    }
+
+    function ensureWeightServiceOption(serviceName) {
+        var weightServiceType = document.getElementById("weightServiceType");
+        var normalizedService = normalizeText(serviceName);
+        if (!weightServiceType || !normalizedService) {
+            return;
+        }
+
+        for (var i = 0; i < weightServiceType.options.length; i++) {
+            var existingText = normalizeText(weightServiceType.options[i].value || weightServiceType.options[i].text);
+            if (equalsNormalized(existingText, normalizedService)) {
+                weightServiceType.value = weightServiceType.options[i].value;
+                return;
+            }
+        }
+
+        var option = document.createElement("option");
+        option.value = normalizedService;
+        option.textContent = normalizedService;
+        weightServiceType.appendChild(option);
+        weightServiceType.value = normalizedService;
     }
 
     function renderCategoryTabs() {
@@ -863,10 +1149,47 @@
         wrap.innerHTML = "";
 
         var groups = groupConfiguredItems(configuredItems);
-        var categories = Object.keys((groups[selectedService] || {}));
+        var categoriesByKey = {};
+
+        var selectedServiceKey = findMatchingValue(Object.keys(groups), selectedService) || selectedService;
+
+        Object.keys(groups[selectedServiceKey] || {}).forEach(function (categoryName) {
+            if (!categoryName) {
+                return;
+            }
+
+            categoriesByKey[categoryName.toLowerCase()] = categoryName;
+        });
+
+        (masterItems || []).forEach(function (item) {
+            if (!isScopedRecord(item) || !isActiveRecord(item)) {
+                return;
+            }
+
+            var itemService = normalizeText(item.ServiceType || item.serviceType || "");
+            var itemCategory = normalizeText(item.Category || item.category || "");
+            if (!itemService || !itemCategory) {
+                return;
+            }
+
+            if (!equalsNormalized(itemService, selectedService)) {
+                return;
+            }
+
+            categoriesByKey[itemCategory.toLowerCase()] = itemCategory;
+        });
+
+        var categories = Object.keys(categoriesByKey).map(function (key) {
+            return categoriesByKey[key];
+        });
         if (!categories.length) { wrap.innerHTML = ""; return; }
 
-        if (categories.indexOf(selectedCategory) === -1 && selectedCategory !== "__ALL__") selectedCategory = categories[0];
+        var matchingCategory = findMatchingValue(categories, selectedCategory);
+        if (!matchingCategory && selectedCategory !== "__ALL__") {
+            selectedCategory = categories[0];
+        } else if (matchingCategory) {
+            selectedCategory = matchingCategory;
+        }
 
         var allBtn = document.createElement("button");
         allBtn.type = "button";
@@ -902,11 +1225,12 @@
         if (!stats || setupOnly) return;
 
         var groups = groupConfiguredItems(configuredItems);
+        var selectedServiceKey = findMatchingValue(Object.keys(groups), selectedService) || selectedService;
         var totalItems = configuredItems.length;
         var serviceItems = 0;
-        if (groups[selectedService]) {
-            Object.keys(groups[selectedService]).forEach(function (cat) {
-                serviceItems += (groups[selectedService][cat] || []).length;
+        if (groups[selectedServiceKey]) {
+            Object.keys(groups[selectedServiceKey]).forEach(function (cat) {
+                serviceItems += (groups[selectedServiceKey][cat] || []).length;
             });
         }
 
@@ -916,7 +1240,10 @@
         if (selectedCategory === "__ALL__") {
             stats.textContent = "Loaded from DB: " + totalItems + " items" + inactiveText + modeText + " | " + selectedService + ": " + serviceItems + " items (All categories)";
         } else {
-            var filtered = (groups[selectedService] && groups[selectedService][selectedCategory]) ? groups[selectedService][selectedCategory].length : 0;
+            var selectedCategoryKey = selectedCategory === "__ALL__"
+                ? "__ALL__"
+                : (findMatchingValue(Object.keys(groups[selectedServiceKey] || {}), selectedCategory) || selectedCategory);
+            var filtered = (groups[selectedServiceKey] && groups[selectedServiceKey][selectedCategoryKey]) ? groups[selectedServiceKey][selectedCategoryKey].length : 0;
             stats.textContent = "Loaded from DB: " + totalItems + " items" + inactiveText + modeText + " | " + selectedService + " / " + selectedCategory + ": " + filtered + " items";
         }
     }
@@ -929,14 +1256,16 @@
         var grid = document.getElementById("catalogGrid");
         grid.innerHTML = "";
         var groups = groupConfiguredItems(configuredItems);
+        var selectedServiceKey = findMatchingValue(Object.keys(groups), selectedService) || selectedService;
         var items = [];
-        if (groups[selectedService]) {
+        if (groups[selectedServiceKey]) {
             if (selectedCategory === "__ALL__") {
-                Object.keys(groups[selectedService]).forEach(function (cat) {
-                    items = items.concat(groups[selectedService][cat] || []);
+                Object.keys(groups[selectedServiceKey]).forEach(function (cat) {
+                    items = items.concat(groups[selectedServiceKey][cat] || []);
                 });
             } else {
-                items = groups[selectedService][selectedCategory] || [];
+                var selectedCategoryKey = findMatchingValue(Object.keys(groups[selectedServiceKey] || {}), selectedCategory) || selectedCategory;
+                items = groups[selectedServiceKey][selectedCategoryKey] || [];
             }
         }
 
@@ -946,12 +1275,12 @@
             try {
                 if (masterItems && masterItems.length) {
                     masterItems.forEach(function (m) {
-                        var svc = (m.ServiceType || m.serviceType || "").trim();
-                        var cat = (m.Category || m.category || "").trim();
-                        var name = (m.ItemName || m.itemName || "").trim();
+                        var svc = normalizeText(m.ServiceType || m.serviceType || "");
+                        var cat = normalizeText(m.Category || m.category || "");
+                        var name = normalizeText(m.ItemName || m.itemName || "");
                         if (!name) return;
-                        if (svc.toLowerCase() !== (selectedService || "").toLowerCase()) return;
-                        if (selectedCategory !== "__ALL__" && cat.toLowerCase() !== (selectedCategory || "").toLowerCase()) return;
+                        if (!equalsNormalized(svc, selectedService)) return;
+                        if (selectedCategory !== "__ALL__" && !equalsNormalized(cat, selectedCategory)) return;
                         fallback.push({ name: name, price: 0, icon: "🧺" });
                     });
                 }
@@ -1820,6 +2149,8 @@
             }
 
             if (!data || !data.success) {
+                configuredItemsLoaded = false;
+                configuredItemsRaw = [];
                 configuredItems = [];
                 refreshCategoryOptionsForSelectedService();
                 updateConfigItemSuggestions();
@@ -1829,17 +2160,17 @@
                 return;
             }
 
-            configuredItems = data.items || [];
-
-            refreshCategoryOptionsForSelectedService();
-            updateConfigItemSuggestions();
-            renderAllTabsAndCatalog();
+            configuredItemsRaw = data.items || [];
+            configuredItemsLoaded = true;
+            applyConfiguredItemHierarchyFilter();
         })
         .catch(function (error) {
             if (requestId !== loadItemsRequestId) {
                 return;
             }
 
+            configuredItemsLoaded = false;
+            configuredItemsRaw = [];
             configuredItems = [];
             refreshCategoryOptionsForSelectedService();
             updateConfigItemSuggestions();
@@ -1855,9 +2186,8 @@
         }
 
         var previous = select.value;
-        var activeRows = (rows || []).filter(function (row) {
-            return !!(row.IsActive ?? row.isActive ?? true);
-        });
+        var activeRows = filterActiveScopedRows(rows || []);
+        var seenNames = {};
 
         select.innerHTML = "";
 
@@ -1871,6 +2201,12 @@
             if (!name) {
                 return;
             }
+
+            var key = name.toLowerCase();
+            if (seenNames[key]) {
+                return;
+            }
+            seenNames[key] = true;
 
             var option = document.createElement("option");
             option.value = name;
@@ -1989,6 +2325,83 @@
     function loadStoreMasters() {
         var url = '@Url.Action("GetStoreMasters", "Customer")?includeInactive=false&_ts=' + Date.now();
 
+        function applyStoreMastersResponse(data) {
+            if (!data || data.success !== true) {
+                storeMastersLoaded = false;
+                storeMastersFailed = true;
+                masterItems = [];
+                activeServiceTypes = [];
+                rebuildActiveMasterLookups([], []);
+                fillMasterSelect("cfgServiceType", [], "Select service type", "No active service types configured");
+                refreshCategoryOptionsForSelectedService();
+                updateConfigItemSuggestions();
+                showToast((data && data.message) || "Unable to load store master data.", false);
+                applyConfiguredItemHierarchyFilter();
+                return;
+            }
+
+            var serviceTypes = filterActiveScopedRows(data.serviceTypes || data.ServiceTypes || []);
+            var rawMasterItems = data.items || data.Items || [];
+            masterItems = filterActiveScopedRows(rawMasterItems);
+            activeServiceTypes = [];
+
+            var seenServiceTypes = {};
+            serviceTypes.forEach(function (row) {
+                var name = (row.Name || row.name || "").trim();
+                if (!name) {
+                    return;
+                }
+
+                var key = name.toLowerCase();
+                if (seenServiceTypes[key]) {
+                    return;
+                }
+
+                seenServiceTypes[key] = true;
+                activeServiceTypes.push(name);
+            });
+
+            rebuildActiveMasterLookups(serviceTypes, rawMasterItems);
+            storeMastersLoaded = true;
+            storeMastersFailed = false;
+
+            var matchingSelectedService = findMatchingValue(activeServiceTypes, selectedService);
+            if (!matchingSelectedService) {
+                selectedService = activeServiceTypes[0] || "";
+            } else {
+                selectedService = matchingSelectedService;
+            }
+
+            if (!selectedCategory) {
+                selectedCategory = "__ALL__";
+            }
+
+            fillMasterSelect("cfgServiceType", serviceTypes, "Select service type", "No active service types configured");
+            refreshCategoryOptionsForSelectedService();
+            updateConfigItemSuggestions();
+
+            var hasActiveServiceTypes = (serviceTypes || []).length > 0;
+
+            applyConfiguredItemHierarchyFilter();
+
+            if (!hasActiveServiceTypes) {
+                showToast("No active service types configured for this store.", false);
+            }
+        }
+
+        function handleStoreMastersLoadFailure(error) {
+            storeMastersLoaded = false;
+            storeMastersFailed = true;
+            masterItems = [];
+            activeServiceTypes = [];
+            rebuildActiveMasterLookups([], []);
+            fillMasterSelect("cfgServiceType", [], "Select service type", "No active service types configured");
+            refreshCategoryOptionsForSelectedService();
+            updateConfigItemSuggestions();
+            showToast((error && error.message) || "Unable to load store master data.", false);
+            applyConfiguredItemHierarchyFilter();
+        }
+
         return fetch(url, {
             method: 'GET',
             cache: 'no-store',
@@ -2002,17 +2415,10 @@
             return response.json();
         })
         .then(function (data) {
-            var serviceTypes = (data && data.success) ? (data.serviceTypes || data.ServiceTypes || []) : [];
-            masterItems = (data && data.success) ? (data.items || data.Items || []) : [];
-
-            fillMasterSelect("cfgServiceType", serviceTypes, "Select service type", "No service types configured");
-            refreshCategoryOptionsForSelectedService();
-            updateConfigItemSuggestions();
+            applyStoreMastersResponse(data);
         })
-        .catch(function () {
-            masterItems = [];
-            fillMasterSelect("cfgServiceType", [], "Select service type", "No service types configured");
-            refreshCategoryOptionsForSelectedService();
+        .catch(function (error) {
+            handleStoreMastersLoadFailure(error);
         });
     }
 
@@ -2503,9 +2909,19 @@
         }
 
         if (currentOrderMode === "weight") {
-            selectedService = "Wash & Fold";
-            selectedCategory = "Household";
-            document.getElementById("weightServiceType").value = "Wash & Fold";
+            var preferredService = findMatchingValue(activeServiceTypes, "Wash & Fold")
+                || activeServiceTypes[0]
+                || selectedService
+                || "";
+
+            var activeCategoriesForService = getActiveCategoriesForService(preferredService);
+            var preferredCategory = findMatchingValue(activeCategoriesForService, "Household")
+                || activeCategoriesForService[0]
+                || "";
+
+            selectedService = preferredService;
+            selectedCategory = preferredCategory;
+            ensureWeightServiceOption(preferredService);
             if (!document.getElementById("ratePerKg").value || parseAmount(document.getElementById("ratePerKg").value) <= 0) {
                 document.getElementById("ratePerKg").value = "50";
             }
@@ -2559,12 +2975,17 @@
             && !hasValidationErrors;
 
         if (shouldClearFreshEntryFields) {
-            ["customerName", "orderLookupText", "customerCodeDisplay", "custCode", "advanceUsed", "paidNow", "orderHistorySearch"].forEach(function (id) {
+            ["customerName", "orderLookupText", "customerCodeDisplay", "custCode", "advanceUsed", "orderHistorySearch"].forEach(function (id) {
                 var element = document.getElementById(id);
                 if (element) {
                     element.value = "";
                 }
             });
+        }
+
+        var paidNowInput = document.getElementById("paidNow");
+        if (paidNowInput && !((paidNowInput.value || "").trim())) {
+            paidNowInput.value = "0.00";
         }
 
         setupPostOrderActions();
