@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using LMS.Identity.BusinessSerive.Data;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Hosting;
 
 namespace LMS.Identity.WebApi.Controllers
 {
@@ -23,16 +24,57 @@ namespace LMS.Identity.WebApi.Controllers
         [Route("admin/migrate")]
         public IActionResult Migrate()
         {
+            var environment = HttpContext.RequestServices.GetService(typeof(IHostEnvironment)) as IHostEnvironment;
+
+            if (environment == null)
+            {
+                return StatusCode(500, new { success = false, error = "Migration safeguards could not be evaluated." });
+            }
+
+            if (!DatabaseInitializationSafetyPolicy.IsAdminMigrationEndpointEnabled(_configuration, environment))
+            {
+                return StatusCode(403, new
+                {
+                    success = false,
+                    error = "Admin migration endpoint is disabled for this environment."
+                });
+            }
+
+            var migrationDecision = DatabaseInitializationSafetyPolicy.EvaluateStartupMigration(
+                _configuration,
+                environment,
+                _configuration.GetConnectionString("IdentityDb"));
+
+            if (!migrationDecision.IsAllowed)
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    error = migrationDecision.Reason,
+                    migrationDecision.DataSource,
+                    migrationDecision.DatabaseName
+                });
+            }
+
+            var seedingDecision = DatabaseInitializationSafetyPolicy.EvaluateStartupSeeding(
+                _configuration,
+                environment,
+                _configuration.GetConnectionString("IdentityDb"));
+
+            if (!seedingDecision.IsAllowed)
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    error = seedingDecision.Reason,
+                    seedingDecision.DataSource,
+                    seedingDecision.DatabaseName
+                });
+            }
+
             try
             {
-                try
-                {
-                    _db.Database.Migrate();
-                }
-                catch
-                {
-                    _db.Database.EnsureCreated();
-                }
+                _db.Database.Migrate();
 
                 SuperAdminSeeder.Seed(_db, _configuration);
 
@@ -43,7 +85,7 @@ namespace LMS.Identity.WebApi.Controllers
                 return Ok(new
                 {
                     success = true,
-                    message = "Identity DB migrated/created.",
+                    message = "Identity DB migrated.",
                     superAdminSeeded = seeded,
                     superAdminEmail = configuredEmail
                 });

@@ -182,62 +182,93 @@ namespace LMSWebUI
                     var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
                     var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
                     var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-                    // Try applying migrations; if migrations are not present, fall back to EnsureCreated
-                    try
+
+                    var connectionString = Configuration.GetConnectionString("DefaultConnection");
+                    var migrationDecision = DatabaseMigrationSafetyPolicy.EvaluateStartupMigration(Configuration, env, connectionString);
+
+                    if (migrationDecision.IsAllowed)
                     {
-                        db.Database.Migrate();
-                    }
-                    catch (Exception ex)
-                    {
-                        var sqlEx = TryGetSqlException(ex);
-                        if (sqlEx != null)
-                        {
-                            logger.LogError(
-                                ex,
-                                "ApplicationDb migration failed. SqlErrorNumber={SqlErrorNumber}, SqlState={SqlState}, SqlClass={SqlClass}, Procedure={Procedure}, LineNumber={LineNumber}, Server={Server}, Message={SqlMessage}",
-                                sqlEx.Number,
-                                sqlEx.State,
-                                sqlEx.Class,
-                                sqlEx.Procedure ?? string.Empty,
-                                sqlEx.LineNumber,
-                                sqlEx.Server ?? string.Empty,
-                                sqlEx.Message);
-                        }
-                        else
-                        {
-                            logger.LogError(ex, "ApplicationDb migration failed with non-SQL exception. Falling back to EnsureCreated.");
-                        }
+                        logger.LogInformation(
+                            "Automatic startup migration is enabled for Development. DataSource={DataSource}, Database={DatabaseName}",
+                            migrationDecision.DataSource,
+                            migrationDecision.DatabaseName);
 
                         try
                         {
-                            db.Database.EnsureCreated();
+                            db.Database.Migrate();
                         }
-                        catch (Exception ensureCreatedEx)
+                        catch (Exception ex)
                         {
-                            var ensureCreatedSqlEx = TryGetSqlException(ensureCreatedEx);
-                            if (ensureCreatedSqlEx != null)
+                            var sqlEx = TryGetSqlException(ex);
+                            if (sqlEx != null)
                             {
                                 logger.LogError(
-                                    ensureCreatedEx,
-                                    "ApplicationDb EnsureCreated failed after migration failure. SqlErrorNumber={SqlErrorNumber}, SqlState={SqlState}, SqlClass={SqlClass}, Procedure={Procedure}, LineNumber={LineNumber}, Server={Server}, Message={SqlMessage}",
-                                    ensureCreatedSqlEx.Number,
-                                    ensureCreatedSqlEx.State,
-                                    ensureCreatedSqlEx.Class,
-                                    ensureCreatedSqlEx.Procedure ?? string.Empty,
-                                    ensureCreatedSqlEx.LineNumber,
-                                    ensureCreatedSqlEx.Server ?? string.Empty,
-                                    ensureCreatedSqlEx.Message);
+                                    ex,
+                                    "ApplicationDb migration failed. SqlErrorNumber={SqlErrorNumber}, SqlState={SqlState}, SqlClass={SqlClass}, Procedure={Procedure}, LineNumber={LineNumber}, Server={Server}, Message={SqlMessage}",
+                                    sqlEx.Number,
+                                    sqlEx.State,
+                                    sqlEx.Class,
+                                    sqlEx.Procedure ?? string.Empty,
+                                    sqlEx.LineNumber,
+                                    sqlEx.Server ?? string.Empty,
+                                    sqlEx.Message);
                             }
                             else
                             {
-                                logger.LogError(ensureCreatedEx, "ApplicationDb EnsureCreated failed with non-SQL exception.");
+                                logger.LogError(ex, "ApplicationDb migration failed with non-SQL exception.");
                             }
 
                             throw;
                         }
                     }
+                    else
+                    {
+                        logger.LogWarning(
+                            "Automatic startup migration skipped. Reason={Reason}, DataSource={DataSource}, Database={DatabaseName}",
+                            migrationDecision.Reason,
+                            migrationDecision.DataSource,
+                            migrationDecision.DatabaseName);
+                    }
 
-                    DbInitializer.SeedAsync(userManager, roleManager).GetAwaiter().GetResult();
+                    var seedingDecision = DatabaseMigrationSafetyPolicy.EvaluateStartupSeeding(Configuration, env, connectionString);
+                    if (seedingDecision.IsAllowed)
+                    {
+                        try
+                        {
+                            DbInitializer.SeedAsync(userManager, roleManager).GetAwaiter().GetResult();
+                        }
+                        catch (Exception seedEx)
+                        {
+                            var seedSqlEx = TryGetSqlException(seedEx);
+                            if (seedSqlEx != null)
+                            {
+                                logger.LogError(
+                                    seedEx,
+                                    "Startup DB seed failed. SqlErrorNumber={SqlErrorNumber}, SqlState={SqlState}, SqlClass={SqlClass}, Procedure={Procedure}, LineNumber={LineNumber}, Server={Server}, Message={SqlMessage}",
+                                    seedSqlEx.Number,
+                                    seedSqlEx.State,
+                                    seedSqlEx.Class,
+                                    seedSqlEx.Procedure ?? string.Empty,
+                                    seedSqlEx.LineNumber,
+                                    seedSqlEx.Server ?? string.Empty,
+                                    seedSqlEx.Message);
+                            }
+                            else
+                            {
+                                logger.LogError(seedEx, "Startup DB seed failed with non-SQL exception.");
+                            }
+
+                            // Preserve previous behavior for seed failures when seeding is explicitly allowed.
+                        }
+                    }
+                    else
+                    {
+                        logger.LogWarning(
+                            "Startup seeding skipped. Reason={Reason}, DataSource={DataSource}, Database={DatabaseName}",
+                            seedingDecision.Reason,
+                            seedingDecision.DataSource,
+                            seedingDecision.DatabaseName);
+                    }
                 }
             }
             catch (Exception ex)
@@ -261,7 +292,7 @@ namespace LMSWebUI
                     logger.LogError(ex, "Startup DB seed/init failed with non-SQL exception.");
                 }
 
-                // Preserve existing behavior: startup continues even when seeding/init fails.
+                throw;
             }
         }
 

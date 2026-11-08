@@ -2046,6 +2046,69 @@ namespace LMSWebUI.Tests
         }
 
         [Fact]
+        public async Task SetupCreateOrder_Get_InactiveStoreScope_RedirectsToDashboard()
+        {
+            var customerApi = new InMemoryCustomerApiClient();
+            var loginApi = new InMemoryTaxLoginApiClient
+            {
+                TenantStoreDetailsResponse = JObject.Parse(@"{
+                    'Storecodes': ['S1'],
+                    'StoreStatuses': [
+                        { 'StoreCode': 'S1', 'TenantName': 'tenant@example.com', 'IsActive': false }
+                    ]
+                }")
+            };
+
+            var controller = CreateController(customerApi, loginApi);
+            SetControllerSession(controller, "tenant@example.com", "S1", "Admin");
+
+            var result = await controller.SetupCreateOrder();
+
+            var redirect = Assert.IsType<RedirectToActionResult>(result);
+            Assert.Equal("Index", redirect.ActionName);
+            Assert.Equal("Dashboard", redirect.ControllerName);
+
+            var userMessage = Assert.IsType<string>(controller.TempData["UserMessage"]);
+            Assert.Contains("inactive", userMessage, StringComparison.OrdinalIgnoreCase);
+        }
+
+        [Fact]
+        public async Task SetupCreateOrder_Post_IneligibleSubscription_RedirectsToDashboard_AndSkipsCreateOrder()
+        {
+            var customerApi = new InMemoryCustomerApiClient();
+            var loginApi = new InMemoryTaxLoginApiClient
+            {
+                TenantStoreDetailsResponse = JObject.Parse(@"{
+                    'Storecodes': ['S1'],
+                    'StoreStatuses': [
+                        { 'StoreCode': 'S1', 'TenantName': 'tenant@example.com', 'IsActive': true }
+                    ]
+                }"),
+                TenantSubscriptionOverviewResponse = JObject.Parse(@"{ 'SubscriptionStatus': 'Expired' }")
+            };
+
+            var controller = CreateController(customerApi, loginApi);
+            SetControllerSession(controller, "tenant@example.com", "S1", "Admin");
+
+            var result = await controller.SetupCreateOrder(new LaundryOrderDto
+            {
+                CustomerName = "Walk-in Customer",
+                OrderAmount = 100m,
+                OrderMode = "pieces",
+                PaymentMode = "Cash",
+                PaidNow = 100m
+            });
+
+            var redirect = Assert.IsType<RedirectToActionResult>(result);
+            Assert.Equal("Index", redirect.ActionName);
+            Assert.Equal("Dashboard", redirect.ControllerName);
+
+            var userMessage = Assert.IsType<string>(controller.TempData["UserMessage"]);
+            Assert.Contains("not active for creating orders", userMessage, StringComparison.OrdinalIgnoreCase);
+            Assert.DoesNotContain(customerApi.Calls, c => string.Equals(c.RequestUrl, "/CreateLaundryOrder", StringComparison.OrdinalIgnoreCase));
+        }
+
+        [Fact]
         public async Task DeactivateTaxComponent_CallsDeactivateEndpoint()
         {
             var customerApi = new InMemoryCustomerApiClient();
@@ -2642,6 +2705,8 @@ namespace LMSWebUI.Tests
         private sealed class InMemoryTaxLoginApiClient : ILoginApiClient
         {
             public LoginIoResponse ProfileResponse { get; set; } = new LoginIoResponse();
+            public JObject TenantStoreDetailsResponse { get; set; }
+            public JObject TenantSubscriptionOverviewResponse { get; set; }
 
             public Task<T> SendRequestAsync<T>(string requestUrl, Method method) where T : new()
                 => Task.FromResult(new T());
@@ -2654,16 +2719,19 @@ namespace LMSWebUI.Tests
 
             public Task<T> SendRequestAsync<T>(string requestUrl, Dictionary<string, string> queryParams, Method method) where T : new()
             {
+                if (string.Equals(requestUrl, "/GetTenantStoreDetails", StringComparison.OrdinalIgnoreCase))
+                {
+                    return Task.FromResult(ToGeneric<T>(TenantStoreDetailsResponse));
+                }
+
+                if (string.Equals(requestUrl, "/GetTenantSubscriptionOverview", StringComparison.OrdinalIgnoreCase))
+                {
+                    return Task.FromResult(ToGeneric<T>(TenantSubscriptionOverviewResponse));
+                }
+
                 if (string.Equals(requestUrl, "/TenantprofileDetails", StringComparison.OrdinalIgnoreCase))
                 {
-                    if (ProfileResponse is T typed)
-                    {
-                        return Task.FromResult(typed);
-                    }
-
-                    var json = JsonConvert.SerializeObject(ProfileResponse);
-                    var value = JsonConvert.DeserializeObject<T>(json);
-                    return Task.FromResult(value);
+                    return Task.FromResult(ToGeneric<T>(ProfileResponse));
                 }
 
                 return Task.FromResult(new T());
@@ -2680,6 +2748,22 @@ namespace LMSWebUI.Tests
 
             public Task<T> SendRequestAsync<T>(string requestUrl, object model, List<KeyValuePair<string, string>> queryParams, Method method) where T : new()
                 => Task.FromResult(new T());
+
+            private static T ToGeneric<T>(object model) where T : new()
+            {
+                if (model == null)
+                {
+                    return default;
+                }
+
+                if (model is T typed)
+                {
+                    return typed;
+                }
+
+                var json = JsonConvert.SerializeObject(model);
+                return JsonConvert.DeserializeObject<T>(json);
+            }
         }
     }
 }

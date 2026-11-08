@@ -101,11 +101,11 @@ namespace LMS.Master.WebApi.Tests
 
                 Assert.Equal(
                     masters.Count,
-                    masters.Select(x => $"{x.MasterType}|{x.Name}", StringComparer.OrdinalIgnoreCase).Distinct(StringComparer.OrdinalIgnoreCase).Count());
+                    masters.Select(x => $"{x.MasterType}|{x.Name}").Distinct(StringComparer.OrdinalIgnoreCase).Count());
 
                 Assert.Equal(
                     items.Count,
-                    items.Select(x => $"{x.ServiceType}|{x.Category}|{x.ItemName}", StringComparer.OrdinalIgnoreCase).Distinct(StringComparer.OrdinalIgnoreCase).Count());
+                    items.Select(x => $"{x.ServiceType}|{x.Category}|{x.ItemName}").Distinct(StringComparer.OrdinalIgnoreCase).Count());
             }
         }
 

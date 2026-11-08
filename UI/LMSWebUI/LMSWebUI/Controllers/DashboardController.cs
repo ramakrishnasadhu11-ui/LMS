@@ -1,5 +1,6 @@
 ﻿using LMSWebUI.Models.DashBoard;
 using LMSWebUI.Models;
+using LMSWebUI.Models.Customer;
 using LMSWebUI.Services;
 using LMSClientFactory.Helper;
 using Microsoft.Extensions.Configuration;
@@ -25,18 +26,21 @@ namespace LMSWebUI.Controllers
     public class DashboardController : Controller
     {
         private const string AccessTokenSessionKey = "AccessToken";
+        private const string AllowedStoresSessionKey = "TenantAllowedStores";
         private const string OnboardingDismissedSessionKey = "TenantOnboardingDismissed";
         private const string OnboardingCompletedSessionKey = "TenantOnboardingCompleted";
 
         private readonly ILoginApiClient _loginApi;
+        private readonly ICustomerApiClient _customerApi;
         private readonly IConfiguration _configuration;
         private readonly ILogger<DashboardController> _logger;
         private readonly string _onboardingDiagnosticsLogPath;
         private static readonly SemaphoreSlim OnboardingDiagnosticsFileLock = new SemaphoreSlim(1, 1);
 
-        public DashboardController(ILoginApiClient loginApi, IConfiguration configuration, ILogger<DashboardController> logger, IWebHostEnvironment hostEnvironment)
+        public DashboardController(ILoginApiClient loginApi, ICustomerApiClient customerApi, IConfiguration configuration, ILogger<DashboardController> logger, IWebHostEnvironment hostEnvironment)
         {
             _loginApi = loginApi;
+            _customerApi = customerApi;
             _configuration = configuration;
             _logger = logger;
             var contentRoot = hostEnvironment?.ContentRootPath ?? Directory.GetCurrentDirectory();
@@ -61,6 +65,20 @@ namespace LMSWebUI.Controllers
             string tenantName = HttpContext.Session.GetString("TenantName");
             string tenanStore = HttpContext.Session.GetString("TenantStore");
             string userRole = HttpContext.Session.GetString("UserRole");
+
+            var storeScopeValidation = await ValidateSessionStoreScopeAsync(tenantName, tenanStore);
+            if (!storeScopeValidation.IsValid)
+            {
+                TempData["UserMessage"] = JsonConvert.SerializeObject(new MessageDto
+                {
+                    CssClassName = "alert alert-danger",
+                    Title = "Failed.",
+                    DisplayMessage = storeScopeValidation.Message
+                });
+
+                return RedirectToAction("Login", "Login");
+            }
+
             var onboardingState = (IsDismissed: false, IsCompleted: false);
             var onboardingStateLoaded = false;
 
@@ -152,8 +170,16 @@ namespace LMSWebUI.Controllers
             var tenantStore = HttpContext.Session.GetString("TenantStore");
             var userRole = HttpContext.Session.GetString("UserRole");
 
-            if (string.IsNullOrWhiteSpace(tenantName) || string.IsNullOrWhiteSpace(tenantStore))
+            var storeScopeValidation = await ValidateSessionStoreScopeAsync(tenantName, tenantStore);
+            if (!storeScopeValidation.IsValid)
             {
+                TempData["UserMessage"] = JsonConvert.SerializeObject(new MessageDto
+                {
+                    CssClassName = "alert alert-danger",
+                    Title = "Failed.",
+                    DisplayMessage = storeScopeValidation.Message
+                });
+
                 return RedirectToAction("Login", "Login");
             }
 
@@ -381,6 +407,64 @@ namespace LMSWebUI.Controllers
             return !string.Equals(role, "SuperAdmin", StringComparison.OrdinalIgnoreCase);
         }
 
+        private async Task<(bool IsValid, string Message)> ValidateSessionStoreScopeAsync(string tenantName, string tenantStore)
+        {
+            if (string.IsNullOrWhiteSpace(tenantName) || string.IsNullOrWhiteSpace(tenantStore))
+            {
+                return (false, "Session expired. Please log in again.");
+            }
+
+            var normalizedStoreCode = tenantStore.Trim();
+
+            var allowedStores = (HttpContext.Session.GetString(AllowedStoresSessionKey) ?? string.Empty)
+                .Split(',', StringSplitOptions.RemoveEmptyEntries)
+                .Select(x => x.Trim())
+                .Where(x => !string.IsNullOrWhiteSpace(x))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            if (allowedStores.Count > 0
+                && !allowedStores.Contains(normalizedStoreCode, StringComparer.OrdinalIgnoreCase))
+            {
+                return (false, "Selected store is not authorized for this account.");
+            }
+
+            try
+            {
+                var response = await _loginApi.SendRequestAsync<JObject>(
+                    "/GetAllStoreStatuses",
+                    new Dictionary<string, string>(),
+                    Method.GET);
+
+                var statusesToken = response?["StoreStatuses"] ?? response?["storeStatuses"] ?? new JArray();
+                var statusesArray = statusesToken as JArray ?? statusesToken?["$values"] as JArray ?? new JArray();
+
+                var hasMatchingActiveStore = statusesArray
+                    .Select(x => new
+                    {
+                        StoreCode = (x?["StoreCode"] ?? x?["storeCode"])?.ToString()?.Trim(),
+                        TenantName = (x?["TenantName"] ?? x?["tenantName"])?.ToString()?.Trim(),
+                        TenantEmail = (x?["TenantEmail"] ?? x?["tenantEmail"])?.ToString()?.Trim(),
+                        IsActive = (bool?)(x?["IsActive"] ?? x?["isActive"]) ?? false
+                    })
+                    .Any(x => x.IsActive
+                        && string.Equals(x.StoreCode, normalizedStoreCode, StringComparison.OrdinalIgnoreCase)
+                        && (string.Equals(x.TenantName, tenantName, StringComparison.OrdinalIgnoreCase)
+                            || string.Equals(x.TenantEmail, tenantName, StringComparison.OrdinalIgnoreCase)));
+
+                if (!hasMatchingActiveStore)
+                {
+                    return (false, "Selected store is invalid or inactive. Please log in and choose an active store.");
+                }
+            }
+            catch
+            {
+                return (false, "Unable to validate your store access right now. Please try again.");
+            }
+
+            return (true, string.Empty);
+        }
+
         private async Task<(bool IsBusinessStoreSettingsCompleted, bool IsLaundryPricesCompleted, bool IsBarcodeTagsCompleted, bool IsFirstCustomerCompleted, bool IsFirstOrderCompleted)> ResolveOnboardingChecklistProgressAsync(string tenantName, string tenantStore)
         {
             if (string.IsNullOrWhiteSpace(tenantName) || string.IsNullOrWhiteSpace(tenantStore))
@@ -505,8 +589,8 @@ namespace LMSWebUI.Controllers
 
             try
             {
-                var response = await _loginApi.SendRequestAsync<JArray>("/GetLaundryItemPrices", parameters, Method.GET);
-                return response != null && response.Count > 0;
+                var prices = await _customerApi.SendRequestAsync<List<LaundryItemPriceDto>>("/GetLaundryItemPrices", parameters, Method.GET);
+                return prices != null && prices.Count > 0;
             }
             catch
             {
