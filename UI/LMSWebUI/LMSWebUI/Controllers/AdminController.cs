@@ -1,7 +1,5 @@
 using System;
 using System.Threading.Tasks;
-using System.Net.Http;
-using System.Net.Http.Headers;
 using LMSWebUI.Data;
 using LMSWebUI.Models;
 using Microsoft.AspNetCore.Authorization;
@@ -9,6 +7,9 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Hosting;
+using LMSWebUI.Helpers;
 
 namespace LMSWebUI.Controllers
 {
@@ -30,85 +31,58 @@ namespace LMSWebUI.Controllers
         [Route("admin/migrate")]
         public async Task<IActionResult> Migrate()
         {
-            var httpFactory = HttpContext.RequestServices.GetService(typeof(System.Net.Http.IHttpClientFactory)) as System.Net.Http.IHttpClientFactory;
+            const string remoteMigrationNotSupportedMessage = "Remote service migrations are not supported through this endpoint. Identity and Master migrations must run through their controlled deployment procedures.";
             var config = HttpContext.RequestServices.GetService(typeof(Microsoft.Extensions.Configuration.IConfiguration)) as Microsoft.Extensions.Configuration.IConfiguration;
-            var accessToken = HttpContext.Session.GetString("AccessToken");
+            var environment = HttpContext.RequestServices.GetService(typeof(IHostEnvironment)) as IHostEnvironment;
 
-            if (string.IsNullOrWhiteSpace(accessToken))
+            if (config == null || environment == null)
             {
-                return Unauthorized(new { success = false, error = "Access token is missing. Please log in again." });
+                return StatusCode(500, new { success = false, error = "Migration safeguards could not be evaluated." });
+            }
+
+            if (!DatabaseMigrationSafetyPolicy.IsAdminMigrationEndpointEnabled(config, environment))
+            {
+                return StatusCode(403, new
+                {
+                    success = false,
+                    error = "Admin migration endpoint is disabled for this environment.",
+                    remoteMigrationPolicy = remoteMigrationNotSupportedMessage
+                });
+            }
+
+            var migrationDecision = DatabaseMigrationSafetyPolicy.EvaluateStartupMigration(
+                config,
+                environment,
+                config.GetConnectionString("DefaultConnection"));
+
+            if (!migrationDecision.IsAllowed)
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    error = migrationDecision.Reason,
+                    migrationDecision.DataSource,
+                    migrationDecision.DatabaseName,
+                    remoteMigrationPolicy = remoteMigrationNotSupportedMessage
+                });
             }
 
             try
             {
-                // Call Identity service migrate endpoint
-                var identityUrl = config?["Services:Identity:BaseUrl"]?.TrimEnd('/') + "/admin/migrate";
-                var masterUrl = config?["Services:Master:BaseUrl"]?.TrimEnd('/') + "/admin/migrate";
+                // Migrate local UI DB only after migration safety checks pass.
+                _db.Database.Migrate();
+                await DbInitializer.SeedAsync(_userManager, _roleManager);
 
-                var client = httpFactory?.CreateClient("migrationClient");
-                var identityResult = new { success = true, message = "Skipped." };
-                var masterResult = new { success = true, message = "Skipped." };
-
-                if (!string.IsNullOrWhiteSpace(identityUrl) && client != null)
+                return Ok(new
                 {
-                    try
-                    {
-                        using var request = new HttpRequestMessage(HttpMethod.Post, identityUrl)
-                        {
-                            Content = null
-                        };
-                        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken.Trim());
-                        var resp = await client.SendAsync(request);
-                        identityResult = new { success = resp.IsSuccessStatusCode, message = resp.ReasonPhrase };
-                    }
-                    catch (Exception ex)
-                    {
-                        identityResult = new { success = false, message = ex.Message };
-                    }
-                }
-
-                if (!string.IsNullOrWhiteSpace(masterUrl) && client != null)
-                {
-                    try
-                    {
-                        using var request = new HttpRequestMessage(HttpMethod.Post, masterUrl)
-                        {
-                            Content = null
-                        };
-                        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken.Trim());
-                        var resp = await client.SendAsync(request);
-                        masterResult = new { success = resp.IsSuccessStatusCode, message = resp.ReasonPhrase };
-                    }
-                    catch (Exception ex)
-                    {
-                        masterResult = new { success = false, message = ex.Message };
-                    }
-                }
-
-                // Optionally migrate local UI DB as well
-                try
-                {
-                    try
-                    {
-                        _db.Database.Migrate();
-                    }
-                    catch
-                    {
-                        _db.Database.EnsureCreated();
-                    }
-
-                    await DbInitializer.SeedAsync(_userManager, _roleManager);
-                }
-                catch
-                {
-                    // swallow local migration/seeding errors and return combined result
-                }
-
-                return Ok(new { identity = identityResult, master = masterResult, ui = "attempted" });
+                    success = true,
+                    ui = "attempted",
+                    remoteMigrationPolicy = remoteMigrationNotSupportedMessage
+                });
             }
             catch (Exception ex)
             {
-                return StatusCode(500, new { success = false, error = ex.Message });
+                return StatusCode(500, new { success = false, error = ex.Message, remoteMigrationPolicy = remoteMigrationNotSupportedMessage });
             }
         }
     }

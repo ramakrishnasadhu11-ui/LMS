@@ -309,6 +309,88 @@ namespace LMSWebUI.Controllers
             return true;
         }
 
+        private async Task<(bool IsValid, string Message)> ValidateCurrentStoreAccessAsync(
+            string tenantName,
+            string currentStoreCode,
+            bool requireOrderPermission = false,
+            bool requireSubscriptionEligibility = false)
+        {
+            if (string.IsNullOrWhiteSpace(tenantName) || string.IsNullOrWhiteSpace(currentStoreCode))
+            {
+                return (false, SessionExpiredMessage);
+            }
+
+            if (!TryResolveTargetStore(currentStoreCode, currentStoreCode, out var resolvedStoreCode, out var validationMessage))
+            {
+                return (false, string.IsNullOrWhiteSpace(validationMessage) ? "Invalid store selected." : validationMessage);
+            }
+
+            var storeValidation = await ValidateTenantActiveStoreSelectionAsync(tenantName, currentStoreCode, resolvedStoreCode);
+            if (!storeValidation.IsValid)
+            {
+                return (false, string.IsNullOrWhiteSpace(storeValidation.Message)
+                    ? "Selected store is invalid or inactive. Please select an active store."
+                    : storeValidation.Message);
+            }
+
+            if (requireOrderPermission && !CanManageStoreOrderWorkflow())
+            {
+                return (false, "You do not have permission to create orders for this store.");
+            }
+
+            if (requireSubscriptionEligibility)
+            {
+                var subscriptionValidation = await ValidateSubscriptionEligibilityForOrderAsync();
+                if (!subscriptionValidation.IsValid)
+                {
+                    return subscriptionValidation;
+                }
+            }
+
+            return (true, string.Empty);
+        }
+
+        private async Task<(bool IsValid, string Message)> ValidateSubscriptionEligibilityForOrderAsync()
+        {
+            try
+            {
+                var overview = await _loginApi.SendRequestAsync<JObject>("/GetTenantSubscriptionOverview", new Dictionary<string, string>(), Method.GET);
+
+                var status = (overview?["SubscriptionStatus"]
+                    ?? overview?["subscriptionStatus"]
+                    ?? overview?["AccountStatus"]
+                    ?? overview?["accountStatus"])?.ToString()?.Trim();
+
+                var trialEndUtc = TryParseDateTime(overview?["TrialEndUtc"] ?? overview?["trialEndUtc"]);
+
+                if (!string.IsNullOrWhiteSpace(status))
+                {
+                    if (string.Equals(status, "Expired", StringComparison.OrdinalIgnoreCase)
+                        || string.Equals(status, "Suspended", StringComparison.OrdinalIgnoreCase)
+                        || string.Equals(status, "Inactive", StringComparison.OrdinalIgnoreCase)
+                        || string.Equals(status, "Cancelled", StringComparison.OrdinalIgnoreCase)
+                        || string.Equals(status, "Canceled", StringComparison.OrdinalIgnoreCase))
+                    {
+                        return (false, "Your subscription is not active for creating orders. Please renew or contact support.");
+                    }
+
+                    if ((string.Equals(status, "Trial", StringComparison.OrdinalIgnoreCase)
+                        || string.Equals(status, "TrialActive", StringComparison.OrdinalIgnoreCase))
+                        && trialEndUtc.HasValue
+                        && trialEndUtc.Value.ToUniversalTime() < DateTime.UtcNow)
+                    {
+                        return (false, "Your trial period has expired. Please activate a subscription to create orders.");
+                    }
+                }
+
+                return (true, string.Empty);
+            }
+            catch
+            {
+                return (false, "Unable to validate subscription eligibility for order creation. Please try again.");
+            }
+        }
+
         private Dictionary<string, int> GetOrderPiecesMap()
         {
             var payload = HttpContext.Session.GetString(OrderPiecesMapSessionKey);
@@ -669,8 +751,24 @@ namespace LMSWebUI.Controllers
         }
 
         [HttpGet]
-        public IActionResult AddNewCustomer()
+        public async Task<IActionResult> AddNewCustomer()
         {
+            var tenantName = HttpContext.Session.GetString("TenantName");
+            var storeCode = HttpContext.Session.GetString("TenantStore");
+
+            var scopeValidation = await ValidateCurrentStoreAccessAsync(tenantName, storeCode);
+            if (!scopeValidation.IsValid)
+            {
+                TempData["UserMessage"] = JsonConvert.SerializeObject(new MessageDto
+                {
+                    CssClassName = "alert alert-danger",
+                    Title = "Failed.",
+                    DisplayMessage = scopeValidation.Message
+                });
+
+                return RedirectToAction("Login", "Login");
+            }
+
             SetCreateModeState();
             return View("Index", new CustomerInfoDto
             {
@@ -679,7 +777,7 @@ namespace LMSWebUI.Controllers
         }
 
         [HttpGet]
-        public IActionResult CustomerPreferences()
+        public async Task<IActionResult> CustomerPreferences()
         {
             var tenantName = HttpContext.Session.GetString("TenantName");
             var storeCode = HttpContext.Session.GetString("TenantStore");
@@ -695,6 +793,24 @@ namespace LMSWebUI.Controllers
                 return RedirectToAction("Login", "Login");
             }
 
+            var scopeValidation = await ValidateCurrentStoreAccessAsync(
+                tenantName,
+                storeCode,
+                requireOrderPermission: true,
+                requireSubscriptionEligibility: true);
+
+            if (!scopeValidation.IsValid)
+            {
+                TempData["UserMessage"] = JsonConvert.SerializeObject(new MessageDto
+                {
+                    CssClassName = "alert alert-danger",
+                    Title = "Failed.",
+                    DisplayMessage = scopeValidation.Message
+                });
+
+                return RedirectToAction("Index", "Dashboard");
+            }
+
             var parameters = new Dictionary<string, string>
             {
                 { "tenantName", tenantName },
@@ -705,8 +821,7 @@ namespace LMSWebUI.Controllers
 
             try
             {
-                var response = _clientApi.SendRequestAsync<CustomerPreferencesDto>("/GetCustomerPreferences", parameters, Method.GET)
-                    .GetAwaiter().GetResult();
+                var response = await _clientApi.SendRequestAsync<CustomerPreferencesDto>("/GetCustomerPreferences", parameters, Method.GET);
 
                 if (response != null)
                 {
@@ -750,6 +865,19 @@ namespace LMSWebUI.Controllers
                     Title = "Failed.",
                     DisplayMessage = "Session expired. Please log in again."
                 });
+                return RedirectToAction("Login", "Login");
+            }
+
+            var scopeValidation = await ValidateCurrentStoreAccessAsync(tenantName, storeCode);
+            if (!scopeValidation.IsValid)
+            {
+                TempData["UserMessage"] = JsonConvert.SerializeObject(new MessageDto
+                {
+                    CssClassName = "alert alert-danger",
+                    Title = "Failed.",
+                    DisplayMessage = scopeValidation.Message
+                });
+
                 return RedirectToAction("Login", "Login");
             }
 
@@ -1041,6 +1169,24 @@ namespace LMSWebUI.Controllers
                 return RedirectToAction("Login", "Login");
             }
 
+            var scopeValidation = await ValidateCurrentStoreAccessAsync(
+                tenantName,
+                storeCode,
+                requireOrderPermission: true,
+                requireSubscriptionEligibility: true);
+
+            if (!scopeValidation.IsValid)
+            {
+                TempData["UserMessage"] = JsonConvert.SerializeObject(new MessageDto
+                {
+                    CssClassName = "alert alert-danger",
+                    Title = "Failed.",
+                    DisplayMessage = scopeValidation.Message
+                });
+
+                return RedirectToAction("Index", "Dashboard");
+            }
+
             model.TenantName = tenantName;
             model.StoreCode = storeCode;
 
@@ -1206,6 +1352,24 @@ namespace LMSWebUI.Controllers
                     DisplayMessage = "Session expired. Please log in again."
                 });
                 return RedirectToAction("Login", "Login");
+            }
+
+            var scopeValidation = await ValidateCurrentStoreAccessAsync(
+                tenantName,
+                storeCode,
+                requireOrderPermission: true,
+                requireSubscriptionEligibility: true);
+
+            if (!scopeValidation.IsValid)
+            {
+                TempData["UserMessage"] = JsonConvert.SerializeObject(new MessageDto
+                {
+                    CssClassName = "alert alert-danger",
+                    Title = "Failed.",
+                    DisplayMessage = scopeValidation.Message
+                });
+
+                return RedirectToAction("Index", "Dashboard");
             }
 
             model.TenantName = tenantName;
@@ -2532,6 +2696,24 @@ namespace LMSWebUI.Controllers
                 return RedirectToAction("Login", "Login");
             }
 
+            var scopeValidation = await ValidateCurrentStoreAccessAsync(
+                tenantName,
+                storeCode,
+                requireOrderPermission: true,
+                requireSubscriptionEligibility: true);
+
+            if (!scopeValidation.IsValid)
+            {
+                TempData["UserMessage"] = JsonConvert.SerializeObject(new MessageDto
+                {
+                    CssClassName = "alert alert-danger",
+                    Title = "Failed.",
+                    DisplayMessage = scopeValidation.Message
+                });
+
+                return RedirectToAction("Index", "Dashboard");
+            }
+
             model.TenantName = tenantName;
             model.StoreCode = storeCode;
             model.CompanyName = await GetCompanyNameAsync(tenantName, storeCode);
@@ -2792,6 +2974,24 @@ namespace LMSWebUI.Controllers
                     DisplayMessage = "Session expired. Please log in again."
                 });
                 return RedirectToAction("Login", "Login");
+            }
+
+            var scopeValidation = await ValidateCurrentStoreAccessAsync(
+                tenantName,
+                storeCode,
+                requireOrderPermission: true,
+                requireSubscriptionEligibility: true);
+
+            if (!scopeValidation.IsValid)
+            {
+                TempData["UserMessage"] = JsonConvert.SerializeObject(new MessageDto
+                {
+                    CssClassName = "alert alert-danger",
+                    Title = "Failed.",
+                    DisplayMessage = scopeValidation.Message
+                });
+
+                return RedirectToAction("Index", "Dashboard");
             }
 
             model.TenantName = tenantName;
@@ -4400,7 +4600,7 @@ namespace LMSWebUI.Controllers
         }
 
         [HttpGet]
-        public IActionResult ImportExportPricesCsv()
+        public async Task<IActionResult> ImportExportPricesCsv()
         {
             if (!IsAdminUser())
             {
@@ -4424,6 +4624,19 @@ namespace LMSWebUI.Controllers
                     Title = "Failed.",
                     DisplayMessage = "Session expired. Please log in again."
                 });
+                return RedirectToAction("Login", "Login");
+            }
+
+            var scopeValidation = await ValidateCurrentStoreAccessAsync(tenantName, storeCode);
+            if (!scopeValidation.IsValid)
+            {
+                TempData["UserMessage"] = JsonConvert.SerializeObject(new MessageDto
+                {
+                    CssClassName = "alert alert-danger",
+                    Title = "Failed.",
+                    DisplayMessage = scopeValidation.Message
+                });
+
                 return RedirectToAction("Login", "Login");
             }
 
@@ -4458,6 +4671,20 @@ namespace LMSWebUI.Controllers
                     DisplayMessage = "Session expired. Please log in again."
                 });
                 return RedirectToAction("Login", "Login");
+            }
+
+            var scopeValidation = await ValidateCurrentStoreAccessAsync(tenantName, storeCode);
+
+            if (!scopeValidation.IsValid)
+            {
+                TempData["UserMessage"] = JsonConvert.SerializeObject(new MessageDto
+                {
+                    CssClassName = "alert alert-danger",
+                    Title = "Failed.",
+                    DisplayMessage = scopeValidation.Message
+                });
+
+                return RedirectToAction("Index", "Dashboard");
             }
 
             var model = await LoadIntegrationsAsync(tenantName, storeCode);
@@ -4496,6 +4723,20 @@ namespace LMSWebUI.Controllers
                     DisplayMessage = "Session expired. Please log in again."
                 });
                 return RedirectToAction("Login", "Login");
+            }
+
+            var scopeValidation = await ValidateCurrentStoreAccessAsync(model.TenantName, model.StoreCode);
+
+            if (!scopeValidation.IsValid)
+            {
+                TempData["UserMessage"] = JsonConvert.SerializeObject(new MessageDto
+                {
+                    CssClassName = "alert alert-danger",
+                    Title = "Failed.",
+                    DisplayMessage = scopeValidation.Message
+                });
+
+                return RedirectToAction("Index", "Dashboard");
             }
 
             var result = await _clientApi.SendRequestAsync<CustomerIOResponse>("/SaveTenantIntegrationSettings", model, Method.POST);
@@ -5382,6 +5623,20 @@ namespace LMSWebUI.Controllers
                 return RedirectToAction("Login", "Login");
             }
 
+            var scopeValidation = await ValidateCurrentStoreAccessAsync(tenantName, currentStoreCode);
+
+            if (!scopeValidation.IsValid)
+            {
+                TempData["UserMessage"] = JsonConvert.SerializeObject(new MessageDto
+                {
+                    CssClassName = "alert alert-danger",
+                    Title = "Failed.",
+                    DisplayMessage = scopeValidation.Message
+                });
+
+                return RedirectToAction("Index", "Dashboard");
+            }
+
             var (tenantStores, loadErrorMessage) = await GetTenantStoreStatusesForNewStoreCreationAsync(tenantName, currentStoreCode);
             var activeStores = tenantStores
                 .Where(x => x != null
@@ -5419,6 +5674,24 @@ namespace LMSWebUI.Controllers
                     DisplayMessage = "Session expired. Please log in again."
                 });
                 return RedirectToAction("Login", "Login");
+            }
+
+            var scopeValidation = await ValidateCurrentStoreAccessAsync(
+                tenantName,
+                storeCode,
+                requireOrderPermission: true,
+                requireSubscriptionEligibility: true);
+
+            if (!scopeValidation.IsValid)
+            {
+                TempData["UserMessage"] = JsonConvert.SerializeObject(new MessageDto
+                {
+                    CssClassName = "alert alert-danger",
+                    Title = "Failed.",
+                    DisplayMessage = scopeValidation.Message
+                });
+
+                return RedirectToAction("Index", "Dashboard");
             }
 
             model.TenantName = tenantName;
@@ -6249,6 +6522,24 @@ namespace LMSWebUI.Controllers
                 return RedirectToAction("Login", "Login");
             }
 
+            var scopeValidation = await ValidateCurrentStoreAccessAsync(
+                tenantName,
+                storeCode,
+                requireOrderPermission: true,
+                requireSubscriptionEligibility: true);
+
+            if (!scopeValidation.IsValid)
+            {
+                TempData["UserMessage"] = JsonConvert.SerializeObject(new MessageDto
+                {
+                    CssClassName = "alert alert-danger",
+                    Title = "Failed.",
+                    DisplayMessage = scopeValidation.Message
+                });
+
+                return RedirectToAction("Index", "Dashboard");
+            }
+
             var selectedCustomerName = string.IsNullOrWhiteSpace(customerName)
                 ? HttpContext.Session.GetString(SelectedCustomerNameSessionKey)
                 : customerName.Trim();
@@ -6367,6 +6658,24 @@ namespace LMSWebUI.Controllers
                     DisplayMessage = "Session expired. Please log in again."
                 });
                 return RedirectToAction("Login", "Login");
+            }
+
+            var scopeValidation = await ValidateCurrentStoreAccessAsync(
+                tenantName,
+                storeCode,
+                requireOrderPermission: true,
+                requireSubscriptionEligibility: true);
+
+            if (!scopeValidation.IsValid)
+            {
+                TempData["UserMessage"] = JsonConvert.SerializeObject(new MessageDto
+                {
+                    CssClassName = "alert alert-danger",
+                    Title = "Failed.",
+                    DisplayMessage = scopeValidation.Message
+                });
+
+                return RedirectToAction("Index", "Dashboard");
             }
 
             model.TenantName = tenantName;

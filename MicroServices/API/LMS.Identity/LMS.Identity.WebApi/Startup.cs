@@ -21,6 +21,7 @@ using System.Text;
 using LMS.Identity.BusinessSerive.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.Data.SqlClient;
 using Microsoft.IdentityModel.Tokens;
 using static LMS.Identity.BusinessSerive.Services.LoginService;
 using IConfiguration = Microsoft.Extensions.Configuration.IConfiguration;
@@ -195,11 +196,92 @@ namespace LMS.Identity.WebApi
             using (var scope = app.ApplicationServices.CreateScope())
             {
                 var dbContext = scope.ServiceProvider.GetRequiredService<IdentityDbContext>();
-                // Do not fall back to EnsureCreated: it does not apply migrations to
-                // an existing database. Let migration failures stop startup visibly.
-                dbContext.Database.Migrate();
+                var connectionString = Configuration.GetConnectionString("IdentityDb");
 
-                SuperAdminSeeder.Seed(dbContext, Configuration);
+                var migrationDecision = DatabaseInitializationSafetyPolicy.EvaluateStartupMigration(Configuration, env, connectionString);
+                if (migrationDecision.IsAllowed)
+                {
+                    logger.LogInformation(
+                        "Automatic startup migration is enabled for Development. DataSource={DataSource}, Database={DatabaseName}",
+                        migrationDecision.DataSource,
+                        migrationDecision.DatabaseName);
+
+                    try
+                    {
+                        dbContext.Database.Migrate();
+                    }
+                    catch (Exception ex)
+                    {
+                        var sqlEx = TryGetSqlException(ex);
+                        if (sqlEx != null)
+                        {
+                            logger.LogError(
+                                ex,
+                                "Identity startup migration failed. SqlErrorNumber={SqlErrorNumber}, SqlState={SqlState}, SqlClass={SqlClass}, Procedure={Procedure}, LineNumber={LineNumber}, Server={Server}, Message={SqlMessage}",
+                                sqlEx.Number,
+                                sqlEx.State,
+                                sqlEx.Class,
+                                sqlEx.Procedure ?? string.Empty,
+                                sqlEx.LineNumber,
+                                sqlEx.Server ?? string.Empty,
+                                sqlEx.Message);
+                        }
+                        else
+                        {
+                            logger.LogError(ex, "Identity startup migration failed with non-SQL exception.");
+                        }
+
+                        throw;
+                    }
+                }
+                else
+                {
+                    logger.LogWarning(
+                        "Identity startup migration skipped. Reason={Reason}, DataSource={DataSource}, Database={DatabaseName}",
+                        migrationDecision.Reason,
+                        migrationDecision.DataSource,
+                        migrationDecision.DatabaseName);
+                }
+
+                var seedingDecision = DatabaseInitializationSafetyPolicy.EvaluateStartupSeeding(Configuration, env, connectionString);
+                if (seedingDecision.IsAllowed)
+                {
+                    try
+                    {
+                        SuperAdminSeeder.Seed(dbContext, Configuration);
+                    }
+                    catch (Exception ex)
+                    {
+                        var sqlEx = TryGetSqlException(ex);
+                        if (sqlEx != null)
+                        {
+                            logger.LogError(
+                                ex,
+                                "Identity startup seeding failed. SqlErrorNumber={SqlErrorNumber}, SqlState={SqlState}, SqlClass={SqlClass}, Procedure={Procedure}, LineNumber={LineNumber}, Server={Server}, Message={SqlMessage}",
+                                sqlEx.Number,
+                                sqlEx.State,
+                                sqlEx.Class,
+                                sqlEx.Procedure ?? string.Empty,
+                                sqlEx.LineNumber,
+                                sqlEx.Server ?? string.Empty,
+                                sqlEx.Message);
+                        }
+                        else
+                        {
+                            logger.LogError(ex, "Identity startup seeding failed with non-SQL exception.");
+                        }
+
+                        throw;
+                    }
+                }
+                else
+                {
+                    logger.LogWarning(
+                        "Identity startup seeding skipped. Reason={Reason}, DataSource={DataSource}, Database={DatabaseName}",
+                        seedingDecision.Reason,
+                        seedingDecision.DataSource,
+                        seedingDecision.DatabaseName);
+                }
             }
 
             app.UseHttpsRedirection();
@@ -288,6 +370,21 @@ namespace LMS.Identity.WebApi
             return normalized.StartsWith("RAZORPAY_", StringComparison.OrdinalIgnoreCase)
                    || normalized.Contains("_KEY_")
                    || normalized.Contains("_SECRET");
+        }
+
+        private static SqlException TryGetSqlException(Exception ex)
+        {
+            if (ex == null)
+            {
+                return null;
+            }
+
+            if (ex is SqlException sqlException)
+            {
+                return sqlException;
+            }
+
+            return TryGetSqlException(ex.InnerException);
         }
 
         private string GetJwtValue(string name)
