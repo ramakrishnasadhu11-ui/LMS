@@ -43,6 +43,7 @@ namespace LMS.Identity.BusinessSerive.Services
         // duplicate tenant records. SemaphoreSlim per-email serializes Register calls
         // for a given email address in-process.
         private static readonly ConcurrentDictionary<string, SemaphoreSlim> _registrationLocks = new();
+        private static readonly SemaphoreSlim _subscriptionPlanSeedLock = new(1, 1);
 
         private readonly IMapper _mapper;
         private readonly IUnitOfWork<IdentityDbContext> _unitOfWork;
@@ -52,8 +53,9 @@ namespace LMS.Identity.BusinessSerive.Services
         private readonly ILogger<LoginService> _logger;
         private readonly IConfiguration _configuration;
         private readonly IRazorpayIntegrationService _razorpayIntegrationService;
+        private readonly ITenantEmailService _tenantEmailService;
 
-        public LoginService(IMailConfiguration mailConfiguration, IMapper mapper, IUnitOfWork<IdentityDbContext> unitOfWork, ILogger<LoginService> logger, IConfiguration configuration, IRazorpayIntegrationService razorpayIntegrationService)
+        public LoginService(IMailConfiguration mailConfiguration, IMapper mapper, IUnitOfWork<IdentityDbContext> unitOfWork, ILogger<LoginService> logger, IConfiguration configuration, IRazorpayIntegrationService razorpayIntegrationService, ITenantEmailService tenantEmailService)
         {
             _mapper = mapper ?? throw new ArgumentNullException(nameof(mapper));
             _unitOfWork = unitOfWork ?? throw new ArgumentNullException(nameof(unitOfWork));
@@ -63,6 +65,7 @@ namespace LMS.Identity.BusinessSerive.Services
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
             _configuration = configuration;
             _razorpayIntegrationService = razorpayIntegrationService ?? throw new ArgumentNullException(nameof(razorpayIntegrationService));
+            _tenantEmailService = tenantEmailService ?? throw new ArgumentNullException(nameof(tenantEmailService));
         }
 
         // Small helpers to avoid potential null reference when reading mail config in ctor
@@ -1624,6 +1627,8 @@ namespace LMS.Identity.BusinessSerive.Services
 
         public async Task<ActionReturnType> GetSubscriptionPlans()
         {
+            await EnsureDefaultSubscriptionPlansAsync();
+
             var plans = await _unitOfWork.DbContext.SubscriptionPlans
                 .AsNoTracking()
                 .OrderBy(x => x.PlanCode)
@@ -1645,6 +1650,63 @@ namespace LMS.Identity.BusinessSerive.Services
             {
                 Plans = plans
             });
+        }
+
+        private async Task EnsureDefaultSubscriptionPlansAsync()
+        {
+            await _subscriptionPlanSeedLock.WaitAsync();
+            try
+            {
+            var defaults = new[]
+            {
+                new { PlanCode = "Standard", BillingCycle = "Monthly", Amount = 499.00m },
+                new { PlanCode = "Standard", BillingCycle = "Yearly", Amount = 4999.00m },
+                new { PlanCode = "Premium", BillingCycle = "Monthly", Amount = 899.00m },
+                new { PlanCode = "Premium", BillingCycle = "Yearly", Amount = 8999.00m }
+            };
+
+            var existingKeys = await _unitOfWork.DbContext.SubscriptionPlans
+                .Select(x => new { x.PlanCode, x.BillingCycle })
+                .ToListAsync();
+
+            var now = DateTime.UtcNow;
+            var hasChanges = false;
+
+            foreach (var plan in defaults)
+            {
+                var exists = existingKeys.Any(x =>
+                    string.Equals((x.PlanCode ?? string.Empty).Trim(), plan.PlanCode, StringComparison.OrdinalIgnoreCase)
+                    && string.Equals((x.BillingCycle ?? string.Empty).Trim(), plan.BillingCycle, StringComparison.OrdinalIgnoreCase));
+
+                if (exists)
+                {
+                    continue;
+                }
+
+                _unitOfWork.DbContext.SubscriptionPlans.Add(new SubscriptionPlanEntity
+                {
+                    PlanCode = plan.PlanCode,
+                    BillingCycle = plan.BillingCycle,
+                    Amount = plan.Amount,
+                    Currency = "INR",
+                    IsActive = true,
+                    CreatedDateUtc = now,
+                    UpdatedBy = "System"
+                });
+
+                existingKeys.Add(new { PlanCode = plan.PlanCode, BillingCycle = plan.BillingCycle });
+                hasChanges = true;
+            }
+
+            if (hasChanges)
+            {
+                await _unitOfWork.SaveChangesAsync();
+            }
+            }
+            finally
+            {
+                _subscriptionPlanSeedLock.Release();
+            }
         }
 
         public async Task<ActionReturnType> UpdateSubscriptionPlanPrice(SubscriptionPlanPriceUpdateRequestDto request, string actionedBy)
@@ -2663,36 +2725,7 @@ namespace LMS.Identity.BusinessSerive.Services
         }
         public async Task SendMail(string eMail, string successFile, string subject, string body, string tenantId = null, string tenantEmail = null)
         {
-            var effectiveMail = await ResolveTenantMailConfigurationAsync(tenantId, tenantEmail);
-            var userName = effectiveMail.Username;
-            var password = effectiveMail.Password;
-            if (string.IsNullOrWhiteSpace(userName) || string.IsNullOrWhiteSpace(password))
-            {
-                throw new InvalidOperationException("MailConfiguration:Username/Password are not configured. Set them via user-secrets or the MailConfiguration__Username and MailConfiguration__Password environment variables.");
-            }
-
-            var host = string.IsNullOrWhiteSpace(effectiveMail.Host) ? "smtp.gmail.com" : effectiveMail.Host;
-            var port = effectiveMail.Port > 0 ? effectiveMail.Port : 587;
-
-            // Gmail only accepts a From address that matches the authenticated mailbox or one of its verified aliases.
-            var fromAddress = string.IsNullOrWhiteSpace(effectiveMail.FromAddress) ? userName : effectiveMail.FromAddress;
-
-            var message = new MimeMessage();
-            message.From.Add(new MailboxAddress("Excel Laundry Services", fromAddress));
-            message.To.Add(new MailboxAddress("ELS Tenant", eMail));
-            message.Subject = subject;
-            message.Body = new BodyBuilder { HtmlBody = EnsureStandardSupportFooter(body) }.ToMessageBody();
-
-            var enableSsl = effectiveMail.EnableSsl ?? (port == 465 || port == 587);
-            var secureOption = enableSsl
-                ? (port == 465 ? SecureSocketOptions.SslOnConnect : SecureSocketOptions.StartTls)
-                : SecureSocketOptions.None;
-
-            using var client = new MailKit.Net.Smtp.SmtpClient();
-            await client.ConnectAsync(host, port, secureOption);
-            await client.AuthenticateAsync(userName, password);
-            await client.SendAsync(message);
-            await client.DisconnectAsync(true);
+            await _tenantEmailService.SendMailAsync(eMail, subject, body, tenantId, tenantEmail);
         }
 
         private static string EnsureStandardSupportFooter(string htmlBody)

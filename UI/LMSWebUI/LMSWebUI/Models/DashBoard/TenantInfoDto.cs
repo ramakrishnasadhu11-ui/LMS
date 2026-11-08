@@ -9,5 +9,8 @@ namespace LMSWebUI.Models.DashBoard
     {
         public string TenantName {get;set;}
         public string TenantStore {get;set;}
+        public DateTime? TrialEndUtc { get; set; }
+        public int? TrialDaysRemaining { get; set; }
+        public string SubscriptionStatus { get; set; }
     }
 }

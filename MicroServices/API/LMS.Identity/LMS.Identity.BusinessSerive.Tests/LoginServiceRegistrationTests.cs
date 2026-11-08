@@ -19,6 +19,8 @@ using LMS.Identity.BusinessSerive.Interfaces;
 using LMS.Identity.Utilities;
 using System.Security.Claims;
 using System.Collections.Generic;
+using System.Threading;
+using Microsoft.EntityFrameworkCore.Storage;
 
 namespace LMS.Identity.BusinessSerive.Tests
 {
@@ -27,11 +29,13 @@ namespace LMS.Identity.BusinessSerive.Tests
         private readonly IdentityDbContext _context;
         private readonly LoginService _service;
         private readonly IUnitOfWork<IdentityDbContext> _uow;
+        private readonly string _databaseName;
 
         public LoginServiceRegistrationTests()
         {
+            _databaseName = Guid.NewGuid().ToString();
             var options = new DbContextOptionsBuilder<IdentityDbContext>()
-                .UseInMemoryDatabase(databaseName: Guid.NewGuid().ToString())
+                .UseInMemoryDatabase(databaseName: _databaseName)
                 .Options;
 
             _context = new IdentityDbContext(options);
@@ -56,7 +60,7 @@ namespace LMS.Identity.BusinessSerive.Tests
             IConfiguration config = null;
             var razorpayStub = new StubRazorpayIntegrationService();
 
-            _service = new LoginService(mailConfig, mapper, _uow, logger, config, razorpayStub);
+            _service = new LoginService(mailConfig, mapper, _uow, logger, config, razorpayStub, new StubTenantEmailService());
         }
 
         private class StubRazorpayIntegrationService : IRazorpayIntegrationService
@@ -687,6 +691,121 @@ namespace LMS.Identity.BusinessSerive.Tests
                 Environment.SetEnvironmentVariable("Jwt__Audience", null);
                 Environment.SetEnvironmentVariable("Jwt__SigningKey", null);
                 Environment.SetEnvironmentVariable("Jwt__ExpiryMinutes", null);
+            }
+        }
+
+        [Fact]
+        public async Task GetSubscriptionPlans_WhenCatalogEmpty_SeedsStandardAndPremiumWithoutDuplicates()
+        {
+            Assert.Empty(_context.SubscriptionPlans);
+
+            var first = await _service.GetSubscriptionPlans();
+            Assert.Equal(HttpStatusCode.OK, first.StatusCode);
+
+            var firstPayload = Assert.IsType<SubscriptionPlanCatalogResponseDto>(first.ResultSet);
+            Assert.Equal(4, firstPayload.Plans.Count);
+
+            Assert.Contains(firstPayload.Plans, x => x.PlanCode == "Standard" && x.BillingCycle == "Monthly" && x.Amount == 499.00m);
+            Assert.Contains(firstPayload.Plans, x => x.PlanCode == "Standard" && x.BillingCycle == "Yearly" && x.Amount == 4999.00m);
+            Assert.Contains(firstPayload.Plans, x => x.PlanCode == "Premium" && x.BillingCycle == "Monthly" && x.Amount == 899.00m);
+            Assert.Contains(firstPayload.Plans, x => x.PlanCode == "Premium" && x.BillingCycle == "Yearly" && x.Amount == 8999.00m);
+
+            Assert.Equal(4, await _context.SubscriptionPlans.CountAsync());
+
+            var second = await _service.GetSubscriptionPlans();
+            Assert.Equal(HttpStatusCode.OK, second.StatusCode);
+
+            var secondPayload = Assert.IsType<SubscriptionPlanCatalogResponseDto>(second.ResultSet);
+            Assert.Equal(4, secondPayload.Plans.Count);
+            Assert.Equal(4, await _context.SubscriptionPlans.CountAsync());
+        }
+
+        [Fact]
+        public async Task GetSubscriptionPlans_WhenLegacyStandardExists_AddsOnlyMissingDefaults_AndPreservesExistingPrice()
+        {
+            _context.SubscriptionPlans.Add(new SubscriptionPlanEntity
+            {
+                PlanCode = "Standard",
+                BillingCycle = "Monthly",
+                Amount = 650.00m,
+                Currency = "INR",
+                IsActive = true,
+                CreatedDateUtc = DateTime.UtcNow,
+                UpdatedBy = "LegacyData"
+            });
+            await _context.SaveChangesAsync();
+
+            var result = await _service.GetSubscriptionPlans();
+            Assert.Equal(HttpStatusCode.OK, result.StatusCode);
+
+            var payload = Assert.IsType<SubscriptionPlanCatalogResponseDto>(result.ResultSet);
+            Assert.Equal(4, payload.Plans.Count);
+
+            var standardMonthly = payload.Plans.Single(x => x.PlanCode == "Standard" && x.BillingCycle == "Monthly");
+            Assert.Equal(650.00m, standardMonthly.Amount);
+            Assert.Equal(4, await _context.SubscriptionPlans.CountAsync());
+        }
+
+        [Fact]
+        public async Task GetSubscriptionPlans_ConcurrentCalls_SeedDefaultsWithoutDuplicates_AndPreserveExistingPrice()
+        {
+            _context.SubscriptionPlans.Add(new SubscriptionPlanEntity
+            {
+                PlanCode = "Standard",
+                BillingCycle = "Monthly",
+                Amount = 777.00m,
+                Currency = "INR",
+                IsActive = true,
+                CreatedDateUtc = DateTime.UtcNow,
+                UpdatedBy = "LegacyData"
+            });
+            await _context.SaveChangesAsync();
+
+            var options = new DbContextOptionsBuilder<IdentityDbContext>()
+                .UseInMemoryDatabase(_databaseName)
+                .Options;
+
+            var loggerFactory = LoggerFactory.Create(builder => { });
+            var logger = loggerFactory.CreateLogger<LoginService>();
+            var mapperConfig = new MapperConfiguration(cfg => cfg.CreateMap<TenantDto, TenantEntity>().ReverseMap());
+            var mapper = mapperConfig.CreateMapper();
+            var mailConfig = new Fixtures.FailingSmtpMailConfiguration();
+            IConfiguration config = null;
+            var razorpayStub = new StubRazorpayIntegrationService();
+
+            var startGate = new ManualResetEventSlim(false);
+            var tasks = Enumerable.Range(0, 6)
+                .Select(async _ =>
+                {
+                    using var ctx = new IdentityDbContext(options);
+                    var uow = new UnitOfWork<IdentityDbContext>(ctx);
+                    var service = new LoginService(mailConfig, mapper, uow, logger, config, razorpayStub, new StubTenantEmailService());
+                    startGate.Wait();
+                    return await service.GetSubscriptionPlans();
+                })
+                .ToList();
+
+            startGate.Set();
+            await Task.WhenAll(tasks);
+
+            var allPlans = await _context.SubscriptionPlans.AsNoTracking().ToListAsync();
+            Assert.Equal(4, allPlans.Count);
+
+            var keyCount = allPlans
+                .Select(x => $"{(x.PlanCode ?? string.Empty).Trim()}::{(x.BillingCycle ?? string.Empty).Trim()}")
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .Count();
+            Assert.Equal(4, keyCount);
+
+            var standardMonthly = allPlans.Single(x => x.PlanCode == "Standard" && x.BillingCycle == "Monthly");
+            Assert.Equal(777.00m, standardMonthly.Amount);
+        }
+
+        private sealed class StubTenantEmailService : ITenantEmailService
+        {
+            public Task SendMailAsync(string email, string subject, string body, string tenantId = null, string tenantEmail = null)
+            {
+                return Task.CompletedTask;
             }
         }
 

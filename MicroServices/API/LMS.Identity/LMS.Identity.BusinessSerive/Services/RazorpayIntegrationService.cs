@@ -19,6 +19,7 @@ using System.Text;
 using System.Threading.Tasks;
 using System.Diagnostics;
 using Newtonsoft.Json.Linq;
+using System.Globalization;
 
 namespace LMS.Identity.BusinessSerive.Services
 {
@@ -34,15 +35,18 @@ namespace LMS.Identity.BusinessSerive.Services
         private readonly IRazorpayOptions _options;
         private readonly IUnitOfWork<IdentityDbContext> _unitOfWork;
         private readonly ILogger<RazorpayIntegrationService> _logger;
+        private readonly ITenantEmailService _tenantEmailService;
 
         public RazorpayIntegrationService(
             IRazorpayOptions options,
             IUnitOfWork<IdentityDbContext> unitOfWork,
-            ILogger<RazorpayIntegrationService> logger)
+            ILogger<RazorpayIntegrationService> logger,
+            ITenantEmailService tenantEmailService = null)
         {
             _options = options;
             _unitOfWork = unitOfWork;
             _logger = logger;
+            _tenantEmailService = tenantEmailService;
         }
 
         public bool IsLiveMode => _options.IsLiveMode;
@@ -1250,6 +1254,13 @@ namespace LMS.Identity.BusinessSerive.Services
                         .Where(t => t.TenantSubscriptionPaymentOrderId == x.Id)
                         .OrderByDescending(t => t.VerifiedAtUtc ?? t.CreatedDateUtc)
                         .ThenByDescending(t => t.Id)
+                        .Select(t => new
+                        {
+                            t.GatewayPaymentId,
+                            t.FailureReason,
+                            t.VerifiedAtUtc,
+                            t.CreatedDateUtc
+                        })
                         .FirstOrDefault()
                 })
                 .ToListAsync();
@@ -1337,8 +1348,6 @@ namespace LMS.Identity.BusinessSerive.Services
                         return linkedBillingCycle;
                     }
                 }
-
-                return null;
             }
 
             return await _unitOfWork.DbContext.TenantSubscriptionPaymentOrders
@@ -1352,7 +1361,66 @@ namespace LMS.Identity.BusinessSerive.Services
                 .OrderByDescending(x => x.ModifiedDateUtc ?? x.CreatedDateUtc)
                 .ThenByDescending(x => x.Id)
                 .Select(x => x.BillingCycle)
+                .FirstOrDefaultAsync()
+                ?? await ResolveTrialBillingCycleFallbackAsync(tenant, normalizedPlanCodeUpper);
+        }
+
+        private async Task<string> ResolveTrialBillingCycleFallbackAsync(TenantEntity tenant, string normalizedPlanCodeUpper)
+        {
+            if (tenant == null
+                || !string.Equals((tenant.SubscriptionStatus ?? string.Empty).Trim(), "TrialActive", StringComparison.OrdinalIgnoreCase)
+                || string.IsNullOrWhiteSpace(normalizedPlanCodeUpper))
+            {
+                return null;
+            }
+
+            var openOrPaidCycle = await _unitOfWork.DbContext.TenantSubscriptionPaymentOrders
+                .AsNoTracking()
+                .Where(x => x.TenantEntityId == tenant.Id
+                    && x.TenantId == tenant.TenantId
+                    && x.PlanCode != null
+                    && x.PlanCode.ToUpper() == normalizedPlanCodeUpper
+                    && x.BillingCycle != null
+                    && x.OrderStatus != null
+                    && (x.OrderStatus.ToUpper() == "PAID" || OpenOrderStatuses.Contains(x.OrderStatus)))
+                .OrderByDescending(x => x.ModifiedDateUtc ?? x.CreatedDateUtc)
+                .ThenByDescending(x => x.Id)
+                .Select(x => x.BillingCycle)
                 .FirstOrDefaultAsync();
+
+            var normalizedOpenOrPaidCycle = NormalizeBillingCycle(openOrPaidCycle);
+            if (!string.IsNullOrWhiteSpace(normalizedOpenOrPaidCycle))
+            {
+                return normalizedOpenOrPaidCycle;
+            }
+
+            var activePlanCycles = await _unitOfWork.DbContext.SubscriptionPlans
+                .AsNoTracking()
+                .Where(x => x.IsActive
+                    && x.PlanCode != null
+                    && x.PlanCode.ToUpper() == normalizedPlanCodeUpper)
+                .OrderBy(x => x.Amount)
+                .ThenBy(x => x.BillingCycle)
+                .Select(x => x.BillingCycle)
+                .ToListAsync();
+
+            var monthly = activePlanCycles
+                .Select(NormalizeBillingCycle)
+                .FirstOrDefault(x => string.Equals(x, "Monthly", StringComparison.OrdinalIgnoreCase));
+            if (!string.IsNullOrWhiteSpace(monthly))
+            {
+                return monthly;
+            }
+
+            var yearly = activePlanCycles
+                .Select(NormalizeBillingCycle)
+                .FirstOrDefault(x => string.Equals(x, "Yearly", StringComparison.OrdinalIgnoreCase));
+            if (!string.IsNullOrWhiteSpace(yearly))
+            {
+                return yearly;
+            }
+
+            return activePlanCycles.Select(NormalizeBillingCycle).FirstOrDefault(x => !string.IsNullOrWhiteSpace(x));
         }
 
         private static string ResolveTenantIdFromClaims(ClaimsPrincipal user)
@@ -1574,7 +1642,9 @@ namespace LMS.Identity.BusinessSerive.Services
                     return ActionSet.ActionReturnType(HttpStatusCode.OK, CreateVerifyResponseDto(refreshedTenant ?? tenant, "Paid", persistedTransaction.TransactionStatus, true));
                 }
 
-                return ActionSet.ActionReturnType(HttpStatusCode.OK, CreateVerifyResponseDto(recoveredActivationResult.Tenant ?? tenant, localOrder.OrderStatus, persistedTransaction.TransactionStatus, true));
+                var recoveredResponseTenant = recoveredActivationResult.Tenant ?? tenant;
+                await TrySendSubscriptionActivationConfirmationEmailAsync(recoveredResponseTenant, localOrder, persistedTransaction);
+                return ActionSet.ActionReturnType(HttpStatusCode.OK, CreateVerifyResponseDto(recoveredResponseTenant, localOrder.OrderStatus, persistedTransaction.TransactionStatus, true));
             }
             catch (DbUpdateException ex) when (IsUniqueConstraintViolation(ex, "UX_TenantSubscriptionStateHistories_ActivationKey"))
             {
@@ -1585,7 +1655,101 @@ namespace LMS.Identity.BusinessSerive.Services
                 return ActionSet.ActionReturnType(HttpStatusCode.OK, CreateVerifyResponseDto(refreshedTenant ?? tenant, "Paid", transaction.TransactionStatus, true));
             }
 
-            return ActionSet.ActionReturnType(HttpStatusCode.OK, CreateVerifyResponseDto(activationResult.Tenant ?? tenant, localOrder.OrderStatus, transaction.TransactionStatus, true));
+            var responseTenant = activationResult.Tenant ?? tenant;
+            await TrySendSubscriptionActivationConfirmationEmailAsync(responseTenant, localOrder, transaction);
+            return ActionSet.ActionReturnType(HttpStatusCode.OK, CreateVerifyResponseDto(responseTenant, localOrder.OrderStatus, transaction.TransactionStatus, true));
+        }
+
+        private async Task TrySendSubscriptionActivationConfirmationEmailAsync(
+            TenantEntity tenant,
+            TenantSubscriptionPaymentOrderEntity paidOrder,
+            TenantSubscriptionPaymentTransactionEntity transaction)
+        {
+            if (_tenantEmailService == null || tenant == null || paidOrder == null || transaction == null)
+            {
+                return;
+            }
+
+            if (transaction.SubscriptionActivationEmailSentAtUtc.HasValue)
+            {
+                return;
+            }
+
+            if (string.IsNullOrWhiteSpace(tenant.Email))
+            {
+                _logger?.LogWarning(
+                    "Skipping subscription activation confirmation email because tenant email is unavailable. TenantId={TenantId}, OrderId={OrderId}, PaymentId={PaymentId}",
+                    tenant.TenantId,
+                    paidOrder.Id,
+                    transaction.GatewayPaymentId);
+                return;
+            }
+
+            var tenantName = string.IsNullOrWhiteSpace(tenant.TenantName) ? "Tenant" : tenant.TenantName.Trim();
+            var planCode = string.IsNullOrWhiteSpace(paidOrder.PlanCode) ? "Standard" : paidOrder.PlanCode.Trim();
+            var billingCycle = string.IsNullOrWhiteSpace(paidOrder.BillingCycle) ? "Monthly" : paidOrder.BillingCycle.Trim();
+            var amount = paidOrder.Amount;
+            var currency = string.IsNullOrWhiteSpace(paidOrder.Currency) ? "INR" : paidOrder.Currency.Trim().ToUpperInvariant();
+            var paymentId = string.IsNullOrWhiteSpace(transaction.GatewayPaymentId) ? "N/A" : transaction.GatewayPaymentId.Trim();
+            var orderId = string.IsNullOrWhiteSpace(transaction.GatewayOrderId) ? (paidOrder.GatewayOrderId ?? "N/A") : transaction.GatewayOrderId.Trim();
+
+            var activationUtc = (transaction.PaidAtUtc ?? transaction.VerifiedAtUtc ?? DateTime.UtcNow).ToUniversalTime();
+            var expiryUtc = (tenant.SubscriptionEndUtc ?? activationUtc).ToUniversalTime();
+
+            var encodedTenantName = System.Net.WebUtility.HtmlEncode(tenantName);
+            var encodedPlanCode = System.Net.WebUtility.HtmlEncode(planCode);
+            var encodedBillingCycle = System.Net.WebUtility.HtmlEncode(billingCycle);
+            var encodedCurrency = System.Net.WebUtility.HtmlEncode(currency);
+            var encodedPaymentId = System.Net.WebUtility.HtmlEncode(paymentId);
+            var encodedOrderId = System.Net.WebUtility.HtmlEncode(orderId);
+
+            var body = new StringBuilder();
+            body.Append("<div style='font-family:Segoe UI,Arial,sans-serif;color:#1f2937;font-size:14px;line-height:1.6;'>");
+            body.Append($"<p>Dear <strong>{encodedTenantName}</strong>,</p>");
+            body.Append("<p>Your LMS subscription payment has been verified and your subscription is now active.</p>");
+            body.Append("<p><strong>Activation summary</strong></p>");
+            body.Append("<table style='border-collapse:collapse;border:1px solid #d1d5db;min-width:520px;'>");
+            body.Append("<tr style='background:#f3f4f6;'><th style='text-align:left;padding:8px;border:1px solid #d1d5db;'>Field</th><th style='text-align:left;padding:8px;border:1px solid #d1d5db;'>Value</th></tr>");
+            body.Append($"<tr><td style='padding:8px;border:1px solid #d1d5db;'>Tenant Name</td><td style='padding:8px;border:1px solid #d1d5db;'>{encodedTenantName}</td></tr>");
+            body.Append($"<tr><td style='padding:8px;border:1px solid #d1d5db;'>Plan</td><td style='padding:8px;border:1px solid #d1d5db;'>{encodedPlanCode}</td></tr>");
+            body.Append($"<tr><td style='padding:8px;border:1px solid #d1d5db;'>Billing Cycle</td><td style='padding:8px;border:1px solid #d1d5db;'>{encodedBillingCycle}</td></tr>");
+            body.Append($"<tr><td style='padding:8px;border:1px solid #d1d5db;'>Amount</td><td style='padding:8px;border:1px solid #d1d5db;'>{encodedCurrency} {amount.ToString("0.00", CultureInfo.InvariantCulture)}</td></tr>");
+            body.Append($"<tr><td style='padding:8px;border:1px solid #d1d5db;'>Payment ID</td><td style='padding:8px;border:1px solid #d1d5db;'>{encodedPaymentId}</td></tr>");
+            body.Append($"<tr><td style='padding:8px;border:1px solid #d1d5db;'>Order ID</td><td style='padding:8px;border:1px solid #d1d5db;'>{encodedOrderId}</td></tr>");
+            body.Append($"<tr><td style='padding:8px;border:1px solid #d1d5db;'>Activation Date</td><td style='padding:8px;border:1px solid #d1d5db;'>{activationUtc:dd MMM yyyy HH:mm} UTC</td></tr>");
+            body.Append($"<tr><td style='padding:8px;border:1px solid #d1d5db;'>Expiry Date</td><td style='padding:8px;border:1px solid #d1d5db;'>{expiryUtc:dd MMM yyyy HH:mm} UTC</td></tr>");
+            body.Append("</table>");
+            body.Append("<p>Thank you for choosing Excel Laundry Services.</p>");
+            body.Append("<p>Regards,<br/>Excel Laundry Services</p>");
+            body.Append("<p style='color:#6b7280;font-size:12px;'>This is an automated email. Please do not reply.</p>");
+            body.Append("</div>");
+
+            var subject = "Excel Laundry Services - Subscription Activation Confirmation";
+            var tenantIntegrationKey = string.IsNullOrWhiteSpace(tenant.TenantName)
+                ? tenant.Email
+                : tenant.TenantName;
+
+            try
+            {
+                await _tenantEmailService.SendMailAsync(
+                    tenant.Email.Trim(),
+                    subject,
+                    body.ToString(),
+                    tenant.TenantId,
+                    tenantIntegrationKey);
+
+                transaction.SubscriptionActivationEmailSentAtUtc = DateTime.UtcNow;
+                await _unitOfWork.SaveChangesAsync();
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogError(
+                    ex,
+                    "Subscription activation confirmation email delivery failed. TenantId={TenantId}, OrderId={OrderId}, PaymentId={PaymentId}",
+                    tenant.TenantId,
+                    paidOrder.Id,
+                    transaction.GatewayPaymentId);
+            }
         }
 
         private CreateTenantSubscriptionPaymentOrderResponseDto BuildCreateOrderResponse(TenantSubscriptionPaymentOrderEntity order)

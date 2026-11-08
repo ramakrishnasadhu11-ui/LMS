@@ -2109,6 +2109,379 @@ namespace LMSWebUI.Tests
         }
 
         [Fact]
+        public void TenantSubscriptionPlans_Js_RenderSummary_UsesPersistedHistoryForPaidSuccessBanner()
+        {
+            var viewPath = Path.GetFullPath(Path.Combine(
+                AppContext.BaseDirectory,
+                "..", "..", "..", "..",
+                "LMSWebUI",
+                "Views",
+                "Customer",
+                "TenantSubscriptionPlans.cshtml"));
+
+            var content = File.ReadAllText(viewPath);
+            var normalizeStatusFunction = ExtractFunctionBlock(content, "normalizeStatus");
+            var isTrialStatusFunction = ExtractFunctionBlock(content, "isTrialStatus");
+            var isExpiredStatusFunction = ExtractFunctionBlock(content, "isExpiredStatus");
+            var statusClassFunction = ExtractFunctionBlock(content, "statusClass");
+            var toDateTextFunction = ExtractFunctionBlock(content, "toDateText");
+            var formatAmountFunction = ExtractFunctionBlock(content, "formatAmount");
+            var findRenewalPlanFunction = ExtractFunctionBlock(content, "findRenewalPlan");
+            var renewalCycleSuffixFunction = ExtractFunctionBlock(content, "renewalCycleSuffix");
+            var daysRemainingFunction = ExtractFunctionBlock(content, "daysRemaining");
+            var hasConfirmedPaidStateFunction = ExtractFunctionBlock(content, "hasConfirmedPaidState");
+            var renderSummaryFunction = ExtractFunctionBlock(content, "renderSummary");
+
+            var script = $@"
+                function el() {{ return {{ textContent: '', className: '', style: {{ display: '' }}, classList: {{ add: function(c) {{ this._c = c; }} }} }}; }}
+                var persistentStatusMessage = el();
+                var currentPlanValue = el();
+                var currentBillingCycleValue = el();
+                var subscriptionEndValue = el();
+                var renewalAmountValue = el();
+                var currentStatusBadge = el();
+                var trialInfoCard = el();
+                var trialEndValue = el();
+                var trialDaysRemainingValue = el();
+                var summaryInfoMessage = el();
+
+                function setPersistentStatusMessage(type, text) {{
+                    persistentStatusMessage.className = 'subscription-msg';
+                    persistentStatusMessage.textContent = text || '';
+                    if (!text) return;
+                    persistentStatusMessage.className = persistentStatusMessage.className + ' ' + (type === 'success' ? 'success' : 'error');
+                }}
+
+                {normalizeStatusFunction}
+                {isTrialStatusFunction}
+                {isExpiredStatusFunction}
+                {statusClassFunction}
+                {toDateTextFunction}
+                {formatAmountFunction}
+                {findRenewalPlanFunction}
+                {renewalCycleSuffixFunction}
+                {daysRemainingFunction}
+                {hasConfirmedPaidStateFunction}
+                {renderSummaryFunction}
+
+                var overview = {{ planCode: 'Standard', billingCycle: 'Monthly', subscriptionStatus: 'Active' }};
+                var plans = [{{ planCode: 'Standard', billingCycle: 'Monthly', amount: 499, currency: 'INR' }}];
+                var history = [{{ planCode: 'Standard', billingCycle: 'Monthly', orderStatus: 'Paid' }}];
+                renderSummary(overview, plans, history);
+            ";
+
+            var engine = new Engine();
+            engine.Execute(script);
+
+            Assert.Equal("Payment confirmed. Your subscription is active.", engine.Evaluate("persistentStatusMessage.textContent").ToString());
+        }
+
+        [Fact]
+        public void TenantSubscriptionPlans_Js_VerifyCheckout_TreatsIsVerifiedTrueAsSuccessWithoutStatusCodeOrMessage()
+        {
+            var viewPath = Path.GetFullPath(Path.Combine(
+                AppContext.BaseDirectory,
+                "..", "..", "..", "..",
+                "LMSWebUI",
+                "Views",
+                "Customer",
+                "TenantSubscriptionPlans.cshtml"));
+
+            var content = File.ReadAllText(viewPath);
+            var verifyCheckoutFunction = ExtractFunctionBlock(content, "verifyCheckout");
+
+            var script = $@"
+                var loadOverviewCount = 0;
+                var lastMessageType = '';
+                var lastMessageText = '';
+
+                function URLSearchParams() {{
+                    this._pairs = [];
+                    this.append = function(k, v) {{ this._pairs.push([k, v]); }};
+                    this.toString = function() {{
+                        var encoded = this._pairs.map(function(p) {{ return encodeURIComponent(p[0]) + '=' + encodeURIComponent(p[1]); }});
+                        return encoded.join('&');
+                    }};
+                }}
+
+                function setMessage(type, text) {{
+                    lastMessageType = type || '';
+                    lastMessageText = text || '';
+                }}
+
+                function loadOverview() {{
+                    loadOverviewCount++;
+                }}
+
+                function fetch() {{
+                    return {{
+                        then: function(onResponse) {{
+                            var parsed = onResponse({{ json: function() {{ return {{ isVerified: true }}; }} }});
+                            return {{
+                                then: function(onData) {{
+                                    onData(parsed);
+                                    return {{
+                                        catch: function() {{ return this; }},
+                                        finally: function(onDone) {{ if (onDone) onDone(); return this; }}
+                                    }};
+                                }}
+                            }};
+                        }}
+                    }};
+                }}
+
+                {verifyCheckoutFunction}
+                verifyCheckout({{ paymentOrderId: 11, razorpayOrderId: 'order_1', razorpayPaymentId: 'pay_1', razorpaySignature: 'sig_1' }});
+            ";
+
+            var engine = new Engine();
+            engine.Execute(script);
+
+            Assert.Equal("success", engine.Evaluate("lastMessageType").ToString());
+            Assert.Equal("Subscription payment verified successfully.", engine.Evaluate("lastMessageText").ToString());
+            Assert.Equal("1", engine.Evaluate("String(loadOverviewCount)").ToString());
+        }
+
+        [Fact]
+        public void TenantSubscriptionPlans_Js_VerifyCheckout_RefreshesOverviewWithForceFreshAndPreservedMessage()
+        {
+            var viewPath = Path.GetFullPath(Path.Combine(
+                AppContext.BaseDirectory,
+                "..", "..", "..", "..",
+                "LMSWebUI",
+                "Views",
+                "Customer",
+                "TenantSubscriptionPlans.cshtml"));
+
+            var content = File.ReadAllText(viewPath);
+            var normalizeStatusFunction = ExtractFunctionBlock(content, "normalizeStatus");
+            var hasConfirmedPaidStateFunction = ExtractFunctionBlock(content, "hasConfirmedPaidState");
+            var verifyCheckoutFunction = ExtractFunctionBlock(content, "verifyCheckout");
+
+            var script = $@"
+                var __lastLoadOverviewOptions = null;
+                var __lastSetTimeoutDelay = 0;
+                var __loadOverviewCalls = 0;
+                var __lastMessageType = '';
+                var __lastMessageText = '';
+
+                function URLSearchParams() {{
+                    this._pairs = [];
+                    this.append = function(k, v) {{ this._pairs.push([k, v]); }};
+                    this.toString = function() {{
+                        var encoded = this._pairs.map(function(p) {{ return encodeURIComponent(p[0]) + '=' + encodeURIComponent(p[1]); }});
+                        return encoded.join('&');
+                    }};
+                }}
+
+                function setMessage(type, text) {{
+                    __lastMessageType = type || '';
+                    __lastMessageText = text || '';
+                }}
+
+                function loadOverview(options) {{
+                    __lastLoadOverviewOptions = options || null;
+                    __loadOverviewCalls++;
+                    return {{
+                        then: function(resolve) {{
+                            resolve({{ overview: {{ subscriptionStatus: 'Active', planCode: 'Standard', billingCycle: 'Monthly' }}, history: [{{ orderStatus: 'Paid', planCode: 'Standard', billingCycle: 'Monthly' }}] }});
+                            return {{
+                                catch: function() {{ return this; }}
+                            }};
+                        }}
+                    }};
+                }}
+
+                function setTimeout(fn, delay) {{
+                    __lastSetTimeoutDelay = delay;
+                    if (fn) fn();
+                    return 1;
+                }}
+
+                function fetch() {{
+                    return {{
+                        then: function(onResponse) {{
+                            var parsed = onResponse({{ json: function() {{ return {{ isVerified: true }}; }} }});
+                            return {{
+                                then: function(onData) {{
+                                    onData(parsed);
+                                    return {{
+                                        catch: function() {{ return this; }},
+                                        finally: function(onDone) {{ if (onDone) onDone(); return this; }}
+                                    }};
+                                }}
+                            }};
+                        }}
+                    }};
+                }}
+
+                {normalizeStatusFunction}
+                {hasConfirmedPaidStateFunction}
+                {verifyCheckoutFunction}
+
+                verifyCheckout({{ paymentOrderId: 42, razorpayOrderId: 'order_ok', razorpayPaymentId: 'pay_ok', razorpaySignature: 'sig_ok' }});
+            ";
+
+            var engine = new Engine();
+            engine.Execute(script);
+
+            Assert.Equal("success", engine.Evaluate("__lastMessageType").ToString());
+            Assert.Equal("Subscription payment verified successfully.", engine.Evaluate("__lastMessageText").ToString());
+            Assert.Equal("1", engine.Evaluate("String(__loadOverviewCalls)").ToString());
+            Assert.Equal("true", engine.Evaluate("String(!!__lastLoadOverviewOptions && __lastLoadOverviewOptions.forceFresh === true)").ToString());
+            Assert.Equal("true", engine.Evaluate("String(!!__lastLoadOverviewOptions && __lastLoadOverviewOptions.preserveTransientMessage === true)").ToString());
+        }
+
+        [Fact]
+        public void TenantSubscriptionPlans_Js_StartCheckout_OnDismiss_ShowsCancellationMessage_AndKeepsSessionFlowOnPage()
+        {
+            var viewPath = Path.GetFullPath(Path.Combine(
+                AppContext.BaseDirectory,
+                "..", "..", "..", "..",
+                "LMSWebUI",
+                "Views",
+                "Customer",
+                "TenantSubscriptionPlans.cshtml"));
+
+            var content = File.ReadAllText(viewPath);
+            var startCheckoutFunction = ExtractFunctionBlock(content, "startCheckout");
+
+            var script = $@"
+                var __lastMessageType = '';
+                var __lastMessageText = '';
+                var __capturedOptions = null;
+
+                function URLSearchParams() {{
+                    this._pairs = [];
+                    this.append = function(k, v) {{ this._pairs.push([k, v]); }};
+                    this.toString = function() {{
+                        var encoded = this._pairs.map(function(p) {{ return encodeURIComponent(p[0]) + '=' + encodeURIComponent(p[1]); }});
+                        return encoded.join('&');
+                    }};
+                }}
+
+                function setMessage(type, text) {{
+                    __lastMessageType = type || '';
+                    __lastMessageText = text || '';
+                }}
+
+                function verifyCheckout() {{ }}
+
+                function Razorpay(options) {{
+                    __capturedOptions = options;
+                    this.on = function() {{ }};
+                    this.open = function() {{ }};
+                }}
+
+                function fetch() {{
+                    return {{
+                        then: function(onResponse) {{
+                            var parsed = onResponse({{ json: function() {{ return {{
+                                success: true,
+                                order: {{
+                                    paymentOrderId: 41,
+                                    razorpayOrderId: 'order_41',
+                                    razorpayKeyId: 'rzp_test_123',
+                                    amountMinor: 49900,
+                                    currency: 'INR',
+                                    planCode: 'Standard',
+                                    billingCycle: 'Monthly'
+                                }}
+                            }}; }} }});
+
+                            return {{
+                                then: function(onData) {{
+                                    onData(parsed);
+                                    return {{
+                                        catch: function() {{ return this; }}
+                                    }};
+                                }}
+                            }};
+                        }}
+                    }};
+                }}
+
+                {startCheckoutFunction}
+
+                var canCheckout = true;
+                var btn = {{ disabled: false }};
+                startCheckout('Standard', 'Monthly', btn);
+                __capturedOptions.modal.ondismiss();
+            ";
+
+            var engine = new Engine();
+            engine.Execute(script);
+
+            Assert.Equal("error", engine.Evaluate("__lastMessageType").ToString());
+            Assert.Equal("Payment cancelled. No subscription changes were made.", engine.Evaluate("__lastMessageText").ToString());
+            Assert.Equal("false", engine.Evaluate("String(btn.disabled)").ToString());
+        }
+
+        [Fact]
+        public void TenantSubscriptionPlans_Js_LoadOverview_SessionExpiredWithRedirect_OnlyThenNavigatesToLogin()
+        {
+            var viewPath = Path.GetFullPath(Path.Combine(
+                AppContext.BaseDirectory,
+                "..", "..", "..", "..",
+                "LMSWebUI",
+                "Views",
+                "Customer",
+                "TenantSubscriptionPlans.cshtml"));
+
+            var content = File.ReadAllText(viewPath);
+            var loadOverviewFunction = ExtractFunctionBlock(content, "loadOverview");
+
+            var script = $@"
+                var __lastMessageType = '';
+                var __lastMessageText = '';
+                var plansHost = {{ textContent: '' }};
+                var historyHost = {{ textContent: '' }};
+                var window = {{ location: {{ href: '' }} }};
+
+                function setMessage(type, text) {{
+                    __lastMessageType = type || '';
+                    __lastMessageText = text || '';
+                }}
+
+                function setPersistentStatusMessage() {{ }}
+                function renderSummary() {{ }}
+                function renderPlans() {{ }}
+                function renderHistory() {{ }}
+
+                function fetch() {{
+                    return {{
+                        then: function(onResponse) {{
+                            var parsed = onResponse({{ json: function() {{ return {{
+                                success: false,
+                                message: 'Session expired. Please log in again.',
+                                redirectUrl: '/Login/Login'
+                            }}; }} }});
+
+                            return {{
+                                then: function(onData) {{
+                                    onData(parsed);
+                                    return {{
+                                        catch: function() {{ return this; }}
+                                    }};
+                                }}
+                            }};
+                        }}
+                    }};
+                }}
+
+                {loadOverviewFunction}
+                loadOverview();
+            ";
+
+            var engine = new Engine();
+            engine.Execute(script);
+
+            Assert.Equal("error", engine.Evaluate("__lastMessageType").ToString());
+            Assert.Equal("Session expired. Please log in again.", engine.Evaluate("__lastMessageText").ToString());
+            Assert.Equal("/Login/Login", engine.Evaluate("window.location.href").ToString());
+        }
+
+        [Fact]
         public async Task DeactivateTaxComponent_CallsDeactivateEndpoint()
         {
             var customerApi = new InMemoryCustomerApiClient();
