@@ -224,6 +224,7 @@ namespace LMS.Identity.BusinessSerive.Data
                 entity.Property(x => x.IsSignatureVerified).HasColumnType("bit");
                 entity.Property(x => x.FailureCode).HasMaxLength(64).HasColumnType("nvarchar(64)");
                 entity.Property(x => x.FailureReason).HasMaxLength(512).HasColumnType("nvarchar(512)");
+                entity.Property(x => x.SubscriptionActivationEmailSentAtUtc).HasColumnType("datetime2");
                 entity.Property(x => x.RowVersion).IsRowVersion().IsConcurrencyToken();
 
                 entity.HasIndex(x => x.TenantSubscriptionPaymentOrderId);

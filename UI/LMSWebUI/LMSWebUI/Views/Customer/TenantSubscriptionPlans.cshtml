@@ -353,6 +353,7 @@
         </div>
 
         <div id="subscriptionStatusMessage" class="subscription-msg"></div>
+        <div id="subscriptionPersistentStatusMessage" class="subscription-msg"></div>
 
         <div class="subscription-card summary-card">
             <div class="summary-top">
@@ -423,6 +424,7 @@
 (function () {
     var canCheckout = @canCheckout.ToString().ToLowerInvariant();
     var statusMessage = document.getElementById("subscriptionStatusMessage");
+    var persistentStatusMessage = document.getElementById("subscriptionPersistentStatusMessage");
     var currentPlanValue = document.getElementById("currentPlanValue");
     var currentBillingCycleValue = document.getElementById("currentBillingCycleValue");
     var subscriptionEndValue = document.getElementById("subscriptionEndValue");
@@ -443,6 +445,15 @@
             return;
         }
         statusMessage.classList.add(type === "success" ? "success" : "error");
+    }
+
+    function setPersistentStatusMessage(type, text) {
+        persistentStatusMessage.className = "subscription-msg";
+        persistentStatusMessage.textContent = text || "";
+        if (!text) {
+            return;
+        }
+        persistentStatusMessage.classList.add(type === "success" ? "success" : "error");
     }
 
     function pad2(n) {
@@ -534,7 +545,25 @@
         return Math.ceil(diff / 86400000);
     }
 
-    function renderSummary(overview, plans) {
+    function hasConfirmedPaidState(overview, history) {
+        if (normalizeStatus(overview && overview.subscriptionStatus) !== "active") {
+            return false;
+        }
+
+        var currentPlan = (overview && overview.planCode || "").trim().toLowerCase();
+        var currentCycle = (overview && overview.billingCycle || "").trim().toLowerCase();
+        if (!currentPlan || !currentCycle || !history || !history.length) {
+            return false;
+        }
+
+        return history.some(function (h) {
+            return normalizeStatus(h && h.orderStatus) === "paid"
+                && (h && h.planCode || "").trim().toLowerCase() === currentPlan
+                && (h && h.billingCycle || "").trim().toLowerCase() === currentCycle;
+        });
+    }
+
+    function renderSummary(overview, plans, history) {
         var status = overview.subscriptionStatus || "Not configured";
         var trial = isTrialStatus(status);
         var expired = isExpiredStatus(status);
@@ -546,6 +575,12 @@
 
         currentStatusBadge.className = "status-badge " + statusClass(status);
         currentStatusBadge.textContent = status;
+
+        if (hasConfirmedPaidState(overview, history)) {
+            setPersistentStatusMessage("success", "Payment confirmed. Your subscription is active.");
+        } else {
+            setPersistentStatusMessage("", "");
+        }
 
         var renewalPlan = findRenewalPlan(overview, plans);
         if (renewalPlan) {
@@ -740,16 +775,65 @@
         form.append("razorpayPaymentId", result.razorpayPaymentId || "");
         form.append("razorpaySignature", result.razorpaySignature || "");
 
+        function isCheckoutVerificationSuccess(response) {
+            if (!response) {
+                return false;
+            }
+
+            if (response.success === true || response.isVerified === true) {
+                return true;
+            }
+
+            var verificationResult = response.result || response.response || null;
+            return !!(verificationResult && verificationResult.isVerified === true);
+        }
+
         fetch('@Url.Action("VerifyTenantSubscriptionCheckoutPayment", "Customer")', {
             method: "POST",
-            headers: { "Content-Type": "application/x-www-form-urlencoded" },
+            headers: {
+                "Content-Type": "application/x-www-form-urlencoded",
+                "Accept": "application/json",
+                "X-Requested-With": "XMLHttpRequest"
+            },
             body: form.toString()
         })
         .then(function (r) { return r.json(); })
         .then(function (data) {
-            if (data && data.success) {
-                setMessage("success", data.message || "Subscription payment verified successfully.");
-                loadOverview();
+            var isSessionExpired = !!(data && typeof data.message === "string"
+                && data.message.toLowerCase().indexOf("session expired") >= 0);
+            if (isSessionExpired && data.redirectUrl) {
+                setMessage("error", data.message || "Session expired. Please log in again.");
+                if (window && window.location) {
+                    window.location.href = data.redirectUrl;
+                }
+                return;
+            }
+
+            if (isCheckoutVerificationSuccess(data)) {
+                setMessage("success", "Subscription payment verified successfully.");
+                var refreshStartedAt = Date.now();
+                var refreshOverview = function (allowRetry) {
+                    return loadOverview({ forceFresh: true, preserveTransientMessage: true })
+                        .then(function (state) {
+                            if (!state || !state.overview) {
+                                return;
+                            }
+
+                            var overviewStatus = normalizeStatus(state.overview.subscriptionStatus);
+                            var hasPaidActivation = overviewStatus === "active"
+                                && hasConfirmedPaidState(state.overview, state.history || []);
+
+                            if (!hasPaidActivation && allowRetry && (Date.now() - refreshStartedAt) < 5000) {
+                                setTimeout(function () {
+                                    refreshOverview(false);
+                                }, 1200);
+                            }
+                        })
+                        .catch(function () {
+                        });
+                };
+
+                refreshOverview(true);
             } else {
                 setMessage("error", (data && data.message) || "Unable to verify subscription payment.");
             }
@@ -772,11 +856,26 @@
 
         fetch('@Url.Action("CreateTenantSubscriptionPaymentOrder", "Customer")', {
             method: "POST",
-            headers: { "Content-Type": "application/x-www-form-urlencoded" },
+            headers: {
+                "Content-Type": "application/x-www-form-urlencoded",
+                "Accept": "application/json",
+                "X-Requested-With": "XMLHttpRequest"
+            },
             body: form.toString()
         })
         .then(function (r) { return r.json(); })
         .then(function (data) {
+            var isSessionExpired = !!(data && typeof data.message === "string"
+                && data.message.toLowerCase().indexOf("session expired") >= 0);
+            if (isSessionExpired && data.redirectUrl) {
+                setMessage("error", data.message || "Session expired. Please log in again.");
+                btn.disabled = false;
+                if (window && window.location) {
+                    window.location.href = data.redirectUrl;
+                }
+                return;
+            }
+
             if (!data || data.success !== true || !data.order) {
                 setMessage("error", (data && data.message) || "Unable to create subscription checkout order.");
                 btn.disabled = false;
@@ -803,6 +902,7 @@
                 },
                 modal: {
                     ondismiss: function () {
+                        setMessage("error", "Payment cancelled. No subscription changes were made.");
                         btn.disabled = false;
                     }
                 },
@@ -816,7 +916,7 @@
                 var reason = resp && resp.error && resp.error.description
                     ? resp.error.description
                     : "Payment failed.";
-                setMessage("error", reason);
+                setMessage("error", reason + " No subscription changes were made.");
                 btn.disabled = false;
             });
             razorpay.open();
@@ -827,32 +927,69 @@
         });
     }
 
-    function loadOverview() {
-        setMessage("", "");
+    function loadOverview(options) {
+        var opts = options || {};
+        if (!opts.preserveTransientMessage) {
+            setMessage("", "");
+        }
+        setPersistentStatusMessage("", "");
         plansHost.textContent = "Loading plans...";
 
-        fetch('@Url.Action("GetTenantSubscriptionOverview", "Customer")')
+        var overviewUrl = '@Url.Action("GetTenantSubscriptionOverview", "Customer")';
+        if (opts.forceFresh) {
+            overviewUrl += (overviewUrl.indexOf("?") >= 0 ? "&" : "?") + "_ts=" + Date.now();
+        }
+
+        var fetchOptions = {
+            method: "GET",
+            cache: "no-store",
+            headers: {
+                "Accept": "application/json",
+                "X-Requested-With": "XMLHttpRequest",
+                "Cache-Control": "no-cache, no-store, max-age=0",
+                "Pragma": "no-cache"
+            }
+        };
+
+        return fetch(overviewUrl, fetchOptions)
             .then(function (r) { return r.json(); })
             .then(function (data) {
+                var isSessionExpired = !!(data && typeof data.message === "string"
+                    && data.message.toLowerCase().indexOf("session expired") >= 0);
+                if (isSessionExpired && data.redirectUrl) {
+                    setMessage("error", data.message || "Session expired. Please log in again.");
+                    if (window && window.location) {
+                        window.location.href = data.redirectUrl;
+                    }
+                    return null;
+                }
+
                 if (!data || data.success !== true || !data.overview) {
                     plansHost.textContent = "Unable to load tenant subscription details.";
                     historyHost.textContent = "No payment history available.";
                     setMessage("error", (data && data.message) || "Unable to load tenant subscription details.");
-                    return;
+                    return null;
                 }
 
                 var o = data.overview;
                 var plans = o.availablePlans || [];
                 var history = o.paymentHistory || [];
 
-                renderSummary(o, plans);
+                renderSummary(o, plans, history);
                 renderPlans(plans, o);
                 renderHistory(history);
+
+                return {
+                    overview: o,
+                    plans: plans,
+                    history: history
+                };
             })
             .catch(function () {
                 plansHost.textContent = "Unable to load tenant subscription details.";
                 historyHost.textContent = "No payment history available.";
                 setMessage("error", "Unable to load tenant subscription details.");
+                return null;
             });
     }
 

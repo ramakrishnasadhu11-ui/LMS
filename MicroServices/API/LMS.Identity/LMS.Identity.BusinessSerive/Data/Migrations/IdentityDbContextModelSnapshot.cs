@@ -611,6 +611,9 @@ namespace LMS.Identity.BusinessSerive.Data.Migrations
                         .ValueGeneratedOnAddOrUpdate()
                         .HasColumnType("rowversion");
 
+                    b.Property<DateTime?>("SubscriptionActivationEmailSentAtUtc")
+                        .HasColumnType("datetime2");
+
                     b.Property<int>("TenantEntityId")
                         .HasColumnType("int");
 

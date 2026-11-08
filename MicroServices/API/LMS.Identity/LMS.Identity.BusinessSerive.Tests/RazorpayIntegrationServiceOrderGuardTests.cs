@@ -9,6 +9,7 @@ using System.Threading.Tasks;
 using LMS.Core.Repository.Repositories;
 using LMS.Core.Repository.UnitOfWork;
 using LMS.Identity.BusinessSerive.Data;
+using LMS.Identity.BusinessSerive.Interfaces;
 using LMS.Identity.BusinessSerive.Services;
 using LMS.Identity.DTO;
 using LMS.Identity.DTO.Entities;
@@ -631,6 +632,79 @@ namespace LMS.Identity.BusinessSerive.Tests
 
             var persistedOrder = await context.TenantSubscriptionPaymentOrders.FirstAsync(x => x.Id == order.Id);
             Assert.Equal("Paid", persistedOrder.OrderStatus);
+        }
+
+        [Fact]
+        public async Task VerifyTenantSubscriptionCheckoutPayment_EmailFailure_DoesNotRollbackActivation()
+        {
+            var dbName = Guid.NewGuid().ToString();
+            var options = new DbContextOptionsBuilder<IdentityDbContext>()
+                .UseInMemoryDatabase(dbName)
+                .ConfigureWarnings(w => w.Ignore(InMemoryEventId.TransactionIgnoredWarning))
+                .Options;
+
+            using var context = new IdentityDbContext(options);
+            var tenant = new TenantEntity
+            {
+                TenantId = "tenant-email-fail-1",
+                Email = "email-fail@test.com",
+                TenantName = "Email Failure Tenant",
+                NoOfStores = 1,
+                CreatedDate = DateTime.UtcNow,
+                ModifiedDate = DateTime.UtcNow
+            };
+            context.Tenants.Add(tenant);
+            await context.SaveChangesAsync();
+
+            var order = new TenantSubscriptionPaymentOrderEntity
+            {
+                TenantId = tenant.TenantId,
+                TenantEntityId = tenant.Id,
+                PlanCode = "Standard",
+                BillingCycle = "Monthly",
+                Amount = 499m,
+                Currency = "INR",
+                OrderStatus = "Created",
+                GatewayOrderId = "order_email_fail_001",
+                ReceiptId = "receipt_email_fail_001",
+                CreatedDateUtc = DateTime.UtcNow.AddMinutes(-1),
+                OrderExpiresUtc = DateTime.UtcNow.AddMinutes(10),
+                PendingVerificationStatus = "NotStarted",
+                PendingVerificationUntilUtc = DateTime.UtcNow.AddMinutes(10)
+            };
+            context.TenantSubscriptionPaymentOrders.Add(order);
+            await context.SaveChangesAsync();
+
+            var service = new TestableRazorpayIntegrationService(
+                CreateTestOptions("test-secret"),
+                new UnitOfWork<IdentityDbContext>(context),
+                order.GatewayOrderId,
+                49900,
+                DateTime.UtcNow,
+                true,
+                "INR",
+                new ThrowingTenantEmailService());
+
+            var request = new VerifyCheckoutPaymentRequestDto
+            {
+                RazorpayOrderId = order.GatewayOrderId,
+                RazorpayPaymentId = "pay_email_fail_001",
+                RazorpaySignature = ComputeCheckoutSignature("test-secret", order.GatewayOrderId, "pay_email_fail_001")
+            };
+
+            var result = await service.VerifyTenantSubscriptionCheckoutPayment(request, CreateTenantUser(tenant.TenantId));
+
+            Assert.Equal(HttpStatusCode.OK, result.StatusCode);
+            var verify = Assert.IsType<VerifyPaymentResponseDto>(result.ResultSet);
+            Assert.True(verify.IsVerified);
+            Assert.Equal("Paid", verify.OrderStatus);
+
+            var persistedOrder = await context.TenantSubscriptionPaymentOrders.FirstAsync(x => x.Id == order.Id);
+            Assert.Equal("Paid", persistedOrder.OrderStatus);
+
+            var persistedTxn = await context.TenantSubscriptionPaymentTransactions.FirstAsync(x => x.TenantSubscriptionPaymentOrderId == order.Id);
+            Assert.Equal("Captured", persistedTxn.TransactionStatus);
+            Assert.Null(persistedTxn.SubscriptionActivationEmailSentAtUtc);
         }
 
         [Fact]
@@ -1507,7 +1581,64 @@ namespace LMS.Identity.BusinessSerive.Tests
         }
 
         [Fact]
-        public async Task GetTenantSubscriptionOverview_BillingCycle_ReturnsNull_WhenActivationHistoryExistsButHasNoReliablePaidOrderEvidence()
+        public async Task GetTenantSubscriptionOverview_BillingCycle_UsesActivePlanFallback_ForTrialActiveTenantWithoutOrderHistory()
+        {
+            var dbName = Guid.NewGuid().ToString();
+            var options = new DbContextOptionsBuilder<IdentityDbContext>()
+                .UseInMemoryDatabase(dbName)
+                .ConfigureWarnings(w => w.Ignore(InMemoryEventId.TransactionIgnoredWarning))
+                .Options;
+
+            using var context = new IdentityDbContext(options);
+            var tenant = new TenantEntity
+            {
+                TenantId = "tenant-overview-trial-1",
+                Email = "overviewtrial1@test.com",
+                TenantName = "Overview Trial Tenant",
+                NoOfStores = 1,
+                PlanCode = "Standard",
+                SubscriptionStatus = "TrialActive",
+                TrialStartUtc = DateTime.UtcNow.AddDays(-2),
+                TrialEndUtc = DateTime.UtcNow.AddDays(43),
+                CreatedDate = DateTime.UtcNow,
+                ModifiedDate = DateTime.UtcNow
+            };
+            context.Tenants.Add(tenant);
+
+            context.SubscriptionPlans.AddRange(
+                new SubscriptionPlanEntity
+                {
+                    PlanCode = "Standard",
+                    BillingCycle = "Monthly",
+                    Amount = 499m,
+                    Currency = "INR",
+                    IsActive = true,
+                    CreatedDateUtc = DateTime.UtcNow
+                },
+                new SubscriptionPlanEntity
+                {
+                    PlanCode = "Standard",
+                    BillingCycle = "Yearly",
+                    Amount = 4999m,
+                    Currency = "INR",
+                    IsActive = true,
+                    CreatedDateUtc = DateTime.UtcNow
+                });
+
+            await context.SaveChangesAsync();
+
+            var service = CreateService(context);
+            var result = await service.GetTenantSubscriptionOverview(CreateTenantUser(tenant.TenantId));
+
+            Assert.Equal(HttpStatusCode.OK, result.StatusCode);
+            var response = Assert.IsType<TenantSubscriptionOverviewResponseDto>(result.ResultSet);
+            Assert.Equal("TrialActive", response.SubscriptionStatus);
+            Assert.Equal("Standard", response.PlanCode);
+            Assert.Equal("Monthly", response.BillingCycle);
+        }
+
+        [Fact]
+        public async Task GetTenantSubscriptionOverview_BillingCycle_FallsBackToLatestMatchingPaidOrder_WhenActivationHistoryHasNoReliableLinkedPaidOrder()
         {
             var dbName = Guid.NewGuid().ToString();
             var options = new DbContextOptionsBuilder<IdentityDbContext>()
@@ -1577,7 +1708,7 @@ namespace LMS.Identity.BusinessSerive.Tests
 
             Assert.Equal(HttpStatusCode.OK, result.StatusCode);
             var response = Assert.IsType<TenantSubscriptionOverviewResponseDto>(result.ResultSet);
-            Assert.Null(response.BillingCycle);
+            Assert.Equal("Yearly", response.BillingCycle);
         }
 
         [Fact]
@@ -1642,6 +1773,76 @@ namespace LMS.Identity.BusinessSerive.Tests
             Assert.Equal("Yearly", response.BillingCycle);
 
             await testContext.Database.EnsureDeletedAsync();
+        }
+
+        [Fact]
+        public async Task GetTenantSubscriptionOverview_PaymentHistory_DoesNotDependOnUnselectedTransactionColumns()
+        {
+            var dbName = Guid.NewGuid().ToString();
+            var options = new DbContextOptionsBuilder<IdentityDbContext>()
+                .UseInMemoryDatabase(dbName)
+                .ConfigureWarnings(w => w.Ignore(InMemoryEventId.TransactionIgnoredWarning))
+                .Options;
+
+            using var context = new IdentityDbContext(options);
+            var tenant = new TenantEntity
+            {
+                TenantId = "tenant-overview-projection-1",
+                Email = "overviewprojection@test.com",
+                TenantName = "Overview Projection Tenant",
+                NoOfStores = 1,
+                PlanCode = "Standard",
+                SubscriptionStatus = "TrialActive",
+                CreatedDate = DateTime.UtcNow,
+                ModifiedDate = DateTime.UtcNow
+            };
+            context.Tenants.Add(tenant);
+            await context.SaveChangesAsync();
+
+            var order = new TenantSubscriptionPaymentOrderEntity
+            {
+                TenantId = tenant.TenantId,
+                TenantEntityId = tenant.Id,
+                PlanCode = "Standard",
+                BillingCycle = "Monthly",
+                Amount = 499m,
+                Currency = "INR",
+                OrderStatus = "Paid",
+                GatewayOrderId = "order_projection_001",
+                CreatedDateUtc = DateTime.UtcNow.AddDays(-1),
+                ModifiedDateUtc = DateTime.UtcNow
+            };
+            context.TenantSubscriptionPaymentOrders.Add(order);
+            await context.SaveChangesAsync();
+
+            context.TenantSubscriptionPaymentTransactions.Add(new TenantSubscriptionPaymentTransactionEntity
+            {
+                TenantSubscriptionPaymentOrderId = order.Id,
+                TenantId = tenant.TenantId,
+                TenantEntityId = tenant.Id,
+                GatewayPaymentId = "pay_projection_001",
+                GatewayOrderId = order.GatewayOrderId,
+                PaymentProvider = "Razorpay",
+                IsLiveMode = false,
+                TransactionStatus = "Captured",
+                Amount = order.Amount,
+                Currency = "INR",
+                CreatedDateUtc = DateTime.UtcNow.AddHours(-3),
+                VerifiedAtUtc = DateTime.UtcNow.AddHours(-2),
+                IsSignatureVerified = true,
+                FailureReason = null,
+                SubscriptionActivationEmailSentAtUtc = DateTime.UtcNow.AddHours(-1)
+            });
+            await context.SaveChangesAsync();
+
+            var service = CreateService(context);
+            var result = await service.GetTenantSubscriptionOverview(CreateTenantUser(tenant.TenantId));
+
+            Assert.Equal(HttpStatusCode.OK, result.StatusCode);
+            var response = Assert.IsType<TenantSubscriptionOverviewResponseDto>(result.ResultSet);
+            var history = Assert.Single(response.PaymentHistory);
+            Assert.Equal("pay_projection_001", history.GatewayPaymentId);
+            Assert.Equal("Paid", history.OrderStatus);
         }
 
         private sealed class DirectSaveUnitOfWork : IUnitOfWork<IdentityDbContext>
@@ -1796,6 +1997,7 @@ namespace LMS.Identity.BusinessSerive.Tests
             private readonly DateTime? _paidAtUtc;
             private readonly bool _isCaptured;
             private readonly string _currency;
+            private readonly ITenantEmailService _tenantEmailService;
 
             public TestableRazorpayIntegrationService(
                 IRazorpayOptions options,
@@ -1804,20 +2006,30 @@ namespace LMS.Identity.BusinessSerive.Tests
                 int amount,
                 DateTime? paidAtUtc,
                 bool isCaptured,
-                string currency = "INR")
-                : base(options, unitOfWork, NullLogger<RazorpayIntegrationService>.Instance)
+                string currency = "INR",
+                ITenantEmailService tenantEmailService = null)
+                : base(options, unitOfWork, NullLogger<RazorpayIntegrationService>.Instance, tenantEmailService)
             {
                 _orderId = orderId;
                 _amount = amount;
                 _paidAtUtc = paidAtUtc;
                 _isCaptured = isCaptured;
                 _currency = currency;
+                _tenantEmailService = tenantEmailService;
             }
 
             protected override Task<PaymentVerificationSnapshot> FetchRazorpayPaymentForVerificationAsync(string razorpayPaymentId)
             {
                 var snapshot = PaymentVerificationSnapshot.Succeeded(_orderId, _amount, _currency, _isCaptured, _paidAtUtc);
                 return Task.FromResult(snapshot);
+            }
+        }
+
+        private sealed class ThrowingTenantEmailService : ITenantEmailService
+        {
+            public Task SendMailAsync(string email, string subject, string body, string tenantId = null, string tenantEmail = null)
+            {
+                throw new InvalidOperationException("Simulated SMTP send failure.");
             }
         }
 

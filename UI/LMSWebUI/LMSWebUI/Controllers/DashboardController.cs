@@ -65,18 +65,22 @@ namespace LMSWebUI.Controllers
             string tenantName = HttpContext.Session.GetString("TenantName");
             string tenanStore = HttpContext.Session.GetString("TenantStore");
             string userRole = HttpContext.Session.GetString("UserRole");
+            var isSuperAdminUser = string.Equals(userRole, "SuperAdmin", System.StringComparison.OrdinalIgnoreCase);
 
-            var storeScopeValidation = await ValidateSessionStoreScopeAsync(tenantName, tenanStore);
-            if (!storeScopeValidation.IsValid)
+            if (!isSuperAdminUser)
             {
-                TempData["UserMessage"] = JsonConvert.SerializeObject(new MessageDto
+                var storeScopeValidation = await ValidateSessionStoreScopeAsync(tenantName, tenanStore);
+                if (!storeScopeValidation.IsValid)
                 {
-                    CssClassName = "alert alert-danger",
-                    Title = "Failed.",
-                    DisplayMessage = storeScopeValidation.Message
-                });
+                    TempData["UserMessage"] = JsonConvert.SerializeObject(new MessageDto
+                    {
+                        CssClassName = "alert alert-danger",
+                        Title = "Failed.",
+                        DisplayMessage = storeScopeValidation.Message
+                    });
 
-                return RedirectToAction("Login", "Login");
+                    return RedirectToAction("Login", "Login");
+                }
             }
 
             var onboardingState = (IsDismissed: false, IsCompleted: false);
@@ -106,13 +110,14 @@ namespace LMSWebUI.Controllers
                 TenantStore = tenanStore
             };
 
-            var isSuperAdminUser = string.Equals(userRole, "SuperAdmin", System.StringComparison.OrdinalIgnoreCase);
             var isAdminUser = string.Equals(userRole, "Admin", System.StringComparison.OrdinalIgnoreCase)
                               || isSuperAdminUser;
 
             var shouldShowSubscriptionSpotlight = false;
             string subscriptionPlanCode = null;
             string normalizedSubscriptionStatus = null;
+            DateTime? dashboardTrialEndUtc = null;
+            int? dashboardTrialDaysRemaining = null;
             if (!isSuperAdminUser && ShouldApplyTenantOnboardingGate(userRole))
             {
                 if (!onboardingStateLoaded)
@@ -122,27 +127,38 @@ namespace LMSWebUI.Controllers
                 }
 
                 shouldShowSubscriptionSpotlight = onboardingState.IsDismissed;
-                if (shouldShowSubscriptionSpotlight)
+                var profile = await GetTenantProfileAsync(tenantName);
+                DateTime? trialEndUtc = profile?.TrialEndUtc;
+                if (!trialEndUtc.HasValue)
                 {
-                    var profile = await GetTenantProfileAsync(tenantName);
-                    DateTime? trialEndUtc = profile?.TrialEndUtc;
-                    if (!trialEndUtc.HasValue)
+                    var claimValue = GetJwtClaimValue(HttpContext.Session.GetString(AccessTokenSessionKey), "trialEndUtc");
+                    if (DateTime.TryParse(claimValue, null, DateTimeStyles.RoundtripKind, out var parsedTrialEndUtc))
                     {
-                        var claimValue = GetJwtClaimValue(HttpContext.Session.GetString(AccessTokenSessionKey), "trialEndUtc");
-                        if (DateTime.TryParse(claimValue, null, DateTimeStyles.RoundtripKind, out var parsedTrialEndUtc))
-                        {
-                            trialEndUtc = parsedTrialEndUtc.ToUniversalTime();
-                        }
+                        trialEndUtc = parsedTrialEndUtc.ToUniversalTime();
                     }
+                }
 
-                    var subscriptionStatus = !string.IsNullOrWhiteSpace(profile?.SubscriptionStatus)
-                        ? profile.SubscriptionStatus
-                        : GetJwtClaimValue(HttpContext.Session.GetString(AccessTokenSessionKey), "subscriptionStatus");
+                var subscriptionStatus = !string.IsNullOrWhiteSpace(profile?.SubscriptionStatus)
+                    ? profile.SubscriptionStatus
+                    : GetJwtClaimValue(HttpContext.Session.GetString(AccessTokenSessionKey), "subscriptionStatus");
 
-                    subscriptionPlanCode = profile?.PlanCode;
-                    normalizedSubscriptionStatus = NormalizeSubscriptionStatus(subscriptionStatus, trialEndUtc);
+                subscriptionPlanCode = profile?.PlanCode;
+                normalizedSubscriptionStatus = NormalizeSubscriptionStatus(subscriptionStatus, trialEndUtc);
+
+                if (string.Equals(normalizedSubscriptionStatus, "Trial", StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(normalizedSubscriptionStatus, "Expired", StringComparison.OrdinalIgnoreCase))
+                {
+                    dashboardTrialEndUtc = trialEndUtc;
+                    if (trialEndUtc.HasValue)
+                    {
+                        dashboardTrialDaysRemaining = (int)Math.Ceiling((trialEndUtc.Value.ToUniversalTime() - DateTime.UtcNow).TotalDays);
+                    }
                 }
             }
+
+            tenantInfoDto.SubscriptionStatus = normalizedSubscriptionStatus;
+            tenantInfoDto.TrialEndUtc = dashboardTrialEndUtc;
+            tenantInfoDto.TrialDaysRemaining = dashboardTrialDaysRemaining;
 
             ViewData["IsAdminUser"] = isAdminUser;
             ViewData["UserRole"] = string.IsNullOrWhiteSpace(userRole) ? "StoreUser" : userRole;
@@ -170,6 +186,11 @@ namespace LMSWebUI.Controllers
             var tenantStore = HttpContext.Session.GetString("TenantStore");
             var userRole = HttpContext.Session.GetString("UserRole");
 
+            if (!ShouldApplyTenantOnboardingGate(userRole))
+            {
+                return RedirectToAction(nameof(Index));
+            }
+
             var storeScopeValidation = await ValidateSessionStoreScopeAsync(tenantName, tenantStore);
             if (!storeScopeValidation.IsValid)
             {
@@ -182,12 +203,6 @@ namespace LMSWebUI.Controllers
 
                 return RedirectToAction("Login", "Login");
             }
-
-            if (!ShouldApplyTenantOnboardingGate(userRole))
-            {
-                return RedirectToAction(nameof(Index));
-            }
-
             var profile = await GetTenantProfileAsync(tenantName);
             var onboardingState = await GetTenantOnboardingStateAsync(tenantName);
 
@@ -498,7 +513,7 @@ namespace LMSWebUI.Controllers
 
             try
             {
-                var response = await _loginApi.SendRequestAsync<JObject>("/GetCustomers", parameters, Method.GET);
+                var response = await _customerApi.SendRequestAsync<JObject>("/GetCustomers", parameters, Method.GET);
                 return (GetToken(response, "CustomerNames") as JArray)
                     ?.Select(x => x?.ToString())
                     .Where(x => !string.IsNullOrWhiteSpace(x))
@@ -608,13 +623,14 @@ namespace LMSWebUI.Controllers
 
             try
             {
-                var response = await _loginApi.SendRequestAsync<JObject>("/GetBarcodeTagSettings", parameters, Method.GET);
+                var response = await _customerApi.SendRequestAsync<JObject>("/GetBarcodeTagSettings", parameters, Method.GET);
                 if (response == null)
                 {
                     return false;
                 }
 
-                if (response.TryGetValue("StatusCode", StringComparison.OrdinalIgnoreCase, out var statusToken)
+                var statusToken = GetToken(response, "StatusCode") ?? GetToken(GetResultSetObject(response), "StatusCode");
+                if (statusToken != null
                     && string.Equals(statusToken?.ToString(), "404", StringComparison.OrdinalIgnoreCase))
                 {
                     return false;
@@ -639,7 +655,7 @@ namespace LMSWebUI.Controllers
 
                 foreach (var customerName in customerNames)
                 {
-                    var customerByNameResponse = await _loginApi.SendRequestAsync<JObject>("/GetCustomerByName", new Dictionary<string, string>
+                    var customerByNameResponse = await _customerApi.SendRequestAsync<JObject>("/GetCustomerByName", new Dictionary<string, string>
                     {
                         { "tenantName", tenantName },
                         { "storeCode", tenantStore },
@@ -652,7 +668,7 @@ namespace LMSWebUI.Controllers
                         continue;
                     }
 
-                    var orderResponse = await _loginApi.SendRequestAsync<JObject>("/GetLaundryOrders", new Dictionary<string, string>
+                    var orderResponse = await _customerApi.SendRequestAsync<JObject>("/GetLaundryOrders", new Dictionary<string, string>
                     {
                         { "tenantName", tenantName },
                         { "storeCode", tenantStore },

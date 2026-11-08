@@ -54,6 +54,8 @@ namespace LMS.Identity.DTO.Entities
         [MaxLength(512)]
         public string FailureReason { get; set; }
 
+        public DateTime? SubscriptionActivationEmailSentAtUtc { get; set; }
+
         [Timestamp]
         public byte[] RowVersion { get; set; }
     }

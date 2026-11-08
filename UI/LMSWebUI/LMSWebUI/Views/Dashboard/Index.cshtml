@@ -13,6 +13,8 @@
     var showSubscriptionSpotlight = Convert.ToBoolean(ViewData["ShowSubscriptionSpotlight"] ?? false);
     var currentPlanCode = Convert.ToString(ViewData["CurrentPlanCode"] ?? string.Empty);
     var currentSubscriptionStatus = Convert.ToString(ViewData["CurrentSubscriptionStatus"] ?? string.Empty);
+    var dashboardTrialEndUtc = Model?.TrialEndUtc;
+    var dashboardTrialDaysRemaining = Model?.TrialDaysRemaining;
     var subscriptionSpotlightVisible = showSubscriptionSpotlight;
     var plansAndTariffUrl = Url.Action("TenantSubscriptionPlans", "Customer");
     var subscriptionCtaText = "Explore Subscription Plans";
@@ -29,6 +31,41 @@
                     : "neutral";
     var dashboardPlanText = string.IsNullOrWhiteSpace(currentPlanCode) ? "Not configured" : currentPlanCode;
     var dashboardSubscriptionText = string.IsNullOrWhiteSpace(currentSubscriptionStatus) ? "Not configured" : currentSubscriptionStatus;
+    var showTrialNotification = !isSuperAdminUser
+        && dashboardTrialEndUtc.HasValue
+        && (string.Equals(currentSubscriptionStatus, "Trial", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(currentSubscriptionStatus, "Expired", StringComparison.OrdinalIgnoreCase));
+
+    var trialExpiryText = dashboardTrialEndUtc.HasValue
+        ? dashboardTrialEndUtc.Value.ToUniversalTime().ToString("dd MMM yyyy")
+        : "Not available";
+
+    var trialDaysRemainingText = dashboardTrialDaysRemaining.HasValue
+        ? Math.Max(dashboardTrialDaysRemaining.Value, 0).ToString()
+        : "0";
+
+    var isTrialExpired = showTrialNotification && dashboardTrialDaysRemaining.HasValue && dashboardTrialDaysRemaining.Value <= 0;
+    var isTrialThresholdWarning = showTrialNotification && dashboardTrialDaysRemaining.HasValue
+        && (dashboardTrialDaysRemaining.Value == 15
+            || dashboardTrialDaysRemaining.Value == 7
+            || dashboardTrialDaysRemaining.Value == 3
+            || dashboardTrialDaysRemaining.Value == 1);
+
+    var trialNotificationClass = isTrialExpired
+        ? "trial-notification expired"
+        : isTrialThresholdWarning
+            ? "trial-notification warning"
+            : "trial-notification info";
+
+    var trialNotificationTitle = isTrialExpired
+        ? "Your free trial has expired"
+        : isTrialThresholdWarning
+            ? $"Trial expiry warning: {trialDaysRemainingText} day(s) left"
+            : "Your free trial is active";
+
+    var trialNotificationMessage = isTrialExpired
+        ? $"Your 45-day free trial ended on {trialExpiryText}. Choose a paid plan to continue uninterrupted access."
+        : $"Your 45-day free trial ends on {trialExpiryText} with {trialDaysRemainingText} day(s) remaining.";
     var currentController = Convert.ToString(ViewContext.RouteData.Values["controller"]);
     var currentAction = Convert.ToString(ViewContext.RouteData.Values["action"]);
 
@@ -293,6 +330,43 @@
         opacity: 0.92;
         font-size: 14px;
         font-weight: 500;
+    }
+
+    .trial-notification {
+        margin-bottom: 14px;
+        border-radius: 10px;
+        border: 1px solid;
+        padding: 12px 14px;
+    }
+
+    .trial-notification h4 {
+        margin: 0 0 6px;
+        font-size: 15px;
+        font-weight: 700;
+    }
+
+    .trial-notification p {
+        margin: 0;
+        font-size: 13px;
+        line-height: 1.45;
+    }
+
+    .trial-notification.info {
+        border-color: rgba(23, 59, 112, 0.35);
+        background: #eef4ff;
+        color: #173b70;
+    }
+
+    .trial-notification.warning {
+        border-color: rgba(217, 149, 32, 0.45);
+        background: #fff8e8;
+        color: #8a5a00;
+    }
+
+    .trial-notification.expired {
+        border-color: rgba(217, 72, 72, 0.45);
+        background: #fff1f1;
+        color: #9f1d1d;
     }
 
     .search-mode {
@@ -1590,6 +1664,14 @@
             }
         </div>
         <div class="dashboard-body">
+            @if (showTrialNotification)
+            {
+                <div class="@trialNotificationClass" id="dashboardTrialNotification">
+                    <h4>@trialNotificationTitle</h4>
+                    <p>@trialNotificationMessage</p>
+                </div>
+            }
+
             @if (!isAdminUser && subscriptionSpotlightVisible)
             {
                 <div class="subscription-spotlight" id="subscriptionSpotlight">
