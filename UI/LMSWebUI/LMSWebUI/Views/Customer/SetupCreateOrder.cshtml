@@ -1,5 +1,7 @@
 @model LMSWebUI.Models.Customer.LaundryOrderDto
 @using LMSWebUI.Helpers
+@using Newtonsoft.Json
+@using Newtonsoft.Json.Linq
 @{
     ViewData["Title"] = "Admin Setup - Create Laundry Order";
     Layout = "~/Views/Shared/_HeaderMenuItemsLayout.cshtml";
@@ -10,6 +12,32 @@
     var taxEnabled = Convert.ToBoolean(ViewData["TaxEnabled"] ?? false);
     var gstPercent = Convert.ToDecimal(ViewData["GstPercent"] ?? 0);
     var pricesIncludeTax = Convert.ToBoolean(ViewData["PricesIncludeTax"] ?? false);
+    var taxMode = Convert.ToString(ViewData["TaxMode"] ?? "NoTax");
+    var taxComponentsJson = Convert.ToString(ViewData["TaxComponentsJson"] ?? "[]");
+    JArray taxComponentsToken;
+    try
+    {
+        taxComponentsToken = string.IsNullOrWhiteSpace(taxComponentsJson) ? new JArray() : JArray.Parse(taxComponentsJson);
+    }
+    catch
+    {
+        taxComponentsToken = new JArray();
+    }
+
+    var taxComponents = taxComponentsToken
+        .OfType<JObject>()
+        .Select(x => new
+        {
+            Code = Convert.ToString(x["code"] ?? string.Empty),
+            DisplayName = Convert.ToString(x["displayName"] ?? string.Empty),
+            RatePercent = Convert.ToDecimal(x["ratePercent"] ?? 0m),
+            Priority = Convert.ToInt32(x["priority"] ?? 0),
+            IsCompound = Convert.ToBoolean(x["isCompound"] ?? false)
+        })
+        .Where(x => x.RatePercent > 0m)
+        .OrderBy(x => x.Priority)
+        .ThenBy(x => x.Code)
+        .ToList();
     var enableMinimumOrder = Convert.ToBoolean(ViewData["EnableMinimumOrder"] ?? false);
     var minimumOrderAmount = Convert.ToDecimal(ViewData["MinimumOrderAmount"] ?? 0m);
     var isAdminUser = Convert.ToBoolean(ViewData["IsAdminUser"] ?? false);
@@ -595,9 +623,43 @@
                                 @if (taxEnabled)
                                 {
                                     <div class="stat-chip"><span>Sub Total</span><b id="subTotalDisplay">@await ((IHtmlHelper)Html).FormatCurrencyAsync(0m)</b></div>
-                                    <div class="stat-chip"><span>CGST @((gstPercent / 2).ToString("0.##"))%</span><b id="cgstDisplay">@await ((IHtmlHelper)Html).FormatCurrencyAsync(0m)</b></div>
-                                    <div class="stat-chip"><span>SGST @((gstPercent / 2).ToString("0.##"))%</span><b id="sgstDisplay">@await ((IHtmlHelper)Html).FormatCurrencyAsync(0m)</b></div>
-                                    <div class="stat-chip total-chip"><span>Total (incl. GST)</span><b id="totalAmountDisplay">@await ((IHtmlHelper)Html).FormatCurrencyAsync(0m)</b></div>
+                                    <div id="taxComponentHost">
+                                        @if (taxComponents.Count > 0)
+                                        {
+                                            foreach (var component in taxComponents)
+                                            {
+                                                var displayName = string.IsNullOrWhiteSpace(component.DisplayName)
+                                                    ? (string.IsNullOrWhiteSpace(component.Code) ? "Tax" : component.Code)
+                                                    : component.DisplayName;
+                                                var componentKey = string.IsNullOrWhiteSpace(component.Code)
+                                                    ? displayName
+                                                    : component.Code;
+                                                var safeKey = new string(componentKey.Where(ch => char.IsLetterOrDigit(ch) || ch == '_' || ch == '-').ToArray());
+                                                if (string.IsNullOrWhiteSpace(safeKey))
+                                                {
+                                                    safeKey = "tax" + component.Priority;
+                                                }
+
+                                                <div class="stat-chip tax-component-chip" data-tax-code="@componentKey" data-tax-rate="@component.RatePercent.ToString(System.Globalization.CultureInfo.InvariantCulture)" data-tax-priority="@component.Priority" data-tax-compound="@(component.IsCompound ? "true" : "false")">
+                                                    <span>@displayName @(component.RatePercent.ToString("0.##"))%</span>
+                                                    <b id="taxDisplay_@safeKey">@await ((IHtmlHelper)Html).FormatCurrencyAsync(0m)</b>
+                                                </div>
+                                            }
+                                        }
+                                        else
+                                        {
+                                            var taxLabel = string.Equals(taxMode, "VAT", StringComparison.OrdinalIgnoreCase)
+                                                ? "VAT"
+                                                : string.Equals(taxMode, "SalesTax", StringComparison.OrdinalIgnoreCase)
+                                                    ? "Sales Tax"
+                                                    : "Tax";
+                                            <div class="stat-chip tax-component-chip" data-tax-code="TAX" data-tax-rate="@gstPercent.ToString(System.Globalization.CultureInfo.InvariantCulture)" data-tax-priority="1" data-tax-compound="false">
+                                                <span>@taxLabel @gstPercent.ToString("0.##")%</span>
+                                                <b id="taxDisplay_TAX">@await ((IHtmlHelper)Html).FormatCurrencyAsync(0m)</b>
+                                            </div>
+                                        }
+                                    </div>
+                                    <div class="stat-chip total-chip"><span>Total (incl. Tax)</span><b id="totalAmountDisplay">@await ((IHtmlHelper)Html).FormatCurrencyAsync(0m)</b></div>
                                 }
                                 <div class="stat-chip total-chip"><span>Net Before Payment</span><b id="netPayableDisplay">@await ((IHtmlHelper)Html).FormatCurrencyAsync(0m)</b></div>
                                 <div class="stat-chip"><span>Paid Now</span><b id="paidNowDisplay">0.00</b></div>
@@ -669,6 +731,16 @@
     var taxEnabled = @Html.Raw(taxEnabled ? "true" : "false");
     var gstPercent = @Html.Raw(gstPercent.ToString(System.Globalization.CultureInfo.InvariantCulture));
     var pricesIncludeTax = @Html.Raw(pricesIncludeTax ? "true" : "false");
+    var taxMode = '@Html.Raw(System.Text.Encodings.Web.JavaScriptEncoder.Default.Encode(taxMode ?? "NoTax"))';
+    var taxComponents = [];
+    try {
+        taxComponents = JSON.parse('@Html.Raw(System.Text.Encodings.Web.JavaScriptEncoder.Default.Encode(taxComponentsJson ?? "[]"))');
+        if (!Array.isArray(taxComponents)) {
+            taxComponents = [];
+        }
+    } catch (e) {
+        taxComponents = [];
+    }
     var enableMinimumOrder = @Html.Raw(enableMinimumOrder ? "true" : "false");
     var minimumOrderAmount = @Html.Raw(minimumOrderAmount.ToString(System.Globalization.CultureInfo.InvariantCulture));
     var allowPartialPayment = @Html.Raw(Convert.ToBoolean(ViewData["AllowPartialPayment"] ?? true).ToString().ToLowerInvariant());
@@ -1068,7 +1140,7 @@
         var gross = Math.max(0, orderAmount);
 
         if (!taxEnabled || gstPercent <= 0) {
-            return { subTotal: gross, tax: 0, cgst: 0, sgst: 0, total: gross };
+            return { subTotal: gross, tax: 0, cgst: 0, sgst: 0, total: gross, components: [] };
         }
 
         var rate = gstPercent / 100;
@@ -1084,10 +1156,43 @@
         }
 
         var tax = Math.round((total - subTotal) * 100) / 100;
-        var cgst = Math.round((tax / 2) * 100) / 100;
-        var sgst = Math.round((tax - cgst) * 100) / 100;
+        var cgst = 0;
+        var sgst = 0;
+        var normalized = (taxComponents || [])
+            .map(function (x) {
+                return {
+                    code: (x && (x.code || x.Code) || '').toString().trim(),
+                    displayName: (x && (x.displayName || x.DisplayName) || '').toString().trim(),
+                    ratePercent: Number(x && (x.ratePercent || x.RatePercent) || 0),
+                    priority: Number(x && (x.priority || x.Priority) || 0),
+                    isCompound: !!(x && (x.isCompound || x.IsCompound))
+                };
+            })
+            .filter(function (x) { return isFinite(x.ratePercent) && x.ratePercent > 0; })
+            .sort(function (a, b) { return (a.priority - b.priority) || a.code.localeCompare(b.code); });
 
-        return { subTotal: subTotal, tax: tax, cgst: cgst, sgst: sgst, total: total };
+        if (!normalized.length) {
+            normalized = [{ code: 'TAX', displayName: taxMode || 'Tax', ratePercent: gstPercent, priority: 1, isCompound: false }];
+        }
+
+        var totalRate = normalized.reduce(function (acc, c) { return acc + c.ratePercent; }, 0);
+        var allocated = 0;
+        var componentAmounts = [];
+        normalized.forEach(function (c, i) {
+            var componentTax = i === normalized.length - 1
+                ? Math.round((tax - allocated) * 100) / 100
+                : Math.round((tax * c.ratePercent / totalRate) * 100) / 100;
+            allocated = Math.round((allocated + componentTax) * 100) / 100;
+            componentAmounts.push({ code: c.code, displayName: c.displayName, amount: componentTax, ratePercent: c.ratePercent });
+            if ((c.code || '').toUpperCase() === 'CGST') {
+                cgst = componentTax;
+            }
+            if ((c.code || '').toUpperCase() === 'SGST') {
+                sgst = componentTax;
+            }
+        });
+
+        return { subTotal: subTotal, tax: tax, cgst: cgst, sgst: sgst, total: total, components: componentAmounts };
     }
 
     function syncTotals() {
@@ -1158,8 +1263,29 @@
         var subTotalEl = document.getElementById("subTotalDisplay");
         if (subTotalEl) {
             subTotalEl.textContent = formatCurrency(breakup.subTotal);
-            document.getElementById("cgstDisplay").textContent = formatCurrency(breakup.cgst);
-            document.getElementById("sgstDisplay").textContent = formatCurrency(breakup.sgst);
+            var taxChips = document.querySelectorAll('.tax-component-chip');
+            Array.prototype.forEach.call(taxChips, function (chip) {
+                var code = (chip.getAttribute('data-tax-code') || '').toUpperCase();
+                var amountNode = chip.querySelector('b');
+                if (!amountNode) {
+                    return;
+                }
+
+                var amount = 0;
+                var match = (breakup.components || []).find(function (x) {
+                    return (x.code || '').toUpperCase() === code;
+                });
+
+                if (match) {
+                    amount = Number(match.amount || 0);
+                } else if (code === 'CGST') {
+                    amount = breakup.cgst;
+                } else if (code === 'SGST') {
+                    amount = breakup.sgst;
+                }
+
+                amountNode.textContent = formatCurrency(amount);
+            });
             document.getElementById("totalAmountDisplay").textContent = formatCurrency(breakup.total);
         }
 
