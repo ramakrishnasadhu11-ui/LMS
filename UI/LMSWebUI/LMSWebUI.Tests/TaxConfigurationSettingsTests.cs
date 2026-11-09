@@ -559,9 +559,40 @@ namespace LMSWebUI.Tests
             Assert.Equal("SalesTax", request.TaxMode);
             Assert.Equal("US", request.CountryCode);
             Assert.Equal("USD", request.CurrencyCode);
-            Assert.True(request.EnableTax);
-            Assert.Equal(18m, request.GstPercent);
+            Assert.False(request.EnableTax);
+            Assert.Equal(0m, request.GstPercent);
             Assert.Equal("NORTH-STORE9-", request.InvoicePrefix);
+        }
+
+        [Fact]
+        public async Task BuildDefaultTaxConfigurationRequest_UnknownCountry_DoesNotForceIndiaGstDefaults()
+        {
+            var customerApi = new InMemoryCustomerApiClient();
+            var loginApi = new InMemoryTaxLoginApiClient
+            {
+                ProfileResponse = new LoginIoResponse
+                {
+                    TenantName = "Global Laundry",
+                    CountryCode = "BR",
+                    CurrencyCode = null
+                }
+            };
+
+            var controller = CreateController(customerApi, loginApi);
+            SetControllerSession(controller, "tenant@example.com", "S9", "Admin");
+
+            var request = await InvokePrivateAsync<TaxConfigurationUpsertRequestDto>(
+                controller,
+                "BuildDefaultTaxConfigurationRequestAsync",
+                "tenant@example.com",
+                "S9",
+                "Global Laundry");
+
+            Assert.Equal("NoTax", request.TaxMode);
+            Assert.Equal("BR", request.CountryCode);
+            Assert.Equal("USD", request.CurrencyCode);
+            Assert.False(request.EnableTax);
+            Assert.Equal(0m, request.GstPercent);
         }
 
         [Fact]
@@ -2177,6 +2208,70 @@ namespace LMSWebUI.Tests
             Assert.Equal(0m, model.SgstAmount);
             Assert.Equal(120m, model.PendingAmount);
             Assert.Equal(120m, model.NetPayable);
+        }
+
+        [Fact]
+        public async Task SetupCreateOrder_Post_MissingTaxConfiguration_RedirectsToTaxInvoiceSettings_AndAutoCreatesDefault()
+        {
+            var customerApi = new InMemoryCustomerApiClient
+            {
+                PaymentSettingsResponse = new PaymentSettingsViewModel
+                {
+                    TenantName = "tenant@example.com",
+                    StoreCode = "US1",
+                    EnableCash = true,
+                    DefaultPaymentMode = "Cash",
+                    AllowPartialPayment = true
+                },
+                CreateLaundryOrderResponse = JObject.Parse(@"{ 'OrderNo': 'US1-1001' }")
+            };
+
+            customerApi.GetTaxConfigurationResponses.Enqueue(null);
+            customerApi.GetTaxConfigurationResponses.Enqueue(null);
+
+            var loginApi = new InMemoryTaxLoginApiClient
+            {
+                ProfileResponse = new LoginIoResponse
+                {
+                    TenantName = "Northwind Laundry",
+                    CountryCode = "US",
+                    CurrencyCode = "USD"
+                },
+                TenantStoreDetailsResponse = JObject.Parse(@"{
+                    'Storecodes': ['US1'],
+                    'StoreStatuses': [
+                        { 'StoreCode': 'US1', 'TenantName': 'tenant@example.com', 'IsActive': true }
+                    ]
+                }")
+            };
+
+            var controller = CreateController(customerApi, loginApi);
+            SetControllerSession(controller, "tenant@example.com", "US1", "Admin");
+
+            var result = await controller.SetupCreateOrder(new LaundryOrderDto
+            {
+                CustomerName = "Walk-in Customer",
+                CustCode = "CUS-001",
+                OrderAmount = 100m,
+                OrderMode = "pieces",
+                PaymentMode = "Cash",
+                PaidNow = 0m,
+                AdvanceUsed = 0m
+            });
+
+            var redirect = Assert.IsType<RedirectToActionResult>(result);
+            Assert.Equal("TaxInvoiceSettings", redirect.ActionName);
+
+            Assert.Equal(1, customerApi.UpsertTaxConfigurationCount);
+            Assert.NotNull(customerApi.LastUpsertTaxConfigurationRequest);
+            Assert.Equal("US", customerApi.LastUpsertTaxConfigurationRequest.CountryCode);
+            Assert.Equal("SalesTax", customerApi.LastUpsertTaxConfigurationRequest.TaxMode);
+            Assert.False(customerApi.LastUpsertTaxConfigurationRequest.EnableTax);
+            Assert.Equal(0m, customerApi.LastUpsertTaxConfigurationRequest.GstPercent);
+
+            Assert.DoesNotContain(customerApi.Calls, c => string.Equals(c.RequestUrl, "/CreateLaundryOrder", StringComparison.OrdinalIgnoreCase));
+            var toast = Assert.IsType<string>(controller.TempData["SetupCreateOrderToast"]);
+            Assert.Contains("Tax configuration is missing", toast, StringComparison.OrdinalIgnoreCase);
         }
 
         [Fact]
