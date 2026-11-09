@@ -1899,7 +1899,7 @@ namespace LMSWebUI.Controllers
         {
             var (registeredCountryCode, _) = await GetTenantCountryCurrencyAsync(tenantName);
             var normalizedRegisteredCountry = string.IsNullOrWhiteSpace(registeredCountryCode)
-                ? "IN"
+                ? "ZZ"
                 : registeredCountryCode.Trim().ToUpperInvariant();
 
             var recommendedMode = ResolveTaxModeByCountry(normalizedRegisteredCountry);
@@ -1928,9 +1928,10 @@ namespace LMSWebUI.Controllers
                 case "FR":
                     return "VAT";
                 case "IN":
+                case "IND":
                     return "GST";
                 default:
-                    return "GST";
+                    return "NoTax";
             }
         }
 
@@ -2281,6 +2282,7 @@ namespace LMSWebUI.Controllers
             public bool PricesIncludeTax { get; set; }
             public decimal TotalRatePercent { get; set; }
             public List<CreateOrderTaxComponentContext> Components { get; set; } = new List<CreateOrderTaxComponentContext>();
+            public bool IsConfigurationMissing { get; set; }
         }
 
         private sealed class CreateOrderTaxComputation
@@ -2316,7 +2318,27 @@ namespace LMSWebUI.Controllers
 
             if (config == null)
             {
-                return context;
+                try
+                {
+                    var companyName = await GetCompanyNameAsync(tenantName, storeCode);
+                    var defaultRequest = await BuildDefaultTaxConfigurationRequestAsync(tenantName, storeCode, companyName);
+                    await _clientApi.SendRequestAsync<TaxConfigurationDto>("/UpsertTaxConfiguration", defaultRequest, Method.POST);
+
+                    config = await _clientApi.SendRequestAsync<TaxConfigurationDto>("/GetTaxConfiguration", new Dictionary<string, string>
+                    {
+                        { "tenantName", tenantName },
+                        { "storeCode", storeCode }
+                    }, Method.GET);
+                }
+                catch
+                {
+                }
+
+                if (config == null)
+                {
+                    context.IsConfigurationMissing = true;
+                    return context;
+                }
             }
 
             var activeComponents = (config.Components ?? new List<TaxInvoiceComponentDto>())
@@ -2450,33 +2472,31 @@ namespace LMSWebUI.Controllers
         private async Task<TaxConfigurationUpsertRequestDto> BuildDefaultTaxConfigurationRequestAsync(string tenantName, string storeCode, string companyName)
         {
             var (countryCode, currencyCode) = await GetTenantCountryCurrencyAsync(tenantName);
-            var normalizedCountry = string.IsNullOrWhiteSpace(countryCode) ? "IN" : countryCode.Trim().ToUpperInvariant();
+            var normalizedCountry = string.IsNullOrWhiteSpace(countryCode) ? string.Empty : countryCode.Trim().ToUpperInvariant();
             var normalizedCurrency = string.IsNullOrWhiteSpace(currencyCode) ? null : currencyCode.Trim().ToUpperInvariant();
 
-            var mode = "GST";
-            switch (normalizedCountry)
+            var mode = ResolveTaxModeByCountry(normalizedCountry);
+            switch ((normalizedCountry ?? string.Empty).Trim().ToUpperInvariant())
             {
                 case "US":
-                    mode = "SalesTax";
                     normalizedCurrency ??= "USD";
                     break;
                 case "GB":
-                    mode = "VAT";
                     normalizedCurrency ??= "GBP";
                     break;
                 case "AE":
-                    mode = "VAT";
                     normalizedCurrency ??= "AED";
                     break;
                 case "DE":
                 case "FR":
-                    mode = "VAT";
                     normalizedCurrency ??= "EUR";
                     break;
-                default:
-                    mode = "GST";
-                    normalizedCountry = "IN";
+                case "IN":
                     normalizedCurrency ??= "INR";
+                    break;
+                default:
+                    normalizedCountry = string.IsNullOrWhiteSpace(normalizedCountry) ? "ZZ" : normalizedCountry;
+                    normalizedCurrency ??= "USD";
                     break;
             }
 
@@ -2488,8 +2508,8 @@ namespace LMSWebUI.Controllers
                 CountryCode = normalizedCountry,
                 CurrencyCode = normalizedCurrency,
                 IsPricesInclusive = false,
-                EnableTax = string.Equals(mode, "NoTax", StringComparison.OrdinalIgnoreCase) ? false : true,
-                GstPercent = 18m,
+                EnableTax = false,
+                GstPercent = 0m,
                 PricesIncludeTax = false,
                 InvoicePrefix = BuildStoreInvoicePrefix(companyName, storeCode),
                 NextInvoiceNumber = 1,
@@ -2503,7 +2523,7 @@ namespace LMSWebUI.Controllers
         {
             if (string.IsNullOrWhiteSpace(tenantName))
             {
-                return ("IN", "INR");
+                return (null, null);
             }
 
             try
@@ -2520,7 +2540,7 @@ namespace LMSWebUI.Controllers
             }
             catch
             {
-                return ("IN", "INR");
+                return (null, null);
             }
         }
 
@@ -2529,6 +2549,31 @@ namespace LMSWebUI.Controllers
             if (!string.IsNullOrWhiteSpace(countryCode))
             {
                 var normalizedCode = countryCode.Trim().ToUpperInvariant();
+
+                switch (normalizedCode)
+                {
+                    case "IN":
+                    case "IND":
+                        return "IN";
+                    case "US":
+                    case "USA":
+                        return "US";
+                    case "GB":
+                    case "GBR":
+                    case "UK":
+                        return "GB";
+                    case "AE":
+                    case "ARE":
+                    case "UAE":
+                        return "AE";
+                    case "DE":
+                    case "DEU":
+                        return "DE";
+                    case "FR":
+                    case "FRA":
+                        return "FR";
+                }
+
                 if (normalizedCode.Length == 2)
                 {
                     return normalizedCode;
@@ -2537,7 +2582,7 @@ namespace LMSWebUI.Controllers
 
             if (string.IsNullOrWhiteSpace(countryName))
             {
-                return countryCode;
+                return null;
             }
 
             switch (countryName.Trim().ToUpperInvariant())
@@ -6928,6 +6973,12 @@ namespace LMSWebUI.Controllers
             var allowPartialPayment = paymentSettings.AllowPartialPayment;
 
             var taxContext = await LoadCreateOrderTaxContextAsync(tenantName, storeCode);
+            if (taxContext.IsConfigurationMissing)
+            {
+                TempData["SetupCreateOrderToast"] = "Tax configuration is missing for this store. Please review Tax & Invoice Settings before creating orders.";
+                return RedirectToAction(nameof(TaxInvoiceSettings));
+            }
+
             var taxEnabled = taxContext.EnableTax;
             var payableBeforeAdvance = model.OrderAmount;
             var taxComputation = ComputeCreateOrderTaxSummary(model.OrderAmount, taxContext);
