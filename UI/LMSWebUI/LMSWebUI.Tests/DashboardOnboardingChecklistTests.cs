@@ -218,7 +218,8 @@ namespace LMSWebUI.Tests
             Assert.True(model.TrialEndUtc.HasValue);
             Assert.Equal(loginApi.TenantProfileResponse.TrialEndUtc.Value.ToUniversalTime(), model.TrialEndUtc.Value.ToUniversalTime());
             Assert.True(model.TrialDaysRemaining.HasValue);
-            Assert.True(model.TrialDaysRemaining.Value <= 15 && model.TrialDaysRemaining.Value >= 14);
+            var expectedDaysRemaining = (int)Math.Ceiling((loginApi.TenantProfileResponse.TrialEndUtc.Value.ToUniversalTime() - DateTime.UtcNow).TotalDays);
+            Assert.Equal(expectedDaysRemaining, model.TrialDaysRemaining.Value);
         }
 
         [Fact]

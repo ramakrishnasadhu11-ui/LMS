@@ -2264,6 +2264,189 @@ namespace LMSWebUI.Controllers
                 : config.GstPercent;
         }
 
+        private sealed class CreateOrderTaxComponentContext
+        {
+            public string Code { get; set; }
+            public string DisplayName { get; set; }
+            public decimal RatePercent { get; set; }
+            public string Jurisdiction { get; set; }
+            public int Priority { get; set; }
+            public bool IsCompound { get; set; }
+        }
+
+        private sealed class CreateOrderTaxContext
+        {
+            public string TaxMode { get; set; } = "NoTax";
+            public bool EnableTax { get; set; }
+            public bool PricesIncludeTax { get; set; }
+            public decimal TotalRatePercent { get; set; }
+            public List<CreateOrderTaxComponentContext> Components { get; set; } = new List<CreateOrderTaxComponentContext>();
+        }
+
+        private sealed class CreateOrderTaxComputation
+        {
+            public decimal SubTotal { get; set; }
+            public decimal TaxAmount { get; set; }
+            public decimal TotalAmount { get; set; }
+            public decimal TaxPercent { get; set; }
+            public decimal CgstAmount { get; set; }
+            public decimal SgstAmount { get; set; }
+        }
+
+        private async Task<CreateOrderTaxContext> LoadCreateOrderTaxContextAsync(string tenantName, string storeCode)
+        {
+            var context = new CreateOrderTaxContext();
+            if (string.IsNullOrWhiteSpace(tenantName) || string.IsNullOrWhiteSpace(storeCode))
+            {
+                return context;
+            }
+
+            TaxConfigurationDto config = null;
+            try
+            {
+                config = await _clientApi.SendRequestAsync<TaxConfigurationDto>("/GetTaxConfiguration", new Dictionary<string, string>
+                {
+                    { "tenantName", tenantName },
+                    { "storeCode", storeCode }
+                }, Method.GET);
+            }
+            catch
+            {
+            }
+
+            if (config == null)
+            {
+                return context;
+            }
+
+            var activeComponents = (config.Components ?? new List<TaxInvoiceComponentDto>())
+                .Where(x => x != null && x.IsActive && x.RatePercent > 0m)
+                .OrderBy(x => x.Priority)
+                .ThenBy(x => x.Code)
+                .Select(x => new CreateOrderTaxComponentContext
+                {
+                    Code = x.Code?.Trim(),
+                    DisplayName = string.IsNullOrWhiteSpace(x.DisplayName) ? (x.Code ?? "Tax") : x.DisplayName.Trim(),
+                    RatePercent = Math.Round(Math.Max(0m, x.RatePercent), 4, MidpointRounding.AwayFromZero),
+                    Jurisdiction = x.Jurisdiction?.Trim(),
+                    Priority = x.Priority,
+                    IsCompound = x.IsCompound
+                })
+                .ToList();
+
+            var totalRate = activeComponents.Count > 0
+                ? activeComponents.Sum(x => x.RatePercent)
+                : Math.Round(Math.Max(0m, config.GstPercent), 4, MidpointRounding.AwayFromZero);
+
+            var rawMode = string.IsNullOrWhiteSpace(config.TaxMode) ? string.Empty : config.TaxMode.Trim();
+            var normalizedMode = string.Equals(rawMode, "VAT", StringComparison.OrdinalIgnoreCase)
+                ? "VAT"
+                : string.Equals(rawMode, "GST", StringComparison.OrdinalIgnoreCase)
+                    ? "GST"
+                    : string.Equals(rawMode, "SalesTax", StringComparison.OrdinalIgnoreCase)
+                        ? "SalesTax"
+                        : "NoTax";
+
+            var enableTax = config.EnableTax && totalRate > 0m && !string.Equals(normalizedMode, "NoTax", StringComparison.OrdinalIgnoreCase);
+            context.TaxMode = normalizedMode;
+            context.EnableTax = enableTax;
+            context.PricesIncludeTax = config.PricesIncludeTax;
+            context.TotalRatePercent = enableTax ? Math.Round(Math.Max(0m, totalRate), 4, MidpointRounding.AwayFromZero) : 0m;
+
+            if (enableTax)
+            {
+                if (activeComponents.Count == 0 && context.TotalRatePercent > 0m)
+                {
+                    activeComponents.Add(new CreateOrderTaxComponentContext
+                    {
+                        Code = normalizedMode,
+                        DisplayName = string.Equals(normalizedMode, "VAT", StringComparison.OrdinalIgnoreCase)
+                            ? "VAT"
+                            : string.Equals(normalizedMode, "SalesTax", StringComparison.OrdinalIgnoreCase)
+                                ? "Sales Tax"
+                                : "Tax",
+                        RatePercent = context.TotalRatePercent,
+                        Jurisdiction = string.Empty,
+                        Priority = 1,
+                        IsCompound = false
+                    });
+                }
+
+                context.Components = activeComponents;
+            }
+
+            return context;
+        }
+
+        private static CreateOrderTaxComputation ComputeCreateOrderTaxSummary(decimal orderAmount, CreateOrderTaxContext context)
+        {
+            var gross = Math.Round(Math.Max(0m, orderAmount), 2, MidpointRounding.AwayFromZero);
+            var safeContext = context ?? new CreateOrderTaxContext();
+            if (!safeContext.EnableTax || safeContext.TotalRatePercent <= 0m)
+            {
+                return new CreateOrderTaxComputation
+                {
+                    SubTotal = gross,
+                    TaxAmount = 0m,
+                    TotalAmount = gross,
+                    TaxPercent = 0m,
+                    CgstAmount = 0m,
+                    SgstAmount = 0m
+                };
+            }
+
+            var rate = safeContext.TotalRatePercent / 100m;
+            var subTotal = safeContext.PricesIncludeTax
+                ? Math.Round(gross / (1m + rate), 2, MidpointRounding.AwayFromZero)
+                : gross;
+            var totalAmount = safeContext.PricesIncludeTax
+                ? gross
+                : Math.Round(gross * (1m + rate), 2, MidpointRounding.AwayFromZero);
+            var taxAmount = Math.Round(Math.Max(0m, totalAmount - subTotal), 2, MidpointRounding.AwayFromZero);
+
+            decimal cgstAmount = 0m;
+            decimal sgstAmount = 0m;
+            if ((safeContext.Components?.Count ?? 0) > 0 && taxAmount > 0m)
+            {
+                var normalizedComponents = safeContext.Components
+                    .Where(x => x != null && x.RatePercent > 0m)
+                    .OrderBy(x => x.Priority)
+                    .ThenBy(x => x.Code)
+                    .ToList();
+
+                var totalComponentRate = normalizedComponents.Sum(x => x.RatePercent);
+                var allocatedTax = 0m;
+                for (var i = 0; i < normalizedComponents.Count; i++)
+                {
+                    var component = normalizedComponents[i];
+                    var componentTax = i == normalizedComponents.Count - 1
+                        ? Math.Round(Math.Max(0m, taxAmount - allocatedTax), 2, MidpointRounding.AwayFromZero)
+                        : Math.Round(taxAmount * component.RatePercent / totalComponentRate, 2, MidpointRounding.AwayFromZero);
+
+                    allocatedTax = Math.Round(allocatedTax + componentTax, 2, MidpointRounding.AwayFromZero);
+
+                    if (string.Equals(component.Code, "CGST", StringComparison.OrdinalIgnoreCase))
+                    {
+                        cgstAmount = componentTax;
+                    }
+                    else if (string.Equals(component.Code, "SGST", StringComparison.OrdinalIgnoreCase))
+                    {
+                        sgstAmount = componentTax;
+                    }
+                }
+            }
+
+            return new CreateOrderTaxComputation
+            {
+                SubTotal = subTotal,
+                TaxAmount = taxAmount,
+                TotalAmount = totalAmount,
+                TaxPercent = Math.Round(Math.Max(0m, safeContext.TotalRatePercent), 2, MidpointRounding.AwayFromZero),
+                CgstAmount = Math.Round(Math.Max(0m, cgstAmount), 2, MidpointRounding.AwayFromZero),
+                SgstAmount = Math.Round(Math.Max(0m, sgstAmount), 2, MidpointRounding.AwayFromZero)
+            };
+        }
+
         private async Task<TaxConfigurationUpsertRequestDto> BuildDefaultTaxConfigurationRequestAsync(string tenantName, string storeCode, string companyName)
         {
             var (countryCode, currencyCode) = await GetTenantCountryCurrencyAsync(tenantName);
@@ -6612,10 +6795,21 @@ namespace LMSWebUI.Controllers
             ViewData["EnableMinimumOrder"] = pricingRules.EnableMinimumOrder;
             ViewData["MinimumOrderAmount"] = pricingRules.MinimumOrderAmount;
 
-            var taxSettings = await LoadTaxInvoiceSettingsAsync(tenantName, storeCode);
-            ViewData["TaxEnabled"] = taxSettings.EnableTax && taxSettings.GstPercent > 0;
-            ViewData["GstPercent"] = taxSettings.GstPercent;
-            ViewData["PricesIncludeTax"] = taxSettings.PricesIncludeTax;
+            var taxContext = await LoadCreateOrderTaxContextAsync(tenantName, storeCode);
+            ViewData["TaxEnabled"] = taxContext.EnableTax;
+            ViewData["GstPercent"] = taxContext.TotalRatePercent;
+            ViewData["PricesIncludeTax"] = taxContext.PricesIncludeTax;
+            ViewData["TaxMode"] = taxContext.TaxMode;
+            ViewData["TaxComponentsJson"] = JsonConvert.SerializeObject(
+                taxContext.Components.Select(x => new
+                {
+                    code = x.Code,
+                    displayName = x.DisplayName,
+                    ratePercent = x.RatePercent,
+                    jurisdiction = x.Jurisdiction,
+                    priority = x.Priority,
+                    isCompound = x.IsCompound
+                }).ToList());
 
             if (!string.IsNullOrWhiteSpace(orderMode))
             {
@@ -6733,14 +6927,18 @@ namespace LMSWebUI.Controllers
             var paymentSettings = await LoadPaymentSettingsAsync(tenantName, storeCode);
             var allowPartialPayment = paymentSettings.AllowPartialPayment;
 
-            var taxSettings = await LoadTaxInvoiceSettingsAsync(tenantName, storeCode);
-            var taxEnabled = taxSettings.EnableTax && taxSettings.GstPercent > 0;
+            var taxContext = await LoadCreateOrderTaxContextAsync(tenantName, storeCode);
+            var taxEnabled = taxContext.EnableTax;
             var payableBeforeAdvance = model.OrderAmount;
-            if (taxEnabled && !taxSettings.PricesIncludeTax)
-            {
-                var taxRate = taxSettings.GstPercent / 100m;
-                payableBeforeAdvance = Math.Round(model.OrderAmount * (1 + taxRate), 2, MidpointRounding.AwayFromZero);
-            }
+            var taxComputation = ComputeCreateOrderTaxSummary(model.OrderAmount, taxContext);
+            payableBeforeAdvance = taxComputation.TotalAmount;
+
+            model.SubTotal = taxComputation.SubTotal;
+            model.TaxAmount = taxComputation.TaxAmount;
+            model.TotalAmount = taxComputation.TotalAmount;
+            model.TaxPercent = taxComputation.TaxPercent;
+            model.CgstAmount = taxComputation.CgstAmount;
+            model.SgstAmount = taxComputation.SgstAmount;
 
             if (model.AdvanceUsed > payableBeforeAdvance)
             {
@@ -6886,6 +7084,18 @@ namespace LMSWebUI.Controllers
                                 ?? saveResponse?["ResultSet"]?["invoiceNo"]?.ToString()
                                 ?? saveResponse?["resultSet"]?["InvoiceNo"]?.ToString()
                                 ?? saveResponse?["resultSet"]?["invoiceNo"]?.ToString();
+
+                var savedCustCode = saveResponse?["CustCode"]?.ToString()
+                                  ?? saveResponse?["custCode"]?.ToString()
+                                  ?? saveResponse?["ResultSet"]?["CustCode"]?.ToString()
+                                  ?? saveResponse?["ResultSet"]?["custCode"]?.ToString()
+                                  ?? saveResponse?["resultSet"]?["CustCode"]?.ToString()
+                                  ?? saveResponse?["resultSet"]?["custCode"]?.ToString();
+
+                if (!string.IsNullOrWhiteSpace(savedCustCode))
+                {
+                    model.CustCode = savedCustCode.Trim();
+                }
 
                 var apiMessage = saveResponse?["Message"]?.ToString()
                                  ?? saveResponse?["message"]?.ToString()
@@ -7068,10 +7278,21 @@ namespace LMSWebUI.Controllers
                 ViewData["AllowCredit"] = postPaymentSettings.AllowCredit;
                 ViewData["RoundOffPayableAmount"] = postPaymentSettings.RoundOffPayableAmount;
 
-                var postTaxSettings = await LoadTaxInvoiceSettingsAsync(tenantName, storeCode);
-                ViewData["TaxEnabled"] = postTaxSettings.EnableTax && postTaxSettings.GstPercent > 0;
-                ViewData["GstPercent"] = postTaxSettings.GstPercent;
-                ViewData["PricesIncludeTax"] = postTaxSettings.PricesIncludeTax;
+                var postTaxContext = await LoadCreateOrderTaxContextAsync(tenantName, storeCode);
+                ViewData["TaxEnabled"] = postTaxContext.EnableTax;
+                ViewData["GstPercent"] = postTaxContext.TotalRatePercent;
+                ViewData["PricesIncludeTax"] = postTaxContext.PricesIncludeTax;
+                ViewData["TaxMode"] = postTaxContext.TaxMode;
+                ViewData["TaxComponentsJson"] = JsonConvert.SerializeObject(
+                    postTaxContext.Components.Select(x => new
+                    {
+                        code = x.Code,
+                        displayName = x.DisplayName,
+                        ratePercent = x.RatePercent,
+                        jurisdiction = x.Jurisdiction,
+                        priority = x.Priority,
+                        isCompound = x.IsCompound
+                    }).ToList());
 
                 ViewData["OrderMode"] = model.OrderMode;
                 ViewData["SetupOnly"] = false;

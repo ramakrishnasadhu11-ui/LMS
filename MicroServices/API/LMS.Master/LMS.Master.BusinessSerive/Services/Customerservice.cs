@@ -3356,6 +3356,9 @@ namespace LMS.Master.BusinessSerive.Services
 
             if (string.Equals(orderDto.OrderMode, "pieces", StringComparison.OrdinalIgnoreCase))
             {
+                await EnsureLaundryOrderItemsTableExistsAsync();
+                await EnsureBarcodeTagSettingsTableExistsAsync();
+
                 var pieceSchemaReady = await IsPieceTagSchemaReadyAsync();
                 if (!pieceSchemaReady)
                 {
@@ -8179,6 +8182,17 @@ IF NOT EXISTS (
 BEGIN
     CREATE NONCLUSTERED INDEX [IX_LaundryOrderItems_OrderNo]
     ON [dbo].[LaundryOrderItems] ([OrderNo]);
+END;
+
+IF EXISTS (
+    SELECT 1
+    FROM sys.indexes
+    WHERE name = N'IX_LaundryOrderItems_TenantName_StoreCode_TagNo'
+      AND object_id = OBJECT_ID(N'[dbo].[LaundryOrderItems]')
+      AND (is_unique = 0 OR filter_definition IS NULL OR filter_definition NOT LIKE '%[TagNo] IS NOT NULL%')
+)
+BEGIN
+    DROP INDEX [IX_LaundryOrderItems_TenantName_StoreCode_TagNo] ON [dbo].[LaundryOrderItems];
 END;
 
 IF NOT EXISTS (

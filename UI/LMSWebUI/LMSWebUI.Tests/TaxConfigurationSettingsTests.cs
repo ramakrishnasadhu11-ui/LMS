@@ -1168,7 +1168,7 @@ namespace LMSWebUI.Tests
                 "CustomerController.cs"));
 
             var content = File.ReadAllText(controllerPath);
-            Assert.Contains("var taxEnabled = taxSettings.EnableTax && taxSettings.GstPercent > 0;", content, StringComparison.Ordinal);
+            Assert.Contains("config.EnableTax && totalRate > 0m", content, StringComparison.Ordinal);
         }
 
         [Fact]
@@ -2073,6 +2073,171 @@ namespace LMSWebUI.Tests
         }
 
         [Fact]
+        public async Task SetupCreateOrder_Get_UsesModernTaxConfiguration_ForUkVatStore()
+        {
+            var customerApi = new InMemoryCustomerApiClient
+            {
+                StoredTaxConfiguration = new TaxConfigurationDto
+                {
+                    TenantName = "rksadhu11@gmail.com",
+                    StoreCode = "RTJ",
+                    TaxMode = "VAT",
+                    CountryCode = "GB",
+                    CurrencyCode = "GBP",
+                    EnableTax = true,
+                    GstPercent = 0m,
+                    PricesIncludeTax = false,
+                    Components = new List<TaxInvoiceComponentDto>
+                    {
+                        new TaxInvoiceComponentDto { Id = 11, Code = "VAT", DisplayName = "VAT", RatePercent = 20m, Priority = 1, IsActive = true }
+                    }
+                }
+            };
+
+            var loginApi = new InMemoryTaxLoginApiClient
+            {
+                TenantStoreDetailsResponse = JObject.Parse(@"{
+                    'Storecodes': ['RTJ'],
+                    'StoreStatuses': [
+                        { 'StoreCode': 'RTJ', 'TenantName': 'rksadhu11@gmail.com', 'IsActive': true }
+                    ]
+                }")
+            };
+
+            var controller = CreateController(customerApi, loginApi);
+            SetControllerSession(controller, "rksadhu11@gmail.com", "RTJ", "Admin");
+
+            var result = await controller.SetupCreateOrder();
+
+            var view = Assert.IsType<ViewResult>(result);
+            Assert.Equal("VAT", Convert.ToString(view.ViewData["TaxMode"]));
+            Assert.True(Convert.ToBoolean(view.ViewData["TaxEnabled"]));
+            Assert.Equal(20m, Convert.ToDecimal(view.ViewData["GstPercent"]));
+            Assert.Contains("VAT", Convert.ToString(view.ViewData["TaxComponentsJson"]), StringComparison.OrdinalIgnoreCase);
+
+            var taxQuery = customerApi.QueryCalls.FirstOrDefault(x => string.Equals(x.RequestUrl, "/GetTaxConfiguration", StringComparison.OrdinalIgnoreCase));
+            Assert.Equal("rksadhu11@gmail.com", GetQueryValue(taxQuery.Query, "tenantName"));
+            Assert.Equal("RTJ", GetQueryValue(taxQuery.Query, "storeCode"));
+        }
+
+        [Fact]
+        public async Task SetupCreateOrder_Post_ComputesVatPayable_FromModernTaxConfiguration()
+        {
+            var customerApi = new InMemoryCustomerApiClient
+            {
+                StoredTaxConfiguration = new TaxConfigurationDto
+                {
+                    TenantName = "tenant@example.com",
+                    StoreCode = "UK1",
+                    TaxMode = "VAT",
+                    CountryCode = "GB",
+                    CurrencyCode = "GBP",
+                    EnableTax = true,
+                    GstPercent = 0m,
+                    PricesIncludeTax = false,
+                    Components = new List<TaxInvoiceComponentDto>
+                    {
+                        new TaxInvoiceComponentDto { Id = 21, Code = "VAT", DisplayName = "VAT", RatePercent = 20m, Priority = 1, IsActive = true }
+                    }
+                }
+            };
+
+            var loginApi = new InMemoryTaxLoginApiClient
+            {
+                TenantStoreDetailsResponse = JObject.Parse(@"{
+                    'Storecodes': ['UK1'],
+                    'StoreStatuses': [
+                        { 'StoreCode': 'UK1', 'TenantName': 'tenant@example.com', 'IsActive': true }
+                    ]
+                }")
+            };
+
+            var controller = CreateController(customerApi, loginApi);
+            SetControllerSession(controller, "tenant@example.com", "UK1", "Admin");
+
+            var result = await controller.SetupCreateOrder(new LaundryOrderDto
+            {
+                CustomerName = "Walk-in Customer",
+                CustCode = "C001",
+                OrderAmount = 100m,
+                OrderMode = "pieces",
+                PaymentMode = "Cash",
+                PaidNow = 0m,
+                AdvanceUsed = 0m
+            });
+
+            var view = Assert.IsType<ViewResult>(result);
+            var model = Assert.IsType<LaundryOrderDto>(view.Model);
+
+            Assert.Equal(100m, model.SubTotal);
+            Assert.Equal(20m, model.TaxAmount);
+            Assert.Equal(120m, model.TotalAmount);
+            Assert.Equal(20m, model.TaxPercent);
+            Assert.Equal(0m, model.CgstAmount);
+            Assert.Equal(0m, model.SgstAmount);
+            Assert.Equal(120m, model.PendingAmount);
+            Assert.Equal(120m, model.NetPayable);
+        }
+
+        [Fact]
+        public async Task SetupCreateOrder_Post_ComputesIndiaGstSplit_FromModernTaxConfiguration()
+        {
+            var customerApi = new InMemoryCustomerApiClient
+            {
+                StoredTaxConfiguration = new TaxConfigurationDto
+                {
+                    TenantName = "tenant@example.com",
+                    StoreCode = "IN1",
+                    TaxMode = "GST",
+                    CountryCode = "IN",
+                    CurrencyCode = "INR",
+                    EnableTax = true,
+                    GstPercent = 0m,
+                    PricesIncludeTax = false,
+                    Components = new List<TaxInvoiceComponentDto>
+                    {
+                        new TaxInvoiceComponentDto { Id = 31, Code = "CGST", DisplayName = "Central GST", RatePercent = 9m, Priority = 1, IsActive = true },
+                        new TaxInvoiceComponentDto { Id = 32, Code = "SGST", DisplayName = "State GST", RatePercent = 9m, Priority = 2, IsActive = true }
+                    }
+                }
+            };
+
+            var loginApi = new InMemoryTaxLoginApiClient
+            {
+                TenantStoreDetailsResponse = JObject.Parse(@"{
+                    'Storecodes': ['IN1'],
+                    'StoreStatuses': [
+                        { 'StoreCode': 'IN1', 'TenantName': 'tenant@example.com', 'IsActive': true }
+                    ]
+                }")
+            };
+
+            var controller = CreateController(customerApi, loginApi);
+            SetControllerSession(controller, "tenant@example.com", "IN1", "Admin");
+
+            var result = await controller.SetupCreateOrder(new LaundryOrderDto
+            {
+                CustomerName = "Walk-in Customer",
+                CustCode = "C002",
+                OrderAmount = 100m,
+                OrderMode = "pieces",
+                PaymentMode = "Cash",
+                PaidNow = 0m,
+                AdvanceUsed = 0m
+            });
+
+            var view = Assert.IsType<ViewResult>(result);
+            var model = Assert.IsType<LaundryOrderDto>(view.Model);
+
+            Assert.Equal(100m, model.SubTotal);
+            Assert.Equal(18m, model.TaxAmount);
+            Assert.Equal(118m, model.TotalAmount);
+            Assert.Equal(18m, model.TaxPercent);
+            Assert.Equal(9m, model.CgstAmount);
+            Assert.Equal(9m, model.SgstAmount);
+        }
+
+        [Fact]
         public async Task SetupCreateOrder_Post_IneligibleSubscription_RedirectsToDashboard_AndSkipsCreateOrder()
         {
             var customerApi = new InMemoryCustomerApiClient();
@@ -2106,6 +2271,107 @@ namespace LMSWebUI.Tests
             var userMessage = Assert.IsType<string>(controller.TempData["UserMessage"]);
             Assert.Contains("not active for creating orders", userMessage, StringComparison.OrdinalIgnoreCase);
             Assert.DoesNotContain(customerApi.Calls, c => string.Equals(c.RequestUrl, "/CreateLaundryOrder", StringComparison.OrdinalIgnoreCase));
+        }
+
+        [Fact]
+        public async Task SetupCreateOrder_Post_UsesSavedCustCode_ForRedirectAndSession_WhenApiReturnsDifferentCode()
+        {
+            var customerApi = new InMemoryCustomerApiClient
+            {
+                StoredTaxConfiguration = new TaxConfigurationDto
+                {
+                    TenantName = "rksadhu11@gmail.com",
+                    StoreCode = "RTJ",
+                    TaxMode = "VAT",
+                    CountryCode = "GB",
+                    CurrencyCode = "GBP",
+                    EnableTax = true,
+                    GstPercent = 18m,
+                    PricesIncludeTax = false,
+                    Components = new List<TaxInvoiceComponentDto>
+                    {
+                        new TaxInvoiceComponentDto { Id = 51, Code = "VAT", DisplayName = "VAT", RatePercent = 18m, Priority = 1, IsActive = true }
+                    }
+                },
+                CreateLaundryOrderResponse = JObject.Parse(@"{
+                    'OrderNo':'RTJ-1001',
+                    'CustCode':'CU-SAVED-001',
+                    'Message':'Created'
+                }")
+            };
+
+            var loginApi = new InMemoryTaxLoginApiClient
+            {
+                TenantStoreDetailsResponse = JObject.Parse(@"{
+                    'Storecodes': ['RTJ'],
+                    'StoreStatuses': [
+                        { 'StoreCode': 'RTJ', 'TenantName': 'rksadhu11@gmail.com', 'IsActive': true }
+                    ]
+                }")
+            };
+
+            var controller = CreateController(customerApi, loginApi);
+            SetControllerSession(controller, "rksadhu11@gmail.com", "RTJ", "Admin");
+
+            var result = await controller.SetupCreateOrder(new LaundryOrderDto
+            {
+                CustomerName = "Walk-in Customer",
+                CustCode = "CU-REQUEST-001",
+                OrderAmount = 100m,
+                OrderMode = "pieces",
+                PaymentMode = "Cash",
+                PaidNow = 0m,
+                AdvanceUsed = 0m
+            });
+
+            var redirect = Assert.IsType<RedirectToActionResult>(result);
+            Assert.Equal("SetupCreateOrder", redirect.ActionName);
+            Assert.Equal("CU-SAVED-001", redirect.RouteValues?["customerCode"]?.ToString());
+            Assert.Equal("CU-SAVED-001", controller.HttpContext.Session.GetString("SelectedCustomerCode"));
+        }
+
+        [Fact]
+        public async Task GetCustomerOrders_UsesTenantStoreAndResolvedCustCode_ForPostCreateRefresh()
+        {
+            var expectedOrder = new LaundryOrderDto
+            {
+                OrderNo = "RTJ-1001",
+                CustCode = "CU-SAVED-001",
+                CustomerName = "Walk-in Customer",
+                Status = "Received",
+                StoreCode = "RTJ",
+                TenantName = "rksadhu11@gmail.com"
+            };
+
+            var customerApi = new InMemoryCustomerApiClient
+            {
+                LaundryOrdersResponse = new LaundryOrderResponseDto
+                {
+                    StatusCode = "200",
+                    CustCode = "CU-SAVED-001",
+                    Orders = new List<LaundryOrderDto> { expectedOrder }
+                }
+            };
+
+            var loginApi = new InMemoryTaxLoginApiClient();
+            var controller = CreateController(customerApi, loginApi);
+            SetControllerSession(controller, "rksadhu11@gmail.com", "RTJ", "Admin");
+
+            var result = await controller.GetCustomerOrders("Walk-in Customer", "CU-SAVED-001");
+
+            var json = Assert.IsType<JsonResult>(result);
+            var payload = JObject.FromObject(json.Value);
+            Assert.True(payload.Value<bool>("success"));
+            Assert.Equal("CU-SAVED-001", payload.Value<string>("customerCode"));
+
+            var orders = payload["orders"] as JArray ?? new JArray();
+            Assert.Single(orders);
+            Assert.Equal("RTJ-1001", orders[0]?["OrderNo"]?.ToString());
+
+            var orderQuery = customerApi.QueryCalls.Last(x => string.Equals(x.RequestUrl, "/GetLaundryOrders", StringComparison.OrdinalIgnoreCase));
+            Assert.Equal("rksadhu11@gmail.com", GetQueryValue(orderQuery.Query, "tenantName"));
+            Assert.Equal("RTJ", GetQueryValue(orderQuery.Query, "storeCode"));
+            Assert.Equal("CU-SAVED-001", GetQueryValue(orderQuery.Query, "custCode"));
         }
 
         [Fact]
@@ -2581,6 +2847,8 @@ namespace LMSWebUI.Tests
                 var orderLines = [];
                 var taxEnabled = {(taxEnabled ? "true" : "false")};
                 var gstPercent = {gstPercent.ToString(System.Globalization.CultureInfo.InvariantCulture)};
+                var taxMode = 'GST';
+                var taxComponents = [];
                 var pricesIncludeTax = {(pricesIncludeTax ? "true" : "false")};
                 var allowPartialPayment = {(allowPartialPayment ? "true" : "false")};
                 var currentAdvanceBalance = {currentAdvanceBalance.ToString(System.Globalization.CultureInfo.InvariantCulture)};
@@ -2625,7 +2893,8 @@ namespace LMSWebUI.Tests
                             elements[id] = makeElement('');
                         }}
                         return elements[id];
-                    }}
+                    }},
+                    querySelectorAll: function () {{ return []; }}
                 }};
 
                 function formatCurrency(value) {{
@@ -2660,6 +2929,15 @@ namespace LMSWebUI.Tests
                 "SetupCreateOrder.cshtml"));
 
             var content = File.ReadAllText(viewPath);
+            var normalizeTextFunction = ExtractFunctionBlock(content, "normalizeText");
+            var equalsNormalizedFunction = ExtractFunctionBlock(content, "equalsNormalized");
+            var getStatusTokenFunction = ExtractFunctionBlock(content, "getStatusToken");
+            var isActiveRecordFunction = ExtractFunctionBlock(content, "isActiveRecord");
+            var isScopedRecordFunction = ExtractFunctionBlock(content, "isScopedRecord");
+            var filterActiveScopedRowsFunction = ExtractFunctionBlock(content, "filterActiveScopedRows");
+            var buildServiceCategoryKeyFunction = ExtractFunctionBlock(content, "buildServiceCategoryKey");
+            var buildServiceCategoryItemKeyFunction = ExtractFunctionBlock(content, "buildServiceCategoryItemKey");
+            var rebuildActiveMasterLookupsFunction = ExtractFunctionBlock(content, "rebuildActiveMasterLookups");
             var fillMasterSelectFunction = ExtractFunctionBlock(content, "fillMasterSelect");
 
             var applyStartToken = "function applyStoreMastersResponse(data)";
@@ -2674,6 +2952,19 @@ namespace LMSWebUI.Tests
 
             var script = $@"
                 var masterItems = [];
+                var configuredItems = [];
+                var configuredItemsRaw = [];
+                var configuredItemsLoaded = false;
+                var storeMastersLoaded = false;
+                var storeMastersFailed = false;
+                var currentTenantName = '';
+                var currentStoreCode = '';
+                var activeMasterServiceLookup = {{}};
+                var activeMasterCategoryLookup = {{}};
+                var activeMasterItemLookup = {{}};
+                var activeServiceTypes = [];
+                var selectedService = '';
+                var selectedCategory = '';
                 var toastLog = [];
                 var refreshCalls = 0;
                 var updateCalls = 0;
@@ -2701,7 +2992,26 @@ namespace LMSWebUI.Tests
                 function showToast(message, isSuccess) {{ toastLog.push({{ message: message, isSuccess: !!isSuccess }}); }}
                 function refreshCategoryOptionsForSelectedService() {{ refreshCalls++; }}
                 function updateConfigItemSuggestions() {{ updateCalls++; }}
+                function applyConfiguredItemHierarchyFilter() {{ }}
+                function findMatchingValue(list, value) {{
+                    if (!list || !value) return '';
+                    var normalized = value.toString().trim().toLowerCase();
+                    for (var i = 0; i < list.length; i++) {{
+                        var candidate = (list[i] || '').toString().trim();
+                        if (candidate.toLowerCase() === normalized) return candidate;
+                    }}
+                    return '';
+                }}
 
+                {normalizeTextFunction}
+                {equalsNormalizedFunction}
+                {getStatusTokenFunction}
+                {isActiveRecordFunction}
+                {isScopedRecordFunction}
+                {filterActiveScopedRowsFunction}
+                {buildServiceCategoryKeyFunction}
+                {buildServiceCategoryItemKeyFunction}
+                {rebuildActiveMasterLookupsFunction}
                 {fillMasterSelectFunction}
                 {applyFunction}
                 {failFunction}
@@ -2779,6 +3089,9 @@ namespace LMSWebUI.Tests
             public List<StoreItemMasterDto> StoreItemMastersListResponse { get; set; } = new List<StoreItemMasterDto>();
             public string StoreItemMastersRawResponse { get; set; } = string.Empty;
             public List<LaundryItemPriceDto> LaundryItemPricesResponse { get; set; } = new List<LaundryItemPriceDto>();
+            public PaymentSettingsViewModel PaymentSettingsResponse { get; set; }
+            public JObject CreateLaundryOrderResponse { get; set; }
+            public LaundryOrderResponseDto LaundryOrdersResponse { get; set; }
             public Exception ThrowOnStoreServiceMastersRaw { get; set; }
             public int UpsertTaxConfigurationCount { get; private set; }
             public TaxConfigurationUpsertRequestDto LastUpsertTaxConfigurationRequest { get; private set; }
@@ -2902,6 +3215,13 @@ namespace LMSWebUI.Tests
                     return Task.FromResult(ToGeneric<T>(response));
                 }
 
+                if (string.Equals(requestUrl, "/CreateLaundryOrder", StringComparison.OrdinalIgnoreCase)
+                    && typeof(T) == typeof(JObject))
+                {
+                    var payload = CreateLaundryOrderResponse ?? new JObject();
+                    return Task.FromResult((T)(object)payload);
+                }
+
                 return Task.FromResult(new T());
             }
 
@@ -2932,6 +3252,11 @@ namespace LMSWebUI.Tests
                 if (string.Equals(requestUrl, "/ResolveTaxMode", StringComparison.OrdinalIgnoreCase))
                 {
                     return Task.FromResult(ToGeneric<T>(ResolveTaxModeResponse));
+                }
+
+                if (string.Equals(requestUrl, "/GetPaymentSettings", StringComparison.OrdinalIgnoreCase))
+                {
+                    return Task.FromResult(ToGeneric<T>(PaymentSettingsResponse));
                 }
 
                 if (string.Equals(requestUrl, "/GetStoreServiceMasters", StringComparison.OrdinalIgnoreCase))
@@ -3020,6 +3345,11 @@ namespace LMSWebUI.Tests
                     }
                 }
 
+                if (string.Equals(requestUrl, "/GetLaundryOrders", StringComparison.OrdinalIgnoreCase))
+                {
+                    return Task.FromResult(ToGeneric<T>(LaundryOrdersResponse));
+                }
+
                 return Task.FromResult(new T());
             }
 
@@ -3080,6 +3410,7 @@ namespace LMSWebUI.Tests
             public LoginIoResponse ProfileResponse { get; set; } = new LoginIoResponse();
             public JObject TenantStoreDetailsResponse { get; set; }
             public JObject TenantSubscriptionOverviewResponse { get; set; }
+            public JObject StoreStatusesResponse { get; set; }
 
             public Task<T> SendRequestAsync<T>(string requestUrl, Method method) where T : new()
                 => Task.FromResult(new T());
@@ -3100,6 +3431,20 @@ namespace LMSWebUI.Tests
                 if (string.Equals(requestUrl, "/GetTenantSubscriptionOverview", StringComparison.OrdinalIgnoreCase))
                 {
                     return Task.FromResult(ToGeneric<T>(TenantSubscriptionOverviewResponse));
+                }
+
+                if (string.Equals(requestUrl, "/GetAllStoreStatuses", StringComparison.OrdinalIgnoreCase)
+                    && typeof(T) == typeof(JObject))
+                {
+                    var fallbackStatuses = StoreStatusesResponse
+                        ?? TenantStoreDetailsResponse
+                        ?? JObject.Parse(@"{
+                            'StoreStatuses': [
+                                { 'StoreCode': 'S1', 'TenantName': 'tenant@example.com', 'IsActive': true }
+                            ]
+                        }");
+
+                    return Task.FromResult((T)(object)fallbackStatuses);
                 }
 
                 if (string.Equals(requestUrl, "/TenantprofileDetails", StringComparison.OrdinalIgnoreCase))

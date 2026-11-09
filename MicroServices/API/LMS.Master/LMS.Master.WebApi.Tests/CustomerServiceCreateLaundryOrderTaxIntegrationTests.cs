@@ -376,6 +376,134 @@ namespace LMS.Master.WebApi.Tests
         }
 
         [Fact]
+        public async Task CreateLaundryOrder_PiecesWithoutSavedBarcodeTagSettings_AutoCreatesTags_AndCommitsOrderAndItems()
+        {
+            EnsureFixtureReady();
+            var (tenant, store) = NewScope();
+            const string custCode = "CUST-PIECE-NO-TAGCFG";
+
+            await using var context = _fixture.CreateDbContext();
+            await SeedCustomerAsync(context, tenant, store, custCode, "Pieces Customer");
+            await SeedLaundryItemPriceAsync(context, tenant, store, "Dry Clean", "Men", "Shirt", 50m);
+
+            var existingTagSettingsCount = await context.BarcodeTagSettings
+                .CountAsync(x => x.TenantName == tenant && x.StoreCode == store);
+            Assert.Equal(0, existingTagSettingsCount);
+
+            var service = _fixture.CreateService(context);
+            var result = await service.CreateLaundryOrder(new LaundryOrderDto
+            {
+                TenantName = tenant,
+                StoreCode = store,
+                CustCode = custCode,
+                CustomerName = "Pieces Customer",
+                ServiceType = "Dry Clean",
+                OrderMode = "pieces",
+                OrderAmount = 100m,
+                PaymentMode = "Cash",
+                Items = new List<LaundryOrderItemDto>
+                {
+                    new LaundryOrderItemDto
+                    {
+                        ServiceType = "Dry Clean",
+                        Category = "Men",
+                        ItemName = "Shirt",
+                        UnitPrice = 50m,
+                        Quantity = 2
+                    }
+                }
+            });
+
+            Assert.Equal(HttpStatusCode.OK, result.StatusCode);
+            var dto = Assert.IsType<LaundryOrderDto>(result.ResultSet);
+            Assert.Equal(2, dto.Items.Count);
+            Assert.All(dto.Items, x => Assert.False(string.IsNullOrWhiteSpace(x.TagNo)));
+
+            await using var verifyContext = _fixture.CreateDbContext();
+            var persistedOrder = await verifyContext.LaundryOrders
+                .AsNoTracking()
+                .FirstOrDefaultAsync(x => x.TenantName == tenant && x.StoreCode == store && x.OrderNo == dto.OrderNo);
+            Assert.NotNull(persistedOrder);
+
+            var persistedItems = await verifyContext.LaundryOrderItems
+                .AsNoTracking()
+                .Where(x => x.TenantName == tenant && x.StoreCode == store && x.OrderNo == dto.OrderNo)
+                .ToListAsync();
+            Assert.Equal(2, persistedItems.Count);
+            Assert.All(persistedItems, x => Assert.False(string.IsNullOrWhiteSpace(x.TagNo)));
+
+            var persistedTagSettings = await verifyContext.BarcodeTagSettings
+                .AsNoTracking()
+                .FirstOrDefaultAsync(x => x.TenantName == tenant && x.StoreCode == store);
+            Assert.NotNull(persistedTagSettings);
+            Assert.True(persistedTagSettings.EnableTagging);
+        }
+
+        [Fact]
+        public async Task CreateLaundryOrder_PiecesWhenTaggingDisabled_ReturnsBadRequest_AndRollsBackOrderAndItems()
+        {
+            EnsureFixtureReady();
+            var (tenant, store) = NewScope();
+            const string custCode = "CUST-PIECE-TAG-OFF";
+
+            await using var context = _fixture.CreateDbContext();
+            await SeedCustomerAsync(context, tenant, store, custCode, "Tag Disabled Customer");
+            await SeedLaundryItemPriceAsync(context, tenant, store, "Dry Clean", "Men", "Trouser", 60m);
+
+            context.BarcodeTagSettings.Add(new BarcodeTagSettingsEntity
+            {
+                TenantName = tenant,
+                StoreCode = store,
+                EnableTagging = false,
+                TagPrefix = "TAG-",
+                NextTagNumber = 1,
+                TagNumberPadding = 4,
+                ResetTagNumberYearly = false,
+                Notes = null,
+                CreatedDate = DateTime.UtcNow,
+                ModifiedDate = DateTime.UtcNow
+            });
+            await context.SaveChangesAsync();
+
+            var service = _fixture.CreateService(context);
+            var result = await service.CreateLaundryOrder(new LaundryOrderDto
+            {
+                TenantName = tenant,
+                StoreCode = store,
+                CustCode = custCode,
+                CustomerName = "Tag Disabled Customer",
+                ServiceType = "Dry Clean",
+                OrderMode = "pieces",
+                OrderAmount = 60m,
+                PaymentMode = "Cash",
+                Items = new List<LaundryOrderItemDto>
+                {
+                    new LaundryOrderItemDto
+                    {
+                        ServiceType = "Dry Clean",
+                        Category = "Men",
+                        ItemName = "Trouser",
+                        UnitPrice = 60m,
+                        Quantity = 1
+                    }
+                }
+            });
+
+            Assert.Equal(HttpStatusCode.BadRequest, result.StatusCode);
+            var response = Assert.IsType<CustomerIOResponse>(result.ResultSet);
+            Assert.Equal("Tagging is disabled for this store. Enable barcode/tag settings before creating piece-based orders.", response.Message);
+
+            await using var verifyContext = _fixture.CreateDbContext();
+            var ordersCount = await verifyContext.LaundryOrders
+                .CountAsync(x => x.TenantName == tenant && x.StoreCode == store && x.CustCode == custCode);
+            var itemsCount = await verifyContext.LaundryOrderItems
+                .CountAsync(x => x.TenantName == tenant && x.StoreCode == store);
+
+            Assert.Equal(0, ordersCount);
+            Assert.Equal(0, itemsCount);
+        }
+
+        [Fact]
         public async Task CreateLaundryOrder_WhenFailureOccursAfterOrderSaveAndDuringTaxSnapshotSave_RollsBackOrderAndTaxRows()
         {
             EnsureFixtureReady();
@@ -429,6 +557,31 @@ namespace LMS.Master.WebApi.Tests
                 CreatedDate = DateTime.UtcNow,
                 ModifiedDate = DateTime.UtcNow
             });
+            await context.SaveChangesAsync();
+        }
+
+        private static async Task SeedLaundryItemPriceAsync(
+            MasterDbContext context,
+            string tenant,
+            string store,
+            string serviceType,
+            string category,
+            string itemName,
+            decimal unitPrice)
+        {
+            context.LaundryItemPrices.Add(new LaundryItemPriceEntity
+            {
+                TenantName = tenant,
+                StoreCode = store,
+                ServiceType = serviceType,
+                Category = category,
+                ItemName = itemName,
+                UnitPrice = unitPrice,
+                IsActive = true,
+                CreatedDate = DateTime.UtcNow,
+                ModifiedDate = DateTime.UtcNow
+            });
+
             await context.SaveChangesAsync();
         }
 
