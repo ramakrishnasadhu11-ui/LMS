@@ -338,6 +338,111 @@ namespace LMS.Master.WebApi.Tests
         }
 
         [Fact]
+        public async Task CreateLaundryOrder_WhenPaidNowIsZero_AndAllPaymentModesAreDisabled_AllowsOrderCreation()
+        {
+            EnsureFixtureReady();
+            var (tenant, store) = NewScope();
+            const string custCode = "CUST-PAYMENT-ZERO";
+
+            await using var context = _fixture.CreateDbContext();
+            await SeedCustomerAsync(context, tenant, store, custCode, "Zero Payment Customer");
+            await SeedTaxSettingsAsync(context, tenant, store, "NoTax", "IN", "INR", enableTax: false, gstPercent: 0m, pricesIncludeTax: false);
+            await SeedPaymentSettingsAsync(context, tenant, store, enableCash: false, enableUpi: false, enableCard: false, enableWallet: false, defaultPaymentMode: "Cash");
+
+            var service = _fixture.CreateService(context);
+            var result = await service.CreateLaundryOrder(new LaundryOrderDto
+            {
+                TenantName = tenant,
+                StoreCode = store,
+                CustCode = custCode,
+                CustomerName = "Zero Payment Customer",
+                ServiceType = "Dry Clean",
+                OrderMode = "weight",
+                WeightInKg = 2m,
+                RatePerKg = 50m,
+                PaidNow = 0m,
+                PaymentMode = "Cash"
+            });
+
+            Assert.Equal(HttpStatusCode.OK, result.StatusCode);
+            var dto = Assert.IsType<LaundryOrderDto>(result.ResultSet);
+            Assert.Equal(0m, dto.PaidNow);
+            Assert.True(dto.PendingAmount > 0m);
+
+            await using var verifyContext = _fixture.CreateDbContext();
+            var persisted = await verifyContext.LaundryOrders.AsNoTracking()
+                .FirstOrDefaultAsync(x => x.TenantName == tenant && x.StoreCode == store && x.OrderNo == dto.OrderNo);
+            Assert.NotNull(persisted);
+            Assert.Equal(0m, persisted.PaidNow);
+        }
+
+        [Fact]
+        public async Task CreateLaundryOrder_WhenFullPaymentCollected_AndPaymentModeEnabled_Succeeds()
+        {
+            EnsureFixtureReady();
+            var (tenant, store) = NewScope();
+            const string custCode = "CUST-PAYMENT-FULL";
+
+            await using var context = _fixture.CreateDbContext();
+            await SeedCustomerAsync(context, tenant, store, custCode, "Full Payment Customer");
+            await SeedTaxSettingsAsync(context, tenant, store, "NoTax", "IN", "INR", enableTax: false, gstPercent: 0m, pricesIncludeTax: false);
+            await SeedPaymentSettingsAsync(context, tenant, store, enableCash: false, enableUpi: true, enableCard: false, enableWallet: false, defaultPaymentMode: "UPI");
+
+            var service = _fixture.CreateService(context);
+            var result = await service.CreateLaundryOrder(new LaundryOrderDto
+            {
+                TenantName = tenant,
+                StoreCode = store,
+                CustCode = custCode,
+                CustomerName = "Full Payment Customer",
+                ServiceType = "Dry Clean",
+                OrderMode = "weight",
+                WeightInKg = 2m,
+                RatePerKg = 50m,
+                PaidNow = 100m,
+                PaymentMode = "UPI"
+            });
+
+            Assert.Equal(HttpStatusCode.OK, result.StatusCode);
+            var dto = Assert.IsType<LaundryOrderDto>(result.ResultSet);
+            Assert.Equal(100m, dto.PaidNow);
+            Assert.Equal(0m, dto.PendingAmount);
+            Assert.Equal("UPI", dto.PaymentMode);
+        }
+
+        [Fact]
+        public async Task CreateLaundryOrder_WhenPositivePaymentCollected_AndAllPaymentModesDisabled_ReturnsBadRequest()
+        {
+            EnsureFixtureReady();
+            var (tenant, store) = NewScope();
+            const string custCode = "CUST-PAYMENT-DISABLED";
+
+            await using var context = _fixture.CreateDbContext();
+            await SeedCustomerAsync(context, tenant, store, custCode, "Disabled Payment Customer");
+            await SeedTaxSettingsAsync(context, tenant, store, "NoTax", "IN", "INR", enableTax: false, gstPercent: 0m, pricesIncludeTax: false);
+            await SeedPaymentSettingsAsync(context, tenant, store, enableCash: false, enableUpi: false, enableCard: false, enableWallet: false, defaultPaymentMode: "Cash");
+
+            var service = _fixture.CreateService(context);
+            var result = await service.CreateLaundryOrder(new LaundryOrderDto
+            {
+                TenantName = tenant,
+                StoreCode = store,
+                CustCode = custCode,
+                CustomerName = "Disabled Payment Customer",
+                ServiceType = "Dry Clean",
+                OrderMode = "weight",
+                WeightInKg = 2m,
+                RatePerKg = 50m,
+                PaidNow = 25m,
+                PaymentMode = "Cash"
+            });
+
+            Assert.Equal(HttpStatusCode.BadRequest, result.StatusCode);
+            var response = Assert.IsType<CustomerIOResponse>(result.ResultSet);
+            Assert.Equal("No payment mode is configured for this store. Save Payment Settings before collecting payment.", response.Message);
+        }
+
+        [Fact]
         public async Task CreateLaundryOrder_WhenCreationFails_DoesNotPersistOrderOrTaxSnapshotRows()
         {
             EnsureFixtureReady();
@@ -557,6 +662,37 @@ namespace LMS.Master.WebApi.Tests
                 CreatedDate = DateTime.UtcNow,
                 ModifiedDate = DateTime.UtcNow
             });
+            await context.SaveChangesAsync();
+        }
+
+        private static async Task SeedPaymentSettingsAsync(
+            MasterDbContext context,
+            string tenant,
+            string store,
+            bool enableCash,
+            bool enableUpi,
+            bool enableCard,
+            bool enableWallet,
+            string defaultPaymentMode)
+        {
+            context.PaymentSettings.Add(new PaymentSettingsEntity
+            {
+                TenantName = tenant,
+                StoreCode = store,
+                EnableCash = enableCash,
+                EnableUpi = enableUpi,
+                EnableCard = enableCard,
+                EnableWallet = enableWallet,
+                DefaultPaymentMode = defaultPaymentMode,
+                AllowPartialPayment = true,
+                AllowCredit = false,
+                CreditLimitAmount = 0m,
+                RoundOffPayableAmount = false,
+                Notes = null,
+                CreatedDate = DateTime.UtcNow,
+                ModifiedDate = DateTime.UtcNow
+            });
+
             await context.SaveChangesAsync();
         }
 

@@ -31,43 +31,35 @@
                     : "neutral";
     var dashboardPlanText = string.IsNullOrWhiteSpace(currentPlanCode) ? "Not configured" : currentPlanCode;
     var dashboardSubscriptionText = string.IsNullOrWhiteSpace(currentSubscriptionStatus) ? "Not configured" : currentSubscriptionStatus;
-    var showTrialNotification = !isSuperAdminUser
-        && dashboardTrialEndUtc.HasValue
-        && (string.Equals(currentSubscriptionStatus, "Trial", StringComparison.OrdinalIgnoreCase)
-            || string.Equals(currentSubscriptionStatus, "Expired", StringComparison.OrdinalIgnoreCase));
-
-    var trialExpiryText = dashboardTrialEndUtc.HasValue
-        ? dashboardTrialEndUtc.Value.ToUniversalTime().ToString("dd MMM yyyy")
-        : "Not available";
+    var showSubscriptionBillingCard = Convert.ToBoolean(ViewData["ShowSubscriptionBillingCard"] ?? false);
+    var subscriptionBillingState = Convert.ToString(ViewData["SubscriptionBillingState"] ?? "missing");
+    var subscriptionBillingHeadline = Convert.ToString(ViewData["SubscriptionBillingHeadline"] ?? "Subscription details unavailable");
+    var subscriptionBillingMessage = Convert.ToString(ViewData["SubscriptionBillingMessage"] ?? "We could not load subscription data right now.");
+    var showSubscriptionTrialProgress = Convert.ToBoolean(ViewData["SubscriptionBillingShowTrialProgress"] ?? false);
+    var subscriptionTrialProgressPercent = Convert.ToInt32(ViewData["SubscriptionBillingTrialProgressPercent"] ?? 0);
+    var subscriptionExpiryUtc = ViewData["SubscriptionExpiryUtc"] as DateTime?;
+    var canManageSubscriptionBillingActions = Convert.ToBoolean(ViewData["SubscriptionBillingCanManageActions"] ?? false);
 
     var trialDaysRemainingText = dashboardTrialDaysRemaining.HasValue
         ? Math.Max(dashboardTrialDaysRemaining.Value, 0).ToString()
         : "0";
-
-    var isTrialExpired = showTrialNotification && dashboardTrialDaysRemaining.HasValue && dashboardTrialDaysRemaining.Value <= 0;
-    var isTrialThresholdWarning = showTrialNotification && dashboardTrialDaysRemaining.HasValue
-        && (dashboardTrialDaysRemaining.Value == 15
-            || dashboardTrialDaysRemaining.Value == 7
-            || dashboardTrialDaysRemaining.Value == 3
-            || dashboardTrialDaysRemaining.Value == 1);
-
-    var trialNotificationClass = isTrialExpired
-        ? "trial-notification expired"
-        : isTrialThresholdWarning
-            ? "trial-notification warning"
-            : "trial-notification info";
-
-    var trialNotificationTitle = isTrialExpired
-        ? "Your free trial has expired"
-        : isTrialThresholdWarning
-            ? $"Trial expiry warning: {trialDaysRemainingText} day(s) left"
-            : "Your free trial is active";
-
-    var trialNotificationMessage = isTrialExpired
-        ? $"Your 45-day free trial ended on {trialExpiryText}. Choose a paid plan to continue uninterrupted access."
-        : $"Your 45-day free trial ends on {trialExpiryText} with {trialDaysRemainingText} day(s) remaining.";
+    var subscriptionExpiryText = subscriptionExpiryUtc.HasValue
+        ? subscriptionExpiryUtc.Value.ToUniversalTime().ToString("dd MMM yyyy")
+        : "Not available";
+    var subscriptionTrialProgressClamped = Math.Max(0, Math.Min(100, subscriptionTrialProgressPercent));
+    var subscriptionBillingCardClass = $"subscription-billing-card state-{(string.IsNullOrWhiteSpace(subscriptionBillingState) ? "missing" : subscriptionBillingState.ToLowerInvariant())}";
+    var isTrialEndingSoonState = string.Equals(subscriptionBillingState, "trial-warning", StringComparison.OrdinalIgnoreCase);
+    var billingPrimaryCtaText = string.Equals(subscriptionBillingState, "trial-expired", StringComparison.OrdinalIgnoreCase)
+        ? "Renew / Upgrade"
+        : "View Plans & Upgrade";
+    var billingPrimaryCtaUrl = plansAndTariffUrl;
+    var billingHistoryUrl = plansAndTariffUrl + "#tenantPaymentHistoryHost";
+    var billingRenewalUrl = plansAndTariffUrl + "#renewalAmountValue";
     var currentController = Convert.ToString(ViewContext.RouteData.Values["controller"]);
     var currentAction = Convert.ToString(ViewContext.RouteData.Values["action"]);
+    var canViewOwnerSummary = string.Equals(currentUserRole, "Owner", StringComparison.OrdinalIgnoreCase)
+        || string.Equals(currentUserRole, "StoreOwner", StringComparison.OrdinalIgnoreCase)
+        || string.Equals(currentUserRole, "TenantOwner", StringComparison.OrdinalIgnoreCase);
 
     bool IsActiveAdminMenu(string actionName, string controllerName = "Customer")
     {
@@ -332,41 +324,153 @@
         font-weight: 500;
     }
 
-    .trial-notification {
-        margin-bottom: 14px;
-        border-radius: 10px;
-        border: 1px solid;
-        padding: 12px 14px;
+    .subscription-billing-card {
+        margin: 16px 0 18px;
+        border-radius: 12px;
+        border: 1px solid var(--els-border);
+        background: #f8fbff;
+        padding: 16px;
     }
 
-    .trial-notification h4 {
-        margin: 0 0 6px;
+    .subscription-billing-card.state-trial-active {
+        border-color: rgba(22, 163, 106, 0.35);
+        background: linear-gradient(120deg, #edf9f2 0%, #e4f6ec 100%);
+    }
+
+    .subscription-billing-card.state-trial-warning {
+        border-color: rgba(217, 149, 32, 0.45);
+        background: linear-gradient(120deg, #fff9eb 0%, #fff5dd 100%);
+    }
+
+    .subscription-billing-card.state-trial-expired {
+        border-color: rgba(217, 72, 72, 0.45);
+        background: linear-gradient(120deg, #fff4f4 0%, #ffebeb 100%);
+    }
+
+    .subscription-billing-card.state-paid-active {
+        border-color: rgba(23, 59, 112, 0.3);
+        background: linear-gradient(120deg, #eef4ff 0%, #e8f0ff 100%);
+    }
+
+    .subscription-billing-card.state-missing {
+        border-color: rgba(100, 116, 139, 0.3);
+        background: #f8fafc;
+    }
+
+    .subscription-billing-head {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 14px;
+        flex-wrap: wrap;
+    }
+
+    .subscription-billing-title {
+        margin: 0;
+        font-size: 20px;
+        font-weight: 700;
+        color: var(--els-text);
+    }
+
+    .subscription-billing-subtitle {
+        margin: 5px 0 0;
+        font-size: 13px;
+        color: var(--els-text-muted);
+        line-height: 1.5;
+    }
+
+    .subscription-billing-grid {
+        margin-top: 14px;
+        display: grid;
+        grid-template-columns: repeat(4, minmax(150px, 1fr));
+        gap: 10px;
+    }
+
+    .subscription-billing-metric {
+        border: 1px solid var(--els-border);
+        border-radius: 10px;
+        background: rgba(255,255,255,0.86);
+        padding: 10px 11px;
+    }
+
+    .subscription-billing-label {
+        display: block;
+        font-size: 11px;
+        font-weight: 700;
+        color: var(--els-text-muted);
+        text-transform: uppercase;
+        letter-spacing: 0.02em;
+    }
+
+    .subscription-billing-value {
+        display: block;
+        margin-top: 4px;
         font-size: 15px;
         font-weight: 700;
+        color: var(--els-text);
     }
 
-    .trial-notification p {
-        margin: 0;
-        font-size: 13px;
-        line-height: 1.45;
+    .subscription-billing-progress {
+        margin-top: 14px;
     }
 
-    .trial-notification.info {
-        border-color: rgba(23, 59, 112, 0.35);
-        background: #eef4ff;
-        color: #173b70;
+    .subscription-billing-progress-track {
+        height: 10px;
+        border-radius: 999px;
+        background: rgba(148, 163, 184, 0.25);
+        overflow: hidden;
     }
 
-    .trial-notification.warning {
-        border-color: rgba(217, 149, 32, 0.45);
-        background: #fff8e8;
-        color: #8a5a00;
+    .subscription-billing-progress-fill {
+        height: 100%;
+        border-radius: 999px;
+        background: linear-gradient(90deg, #16A36A 0%, #2bb673 100%);
     }
 
-    .trial-notification.expired {
-        border-color: rgba(217, 72, 72, 0.45);
-        background: #fff1f1;
-        color: #9f1d1d;
+    .subscription-billing-card.state-trial-warning .subscription-billing-progress-fill {
+        background: linear-gradient(90deg, #d99520 0%, #f0b429 100%);
+    }
+
+    .subscription-billing-card.state-trial-expired .subscription-billing-progress-fill {
+        background: linear-gradient(90deg, #d94848 0%, #ef6b6b 100%);
+    }
+
+    .subscription-billing-progress-note {
+        margin-top: 6px;
+        font-size: 12px;
+        color: var(--els-text-muted);
+    }
+
+    .subscription-billing-actions {
+        margin-top: 14px;
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+    }
+
+    .subscription-billing-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 999px;
+        border: 1px solid var(--els-primary);
+        padding: 8px 14px;
+        font-size: 12px;
+        font-weight: 700;
+        text-decoration: none;
+        color: var(--els-primary);
+        background: #fff;
+    }
+
+    .subscription-billing-btn.primary {
+        background: var(--els-primary);
+        color: #fff;
+    }
+
+    .subscription-billing-btn:hover,
+    .subscription-billing-btn:focus {
+        text-decoration: none;
+        opacity: 0.92;
     }
 
     .search-mode {
@@ -406,9 +510,153 @@
     }
 
     .search-hint {
-        margin-top: 6px;
+        margin-top: 8px;
         font-size: 12px;
-        color: var(--els-text-muted, #64748b);
+        color: #64748b;
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+        border-radius: 8px;
+        padding: 7px 10px;
+    }
+
+    .lookup-row {
+        position: relative;
+        display: grid;
+        grid-template-columns: auto minmax(0, 1fr) auto;
+        align-items: center;
+        gap: 8px;
+        border: 1px solid var(--els-border);
+        border-radius: 10px;
+        padding: 6px;
+        background: #fff;
+        transition: border-color .2s ease, box-shadow .2s ease;
+    }
+
+    .lookup-row:focus-within {
+        border-color: var(--els-primary-light);
+        box-shadow: 0 0 0 2px rgba(40, 120, 200, 0.15);
+    }
+
+    .lookup-filter-wrap {
+        position: relative;
+    }
+
+    .lookup-search-icon {
+        width: 34px;
+        height: 34px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 8px;
+        background: var(--els-accent);
+        color: var(--els-primary-dark);
+        font-size: 14px;
+    }
+
+    .lookup-filter-btn {
+        min-height: 36px;
+        border-radius: 8px;
+        font-size: 12px;
+        font-weight: 600;
+        border-color: var(--els-border);
+        background: #f8fbff;
+    }
+
+    .lookup-row .form-control {
+        border: none;
+        box-shadow: none;
+        height: 40px;
+        padding: 0 6px;
+    }
+
+    .lookup-row .form-control:focus {
+        border: none;
+        box-shadow: none;
+        outline: none;
+    }
+
+    .lookup-row .btn-primary {
+        min-height: 40px;
+        min-width: 108px;
+        border-radius: 8px;
+        font-weight: 700;
+        padding: 0 16px;
+    }
+
+    .invoice-lookup-wrap {
+        margin-top: 6px;
+        border: 1px solid var(--els-border);
+        border-radius: 12px;
+        background: #fff;
+        padding: 12px;
+    }
+
+    .invoice-lookup-title {
+        margin: 0 0 10px;
+        font-size: 16px;
+        line-height: 1.3;
+        font-weight: 700;
+        color: var(--els-primary-dark);
+    }
+
+    .invoice-lookup-row {
+        display: grid;
+        grid-template-columns: auto minmax(0, 1fr) auto;
+        align-items: center;
+        gap: 8px;
+        border: 1px solid var(--els-border);
+        border-radius: 10px;
+        padding: 6px;
+        background: #fff;
+        transition: border-color .2s ease, box-shadow .2s ease;
+    }
+
+    .invoice-lookup-row:focus-within {
+        border-color: var(--els-primary-light);
+        box-shadow: 0 0 0 2px rgba(40, 120, 200, 0.15);
+    }
+
+    .invoice-lookup-icon {
+        width: 34px;
+        height: 34px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 8px;
+        background: var(--els-accent);
+        color: var(--els-primary-dark);
+        font-size: 14px;
+    }
+
+    .invoice-lookup-wrap #searchInvoiceText {
+        border: none;
+        box-shadow: none;
+        height: 40px;
+        padding: 0 6px;
+        font-size: 14px;
+    }
+
+    .invoice-lookup-wrap #searchInvoiceText:focus {
+        border: none;
+        box-shadow: none;
+        outline: none;
+    }
+
+    .invoice-lookup-wrap #invoiceSearchGoBtn {
+        min-height: 40px;
+        min-width: 108px;
+        border-radius: 8px;
+        font-weight: 700;
+        padding: 0 16px;
+    }
+
+    .invoice-lookup-wrap #invoiceSearchGoBtn:hover,
+    .invoice-lookup-wrap #invoiceSearchGoBtn:focus {
+        filter: brightness(0.95);
+    }
+
+    .invoice-lookup-info-row {
+        margin-top: 8px;
     }
 
     .search-input-wrap.active {
@@ -626,14 +874,33 @@
             white-space: nowrap;
         }
 
-        #searchradio .input-group,
-        #searchInvoiceradio .input-group {
-            display: flex;
-            flex-wrap: nowrap;
+        .lookup-row,
+        .invoice-lookup-row {
+            grid-template-columns: minmax(0, 1fr);
+            gap: 6px;
+        }
+
+        .lookup-search-icon,
+        .invoice-lookup-icon {
+            display: none;
+        }
+
+        .lookup-filter-wrap {
+            width: 100%;
+        }
+
+        .lookup-filter-btn {
+            width: 100%;
         }
 
         #searchCustomers,
         #searchInvoiceText {
+            min-width: 0;
+        }
+
+        .lookup-row .btn-primary,
+        .invoice-lookup-wrap #invoiceSearchGoBtn {
+            width: 100%;
             min-width: 0;
         }
     }
@@ -993,49 +1260,220 @@
     .live-counter-panel {
         margin-bottom: 18px;
         border: 1px solid var(--els-border);
-        border-radius: 10px;
-        background: var(--els-background);
+        border-radius: 14px;
+        background: linear-gradient(120deg, #f8fbff 0%, #eef4fc 100%);
         padding: 14px;
+        box-shadow: 0 8px 20px rgba(23, 59, 112, 0.08);
+    }
+
+    .live-counter-head {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 12px;
+        flex-wrap: wrap;
+        margin-bottom: 10px;
     }
 
     .live-counter-title {
-        margin: 0 0 10px;
-        font-size: 16px;
+        margin: 0;
+        font-size: 18px;
         font-weight: 700;
         color: var(--els-primary-dark);
     }
 
+    .live-counter-subtitle {
+        margin: 4px 0 0;
+        font-size: 12px;
+        color: #64748b;
+    }
+
     .live-counter-grid {
         display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+        grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
         gap: 10px;
     }
 
     .live-counter-item {
         border: 1px solid var(--els-border);
-        border-radius: 8px;
+        border-radius: 10px;
         background: var(--els-surface);
         padding: 10px;
     }
 
+    .live-counter-item.priority-processing {
+        border-color: rgba(217, 149, 32, 0.5);
+        background: #fff8eb;
+    }
+
+    .live-counter-item.priority-payment {
+        border-color: rgba(198, 40, 40, 0.35);
+        background: #fff1f1;
+    }
+
+    .live-counter-item.priority-ready {
+        border-color: rgba(24, 116, 63, 0.35);
+        background: #effaf3;
+    }
+
+    .live-counter-item.priority-delivery {
+        border-color: rgba(22, 109, 163, 0.35);
+        background: #eff8ff;
+    }
+
     .live-counter-label {
         display: block;
-        font-size: 12px;
+        font-size: 11px;
         color: #64748b;
         margin-bottom: 4px;
+        font-weight: 600;
+        letter-spacing: .02em;
     }
 
     .live-counter-value {
         display: block;
-        font-size: 18px;
+        font-size: 20px;
         font-weight: 700;
         color: var(--els-text);
+        line-height: 1.1;
+    }
+
+    .live-counter-support {
+        display: block;
+        margin-top: 4px;
+        font-size: 11px;
+        color: #6b7280;
+        font-weight: 600;
     }
 
     .live-counter-meta {
         margin-top: 10px;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+
+    .live-meta-chip {
+        border: 1px solid var(--els-border);
+        border-radius: 999px;
+        background: #fff;
+        padding: 5px 10px;
+        font-size: 11px;
+        font-weight: 600;
+        color: #475467;
+    }
+
+    .live-meta-chip strong {
+        color: var(--els-primary-dark);
+        font-weight: 700;
+    }
+
+    .live-counter-quick-action {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 999px;
+        border: 1px solid #0f7d46;
+        background: #16a36a;
+        color: #fff;
         font-size: 12px;
+        font-weight: 700;
+        padding: 9px 14px;
+        text-decoration: none;
+    }
+
+    .live-counter-quick-action:hover,
+    .live-counter-quick-action:focus {
+        color: #fff;
+        text-decoration: none;
+        background: #128a5a;
+    }
+
+    .payment-summary-panel {
+        margin-top: 12px;
+        border: 1px solid var(--els-border);
+        border-radius: 12px;
+        background: linear-gradient(130deg, #ffffff 0%, #f7fbff 100%);
+        padding: 12px;
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.5);
+    }
+
+    .payment-summary-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        margin-bottom: 8px;
+        flex-wrap: wrap;
+    }
+
+    .payment-summary-title {
+        margin: 0;
+        font-size: 14px;
+        font-weight: 700;
+        color: var(--els-primary-dark);
+    }
+
+    .payment-summary-subtitle {
+        margin: 2px 0 0;
+        font-size: 11px;
         color: #64748b;
+    }
+
+    .payment-summary-status {
+        font-size: 11px;
+        font-weight: 700;
+        color: #3f4e63;
+        border: 1px solid var(--els-border);
+        border-radius: 999px;
+        background: #fff;
+        padding: 4px 8px;
+    }
+
+    .payment-summary-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(165px, 1fr));
+        gap: 8px;
+    }
+
+    .payment-summary-item {
+        border: 1px solid var(--els-border);
+        border-radius: 10px;
+        padding: 10px;
+        background: #fff;
+    }
+
+    .payment-summary-item.primary {
+        border-color: rgba(15, 125, 70, 0.4);
+        background: #eefbf4;
+    }
+
+    .payment-summary-label {
+        display: block;
+        font-size: 11px;
+        color: #607086;
+        font-weight: 700;
+        margin-bottom: 4px;
+    }
+
+    .payment-summary-value {
+        display: block;
+        font-size: 20px;
+        line-height: 1.1;
+        font-weight: 800;
+        color: #1f2937;
+    }
+
+    .payment-summary-item.primary .payment-summary-value {
+        color: #0f7d46;
+    }
+
+    .payment-summary-note {
+        display: block;
+        margin-top: 4px;
+        font-size: 10px;
+        color: #6b7280;
+        font-weight: 600;
     }
 
     .admin-insights-panel {
@@ -1092,7 +1530,7 @@
     }
 
     .admin-store-dashboard-context {
-        margin-top: 10px;
+        margin-top: 6px;
         display: flex;
         gap: 8px;
         flex-wrap: wrap;
@@ -1106,17 +1544,55 @@
         background: #fff;
         padding: 5px 10px;
         font-size: 11px;
-        font-weight: 700;
+        font-weight: 600;
         color: var(--els-primary);
+    }
+
+    .admin-context-chip strong {
+        font-weight: 700;
+    }
+
+    .admin-context-chip.context {
+        background: var(--els-accent);
+        border-color: #c7d7ee;
+    }
+
+    .admin-store-context-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        border-radius: 999px;
+        border: 1px solid #b8d0ef;
+        background: #eef5ff;
+        color: #173b70;
+        font-size: 11px;
+        font-weight: 700;
+        padding: 5px 10px;
+    }
+
+    .admin-store-context-badge::before {
+        content: "";
+        width: 6px;
+        height: 6px;
+        border-radius: 999px;
+        background: #2f7dd1;
     }
 
     .admin-header-actions {
         display: flex;
-        align-items: flex-start;
+        align-items: center;
         gap: 8px;
         flex-wrap: wrap;
         position: relative;
         z-index: 1;
+        justify-content: flex-end;
+    }
+
+    .admin-header-meta {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
     }
 
     .admin-compact-action {
@@ -1146,9 +1622,20 @@
         border-radius: 999px;
         padding: 5px 10px;
         font-size: 11px;
-        font-weight: 700;
+        font-weight: 600;
         color: var(--els-text-muted);
         background: #fff;
+    }
+
+    .admin-refresh-chip strong {
+        color: var(--els-primary-dark);
+        font-weight: 700;
+    }
+
+    .admin-refresh-chip.auto-active {
+        border-color: #b8d0ef;
+        background: #eef5ff;
+        color: #1f67b0;
     }
 
     .admin-insights-title {
@@ -1643,6 +2130,24 @@
         .admin-kpi-summary-grid {
             grid-template-columns: 1fr;
         }
+
+        .admin-store-dashboard-header {
+            padding: 12px;
+        }
+
+        .admin-header-actions {
+            justify-content: flex-start;
+        }
+
+        .admin-header-meta {
+            width: 100%;
+        }
+
+        .admin-refresh-chip,
+        .admin-context-chip,
+        .admin-store-context-badge {
+            font-size: 10px;
+        }
     }
 
 </style>
@@ -1664,11 +2169,64 @@
             }
         </div>
         <div class="dashboard-body">
-            @if (showTrialNotification)
+            @if (showSubscriptionBillingCard)
             {
-                <div class="@trialNotificationClass" id="dashboardTrialNotification">
-                    <h4>@trialNotificationTitle</h4>
-                    <p>@trialNotificationMessage</p>
+                <div class="@subscriptionBillingCardClass" id="dashboardSubscriptionBillingCard" aria-live="polite">
+                    <div class="subscription-billing-head">
+                        <div>
+                            <h3 class="subscription-billing-title">Subscription &amp; Billing</h3>
+                            <p class="subscription-billing-subtitle">@subscriptionBillingHeadline</p>
+                            <p class="subscription-billing-subtitle">@subscriptionBillingMessage</p>
+                        </div>
+                    </div>
+
+                    <div class="subscription-billing-grid">
+                        <div class="subscription-billing-metric">
+                            <span class="subscription-billing-label">Current Plan</span>
+                            <span class="subscription-billing-value">@dashboardPlanText</span>
+                        </div>
+                        <div class="subscription-billing-metric">
+                            <span class="subscription-billing-label">Subscription Status</span>
+                            <span class="subscription-billing-value">@dashboardSubscriptionText</span>
+                        </div>
+                        <div class="subscription-billing-metric">
+                            <span class="subscription-billing-label">Trial Days Remaining</span>
+                            <span class="subscription-billing-value">@trialDaysRemainingText</span>
+                        </div>
+                        <div class="subscription-billing-metric">
+                            <span class="subscription-billing-label">Expiry Date (UTC)</span>
+                            <span class="subscription-billing-value">@subscriptionExpiryText</span>
+                        </div>
+                    </div>
+
+                    @if (showSubscriptionTrialProgress)
+                    {
+                        <div class="subscription-billing-progress" id="dashboardSubscriptionTrialProgress">
+                            <div class="subscription-billing-progress-track" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="@subscriptionTrialProgressClamped">
+                                <div class="subscription-billing-progress-fill" style="width:@(subscriptionTrialProgressClamped)%"></div>
+                            </div>
+                            <div class="subscription-billing-progress-note">
+                                @if (isTrialEndingSoonState)
+                                {
+                                    <text>Trial ending soon. Complete your upgrade to avoid interruptions.</text>
+                                }
+                                else
+                                {
+                                    <text>Trial progress: @subscriptionTrialProgressClamped% time remaining.</text>
+                                }
+                            </div>
+                        </div>
+                    }
+
+                    @if (canManageSubscriptionBillingActions)
+                    {
+                        <div class="subscription-billing-actions">
+                            <a class="subscription-billing-btn primary" href="@billingPrimaryCtaUrl">@billingPrimaryCtaText</a>
+                            <a class="subscription-billing-btn" href="@plansAndTariffUrl">Manage Subscription</a>
+                            <a class="subscription-billing-btn" href="@billingHistoryUrl">Payment History</a>
+                            <a class="subscription-billing-btn" href="@billingRenewalUrl">Renewals</a>
+                        </div>
+                    }
                 </div>
             }
 
@@ -1713,36 +2271,93 @@
             @if (!isAdminUser)
             {
                 <div class="live-counter-panel" id="liveCounterPanel">
-                    <h3 class="live-counter-title">Live Counter Dashboard</h3>
+                    <div class="live-counter-head">
+                        <div>
+                            <h3 class="live-counter-title">Operations Command Center</h3>
+                            <p class="live-counter-subtitle">Real-time workflow, delivery and payment visibility for the current store.</p>
+                        </div>
+                        <a class="live-counter-quick-action" href="@Url.Action("SetupCreateOrder", "Customer")">Create New Order</a>
+                    </div>
                     <div class="live-counter-grid">
                         <div class="live-counter-item">
                             <span class="live-counter-label">Today Orders</span>
                             <span class="live-counter-value" id="lcTodayOrders">--</span>
+                            <span class="live-counter-support">Store orders logged today</span>
                         </div>
-                        <div class="live-counter-item">
+                        <div class="live-counter-item priority-processing">
+                            <span class="live-counter-label">Pending Processing</span>
+                            <span class="live-counter-value" id="lcPendingProcessing">--</span>
+                            <span class="live-counter-support">Orders requiring immediate work</span>
+                        </div>
+                        <div class="live-counter-item priority-ready">
                             <span class="live-counter-label">Ready for Delivery</span>
                             <span class="live-counter-value" id="lcReadyDelivery">--</span>
+                            <span class="live-counter-support">Prepared and ready to dispatch</span>
                         </div>
-                        <div class="live-counter-item">
+                        <div class="live-counter-item priority-delivery">
                             <span class="live-counter-label">Pending Delivery</span>
                             <span class="live-counter-value" id="lcPendingDelivery">--</span>
+                            <span class="live-counter-support">Out for delivery / awaiting completion</span>
                         </div>
-                        <div class="live-counter-item">
+                        <div class="live-counter-item priority-payment">
                             <span class="live-counter-label">Pending Payment</span>
                             <span class="live-counter-value" id="lcPendingPayment">--</span>
+                            <span class="live-counter-support" id="lcPendingPaymentAmount">Outstanding: --</span>
                         </div>
                         <div class="live-counter-item">
                             <span class="live-counter-label">Walk-ins Today</span>
                             <span class="live-counter-value" id="lcWalkins">--</span>
+                            <span class="live-counter-support">Walk-in customers served</span>
                         </div>
                         <div class="live-counter-item">
                             <span class="live-counter-label">Advance Used Today</span>
                             <span class="live-counter-value" id="lcAdvanceUsed">--</span>
+                            <span class="live-counter-support">Advance credits adjusted today</span>
                         </div>
                     </div>
                     <div class="live-counter-meta">
-                        User Role: <b>@currentUserRole</b> | Tenant: <b>@tenantName</b> | Store: <b>@tenantStore</b> |
-                        Last refreshed: <span id="lcLastRefreshed">--</span> | Status: <b id="lcLiveStatus">Initializing...</b>
+                        <span class="live-meta-chip">Tenant: <strong>@tenantName</strong></span>
+                        <span class="live-meta-chip">Store: <strong>@tenantStore</strong></span>
+                        <span class="live-meta-chip">Role: <strong>@currentUserRole</strong></span>
+                        <span class="live-meta-chip">Status: <strong id="lcLiveStatus">Initializing...</strong></span>
+                        <span class="live-meta-chip">Refreshed: <strong id="lcLastRefreshed">--</strong></span>
+                    </div>
+
+                    <div class="payment-summary-panel" id="todayPaymentSummaryPanel">
+                        <div class="payment-summary-header">
+                            <div>
+                                <h4 class="payment-summary-title">Today's Payment Summary</h4>
+                                <p class="payment-summary-subtitle">Based on persisted payment transactions for @tenantStore.</p>
+                            </div>
+                            <span class="payment-summary-status" id="lcPaymentSummaryStatus">Loading...</span>
+                        </div>
+                        <div class="payment-summary-grid">
+                            <div class="payment-summary-item primary">
+                                <span class="payment-summary-label">Cash in Hand</span>
+                                <span class="payment-summary-value" id="lcCashInHand">--</span>
+                                <span class="payment-summary-note">Live cash position for current store</span>
+                            </div>
+                            <div class="payment-summary-item primary">
+                                <span class="payment-summary-label">Amount Collected Today</span>
+                                <span class="payment-summary-value" id="lcAmountCollectedToday">--</span>
+                                <span class="payment-summary-note">Unique posted payment entries only</span>
+                            </div>
+                            <div class="payment-summary-item">
+                                <span class="payment-summary-label">Cash Collected</span>
+                                <span class="payment-summary-value" id="lcCashCollectedToday">--</span>
+                                <span class="payment-summary-note">Cash-mode transactions today</span>
+                            </div>
+                            <div class="payment-summary-item">
+                                <span class="payment-summary-label">UPI Collected</span>
+                                <span class="payment-summary-value" id="lcUpiCollectedToday">--</span>
+                                <span class="payment-summary-note">UPI-mode transactions today</span>
+                            </div>
+                            <div class="payment-summary-item">
+                                <span class="payment-summary-label">Card Collected</span>
+                                <span class="payment-summary-value" id="lcCardCollectedToday">--</span>
+                                <span class="payment-summary-note">Card-mode transactions today</span>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
@@ -1754,17 +2369,17 @@
                             <div class="store-action-value" id="actReadyCount">--</div>
                             <div class="store-action-note">Deliver now and close open pickups</div>
                         </a>
-                        <a class="store-action-card alert" href="@Url.Action("OrderWorkflow", "Customer")?status=Received">
+                        <a class="store-action-card warning" href="@Url.Action("OrderWorkflow", "Customer")?status=Received">
                             <div class="store-action-title">Pending processing</div>
                             <div class="store-action-value" id="actPendingCount">--</div>
                             <div class="store-action-note">Move quickly to avoid delays</div>
                         </a>
-                        <a class="store-action-card" href="@Url.Action("OrderWorkflow", "Customer")?status=&searchText=" id="actUnpaidLink">
+                        <a class="store-action-card alert" href="@Url.Action("OrderWorkflow", "Customer")?status=&searchText=" id="actUnpaidLink">
                             <div class="store-action-title">Pending payment cases</div>
                             <div class="store-action-value" id="actPendingPaymentCount">--</div>
-                            <div class="store-action-note">Collect dues and settle orders</div>
+                            <div class="store-action-note" id="actPendingPaymentAmount">Outstanding: --</div>
                         </a>
-                        <a class="store-action-card success" href="@Url.Action("SetupCreateOrder", "Customer")">
+                        <a class="store-action-card prominent success" href="@Url.Action("SetupCreateOrder", "Customer")">
                             <div class="store-action-title">Create new order</div>
                             <div class="store-action-value">+</div>
                             <div class="store-action-note">Fast billing for walk-in customers</div>
@@ -1772,29 +2387,36 @@
                     </div>
                 </div>
 
-                <div class="owner-summary-board" id="storeOwnerSummary">
-                    <div class="store-board-header">Owner Summary Snapshot</div>
-                    <div class="owner-summary-grid">
-                        <div class="owner-summary-item">
-                            <span class="owner-summary-label">Today Orders</span>
-                            <span class="owner-summary-value" id="ownerTodayOrders">--</span>
-                        </div>
-                        <div class="owner-summary-item">
-                            <span class="owner-summary-label">Ready for Delivery</span>
-                            <span class="owner-summary-value" id="ownerReadyOrders">--</span>
-                        </div>
-                        <div class="owner-summary-item">
-                            <span class="owner-summary-label">Pending Payment Amount</span>
-                            <span class="owner-summary-value" id="ownerPendingAmount">--</span>
-                        </div>
-                        <div class="owner-summary-item">
-                            <span class="owner-summary-label">Average Ticket (Today)</span>
-                            <span class="owner-summary-value" id="ownerAvgTicket">--</span>
+                @if (canViewOwnerSummary)
+                {
+                    <div class="owner-summary-board" id="storeOwnerSummary">
+                        <div class="store-board-header">Owner Summary Snapshot</div>
+                        <div class="owner-summary-grid">
+                            <div class="owner-summary-item">
+                                <span class="owner-summary-label">Today Orders</span>
+                                <span class="owner-summary-value" id="ownerTodayOrders">--</span>
+                            </div>
+                            <div class="owner-summary-item">
+                                <span class="owner-summary-label">Ready for Delivery</span>
+                                <span class="owner-summary-value" id="ownerReadyOrders">--</span>
+                            </div>
+                            <div class="owner-summary-item">
+                                <span class="owner-summary-label">Pending Payment Amount</span>
+                                <span class="owner-summary-value" id="ownerPendingAmount">--</span>
+                            </div>
+                            <div class="owner-summary-item">
+                                <span class="owner-summary-label">Average Ticket (Today)</span>
+                                <span class="owner-summary-value" id="ownerAvgTicket">--</span>
+                            </div>
                         </div>
                     </div>
-                </div>
+                }
 
-                <div class="search-mode">
+                <div class="customer-lookup-panel" id="customerLookupPanel">
+                    <h3 class="customer-lookup-title">Customer Lookup</h3>
+                    <p class="customer-lookup-subtitle">Find a customer or invoice quickly, then continue with billing and workflow actions.</p>
+
+                    <div class="search-mode" role="tablist" aria-label="Lookup mode">
                     <div class="search-option" id="searchOptionCustomer">
                         <input type="radio" id="search" name="search" checked="@(string.Equals(searchMode, "invoice", StringComparison.OrdinalIgnoreCase) ? null : "checked")" />
                         <label for="search">Search Customer (Name, Address, Mobile Number, Membership Id or Customer Code)</label>
@@ -1805,13 +2427,15 @@
                     </div>
                 </div>
 
-                <div id="searchradio" class="search-input-wrap autocomplete">
-                    <div class="input-group">
-                        <div class="input-group-btn">
-                            <button class="btn btn-default dropdown-toggle" type="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                <div id="searchradio" class="search-input-wrap autocomplete invoice-lookup-wrap">
+                    <div class="lookup-row">
+                        <span class="lookup-search-icon" aria-hidden="true"><i class="fa fa-search"></i></span>
+                        <input type="text" id="searchCustomers" class="form-control" placeholder="Search customer..." autocomplete="off" />
+                        <div class="lookup-filter-wrap">
+                            <button class="btn btn-default dropdown-toggle lookup-filter-btn" type="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
                                 Search All <span class="caret"></span>
                             </button>
-                            <ul class="dropdown-menu">
+                            <ul class="dropdown-menu dropdown-menu-right">
                                 <li><a href="#">Name</a></li>
                                 <li><a href="#">Address</a></li>
                                 <li><a href="#">Mobile</a></li>
@@ -1819,24 +2443,22 @@
                                 <li><a href="#">Customer Code</a></li>
                             </ul>
                         </div>
-                        <input type="text" id="searchCustomers" class="form-control" placeholder="Search customer..." autocomplete="off" />
-                        <span class="input-group-btn">
-                            <button type="button" class="btn btn-primary" id="customerSearchGoBtn">Go</button>
-                        </span>
+                        <button type="button" class="btn btn-primary" id="customerSearchGoBtn">Search</button>
                     </div>
                     <div class="search-hint">Type to search. Use ↑/↓ to navigate suggestions and Enter to load customer history.</div>
                     <div id="customerSearchMessage" class="search-no-result"></div>
                 </div>
 
-                <div class="form-group search-input-wrap" id="searchInvoiceradio">
-                    <div class="input-group">
-                        <input type="text" id="searchInvoiceText" class="form-control" placeholder="Search Order No / Invoice No..." autocomplete="off" />
-                        <span class="input-group-btn">
-                            <button type="button" class="btn btn-primary" id="invoiceSearchGoBtn">Go</button>
-                        </span>
+                <div class="form-group search-input-wrap invoice-lookup-wrap autocomplete" id="searchInvoiceradio">
+                    <h4 class="invoice-lookup-title">Find Order or Invoice</h4>
+                    <div class="invoice-lookup-row">
+                        <span class="invoice-lookup-icon" aria-hidden="true"><i class="fa fa-search"></i></span>
+                        <input type="text" id="searchInvoiceText" class="form-control" placeholder="Enter Order No. / Invoice No." autocomplete="off" />
+                        <button type="button" class="btn btn-primary" id="invoiceSearchGoBtn">Search</button>
                     </div>
-                    <div class="search-hint">Partial match supported. Press Enter to preview invoice details and then open workflow.</div>
+                    <div class="invoice-lookup-info-row">Partial match supported. Press Enter to preview invoice details and open workflow.</div>
                     <div id="invoiceSearchMessage" class="search-no-result"></div>
+                </div>
                 </div>
 
                 <div id="invoicePreviewPanel" class="invoice-preview-panel" style="display:none;">
@@ -1911,7 +2533,11 @@
             @if (!isAdminUser)
             {
                 <div class="customer-workbench">
-                    <div class="customer-workbench-meta" id="selectedCustomerMeta">Selected customer: None</div>
+                    <div class="selected-customer-panel" id="selectedCustomerPanel">
+                        <p class="selected-customer-title">Selected Customer</p>
+                        <div class="customer-workbench-meta" id="selectedCustomerMeta">Selected customer: None</div>
+                        <div class="selected-customer-empty" id="selectedCustomerEmptyState">Select a customer to enable customer-specific actions.</div>
+                    </div>
                     <div class="dashboard-actions">
                         <button type="button" class="btn btn-primary" onclick="location.href='@Url.Action("Index", "Customer")'">
                             Add New Customer
@@ -2008,17 +2634,18 @@
                     <div class="admin-store-dashboard-header">
                         <div>
                             <div class="admin-store-dashboard-context">
-                                <span class="admin-context-chip">Tenant: @tenantName</span>
-                                <span class="admin-context-chip">Store: @tenantStore</span>
-                                <span class="admin-context-chip">Context: Current Store</span>
+                                <span class="admin-context-chip">Tenant: <strong>@tenantName</strong></span>
+                                <span class="admin-context-chip">Store: <strong>@tenantStore</strong></span>
+                                <span class="admin-store-context-badge">Current Store</span>
                             </div>
                         </div>
                         <div class="admin-header-actions">
                             <a class="admin-compact-action" href="@Url.Action("PricingRules", "Customer")">Manage Laundry Pricing</a>
-                            <a class="admin-compact-action" href="@Url.Action("TenantSubscriptionPlans", "Customer")">Subscription Plans</a>
-                            <span class="admin-refresh-chip">Period: <span id="adminHeaderPeriod">Month to Date</span></span>
-                            <span class="admin-refresh-chip">Last refreshed: <span id="adminHeaderLastRefreshed">--</span></span>
-                            <span class="admin-refresh-chip">Auto refresh: <span id="adminHeaderRefreshStatus">On</span></span>
+                            <div class="admin-header-meta">
+                                <span class="admin-refresh-chip">Reporting Period: <strong id="adminHeaderPeriod">Month to Date</strong></span>
+                                <span class="admin-refresh-chip">Last Refreshed: <strong id="adminHeaderLastRefreshed">--</strong></span>
+                                <span class="admin-refresh-chip auto-active" id="adminHeaderRefreshStatusChip" style="display:none;">Auto Refresh: <strong id="adminHeaderRefreshStatus">Active</strong></span>
+                            </div>
                         </div>
                     </div>
 
@@ -2374,6 +3001,9 @@
     var customerCodeByNameCache = {};
     var isAutocompleteRefresh = false;
     var isInvoiceAutocompleteRefresh = false;
+    var customerSearchRequestSeq = 0;
+    var customerSelectionRequestSeq = 0;
+    var activeCustomerSelectionRequestSeq = 0;
     var isAdminDashboardUser = @Html.Raw(isAdminUser.ToString().ToLowerInvariant());
     var isSuperAdminDashboardUser = @Html.Raw(isSuperAdminUser.ToString().ToLowerInvariant());
     var subscriptionSpotlightStorageKey = "els:subscription-spotlight-dismissed:" + (("@tenantName" || "").toLowerCase());
@@ -2768,12 +3398,16 @@
 
     function updateSelectedCustomerMeta() {
         var meta = document.getElementById("selectedCustomerMeta");
+        var emptyState = document.getElementById("selectedCustomerEmptyState");
         if (!meta) {
             return;
         }
 
         if (!selectedDashboardCustomer.code) {
             meta.textContent = "Selected customer: None";
+            if (emptyState) {
+                emptyState.style.display = "block";
+            }
             return;
         }
 
@@ -2781,6 +3415,9 @@
         meta.textContent = "Selected customer: " + (selectedDashboardCustomer.name || "-")
             + " (" + selectedDashboardCustomer.code + ")"
             + " | Orders: " + total;
+        if (emptyState) {
+            emptyState.style.display = "none";
+        }
     }
 
     function updateDashboardCustomerActionButtons() {
@@ -2948,10 +3585,19 @@
         }).join("");
     }
 
-    function loadDashboardCustomerOrders(selectedCustomer) {
+    function loadDashboardCustomerOrders(selectedCustomer, options) {
+        options = options || {};
+        var forceReload = !!options.forceReload;
         var customerName = (selectedCustomer || "").trim();
         if (!customerName) {
             return;
+        }
+
+        var requestSeq = ++customerSelectionRequestSeq;
+        activeCustomerSelectionRequestSeq = requestSeq;
+
+        function isStaleSelectionRequest() {
+            return requestSeq !== activeCustomerSelectionRequestSeq;
         }
 
         setCustomerSearchMessage("");
@@ -2969,7 +3615,7 @@
 
         function fetchOrdersByCode(customerCode) {
             var codeKey = (customerCode || "").trim().toLowerCase();
-            if (codeKey && customerOrdersByCodeCache[codeKey]) {
+            if (!forceReload && codeKey && customerOrdersByCodeCache[codeKey]) {
                 renderCustomerOrdersRows(customerName, customerCode, customerOrdersByCodeCache[codeKey]);
                 return;
             }
@@ -2979,6 +3625,10 @@
                 url: '@Url.Action("GetCustomerOrders", "Customer")',
                 data: { customerName: customerName, customerCode: customerCode || "" },
                 success: function (payload) {
+                    if (isStaleSelectionRequest()) {
+                        return;
+                    }
+
                     if (!payload || payload.success !== true) {
                         setCustomerOrdersState((payload && payload.message) || "Unable to load customer orders.");
                         return;
@@ -2997,6 +3647,10 @@
                             url: '@Url.Action("GetStoreWorkflowOrders", "Customer")',
                             data: { status: "", searchText: customerName },
                             success: function (wfPayload) {
+                                if (isStaleSelectionRequest()) {
+                                    return;
+                                }
+
                                 var wfOrders = (wfPayload && wfPayload.success === true && Array.isArray(wfPayload.orders))
                                     ? wfPayload.orders
                                     : [];
@@ -3018,6 +3672,10 @@
                                 setSelectedCustomerOrdersAndRender(customerName, resolvedCode, filtered);
                             },
                             error: function () {
+                                if (isStaleSelectionRequest()) {
+                                    return;
+                                }
+
                                 setSelectedCustomerOrdersAndRender(customerName, resolvedCode, orders);
                             }
                         });
@@ -3032,6 +3690,10 @@
                     setSelectedCustomerOrdersAndRender(customerName, resolvedCode, orders);
                 },
                 error: function () {
+                    if (isStaleSelectionRequest()) {
+                        return;
+                    }
+
                     setCustomerOrdersState("Unable to load customer orders. Please try again.");
                 }
             });
@@ -3047,6 +3709,10 @@
             url: '@Url.Action("GetCustomerByName", "Customer")',
             data: { customerName: customerName },
             success: function (customerData) {
+                if (isStaleSelectionRequest()) {
+                    return;
+                }
+
                 var statusCode = ((customerData && (customerData.StatusCode || customerData.statusCode)) || "").toString();
                 var custCode = ((customerData && (customerData.CustCode || customerData.custCode)) || "").toString().trim();
                 if (!customerData || statusCode !== "200" || !custCode) {
@@ -3066,6 +3732,10 @@
                 fetchOrdersByCode(resolvedCode);
             },
             error: function () {
+                if (isStaleSelectionRequest()) {
+                    return;
+                }
+
                 setCustomerOrdersState("Unable to resolve customer details.");
             }
         });
@@ -3856,7 +4526,12 @@
 
         var headerRefreshStatusEl = document.getElementById("adminHeaderRefreshStatus");
         if (headerRefreshStatusEl) {
-            headerRefreshStatusEl.textContent = enabled ? "On" : "Off";
+            headerRefreshStatusEl.textContent = enabled ? "Active" : "Off";
+        }
+
+        var headerRefreshStatusChipEl = document.getElementById("adminHeaderRefreshStatusChip");
+        if (headerRefreshStatusChipEl) {
+            headerRefreshStatusChipEl.style.display = enabled ? "inline-flex" : "none";
         }
 
         if (enabled) {
@@ -3987,6 +4662,7 @@ document.addEventListener("click", function (e)
             $("#search").prop("checked", true);
             $("#invoice").prop("checked", false);
         }
+        setSearchModeUi(initialSearchMode === "invoice" ? "invoice" : "customer");
 
         var searchInput = document.getElementById("searchCustomers");
         var invoiceInput = document.getElementById("searchInvoiceText");
@@ -4140,7 +4816,9 @@ document.addEventListener("click", function (e)
             }
             setCustomerActionMessage("");
 
-            loadDashboardCustomerOrders(value);
+            loadDashboardCustomerOrders(value, {
+                forceReload: source === "search-go" || source === "change-event"
+            });
         }
 
         function executeCustomerSearch() {
@@ -4181,6 +4859,24 @@ document.addEventListener("click", function (e)
         }
 
         function clearSelectedDashboardCustomer() {
+            var previousNameKey = ((selectedDashboardCustomer && selectedDashboardCustomer.name) || "").trim().toLowerCase();
+            var previousCodeKey = ((selectedDashboardCustomer && selectedDashboardCustomer.code) || "").trim().toLowerCase();
+
+            activeCustomerSelectionRequestSeq = ++customerSelectionRequestSeq;
+            if (customerLookupRequest && customerLookupRequest.readyState !== 4) {
+                customerLookupRequest.abort();
+            }
+            if (customerOrdersRequest && customerOrdersRequest.readyState !== 4) {
+                customerOrdersRequest.abort();
+            }
+
+            if (previousNameKey) {
+                delete customerCodeByNameCache[previousNameKey];
+            }
+            if (previousCodeKey) {
+                delete customerOrdersByCodeCache[previousCodeKey];
+            }
+
             selectedDashboardCustomer = {
                 name: "",
                 code: "",
@@ -4188,6 +4884,8 @@ document.addEventListener("click", function (e)
                 orders: [],
                 filteredOrders: []
             };
+
+            serverCustomers.length = 0;
 
             var filtersPanel = document.getElementById("customerHistoryFilters");
             if (filtersPanel) {
@@ -4203,8 +4901,15 @@ document.addEventListener("click", function (e)
             if (toDate) toDate.value = "";
             if (searchText) searchText.value = "";
 
+            if (searchInput) {
+                isAutocompleteRefresh = true;
+                searchInput.dispatchEvent(new Event("input"));
+                isAutocompleteRefresh = false;
+            }
+
             updateSelectedCustomerMeta();
             updateDashboardCustomerActionButtons();
+            setCustomerSearchMessage("");
             setCustomerActionMessage("");
             setCustomerOrdersState("Search and select a customer to view all orders.");
         }
@@ -4418,11 +5123,23 @@ document.addEventListener("click", function (e)
                 customerSearchRequest.abort();
             }
 
+            var searchRequestSeq = ++customerSearchRequestSeq;
+            var searchTextLower = searchText.toLowerCase();
+
             customerSearchRequest = $.ajax({
                 type: "GET",
                 url: '@Url.Action("SearchCustomers", "Customer")',
                 data: { searchText: searchText },
                 success: function (data) {
+                    if (searchRequestSeq !== customerSearchRequestSeq) {
+                        return;
+                    }
+
+                    var latestInputValue = (searchInput && searchInput.value ? searchInput.value : "").trim().toLowerCase();
+                    if (latestInputValue !== searchTextLower) {
+                        return;
+                    }
+
                     serverCustomers.length = 0;
                     $.each(data || [], function (_, item) {
                         serverCustomers.push(item);
@@ -4438,6 +5155,15 @@ document.addEventListener("click", function (e)
                 },
                 error: function (xhr, status) {
                     if (status === "abort") {
+                        return;
+                    }
+
+                    if (searchRequestSeq !== customerSearchRequestSeq) {
+                        return;
+                    }
+
+                    var latestInputValue = (searchInput && searchInput.value ? searchInput.value : "").trim().toLowerCase();
+                    if (latestInputValue !== searchTextLower) {
                         return;
                     }
 
@@ -4603,19 +5329,56 @@ document.addEventListener("click", function (e)
         }
     }
 
+    function formatDashboardCurrencyOrNa(value) {
+        if (value === null || value === undefined || value === "") {
+            return "N/A";
+        }
+
+        return formatDashboardCurrency(value);
+    }
+
+    function syncPaymentSummaryFromLiveCounters(response) {
+        var paymentSummaryAvailable = response && response.paymentSummaryAvailable === true;
+        var statusText = paymentSummaryAvailable ? "Live data" : "N/A";
+        if (!paymentSummaryAvailable && response && response.paymentSummaryReason) {
+            statusText = response.paymentSummaryReason;
+        }
+
+        setStoreBoardValue("lcPaymentSummaryStatus", statusText, "N/A");
+
+        if (!paymentSummaryAvailable) {
+            setStoreBoardValue("lcCashInHand", "N/A", "N/A");
+            setStoreBoardValue("lcAmountCollectedToday", "N/A", "N/A");
+            setStoreBoardValue("lcCashCollectedToday", "N/A", "N/A");
+            setStoreBoardValue("lcUpiCollectedToday", "N/A", "N/A");
+            setStoreBoardValue("lcCardCollectedToday", "N/A", "N/A");
+            return;
+        }
+
+        setStoreBoardValue("lcCashInHand", formatDashboardCurrencyOrNa(response.cashInHand), "N/A");
+        setStoreBoardValue("lcAmountCollectedToday", formatDashboardCurrencyOrNa(response.amountCollectedToday), "N/A");
+        setStoreBoardValue("lcCashCollectedToday", formatDashboardCurrencyOrNa(response.cashCollectedToday), "N/A");
+        setStoreBoardValue("lcUpiCollectedToday", formatDashboardCurrencyOrNa(response.upiCollectedToday), "N/A");
+        setStoreBoardValue("lcCardCollectedToday", formatDashboardCurrencyOrNa(response.cardCollectedToday), "N/A");
+    }
+
     function syncStoreBoardsFromLiveCounters(response) {
         if (isAdminDashboardUser) {
             return;
         }
 
         setStoreBoardValue("actReadyCount", asNumber(response.readyForDeliveryCount), "0");
-        setStoreBoardValue("actPendingCount", asNumber(response.pendingDeliveryCount), "0");
+        setStoreBoardValue("actPendingCount", asNumber(response.pendingProcessingCount), "0");
         setStoreBoardValue("actPendingPaymentCount", asNumber(response.pendingPaymentCount), "0");
 
         setStoreBoardValue("ownerTodayOrders", asNumber(response.todayOrders), "0");
         setStoreBoardValue("ownerReadyOrders", asNumber(response.readyForDeliveryCount), "0");
         setStoreBoardValue("ownerPendingAmount", formatDashboardCurrency(response.pendingPaymentAmount || 0), "0.00");
         setStoreBoardValue("ownerAvgTicket", "--", "--");
+
+        setStoreBoardValue("lcPendingProcessing", asNumber(response.pendingProcessingCount), "0");
+        setStoreBoardValue("lcPendingPaymentAmount", "Outstanding: " + formatDashboardCurrency(response.pendingPaymentAmount || 0), "Outstanding: 0.00");
+        setStoreBoardValue("actPendingPaymentAmount", "Outstanding: " + formatDashboardCurrency(response.pendingPaymentAmount || 0), "Outstanding: 0.00");
     }
 
     function loadStoreImmediateAndOwnerSummary() {
@@ -4678,11 +5441,15 @@ document.addEventListener("click", function (e)
             setStoreBoardValue("actReadyCount", readyCount, "0");
             setStoreBoardValue("actPendingCount", pendingProcessingCount, "0");
             setStoreBoardValue("actPendingPaymentCount", pendingPaymentCount, "0");
+            setStoreBoardValue("actPendingPaymentAmount", "Outstanding: " + formatDashboardCurrency(pendingAmount), "Outstanding: 0.00");
 
             setStoreBoardValue("ownerTodayOrders", todayOrders, "0");
             setStoreBoardValue("ownerReadyOrders", readyCount, "0");
             setStoreBoardValue("ownerPendingAmount", formatDashboardCurrency(pendingAmount), "0.00");
             setStoreBoardValue("ownerAvgTicket", todayOrders > 0 ? formatDashboardCurrency(todaySales / todayOrders) : formatDashboardCurrency(0), "0.00");
+
+            setStoreBoardValue("lcPendingProcessing", pendingProcessingCount, "0");
+            setStoreBoardValue("lcPendingPaymentAmount", "Outstanding: " + formatDashboardCurrency(pendingAmount), "Outstanding: 0.00");
         })
         .catch(function () { });
     }
@@ -4701,6 +5468,7 @@ document.addEventListener("click", function (e)
                 setLiveCounterValue("lcWalkins", response.walkinsToday, "0");
                 setLiveCounterValue("lcAdvanceUsed", response.advanceUsedToday, "0");
                 setLiveCounterValue("lcPendingPayment", response.pendingPaymentCount, "0");
+                setLiveCounterValue("lcPendingProcessing", response.pendingProcessingCount, "0");
 
                 var readyForDeliveryValue = response.readyForDeliveryCount;
                 var pendingDeliveryValue = response.pendingDeliveryCount;
@@ -4709,9 +5477,12 @@ document.addEventListener("click", function (e)
                 setLiveCounterValue("lcPendingDelivery", pendingDeliveryValue, "N/A");
 
                 syncStoreBoardsFromLiveCounters(response);
+                syncPaymentSummaryFromLiveCounters(response);
                 loadStoreImmediateAndOwnerSummary();
 
                 var pendingAmount = response.pendingPaymentAmount || 0;
+                setStoreBoardValue("lcPendingPaymentAmount", "Outstanding: " + formatDashboardCurrency(pendingAmount), "Outstanding: 0.00");
+                setStoreBoardValue("actPendingPaymentAmount", "Outstanding: " + formatDashboardCurrency(pendingAmount), "Outstanding: 0.00");
                 var statusText = "Live";
                 if (response.readyPendingReason) {
                     statusText += " (Delivery status pending API)";

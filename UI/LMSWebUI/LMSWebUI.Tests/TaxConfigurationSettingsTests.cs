@@ -1337,6 +1337,36 @@ namespace LMSWebUI.Tests
         }
 
         [Fact]
+        public void SetupCreateOrder_Js_PartialDisabled_Unpaid_IsAllowed()
+        {
+            var engine = CreateSetupCreateOrderCalculationEngine(allowPartialPayment: false, taxEnabled: false, gstPercent: 0m, pricesIncludeTax: false, currentAdvanceBalance: 0m);
+
+            engine.Execute("addLine(100, 1);");
+
+            Assert.False(engine.Evaluate("!allowPartialPayment && parseAmount(elements.paidNow.value) > 0 && parseAmount(elements.paidNow.value) < parseAmount(elements.netPayableInput.value)").AsBoolean());
+        }
+
+        [Fact]
+        public void SetupCreateOrder_Js_PartialDisabled_FullPayment_IsAllowed()
+        {
+            var engine = CreateSetupCreateOrderCalculationEngine(allowPartialPayment: false, taxEnabled: false, gstPercent: 0m, pricesIncludeTax: false, currentAdvanceBalance: 0m);
+
+            engine.Execute("addLine(100, 1); elements.paidNow.value = '100.00'; syncTotals();");
+
+            Assert.False(engine.Evaluate("!allowPartialPayment && parseAmount(elements.paidNow.value) > 0 && parseAmount(elements.paidNow.value) < parseAmount(elements.netPayableInput.value)").AsBoolean());
+        }
+
+        [Fact]
+        public void SetupCreateOrder_Js_PartialDisabled_GenuinePartial_IsRejected()
+        {
+            var engine = CreateSetupCreateOrderCalculationEngine(allowPartialPayment: false, taxEnabled: false, gstPercent: 0m, pricesIncludeTax: false, currentAdvanceBalance: 0m);
+
+            engine.Execute("addLine(100, 1); elements.paidNow.value = '40.00'; syncTotals();");
+
+            Assert.True(engine.Evaluate("!allowPartialPayment && parseAmount(elements.paidNow.value) > 0 && parseAmount(elements.paidNow.value) < parseAmount(elements.netPayableInput.value)").AsBoolean());
+        }
+
+        [Fact]
         public void SetupCreateOrder_Js_ManualFullPayment_ProducesZeroPending()
         {
             var engine = CreateSetupCreateOrderCalculationEngine(allowPartialPayment: true, taxEnabled: false, gstPercent: 0m, pricesIncludeTax: false, currentAdvanceBalance: 0m);
@@ -2152,6 +2182,265 @@ namespace LMSWebUI.Tests
         }
 
         [Fact]
+        public async Task SetupCreateOrder_Get_MissingPaymentSettings_AutoCreatesSafeDefault_ForTenantStore()
+        {
+            var customerApi = new InMemoryCustomerApiClient
+            {
+                StoredTaxConfiguration = new TaxConfigurationDto
+                {
+                    TenantName = "tenant@example.com",
+                    StoreCode = "S1",
+                    TaxMode = "NoTax",
+                    CountryCode = "US",
+                    CurrencyCode = "USD",
+                    EnableTax = false,
+                    GstPercent = 0m,
+                    PricesIncludeTax = false,
+                    Components = new List<TaxInvoiceComponentDto>()
+                }
+            };
+
+            var loginApi = new InMemoryTaxLoginApiClient
+            {
+                TenantStoreDetailsResponse = JObject.Parse(@"{
+                    'Storecodes': ['S1'],
+                    'StoreStatuses': [
+                        { 'StoreCode': 'S1', 'TenantName': 'tenant@example.com', 'IsActive': true }
+                    ]
+                }")
+            };
+
+            var controller = CreateController(customerApi, loginApi);
+            SetControllerSession(controller, "tenant@example.com", "S1", "Admin");
+
+            var result = await controller.SetupCreateOrder();
+
+            var view = Assert.IsType<ViewResult>(result);
+            var enabledModes = Assert.IsType<List<string>>(view.ViewData["EnabledPaymentModes"]);
+            Assert.Equal(new[] { "Cash" }, enabledModes);
+
+            Assert.Equal(1, customerApi.SavePaymentSettingsCount);
+            Assert.NotNull(customerApi.LastSavedPaymentSettings);
+            Assert.Equal("tenant@example.com", customerApi.LastSavedPaymentSettings.TenantName);
+            Assert.Equal("S1", customerApi.LastSavedPaymentSettings.StoreCode);
+            Assert.True(customerApi.LastSavedPaymentSettings.EnableCash);
+            Assert.False(customerApi.LastSavedPaymentSettings.EnableUpi);
+            Assert.False(customerApi.LastSavedPaymentSettings.EnableCard);
+            Assert.False(customerApi.LastSavedPaymentSettings.EnableWallet);
+            Assert.Equal("Cash", customerApi.LastSavedPaymentSettings.DefaultPaymentMode);
+        }
+
+        [Fact]
+        public async Task SetupCreateOrder_Get_ExistingPaymentSettings_DoesNotOverwrite()
+        {
+            var customerApi = new InMemoryCustomerApiClient
+            {
+                StoredTaxConfiguration = new TaxConfigurationDto
+                {
+                    TenantName = "tenant@example.com",
+                    StoreCode = "S1",
+                    TaxMode = "NoTax",
+                    CountryCode = "US",
+                    CurrencyCode = "USD",
+                    EnableTax = false,
+                    GstPercent = 0m,
+                    PricesIncludeTax = false,
+                    Components = new List<TaxInvoiceComponentDto>()
+                },
+                PaymentSettingsResponse = new PaymentSettingsViewModel
+                {
+                    TenantName = "tenant@example.com",
+                    StoreCode = "S1",
+                    EnableCash = true,
+                    EnableUpi = true,
+                    EnableCard = false,
+                    EnableWallet = false,
+                    DefaultPaymentMode = "UPI",
+                    AllowPartialPayment = true
+                }
+            };
+
+            var loginApi = new InMemoryTaxLoginApiClient
+            {
+                TenantStoreDetailsResponse = JObject.Parse(@"{
+                    'Storecodes': ['S1'],
+                    'StoreStatuses': [
+                        { 'StoreCode': 'S1', 'TenantName': 'tenant@example.com', 'IsActive': true }
+                    ]
+                }")
+            };
+
+            var controller = CreateController(customerApi, loginApi);
+            SetControllerSession(controller, "tenant@example.com", "S1", "Admin");
+
+            var result = await controller.SetupCreateOrder();
+
+            var view = Assert.IsType<ViewResult>(result);
+            var enabledModes = Assert.IsType<List<string>>(view.ViewData["EnabledPaymentModes"]);
+            Assert.Equal(new[] { "Cash", "UPI" }, enabledModes);
+            Assert.Equal(0, customerApi.SavePaymentSettingsCount);
+        }
+
+        [Fact]
+        public async Task SetupCreateOrder_Get_InitializesWalkInCustomer_ForNewTenantStore()
+        {
+            var customerApi = new InMemoryCustomerApiClient
+            {
+                StoredTaxConfiguration = new TaxConfigurationDto
+                {
+                    TenantName = "tenant@example.com",
+                    StoreCode = "S1",
+                    TaxMode = "NoTax",
+                    CountryCode = "US",
+                    CurrencyCode = "USD",
+                    EnableTax = false,
+                    GstPercent = 0m,
+                    PricesIncludeTax = false,
+                    Components = new List<TaxInvoiceComponentDto>()
+                }
+            };
+
+            customerApi.SearchCustomersByText["walk-in customer"] = new List<string> { "Walk-in Customer" };
+
+            var loginApi = new InMemoryTaxLoginApiClient
+            {
+                TenantStoreDetailsResponse = JObject.Parse(@"{
+                    'Storecodes': ['S1'],
+                    'StoreStatuses': [
+                        { 'StoreCode': 'S1', 'TenantName': 'tenant@example.com', 'IsActive': true }
+                    ]
+                }")
+            };
+
+            var controller = CreateController(customerApi, loginApi);
+            SetControllerSession(controller, "tenant@example.com", "S1", "Admin");
+
+            var result = await controller.SetupCreateOrder();
+
+            Assert.IsType<ViewResult>(result);
+            Assert.Equal(1, customerApi.InsertCustomerCount);
+            Assert.NotNull(customerApi.LastInsertedCustomerRequest);
+            Assert.Equal("tenant@example.com", customerApi.LastInsertedCustomerRequest["TenantName"]?.ToString());
+            Assert.Equal("S1", customerApi.LastInsertedCustomerRequest["StoreCode"]?.ToString());
+            Assert.Equal("Walk-in Customer", customerApi.LastInsertedCustomerRequest["CustomerName"]?.ToString());
+            Assert.Contains(customerApi.StoredCustomerNames, x => string.Equals(x, "Walk-in Customer", StringComparison.OrdinalIgnoreCase));
+        }
+
+        [Fact]
+        public async Task SetupCreateOrder_Get_WalkInInitialization_IsIdempotentAcrossRetriesInSameSession()
+        {
+            var customerApi = new InMemoryCustomerApiClient
+            {
+                StoredTaxConfiguration = new TaxConfigurationDto
+                {
+                    TenantName = "tenant@example.com",
+                    StoreCode = "S1",
+                    TaxMode = "NoTax",
+                    CountryCode = "US",
+                    CurrencyCode = "USD",
+                    EnableTax = false,
+                    GstPercent = 0m,
+                    PricesIncludeTax = false,
+                    Components = new List<TaxInvoiceComponentDto>()
+                }
+            };
+
+            customerApi.SearchCustomersByText["walk-in customer"] = new List<string> { "Walk-in Customer" };
+
+            var loginApi = new InMemoryTaxLoginApiClient
+            {
+                TenantStoreDetailsResponse = JObject.Parse(@"{
+                    'Storecodes': ['S1'],
+                    'StoreStatuses': [
+                        { 'StoreCode': 'S1', 'TenantName': 'tenant@example.com', 'IsActive': true }
+                    ]
+                }")
+            };
+
+            var controller = CreateController(customerApi, loginApi);
+            SetControllerSession(controller, "tenant@example.com", "S1", "Admin");
+
+            var first = await controller.SetupCreateOrder();
+            var second = await controller.SetupCreateOrder();
+
+            Assert.IsType<ViewResult>(first);
+            Assert.IsType<ViewResult>(second);
+            Assert.Equal(1, customerApi.InsertCustomerCount);
+        }
+
+        [Fact]
+        public async Task SetupCreateOrder_Get_ExistingWalkInCustomer_DoesNotCreateDuplicate()
+        {
+            var customerApi = new InMemoryCustomerApiClient
+            {
+                StoredTaxConfiguration = new TaxConfigurationDto
+                {
+                    TenantName = "tenant@example.com",
+                    StoreCode = "S1",
+                    TaxMode = "NoTax",
+                    CountryCode = "US",
+                    CurrencyCode = "USD",
+                    EnableTax = false,
+                    GstPercent = 0m,
+                    PricesIncludeTax = false,
+                    Components = new List<TaxInvoiceComponentDto>()
+                },
+                CustomersByName =
+                {
+                    ["walk-in customer"] = new CustomerIOResponse
+                    {
+                        StatusCode = "200",
+                        CustCode = "CUS-WALKIN",
+                        CustomerName = "Walk-in Customer",
+                        TenantName = "tenant@example.com"
+                    }
+                }
+            };
+
+            customerApi.StoredCustomerNames.Add("Walk-in Customer");
+
+            var loginApi = new InMemoryTaxLoginApiClient
+            {
+                TenantStoreDetailsResponse = JObject.Parse(@"{
+                    'Storecodes': ['S1'],
+                    'StoreStatuses': [
+                        { 'StoreCode': 'S1', 'TenantName': 'tenant@example.com', 'IsActive': true }
+                    ]
+                }")
+            };
+
+            var controller = CreateController(customerApi, loginApi);
+            SetControllerSession(controller, "tenant@example.com", "S1", "Admin");
+
+            var result = await controller.SetupCreateOrder();
+
+            Assert.IsType<ViewResult>(result);
+            Assert.Equal(0, customerApi.InsertCustomerCount);
+            Assert.Single(customerApi.StoredCustomerNames.Where(x => string.Equals(x, "Walk-in Customer", StringComparison.OrdinalIgnoreCase)));
+        }
+
+        [Fact]
+        public async Task SearchCustomers_WalkInCustomer_AppearsInOrderSelectorSuggestions()
+        {
+            var customerApi = new InMemoryCustomerApiClient
+            {
+                SearchCustomersByText =
+                {
+                    ["walk"] = new List<string> { "Walk-in Customer" }
+                }
+            };
+
+            var controller = CreateController(customerApi, new InMemoryTaxLoginApiClient());
+            SetControllerSession(controller, "tenant@example.com", "S1", "Admin");
+
+            var result = await controller.SearchCustomers("walk");
+
+            var json = Assert.IsType<JsonResult>(result);
+            var names = Assert.IsAssignableFrom<IEnumerable<string>>(json.Value);
+            Assert.Contains("Walk-in Customer", names);
+        }
+
+        [Fact]
         public async Task SetupCreateOrder_Post_ComputesVatPayable_FromModernTaxConfiguration()
         {
             var customerApi = new InMemoryCustomerApiClient
@@ -2272,6 +2561,358 @@ namespace LMSWebUI.Tests
             Assert.DoesNotContain(customerApi.Calls, c => string.Equals(c.RequestUrl, "/CreateLaundryOrder", StringComparison.OrdinalIgnoreCase));
             var toast = Assert.IsType<string>(controller.TempData["SetupCreateOrderToast"]);
             Assert.Contains("Tax configuration is missing", toast, StringComparison.OrdinalIgnoreCase);
+        }
+
+        [Fact]
+        public async Task SetupCreateOrder_Post_NoPaymentModeConfigured_AllowsUnpaidOrderCreation()
+        {
+            var customerApi = new InMemoryCustomerApiClient
+            {
+                StoredTaxConfiguration = new TaxConfigurationDto
+                {
+                    TenantName = "tenant@example.com",
+                    StoreCode = "S1",
+                    TaxMode = "NoTax",
+                    CountryCode = "US",
+                    CurrencyCode = "USD",
+                    EnableTax = false,
+                    GstPercent = 0m,
+                    PricesIncludeTax = false,
+                    Components = new List<TaxInvoiceComponentDto>()
+                },
+                PaymentSettingsResponse = new PaymentSettingsViewModel
+                {
+                    TenantName = "tenant@example.com",
+                    StoreCode = "S1",
+                    EnableCash = false,
+                    EnableUpi = false,
+                    EnableCard = false,
+                    EnableWallet = false,
+                    DefaultPaymentMode = "Cash",
+                    AllowPartialPayment = true
+                },
+                CreateLaundryOrderResponse = JObject.Parse(@"{ 'OrderNo': 'S1-1001', 'CustCode': 'CUS-001' }")
+            };
+
+            var loginApi = new InMemoryTaxLoginApiClient
+            {
+                TenantStoreDetailsResponse = JObject.Parse(@"{
+                    'Storecodes': ['S1'],
+                    'StoreStatuses': [
+                        { 'StoreCode': 'S1', 'TenantName': 'tenant@example.com', 'IsActive': true }
+                    ]
+                }")
+            };
+
+            var controller = CreateController(customerApi, loginApi);
+            SetControllerSession(controller, "tenant@example.com", "S1", "Admin");
+
+            var result = await controller.SetupCreateOrder(new LaundryOrderDto
+            {
+                CustomerName = "Walk-in Customer",
+                CustCode = "CUS-001",
+                OrderAmount = 100m,
+                OrderMode = "pieces",
+                PaymentMode = "Cash",
+                PaidNow = 0m,
+                AdvanceUsed = 0m
+            });
+
+            var redirect = Assert.IsType<RedirectToActionResult>(result);
+            Assert.Equal("SetupCreateOrder", redirect.ActionName);
+            Assert.Contains(customerApi.Calls, c => string.Equals(c.RequestUrl, "/CreateLaundryOrder", StringComparison.OrdinalIgnoreCase));
+        }
+
+        [Fact]
+        public async Task SetupCreateOrder_Post_NoPaymentModeConfigured_RejectsPaidNow()
+        {
+            var customerApi = new InMemoryCustomerApiClient
+            {
+                StoredTaxConfiguration = new TaxConfigurationDto
+                {
+                    TenantName = "tenant@example.com",
+                    StoreCode = "S1",
+                    TaxMode = "NoTax",
+                    CountryCode = "US",
+                    CurrencyCode = "USD",
+                    EnableTax = false,
+                    GstPercent = 0m,
+                    PricesIncludeTax = false,
+                    Components = new List<TaxInvoiceComponentDto>()
+                },
+                PaymentSettingsResponse = new PaymentSettingsViewModel
+                {
+                    TenantName = "tenant@example.com",
+                    StoreCode = "S1",
+                    EnableCash = false,
+                    EnableUpi = false,
+                    EnableCard = false,
+                    EnableWallet = false,
+                    DefaultPaymentMode = "Cash",
+                    AllowPartialPayment = true
+                }
+            };
+
+            var loginApi = new InMemoryTaxLoginApiClient
+            {
+                TenantStoreDetailsResponse = JObject.Parse(@"{
+                    'Storecodes': ['S1'],
+                    'StoreStatuses': [
+                        { 'StoreCode': 'S1', 'TenantName': 'tenant@example.com', 'IsActive': true }
+                    ]
+                }")
+            };
+
+            var controller = CreateController(customerApi, loginApi);
+            SetControllerSession(controller, "tenant@example.com", "S1", "Admin");
+
+            var result = await controller.SetupCreateOrder(new LaundryOrderDto
+            {
+                CustomerName = "Walk-in Customer",
+                CustCode = "CUS-001",
+                OrderAmount = 100m,
+                OrderMode = "pieces",
+                PaymentMode = "Cash",
+                PaidNow = 10m,
+                AdvanceUsed = 0m
+            });
+
+            var redirect = Assert.IsType<RedirectToActionResult>(result);
+            Assert.Equal("SetupCreateOrder", redirect.ActionName);
+            Assert.DoesNotContain(customerApi.Calls, c => string.Equals(c.RequestUrl, "/CreateLaundryOrder", StringComparison.OrdinalIgnoreCase));
+
+            var toast = Assert.IsType<string>(controller.TempData["SetupCreateOrderToast"]);
+            Assert.Contains("No payment mode is configured", toast, StringComparison.OrdinalIgnoreCase);
+        }
+
+        [Fact]
+        public async Task SetupCreateOrder_Post_PartialDisabled_UnpaidOrder_IsAllowed()
+        {
+            var customerApi = new InMemoryCustomerApiClient
+            {
+                StoredTaxConfiguration = new TaxConfigurationDto
+                {
+                    TenantName = "tenant@example.com",
+                    StoreCode = "S1",
+                    TaxMode = "NoTax",
+                    CountryCode = "US",
+                    CurrencyCode = "USD",
+                    EnableTax = false,
+                    GstPercent = 0m,
+                    PricesIncludeTax = false,
+                    Components = new List<TaxInvoiceComponentDto>()
+                },
+                PaymentSettingsResponse = new PaymentSettingsViewModel
+                {
+                    TenantName = "tenant@example.com",
+                    StoreCode = "S1",
+                    EnableCash = true,
+                    DefaultPaymentMode = "Cash",
+                    AllowPartialPayment = false
+                },
+                CreateLaundryOrderResponse = JObject.Parse(@"{ 'OrderNo': 'S1-1002', 'CustCode': 'CUS-001' }")
+            };
+
+            var loginApi = new InMemoryTaxLoginApiClient
+            {
+                TenantStoreDetailsResponse = JObject.Parse(@"{
+                    'Storecodes': ['S1'],
+                    'StoreStatuses': [
+                        { 'StoreCode': 'S1', 'TenantName': 'tenant@example.com', 'IsActive': true }
+                    ]
+                }")
+            };
+
+            var controller = CreateController(customerApi, loginApi);
+            SetControllerSession(controller, "tenant@example.com", "S1", "Admin");
+
+            var result = await controller.SetupCreateOrder(new LaundryOrderDto
+            {
+                CustomerName = "Walk-in Customer",
+                CustCode = "CUS-001",
+                OrderAmount = 100m,
+                OrderMode = "pieces",
+                PaymentMode = "Cash",
+                PaidNow = 0m,
+                AdvanceUsed = 0m
+            });
+
+            var redirect = Assert.IsType<RedirectToActionResult>(result);
+            Assert.Equal("SetupCreateOrder", redirect.ActionName);
+            Assert.Contains(customerApi.Calls, c => string.Equals(c.RequestUrl, "/CreateLaundryOrder", StringComparison.OrdinalIgnoreCase));
+        }
+
+        [Fact]
+        public async Task SetupCreateOrder_Post_PartialDisabled_FullPayment_IsAllowed()
+        {
+            var customerApi = new InMemoryCustomerApiClient
+            {
+                StoredTaxConfiguration = new TaxConfigurationDto
+                {
+                    TenantName = "tenant@example.com",
+                    StoreCode = "S1",
+                    TaxMode = "NoTax",
+                    CountryCode = "US",
+                    CurrencyCode = "USD",
+                    EnableTax = false,
+                    GstPercent = 0m,
+                    PricesIncludeTax = false,
+                    Components = new List<TaxInvoiceComponentDto>()
+                },
+                PaymentSettingsResponse = new PaymentSettingsViewModel
+                {
+                    TenantName = "tenant@example.com",
+                    StoreCode = "S1",
+                    EnableCash = true,
+                    DefaultPaymentMode = "Cash",
+                    AllowPartialPayment = false
+                },
+                CreateLaundryOrderResponse = JObject.Parse(@"{ 'OrderNo': 'S1-1003', 'CustCode': 'CUS-001' }")
+            };
+
+            var loginApi = new InMemoryTaxLoginApiClient
+            {
+                TenantStoreDetailsResponse = JObject.Parse(@"{
+                    'Storecodes': ['S1'],
+                    'StoreStatuses': [
+                        { 'StoreCode': 'S1', 'TenantName': 'tenant@example.com', 'IsActive': true }
+                    ]
+                }")
+            };
+
+            var controller = CreateController(customerApi, loginApi);
+            SetControllerSession(controller, "tenant@example.com", "S1", "Admin");
+
+            var result = await controller.SetupCreateOrder(new LaundryOrderDto
+            {
+                CustomerName = "Walk-in Customer",
+                CustCode = "CUS-001",
+                OrderAmount = 100m,
+                OrderMode = "pieces",
+                PaymentMode = "Cash",
+                PaidNow = 100m,
+                AdvanceUsed = 0m
+            });
+
+            var redirect = Assert.IsType<RedirectToActionResult>(result);
+            Assert.Equal("SetupCreateOrder", redirect.ActionName);
+            Assert.Contains(customerApi.Calls, c => string.Equals(c.RequestUrl, "/CreateLaundryOrder", StringComparison.OrdinalIgnoreCase));
+        }
+
+        [Fact]
+        public async Task SetupCreateOrder_Post_PartialDisabled_PartialCollected_IsRejected()
+        {
+            var customerApi = new InMemoryCustomerApiClient
+            {
+                StoredTaxConfiguration = new TaxConfigurationDto
+                {
+                    TenantName = "tenant@example.com",
+                    StoreCode = "S1",
+                    TaxMode = "NoTax",
+                    CountryCode = "US",
+                    CurrencyCode = "USD",
+                    EnableTax = false,
+                    GstPercent = 0m,
+                    PricesIncludeTax = false,
+                    Components = new List<TaxInvoiceComponentDto>()
+                },
+                PaymentSettingsResponse = new PaymentSettingsViewModel
+                {
+                    TenantName = "tenant@example.com",
+                    StoreCode = "S1",
+                    EnableCash = true,
+                    DefaultPaymentMode = "Cash",
+                    AllowPartialPayment = false
+                }
+            };
+
+            var loginApi = new InMemoryTaxLoginApiClient
+            {
+                TenantStoreDetailsResponse = JObject.Parse(@"{
+                    'Storecodes': ['S1'],
+                    'StoreStatuses': [
+                        { 'StoreCode': 'S1', 'TenantName': 'tenant@example.com', 'IsActive': true }
+                    ]
+                }")
+            };
+
+            var controller = CreateController(customerApi, loginApi);
+            SetControllerSession(controller, "tenant@example.com", "S1", "Admin");
+
+            var result = await controller.SetupCreateOrder(new LaundryOrderDto
+            {
+                CustomerName = "Walk-in Customer",
+                CustCode = "CUS-001",
+                OrderAmount = 100m,
+                OrderMode = "pieces",
+                PaymentMode = "Cash",
+                PaidNow = 40m,
+                AdvanceUsed = 0m
+            });
+
+            var redirect = Assert.IsType<RedirectToActionResult>(result);
+            Assert.Equal("SetupCreateOrder", redirect.ActionName);
+            Assert.DoesNotContain(customerApi.Calls, c => string.Equals(c.RequestUrl, "/CreateLaundryOrder", StringComparison.OrdinalIgnoreCase));
+
+            var toast = Assert.IsType<string>(controller.TempData["SetupCreateOrderToast"]);
+            Assert.Contains("Partial payments are disabled", toast, StringComparison.OrdinalIgnoreCase);
+        }
+
+        [Fact]
+        public async Task SetupCreateOrder_Post_PartialEnabled_PartialCollected_IsAllowed()
+        {
+            var customerApi = new InMemoryCustomerApiClient
+            {
+                StoredTaxConfiguration = new TaxConfigurationDto
+                {
+                    TenantName = "tenant@example.com",
+                    StoreCode = "S1",
+                    TaxMode = "NoTax",
+                    CountryCode = "US",
+                    CurrencyCode = "USD",
+                    EnableTax = false,
+                    GstPercent = 0m,
+                    PricesIncludeTax = false,
+                    Components = new List<TaxInvoiceComponentDto>()
+                },
+                PaymentSettingsResponse = new PaymentSettingsViewModel
+                {
+                    TenantName = "tenant@example.com",
+                    StoreCode = "S1",
+                    EnableCash = true,
+                    DefaultPaymentMode = "Cash",
+                    AllowPartialPayment = true
+                },
+                CreateLaundryOrderResponse = JObject.Parse(@"{ 'OrderNo': 'S1-1004', 'CustCode': 'CUS-001' }")
+            };
+
+            var loginApi = new InMemoryTaxLoginApiClient
+            {
+                TenantStoreDetailsResponse = JObject.Parse(@"{
+                    'Storecodes': ['S1'],
+                    'StoreStatuses': [
+                        { 'StoreCode': 'S1', 'TenantName': 'tenant@example.com', 'IsActive': true }
+                    ]
+                }")
+            };
+
+            var controller = CreateController(customerApi, loginApi);
+            SetControllerSession(controller, "tenant@example.com", "S1", "Admin");
+
+            var result = await controller.SetupCreateOrder(new LaundryOrderDto
+            {
+                CustomerName = "Walk-in Customer",
+                CustCode = "CUS-001",
+                OrderAmount = 100m,
+                OrderMode = "pieces",
+                PaymentMode = "Cash",
+                PaidNow = 40m,
+                AdvanceUsed = 0m
+            });
+
+            var redirect = Assert.IsType<RedirectToActionResult>(result);
+            Assert.Equal("SetupCreateOrder", redirect.ActionName);
+            Assert.Contains(customerApi.Calls, c => string.Equals(c.RequestUrl, "/CreateLaundryOrder", StringComparison.OrdinalIgnoreCase));
         }
 
         [Fact]
@@ -3185,6 +3826,13 @@ namespace LMSWebUI.Tests
             public string StoreItemMastersRawResponse { get; set; } = string.Empty;
             public List<LaundryItemPriceDto> LaundryItemPricesResponse { get; set; } = new List<LaundryItemPriceDto>();
             public PaymentSettingsViewModel PaymentSettingsResponse { get; set; }
+            public PaymentSettingsViewModel LastSavedPaymentSettings { get; private set; }
+            public int SavePaymentSettingsCount { get; private set; }
+            public int InsertCustomerCount { get; private set; }
+            public JObject LastInsertedCustomerRequest { get; private set; }
+            public List<string> StoredCustomerNames { get; } = new List<string>();
+            public Dictionary<string, CustomerIOResponse> CustomersByName { get; } = new Dictionary<string, CustomerIOResponse>(StringComparer.OrdinalIgnoreCase);
+            public Dictionary<string, List<string>> SearchCustomersByText { get; } = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
             public JObject CreateLaundryOrderResponse { get; set; }
             public LaundryOrderResponseDto LaundryOrdersResponse { get; set; }
             public Exception ThrowOnStoreServiceMastersRaw { get; set; }
@@ -3249,6 +3897,65 @@ namespace LMSWebUI.Tests
                     };
 
                     return Task.FromResult(ToGeneric<T>(UpsertTaxConfigurationResponse ?? StoredTaxConfiguration));
+                }
+
+                if (string.Equals(requestUrl, "/SavePaymentSettings", StringComparison.OrdinalIgnoreCase))
+                {
+                    SavePaymentSettingsCount++;
+                    LastSavedPaymentSettings = ToObject<PaymentSettingsViewModel>(model);
+                    PaymentSettingsResponse = LastSavedPaymentSettings;
+
+                    var response = new CustomerIOResponse
+                    {
+                        StatusCode = "200",
+                        Message = "Payment settings saved."
+                    };
+
+                    return Task.FromResult(ToGeneric<T>(response));
+                }
+
+                if (string.Equals(requestUrl, "/InsertCustomer", StringComparison.OrdinalIgnoreCase))
+                {
+                    InsertCustomerCount++;
+                    LastInsertedCustomerRequest = model != null
+                        ? JObject.Parse(JsonConvert.SerializeObject(model))
+                        : new JObject();
+
+                    var customerName = Convert.ToString(LastInsertedCustomerRequest["CustomerName"])?.Trim();
+                    var tenantName = Convert.ToString(LastInsertedCustomerRequest["TenantName"])?.Trim();
+                    var storeCode = Convert.ToString(LastInsertedCustomerRequest["StoreCode"])?.Trim();
+                    var normalizedName = (customerName ?? string.Empty).ToLowerInvariant();
+
+                    if (!string.IsNullOrWhiteSpace(customerName)
+                        && !StoredCustomerNames.Any(x => string.Equals(x, customerName, StringComparison.OrdinalIgnoreCase)))
+                    {
+                        StoredCustomerNames.Add(customerName);
+                    }
+
+                    var response = new CustomerIOResponse
+                    {
+                        StatusCode = "200",
+                        Message = "Customer added successfully.",
+                        CustomerName = customerName,
+                        CustCode = $"CUS-{InsertCustomerCount:000}",
+                        TenantName = tenantName
+                    };
+
+                    if (!string.IsNullOrWhiteSpace(customerName))
+                    {
+                        CustomersByName[normalizedName] = new CustomerIOResponse
+                        {
+                            StatusCode = "200",
+                            CustomerName = customerName,
+                            CustCode = response.CustCode,
+                            TenantName = tenantName,
+                            Storecodes = string.IsNullOrWhiteSpace(storeCode)
+                                ? new List<string>()
+                                : new List<string> { storeCode }
+                        };
+                    }
+
+                    return Task.FromResult(ToGeneric<T>(response));
                 }
 
                 if (string.Equals(requestUrl, "/AddTaxInvoiceComponent", StringComparison.OrdinalIgnoreCase)
@@ -3352,6 +4059,49 @@ namespace LMSWebUI.Tests
                 if (string.Equals(requestUrl, "/GetPaymentSettings", StringComparison.OrdinalIgnoreCase))
                 {
                     return Task.FromResult(ToGeneric<T>(PaymentSettingsResponse));
+                }
+
+                if (string.Equals(requestUrl, "/CreateLaundryOrder", StringComparison.OrdinalIgnoreCase))
+                {
+                    return Task.FromResult(ToGeneric<T>(CreateLaundryOrderResponse));
+                }
+
+                if (string.Equals(requestUrl, "/GetCustomerByName", StringComparison.OrdinalIgnoreCase))
+                {
+                    var customerName = queryParams != null && queryParams.TryGetValue("customerName", out var customerNameValue)
+                        ? customerNameValue?.Trim()
+                        : string.Empty;
+
+                    if (!string.IsNullOrWhiteSpace(customerName)
+                        && CustomersByName.TryGetValue(customerName.ToLowerInvariant(), out var customer))
+                    {
+                        return Task.FromResult(ToGeneric<T>(customer));
+                    }
+
+                    return Task.FromResult(ToGeneric<T>(new CustomerIOResponse
+                    {
+                        StatusCode = "404",
+                        Message = "Customer not found in the current store."
+                    }));
+                }
+
+                if (string.Equals(requestUrl, "/SearchCustomers", StringComparison.OrdinalIgnoreCase))
+                {
+                    var searchText = queryParams != null && queryParams.TryGetValue("searchText", out var value)
+                        ? value?.Trim() ?? string.Empty
+                        : string.Empty;
+
+                    if (SearchCustomersByText.TryGetValue(searchText.ToLowerInvariant(), out var configuredNames))
+                    {
+                        return Task.FromResult(ToGeneric<T>(new CustomerIOResponse { CustomerNames = configuredNames }));
+                    }
+
+                    var names = StoredCustomerNames
+                        .Where(x => x != null && x.Contains(searchText, StringComparison.OrdinalIgnoreCase))
+                        .Distinct(StringComparer.OrdinalIgnoreCase)
+                        .ToList();
+
+                    return Task.FromResult(ToGeneric<T>(new CustomerIOResponse { CustomerNames = names }));
                 }
 
                 if (string.Equals(requestUrl, "/GetStoreServiceMasters", StringComparison.OrdinalIgnoreCase))

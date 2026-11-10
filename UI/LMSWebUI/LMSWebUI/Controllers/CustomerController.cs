@@ -47,13 +47,16 @@ namespace LMSWebUI.Controllers
         private readonly IConfiguration _configuration;
         private readonly ApplicationDbContext _dbContext;
         private readonly ILogger<CustomerController> _logger;
+        private readonly ICustomerPhoneService _customerPhoneService;
         private const string CustomerPreferencesSessionKey = "CustomerPreferences";
         private const string SelectedCustomerNameSessionKey = "SelectedCustomerName";
         private const string SelectedCustomerCodeSessionKey = "SelectedCustomerCode";
         private const string AllowedStoresSessionKey = "TenantAllowedStores";
         private const string OrderPiecesMapSessionKey = "OrderPiecesMap";
+        private const string WalkInCustomerInitializedStoresSessionKey = "WalkInCustomerInitializedStores";
         private const string CustomerNotInStoreMessage = "Customer not found in the current store.";
         private const string SessionExpiredMessage = "Session expired. Please log in again.";
+        private const string DefaultWalkInCustomerName = "Walk-in Customer";
         private const long MaxCsvUploadBytes = 2 * 1024 * 1024;
         private static readonly Regex E164Regex = new Regex("^\\+[1-9]\\d{6,14}$", RegexOptions.Compiled);
         private static readonly Regex LegacyDigitsRegex = new Regex("^\\d{7,15}$", RegexOptions.Compiled);
@@ -156,6 +159,152 @@ namespace LMSWebUI.Controllers
             var userRole = HttpContext.Session.GetString("UserRole");
             return string.Equals(userRole, "Admin", StringComparison.OrdinalIgnoreCase)
                    || string.Equals(userRole, "StoreUser", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static string BuildWalkInStoreInitializationKey(string tenantName, string storeCode)
+            => $"{tenantName?.Trim().ToLowerInvariant()}|{storeCode?.Trim().ToLowerInvariant()}";
+
+        private bool IsWalkInCustomerInitializedForStore(string tenantName, string storeCode)
+        {
+            var key = BuildWalkInStoreInitializationKey(tenantName, storeCode);
+            if (string.IsNullOrWhiteSpace(key))
+            {
+                return false;
+            }
+
+            var raw = HttpContext.Session.GetString(WalkInCustomerInitializedStoresSessionKey);
+            if (string.IsNullOrWhiteSpace(raw))
+            {
+                return false;
+            }
+
+            var stores = raw
+                .Split(',', StringSplitOptions.RemoveEmptyEntries)
+                .Select(x => x.Trim())
+                .Where(x => !string.IsNullOrWhiteSpace(x));
+
+            return stores.Contains(key, StringComparer.Ordinal);
+        }
+
+        private void MarkWalkInCustomerInitializedForStore(string tenantName, string storeCode)
+        {
+            var key = BuildWalkInStoreInitializationKey(tenantName, storeCode);
+            if (string.IsNullOrWhiteSpace(key))
+            {
+                return;
+            }
+
+            var raw = HttpContext.Session.GetString(WalkInCustomerInitializedStoresSessionKey) ?? string.Empty;
+            var stores = raw
+                .Split(',', StringSplitOptions.RemoveEmptyEntries)
+                .Select(x => x.Trim())
+                .Where(x => !string.IsNullOrWhiteSpace(x))
+                .ToHashSet(StringComparer.Ordinal);
+
+            if (stores.Add(key))
+            {
+                HttpContext.Session.SetString(WalkInCustomerInitializedStoresSessionKey, string.Join(",", stores));
+            }
+        }
+
+        private static bool IsScopedCustomerFound(CustomerIOResponse customer, string expectedName = null)
+            => customer != null
+               && string.Equals(customer.StatusCode, "200", StringComparison.OrdinalIgnoreCase)
+               && !string.IsNullOrWhiteSpace(customer.CustCode)
+               && (string.IsNullOrWhiteSpace(expectedName)
+                   || string.Equals(customer.CustomerName?.Trim(), expectedName.Trim(), StringComparison.OrdinalIgnoreCase));
+
+        private async Task<CustomerIOResponse> ResolveScopedCustomerByNameAsync(string tenantName, string storeCode, string customerName)
+        {
+            var normalizedName = customerName?.Trim();
+            if (string.IsNullOrWhiteSpace(normalizedName)
+                || string.IsNullOrWhiteSpace(tenantName)
+                || string.IsNullOrWhiteSpace(storeCode))
+            {
+                return null;
+            }
+
+            var scopedParams = new Dictionary<string, string>
+            {
+                { "tenantName", tenantName },
+                { "storeCode", storeCode },
+                { "customerName", normalizedName }
+            };
+
+            var customer = await _clientApi.SendRequestAsync<CustomerIOResponse>("/GetCustomerByName", scopedParams, Method.GET);
+            if (IsScopedCustomerFound(customer, normalizedName))
+            {
+                return customer;
+            }
+
+            var searchResponse = await _clientApi.SendRequestAsync<CustomerIOResponse>("/SearchCustomers", new Dictionary<string, string>
+            {
+                { "tenantName", tenantName },
+                { "storeCode", storeCode },
+                { "searchText", normalizedName }
+            }, Method.GET);
+
+            var names = searchResponse?.CustomerNames ?? new List<string>();
+            var bestMatch = names.FirstOrDefault(x => string.Equals(x?.Trim(), normalizedName, StringComparison.OrdinalIgnoreCase));
+            if (string.IsNullOrWhiteSpace(bestMatch))
+            {
+                return customer;
+            }
+
+            return await _clientApi.SendRequestAsync<CustomerIOResponse>("/GetCustomerByName", new Dictionary<string, string>
+            {
+                { "tenantName", tenantName },
+                { "storeCode", storeCode },
+                { "customerName", bestMatch.Trim() }
+            }, Method.GET);
+        }
+
+        private async Task EnsureDefaultWalkInCustomerInitializedAsync(string tenantName, string storeCode)
+        {
+            if (string.IsNullOrWhiteSpace(tenantName)
+                || string.IsNullOrWhiteSpace(storeCode)
+                || IsWalkInCustomerInitializedForStore(tenantName, storeCode))
+            {
+                return;
+            }
+
+            try
+            {
+                var existingCustomer = await ResolveScopedCustomerByNameAsync(tenantName, storeCode, DefaultWalkInCustomerName);
+                if (IsScopedCustomerFound(existingCustomer, DefaultWalkInCustomerName))
+                {
+                    MarkWalkInCustomerInitializedForStore(tenantName, storeCode);
+                    return;
+                }
+
+                var createRequest = new
+                {
+                    CustomerName = DefaultWalkInCustomerName,
+                    Address = $"Walk-in ({storeCode.Trim()})",
+                    BarCode = (string)null,
+                    PhoneNumber = (string)null,
+                    Email = (string)null,
+                    StoreCode = storeCode,
+                    TenantName = tenantName
+                };
+
+                var createResponse = await _clientApi.SendRequestAsync<CustomerIOResponse>("/InsertCustomer", createRequest, Method.POST);
+                if (string.Equals(createResponse?.StatusCode, "200", StringComparison.OrdinalIgnoreCase))
+                {
+                    MarkWalkInCustomerInitializedForStore(tenantName, storeCode);
+                    return;
+                }
+
+                var postCreateLookup = await ResolveScopedCustomerByNameAsync(tenantName, storeCode, DefaultWalkInCustomerName);
+                if (IsScopedCustomerFound(postCreateLookup, DefaultWalkInCustomerName))
+                {
+                    MarkWalkInCustomerInitializedForStore(tenantName, storeCode);
+                }
+            }
+            catch
+            {
+                // Best effort onboarding bootstrap. Order screen remains available even if initialization cannot complete.
+            }
         }
 
         private static bool ShouldFallbackApiEndpoint(Exception ex)
@@ -646,7 +795,8 @@ namespace LMSWebUI.Controllers
             LMSWebUI.Services.ICurrencyService currencyService,
             IConfiguration configuration,
             ApplicationDbContext dbContext,
-            ILogger<CustomerController> logger)
+            ILogger<CustomerController> logger,
+            ICustomerPhoneService customerPhoneService = null)
         {
             _memoryCache = memoryCache;
             _clientApi = clientAPI;
@@ -656,6 +806,7 @@ namespace LMSWebUI.Controllers
             _configuration = configuration;
             _dbContext = dbContext;
             _logger = logger;
+            _customerPhoneService = customerPhoneService ?? new CustomerPhoneService();
         }
 
         public async Task<IActionResult> Index(string customerName = null, string mode = null)
@@ -714,6 +865,7 @@ namespace LMSWebUI.Controllers
                         // MembershipId removed system-wide
                         customerInfoDto.BarCode = responseMessage.BarCode;
                         customerInfoDto.PhoneNumber = responseMessage.PhoneNumber;
+                        customerInfoDto.PhoneCountryCode = _customerPhoneService.GetRegionForNumber(responseMessage.PhoneNumber);
                         customerInfoDto.Email = responseMessage.Email;
                         customerInfoDto.customerCode = responseMessage.CustCode;
                         customerInfoDto.disableStatus = true;
@@ -747,7 +899,49 @@ namespace LMSWebUI.Controllers
                 ViewData["CustomerPreferences"] = JsonConvert.SerializeObject(BuildDefaultCustomerPreferences(HttpContext.Session.GetString("TenantName"), HttpContext.Session.GetString("TenantStore")));
             }
 
+            await LoadCustomerPhoneContextAsync(customerInfoDto);
+
             return View(customerInfoDto);
+        }
+
+        private async Task LoadCustomerPhoneContextAsync(CustomerInfoDto customerInfoDto)
+        {
+            var countries = _customerPhoneService.GetSupportedCountries();
+            var tenantName = HttpContext.Session.GetString("TenantName");
+            var storeCode = HttpContext.Session.GetString("TenantStore");
+            var defaultCountry = _customerPhoneService.FindCountry(customerInfoDto?.PhoneCountryCode);
+
+            try
+            {
+                var storeConfig = await _storeConfigurationService.LoadAsync(tenantName, storeCode);
+                defaultCountry ??= _customerPhoneService.FindCountryByName(storeConfig?.Country);
+                defaultCountry ??= countries.FirstOrDefault(country =>
+                    string.Equals(country.CallingCode, storeConfig?.PhoneDialingCode?.Trim(), StringComparison.OrdinalIgnoreCase));
+            }
+            catch
+            {
+                // The registration form remains usable when an optional store configuration is unavailable.
+            }
+
+            if (defaultCountry == null)
+            {
+                try
+                {
+                    var tenantCountry = await GetTenantCountryCurrencyAsync(tenantName);
+                    defaultCountry = _customerPhoneService.FindCountry(tenantCountry.CountryCode);
+                }
+                catch
+                {
+                    // Missing tenant profile country is handled as an optional configuration warning below.
+                }
+            }
+
+            customerInfoDto.PhoneCountryCode ??= defaultCountry?.Iso2;
+            ViewData["CustomerPhoneCountries"] = JsonConvert.SerializeObject(countries);
+            ViewData["CustomerDefaultPhoneCountry"] = defaultCountry?.Iso2 ?? string.Empty;
+            ViewData["CustomerPhoneConfigMessage"] = defaultCountry == null
+                ? "Tenant country is not configured. Select the customer’s country to validate the number."
+                : string.Empty;
         }
 
         [HttpGet]
@@ -3410,7 +3604,16 @@ namespace LMSWebUI.Controllers
             try
             {
                 var response = await _clientApi.SendRequestAsync<PaymentSettingsViewModel>("/GetPaymentSettings", parameters, Method.GET);
-                model = response ?? BuildDefaultPaymentSettings(tenantName, storeCode);
+
+                if (response == null)
+                {
+                    model = BuildDefaultPaymentSettings(tenantName, storeCode);
+                    await TryPersistDefaultPaymentSettingsAsync(model);
+                }
+                else
+                {
+                    model = response;
+                }
             }
             catch
             {
@@ -3423,15 +3626,27 @@ namespace LMSWebUI.Controllers
             return model;
         }
 
+        private async Task TryPersistDefaultPaymentSettingsAsync(PaymentSettingsViewModel model)
+        {
+            try
+            {
+                await _clientApi.SendRequestAsync<CustomerIOResponse>("/SavePaymentSettings", model, Method.POST);
+            }
+            catch
+            {
+                // Best effort bootstrap only. Order flow should continue with safe in-memory defaults.
+            }
+        }
+
         private static PaymentSettingsViewModel BuildDefaultPaymentSettings(string tenantName, string storeCode)
             => new PaymentSettingsViewModel
             {
                 TenantName = tenantName,
                 StoreCode = storeCode,
                 EnableCash = true,
-                EnableUpi = true,
-                EnableCard = true,
-                EnableWallet = true,
+                EnableUpi = false,
+                EnableCard = false,
+                EnableWallet = false,
                 DefaultPaymentMode = "Cash",
                 AllowPartialPayment = true,
                 AllowCredit = false,
@@ -5578,9 +5793,19 @@ namespace LMSWebUI.Controllers
                 var pendingPaymentCount = 0;
                 decimal pendingPaymentAmount = 0;
                 decimal advanceUsedToday = 0;
+                decimal amountCollectedToday = 0;
+                decimal cashCollectedToday = 0;
+                decimal upiCollectedToday = 0;
+                decimal cardCollectedToday = 0;
                 var customersWithOrders = 0;
                 var readyForDeliveryCount = 0;
                 var pendingDeliveryCount = 0;
+                var pendingProcessingCount = 0;
+                var paymentSummaryAvailable = customersResponse != null
+                    && (string.IsNullOrWhiteSpace(customersResponse.StatusCode)
+                        || string.Equals(customersResponse.StatusCode, "200", StringComparison.OrdinalIgnoreCase));
+                var countedOrderKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                var countedPaymentKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
                 var today = DateTime.UtcNow.Date;
 
@@ -5608,11 +5833,25 @@ namespace LMSWebUI.Controllers
 
                     foreach (var order in orders)
                     {
+                        var orderKey = BuildDashboardOrderAggregationKey(order);
+                        var isUniqueOrder = countedOrderKeys.Add(orderKey);
+
+                        if (isUniqueOrder)
+                        {
+                            var normalizedStatus = NormalizeDashboardOrderStatus(order?.Status);
+                            if (string.Equals(normalizedStatus, "received", StringComparison.Ordinal)
+                                || string.Equals(normalizedStatus, "processing", StringComparison.Ordinal)
+                                || string.Equals(normalizedStatus, "in process", StringComparison.Ordinal))
+                            {
+                                pendingProcessingCount++;
+                            }
+                        }
+
                         var orderDate = order.CreatedDate.Kind == DateTimeKind.Unspecified
                             ? DateTime.SpecifyKind(order.CreatedDate, DateTimeKind.Utc)
                             : order.CreatedDate.ToUniversalTime();
 
-                        if (orderDate.Date == today)
+                        if (orderDate.Date == today && isUniqueOrder)
                         {
                             todayOrders++;
 
@@ -5622,7 +5861,37 @@ namespace LMSWebUI.Controllers
                             }
                         }
 
-                        if (order.NetPayable > 0)
+                        if (orderDate.Date == today)
+                        {
+                            if (order.PaidNow > 0)
+                            {
+                                var paymentAggregationKey = BuildDashboardPaymentAggregationKey(order);
+                                var shouldAggregatePayment = string.IsNullOrWhiteSpace(paymentAggregationKey)
+                                    ? isUniqueOrder
+                                    : countedPaymentKeys.Add(paymentAggregationKey);
+
+                                if (shouldAggregatePayment)
+                                {
+                                    amountCollectedToday += order.PaidNow;
+
+                                    var normalizedPaymentMode = NormalizeDashboardPaymentMode(order.PaymentMode);
+                                    if (string.Equals(normalizedPaymentMode, "cash", StringComparison.Ordinal))
+                                    {
+                                        cashCollectedToday += order.PaidNow;
+                                    }
+                                    else if (string.Equals(normalizedPaymentMode, "upi", StringComparison.Ordinal))
+                                    {
+                                        upiCollectedToday += order.PaidNow;
+                                    }
+                                    else if (string.Equals(normalizedPaymentMode, "card", StringComparison.Ordinal))
+                                    {
+                                        cardCollectedToday += order.PaidNow;
+                                    }
+                                }
+                            }
+                        }
+
+                        if (isUniqueOrder && order.NetPayable > 0)
                         {
                             pendingPaymentCount++;
                             pendingPaymentAmount += order.NetPayable;
@@ -5649,8 +5918,26 @@ namespace LMSWebUI.Controllers
                     todayOrders,
                     pendingPaymentCount,
                     pendingPaymentAmount = Math.Round(pendingPaymentAmount, 2, MidpointRounding.AwayFromZero),
+                    pendingProcessingCount,
                     walkinsToday = todayOrders,
                     advanceUsedToday = Math.Round(advanceUsedToday, 2, MidpointRounding.AwayFromZero),
+                    amountCollectedToday = paymentSummaryAvailable
+                        ? Math.Round(amountCollectedToday, 2, MidpointRounding.AwayFromZero)
+                        : (decimal?)null,
+                    cashCollectedToday = paymentSummaryAvailable
+                        ? Math.Round(cashCollectedToday, 2, MidpointRounding.AwayFromZero)
+                        : (decimal?)null,
+                    upiCollectedToday = paymentSummaryAvailable
+                        ? Math.Round(upiCollectedToday, 2, MidpointRounding.AwayFromZero)
+                        : (decimal?)null,
+                    cardCollectedToday = paymentSummaryAvailable
+                        ? Math.Round(cardCollectedToday, 2, MidpointRounding.AwayFromZero)
+                        : (decimal?)null,
+                    cashInHand = (decimal?)null,
+                    paymentSummaryAvailable,
+                    paymentSummaryReason = paymentSummaryAvailable
+                        ? string.Empty
+                        : "Payment transactions are unavailable for this store right now.",
                     customersWithOrders,
                     readyForDeliveryCount,
                     pendingDeliveryCount,
@@ -5665,6 +5952,78 @@ namespace LMSWebUI.Controllers
                     message = BuildApiErrorMessage(ex, "Unable to load live counter dashboard metrics.")
                 });
             }
+        }
+
+        private static string NormalizeDashboardOrderStatus(string status)
+            => string.IsNullOrWhiteSpace(status)
+                ? "received"
+                : status.Trim().ToLowerInvariant();
+
+        private static string NormalizeDashboardPaymentMode(string paymentMode)
+            => string.IsNullOrWhiteSpace(paymentMode)
+                ? "cash"
+                : paymentMode.Trim().ToLowerInvariant();
+
+        private static string BuildDashboardOrderAggregationKey(LaundryOrderDto order)
+        {
+            if (order == null)
+            {
+                return Guid.NewGuid().ToString("N");
+            }
+
+            if (!string.IsNullOrWhiteSpace(order.OrderNo))
+            {
+                return $"ord:{order.OrderNo.Trim()}";
+            }
+
+            if (!string.IsNullOrWhiteSpace(order.InvoiceNo))
+            {
+                return $"inv:{order.InvoiceNo.Trim()}";
+            }
+
+            return string.Join("|", new[]
+            {
+                order.CustCode?.Trim() ?? string.Empty,
+                order.CreatedDate.ToUniversalTime().ToString("O"),
+                order.TotalAmount.ToString("0.00", CultureInfo.InvariantCulture),
+                order.NetPayable.ToString("0.00", CultureInfo.InvariantCulture),
+                order.PaidNow.ToString("0.00", CultureInfo.InvariantCulture)
+            });
+        }
+
+        private static string BuildDashboardPaymentAggregationKey(LaundryOrderDto order)
+        {
+            if (order == null)
+            {
+                return string.Empty;
+            }
+
+            if (!string.IsNullOrWhiteSpace(order.PaymentTransactionId))
+            {
+                return $"paytxn:{order.PaymentTransactionId.Trim()}";
+            }
+
+            if (!string.IsNullOrWhiteSpace(order.TransactionId))
+            {
+                return $"txn:{order.TransactionId.Trim()}";
+            }
+
+            if (!string.IsNullOrWhiteSpace(order.PaymentId))
+            {
+                return $"pay:{order.PaymentId.Trim()}";
+            }
+
+            if (!string.IsNullOrWhiteSpace(order.SettlementId))
+            {
+                return $"set:{order.SettlementId.Trim()}";
+            }
+
+            if (!string.IsNullOrWhiteSpace(order.ReceiptNo))
+            {
+                return $"rcpt:{order.ReceiptNo.Trim()}";
+            }
+
+            return string.Empty;
         }
 
         [HttpGet]
@@ -6230,12 +6589,19 @@ namespace LMSWebUI.Controllers
                 return RedirectToAction("Index", "Customer");
             }
 
-            var normalizedCreatePhone = NormalizePhoneNumberForStorage(customerInfoDto.PhoneNumber);
-            if (!string.IsNullOrWhiteSpace(normalizedCreatePhone)
-                && !LegacyDigitsRegex.IsMatch(normalizedCreatePhone)
-                && !E164Regex.IsMatch(normalizedCreatePhone))
+            var tenantName = HttpContext.Session.GetString("TenantName");
+            var tenanStore = HttpContext.Session.GetString("TenantStore");
+
+            if (string.IsNullOrWhiteSpace(tenantName) || string.IsNullOrWhiteSpace(tenanStore))
             {
-                TempData["UserMessage"] = JsonConvert.SerializeObject(new MessageDto { CssClassName = "alert-warning", Title = "Warning.", DisplayMessage = "Please enter a valid phone number (7-15 digits or E.164 like +919876543210)" });
+                TempData["UserMessage"] = JsonConvert.SerializeObject(new MessageDto { CssClassName = "alert alert-danger", Title = "Failed.", DisplayMessage = "Session expired. Please log in again." });
+                return RedirectToAction("Login", "Login");
+            }
+
+            var phoneValidation = _customerPhoneService.ValidateAndNormalize(customerInfoDto.PhoneNumber, customerInfoDto.PhoneCountryCode, allowLegacyCompatibility: false);
+            if (!phoneValidation.IsValid)
+            {
+                TempData["UserMessage"] = JsonConvert.SerializeObject(new MessageDto { CssClassName = "alert-warning", Title = "Warning.", DisplayMessage = phoneValidation.Message });
                 return RedirectToAction("Index", "Customer");
             }
 
@@ -6249,17 +6615,8 @@ namespace LMSWebUI.Controllers
             customerInfoDto.Address = customerInfoDto.Address?.Trim();
             // MembershipId removed system-wide
             customerInfoDto.BarCode = string.IsNullOrWhiteSpace(customerInfoDto.BarCode) ? null : customerInfoDto.BarCode.Trim();
-            customerInfoDto.PhoneNumber = normalizedCreatePhone;
+            customerInfoDto.PhoneNumber = phoneValidation.NormalizedNumber;
             customerInfoDto.Email = string.IsNullOrWhiteSpace(customerInfoDto.Email) ? null : customerInfoDto.Email.Trim();
-
-            string tenantName = HttpContext.Session.GetString("TenantName");
-            string tenanStore = HttpContext.Session.GetString("TenantStore");
-
-            if (string.IsNullOrWhiteSpace(tenantName) || string.IsNullOrWhiteSpace(tenanStore))
-            {
-                TempData["UserMessage"] = JsonConvert.SerializeObject(new MessageDto { CssClassName = "alert alert-danger", Title = "Failed.", DisplayMessage = "Session expired. Please log in again." });
-                return RedirectToAction("Login", "Login");
-            }
 
             customerInfoDto.StoreCode = tenanStore;
             customerInfoDto.TenantName = tenantName;
@@ -6354,6 +6711,19 @@ namespace LMSWebUI.Controllers
             }
         }
 
+        [HttpGet]
+        public JsonResult ValidatePhone(string phone, string countryIso2)
+        {
+            var validation = _customerPhoneService.ValidateAndNormalize(phone, countryIso2, allowLegacyCompatibility: false);
+            return Json(new
+            {
+                isValid = validation.IsValid,
+                normalizedNumber = validation.NormalizedNumber,
+                formattedNationalNumber = validation.FormattedNationalNumber,
+                message = validation.Message
+            });
+        }
+
         [HttpPost]
         public async Task<JsonResult> UpdateCustomer(CustomerInfoDto customerInfoDto)
         {
@@ -6385,12 +6755,25 @@ namespace LMSWebUI.Controllers
                 return Json(new { success = false, message = "Please enter Customer Address" });
             }
 
-            var normalizedUpdatePhone = NormalizePhoneNumberForStorage(customerInfoDto.PhoneNumber);
-            if (!string.IsNullOrWhiteSpace(normalizedUpdatePhone)
-                && !LegacyDigitsRegex.IsMatch(normalizedUpdatePhone)
-                && !E164Regex.IsMatch(normalizedUpdatePhone))
+            customerInfoDto.StoreCode = HttpContext.Session.GetString("TenantStore");
+            customerInfoDto.TenantName = HttpContext.Session.GetString("TenantName");
+
+            if (string.IsNullOrWhiteSpace(customerInfoDto.StoreCode) || string.IsNullOrWhiteSpace(customerInfoDto.TenantName))
             {
-                return Json(new { success = false, message = "Please enter a valid phone number (7-15 digits or E.164 like +919876543210)" });
+                return Json(new { success = false, message = "Session expired. Please log in again." });
+            }
+
+            var phoneValidation = _customerPhoneService.ValidateAndNormalize(customerInfoDto.PhoneNumber, customerInfoDto.PhoneCountryCode, allowLegacyCompatibility: true);
+            var normalizedUpdatePhone = phoneValidation.NormalizedNumber;
+            if (!phoneValidation.IsValid)
+            {
+                var legacyPhone = NormalizePhoneNumberForStorage(customerInfoDto.PhoneNumber);
+                if (!LegacyDigitsRegex.IsMatch(legacyPhone ?? string.Empty))
+                {
+                    return Json(new { success = false, message = phoneValidation.Message });
+                }
+
+                normalizedUpdatePhone = legacyPhone;
             }
 
             if (!string.IsNullOrWhiteSpace(customerInfoDto.Email) && !Regex.IsMatch(customerInfoDto.Email.Trim(), @"^[^\s@]+@[^\s@]+\.[^\s@]+$"))
@@ -6403,14 +6786,6 @@ namespace LMSWebUI.Controllers
             customerInfoDto.BarCode = string.IsNullOrWhiteSpace(customerInfoDto.BarCode) ? null : customerInfoDto.BarCode.Trim();
             customerInfoDto.PhoneNumber = normalizedUpdatePhone;
             customerInfoDto.Email = string.IsNullOrWhiteSpace(customerInfoDto.Email) ? null : customerInfoDto.Email.Trim();
-
-            customerInfoDto.StoreCode = HttpContext.Session.GetString("TenantStore");
-            customerInfoDto.TenantName = HttpContext.Session.GetString("TenantName");
-
-            if (string.IsNullOrWhiteSpace(customerInfoDto.StoreCode) || string.IsNullOrWhiteSpace(customerInfoDto.TenantName))
-            {
-                return Json(new { success = false, message = "Session expired. Please log in again." });
-            }
 
             var updateRequest = new
             {
@@ -6768,6 +7143,8 @@ namespace LMSWebUI.Controllers
                 return RedirectToAction("Index", "Dashboard");
             }
 
+            await EnsureDefaultWalkInCustomerInitializedAsync(tenantName, storeCode);
+
             var selectedCustomerName = string.IsNullOrWhiteSpace(customerName)
                 ? HttpContext.Session.GetString(SelectedCustomerNameSessionKey)
                 : customerName.Trim();
@@ -6811,7 +7188,7 @@ namespace LMSWebUI.Controllers
 
             if (enabledPaymentModes.Count == 0)
             {
-                enabledPaymentModes = new List<string> { "Cash", "UPI", "Card", "Wallet" };
+                enabledPaymentModes = new List<string> { "Cash" };
             }
 
             var defaultPaymentMode = enabledPaymentModes.FirstOrDefault(x =>
@@ -6971,6 +7348,26 @@ namespace LMSWebUI.Controllers
 
             var paymentSettings = await LoadPaymentSettingsAsync(tenantName, storeCode);
             var allowPartialPayment = paymentSettings.AllowPartialPayment;
+            var enabledPaymentModes = GetEnabledPaymentModes(paymentSettings);
+
+            if (enabledPaymentModes.Count == 0)
+            {
+                if (model.PaidNow > 0)
+                {
+                    TempData["SetupCreateOrderToast"] = "No payment mode is configured for this store. Save Payment Settings before collecting payment.";
+                    return RedirectToAction(nameof(SetupCreateOrder), new { customerName = model.CustomerName, customerCode = model.CustCode, orderMode = model.OrderMode });
+                }
+
+                model.PaymentMode = "Cash";
+            }
+            else
+            {
+                var resolvedPaymentMode = enabledPaymentModes.FirstOrDefault(x => string.Equals(x, model.PaymentMode, StringComparison.OrdinalIgnoreCase))
+                    ?? enabledPaymentModes.FirstOrDefault(x => string.Equals(x, paymentSettings.DefaultPaymentMode, StringComparison.OrdinalIgnoreCase))
+                    ?? enabledPaymentModes[0];
+
+                model.PaymentMode = resolvedPaymentMode;
+            }
 
             var taxContext = await LoadCreateOrderTaxContextAsync(tenantName, storeCode);
             if (taxContext.IsConfigurationMissing)
@@ -7015,13 +7412,21 @@ namespace LMSWebUI.Controllers
             if (!allowPartialPayment)
             {
                 const decimal paymentTolerance = 0.01m;
-                if (netPayableAfterAdvance - model.PaidNow > paymentTolerance)
+
+                var remainingAfterPayment = netPayableAfterAdvance - model.PaidNow;
+                var isUnpaidOrder = model.PaidNow <= paymentTolerance;
+                var isFullyPaidOrder = remainingAfterPayment <= paymentTolerance;
+
+                if (!isUnpaidOrder && !isFullyPaidOrder)
                 {
                     TempData["SetupCreateOrderToast"] = "Partial payments are disabled for this store. Please use customer's advance or collect full payment before creating the order.";
                     return RedirectToAction(nameof(SetupCreateOrder), new { customerName = model.CustomerName, customerCode = model.CustCode, orderMode = model.OrderMode });
                 }
 
-                model.PaidNow = netPayableAfterAdvance;
+                if (isFullyPaidOrder)
+                {
+                    model.PaidNow = netPayableAfterAdvance;
+                }
             }
 
             model.NetPayable = netPayableAfterAdvance;
@@ -7318,13 +7723,13 @@ namespace LMSWebUI.Controllers
             if (!orderCreated)
             {
                 var postPaymentSettings = await LoadPaymentSettingsAsync(tenantName, storeCode);
-                var enabledPaymentModes = GetEnabledPaymentModes(postPaymentSettings);
-                if (enabledPaymentModes.Count == 0)
+                var postEnabledPaymentModes = GetEnabledPaymentModes(postPaymentSettings);
+                if (postEnabledPaymentModes.Count == 0)
                 {
-                    enabledPaymentModes = new List<string> { "Cash", "UPI", "Card", "Wallet" };
+                    postEnabledPaymentModes = new List<string> { "Cash" };
                 }
 
-                ViewData["EnabledPaymentModes"] = enabledPaymentModes;
+                ViewData["EnabledPaymentModes"] = postEnabledPaymentModes;
                 ViewData["AllowPartialPayment"] = postPaymentSettings.AllowPartialPayment;
                 ViewData["AllowCredit"] = postPaymentSettings.AllowCredit;
                 ViewData["RoundOffPayableAmount"] = postPaymentSettings.RoundOffPayableAmount;
