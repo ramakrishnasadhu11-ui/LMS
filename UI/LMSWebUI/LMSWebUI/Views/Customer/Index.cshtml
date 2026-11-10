@@ -1,6 +1,8 @@
 ﻿@model LMSWebUI.Models.Customer.CustomerInfoDto 
 @using Microsoft.AspNetCore.Http
 @using Newtonsoft.Json
+@using LMSWebUI.Services
+@using System.Collections.Generic
 @{
    Layout = "~/Views/Shared/_HeaderMenuItemsLayout.cshtml";
    var hideButton = false;
@@ -14,6 +16,9 @@
            ? "Customer Delete"
            : "Customer Create";
    ViewData["Title"] = pageTitle;
+    var phoneCountries = JsonConvert.DeserializeObject<List<CustomerPhoneCountry>>(Convert.ToString(ViewData["CustomerPhoneCountries"]) ?? "[]") ?? new List<CustomerPhoneCountry>();
+    var defaultPhoneCountry = Convert.ToString(Model?.PhoneCountryCode ?? ViewData["CustomerDefaultPhoneCountry"] ?? string.Empty);
+    var phoneConfigMessage = Convert.ToString(ViewData["CustomerPhoneConfigMessage"] ?? string.Empty);
 }
 
 <style>
@@ -342,6 +347,38 @@ textarea.maintain-text {
 .search-customer-btn {
     min-width: 130px;
 }
+
+.customer-page { background: #f5f8fc; min-height: calc(100vh - 80px); padding: 32px 20px; }
+.customer-box { border: 1px solid #e6edf5; border-radius: 18px; box-shadow: 0 16px 45px rgba(22, 42, 70, .10); }
+.customer-title { padding: 24px 30px; font-size: 24px; letter-spacing: -.3px; }
+.customer-body { padding: 26px 30px 30px; }
+.customer-code { display: flex; align-items: center; gap: 8px; margin: 0 0 22px; padding: 12px 16px; border: 1px solid #dfe9f4; border-radius: 12px; background: #f8fbff; color: #52657b; }
+.customer-code .input1-field { border: 0; padding: 0; width: auto; background: transparent; color: #1d3552; }
+.profile-layout { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(300px, .85fr); gap: 20px; }
+.profile-card { border: 1px solid #e5ecf4; border-radius: 16px; padding: 22px; background: #fff; box-shadow: 0 7px 22px rgba(30, 55, 85, .06); }
+.profile-card h2 { margin: 0 0 4px; color: #19324f; font-size: 17px; font-weight: 700; }
+.profile-card .card-subtitle { margin: 0 0 20px; color: #74869a; font-size: 13px; }
+.profile-card .input-container { margin-bottom: 14px; gap: 12px; }
+.profile-card .icon { width: 40px; min-width: 40px; padding: 11px 8px; border-radius: 10px; background: #edf5ff; color: var(--els-primary); }
+.profile-card .input-container input, .profile-card .input-container textarea { border-radius: 10px; border-color: #d7e2ee; }
+.field-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin: 0; }
+.field-grid .field-item { gap: 7px; }
+.field-grid label, .profile-card label { font-weight: 700; color: #334b66; }
+.required-mark { color: #c33b4a; }
+.phone-input-group { display: flex; gap: 8px; }
+.phone-country { flex: 0 0 145px; min-width: 0; border: 1px solid #d7e2ee; border-radius: 10px; padding: 10px 8px; color: #203b58; background: #fbfdff; }
+.phone-input-group input { min-width: 0; }
+.barcode-input { display: flex; gap: 8px; }
+.barcode-input input { min-width: 0; }
+.barcode-scan { flex: 0 0 44px; border: 1px solid #c9dced; border-radius: 10px; background: #eff7ff; color: var(--els-primary); }
+.barcode-scan:hover, .barcode-scan:focus-visible { background: #dceeff; }
+.helper-text { color: #77899d; font-size: 12px; margin-top: 2px; }
+.phone-config-note { color: #936b19; background: #fff8e6; border: 1px solid #f3dfaa; border-radius: 9px; padding: 9px 11px; font-size: 12px; margin-top: 9px; }
+.profile-card .field-error { margin-left: 52px; }
+.nav-actions { grid-column: 1 / -1; margin-top: 2px; padding: 20px 0 0; }
+.nav-actions #custsave { min-width: 190px; }
+@@media (max-width: 900px) { .profile-layout { grid-template-columns: 1fr; } }
+@@media (max-width: 560px) { .customer-page { padding: 16px 10px; } .customer-body { padding: 18px 14px 22px; } .customer-title { padding: 20px; } .profile-card { padding: 17px; } .field-grid { grid-template-columns: 1fr; } .phone-country { flex-basis: 126px; } }
 </style>
 
 </style>
@@ -467,7 +504,7 @@ textarea.maintain-text {
      }
      @using (Html.BeginForm("Index","Customer", FormMethod.Post, new { @class = "form" }))
    {
-    <div class="customer-code">
+      <div class="customer-code" aria-label="Customer code status">
     <label class="input1-field"><b>Customer Code:</b></label>
     <span id="customerCodeValue">@(string.IsNullOrWhiteSpace(Convert.ToString(TempData["customerCode"])) ? "Auto-generated on Save" : Convert.ToString(TempData["customerCode"]))</span>
     <input type="hidden" id="customerCodeHidden" name="customerCode" value="@(TempData["customerCode"] ?? string.Empty)" />
@@ -479,34 +516,55 @@ textarea.maintain-text {
     <input type="hidden" id="StoreCode" name="StoreCode" value="@storeVal" />
     <input type="hidden" id="TenantName" name="TenantName" value="@tenantVal" />
          </div>
-      <div class="input-container">
+       <div class="profile-layout">
+       <section class="profile-card" aria-labelledby="profile-details-heading">
+           <h2 id="profile-details-heading"><i class="fa fa-user-circle-o" aria-hidden="true"></i> Profile details</h2>
+           <p class="card-subtitle">Add the customer details used across orders and history.</p>
+       <div class="input-container">
           <i class="fa fa-user icon"></i>
-          @Html.TextBoxFor(m => m.CustomerName, new { @placeholder = "Customer Name *", @class = "form-control maintain-text", id = "name" })
+           @Html.TextBoxFor(m => m.CustomerName, new { @placeholder = "Customer name", @class = "form-control maintain-text", id = "name", aria_required = "true", autocomplete = "name" })
       </div>
-      <div id="nameError" class="field-error">Customer Name is required.</div>
+       <div id="nameError" class="field-error" role="alert">Customer name is required.</div>
       <div class="input-container">
           <i class="fa fa-map-marker icon"></i>
-          @Html.TextAreaFor(m => m.Address, new { @placeholder = "Address *", @class = "form-control maintain-text", id = "address", rows = "3" })
+           @Html.TextAreaFor(m => m.Address, new { @placeholder = "Address", @class = "form-control maintain-text", id = "address", rows = "3", aria_required = "true", autocomplete = "street-address" })
       </div>
-      <div id="addressError" class="field-error">Customer Address is required.</div>
+       <div id="addressError" class="field-error" role="alert">Customer address is required.</div>
+       </section>
 
-      <div class="field-grid">
+       <section class="profile-card" aria-labelledby="contact-details-heading">
+           <h2 id="contact-details-heading"><i class="fa fa-address-card-o" aria-hidden="true"></i> Contact &amp; identification</h2>
+           <p class="card-subtitle">Use a barcode or phone number to find this profile quickly.</p>
+       <div class="field-grid">
 
           <div class="field-item">
-              <label for="barCode">Bar Code</label>
-              @Html.TextBoxFor(m => m.BarCode, new { @placeholder = "Bar Code", @class = "form-control maintain-text", id = "barCode" })
+               <label for="barCode">Barcode <span class="helper-text">Manual or scanned</span></label>
+               <div class="barcode-input">
+                   @Html.TextBoxFor(m => m.BarCode, new { @placeholder = "Scan or enter barcode", @class = "form-control maintain-text", id = "barCode", autocomplete = "off" })
+                   <button type="button" class="barcode-scan" id="barcodeScan" title="Focus barcode scanner input" aria-label="Focus barcode scanner input"><i class="fa fa-barcode" aria-hidden="true"></i></button>
+               </div>
           </div>
           <div class="field-item">
-              <label for="phoneNumber">Phone Number</label>
-              @Html.TextBoxFor(m => m.PhoneNumber, new { @placeholder = "Phone Number", @class = "form-control maintain-text", id = "phoneNumber" })
-              <div id="phoneError" class="field-error">Please enter a valid phone number (7-15 digits).</div>
+               <label for="phoneNumber">Phone number <span class="helper-text">International format</span></label>
+               <div class="phone-input-group">
+                   <select id="phoneCountryCode" name="PhoneCountryCode" class="phone-country" aria-label="Phone country" autocomplete="tel-country-code">
+                       @foreach (var country in phoneCountries)
+                       {
+                           <option value="@country.Iso2" data-calling-code="@country.CallingCode" selected="@(string.Equals(defaultPhoneCountry, country.Iso2, StringComparison.OrdinalIgnoreCase) ? "selected" : null)">@country.Flag @country.Name (@country.CallingCode)</option>
+                       }
+                   </select>
+                   @Html.TextBoxFor(m => m.PhoneNumber, new { @placeholder = "Phone number", @class = "form-control maintain-text", id = "phoneNumber", type = "tel", inputmode = "tel", autocomplete = "tel" })
+               </div>
+               <div id="phoneError" class="field-error" role="alert">Enter a valid phone number for the selected country.</div>
+               @if (!string.IsNullOrWhiteSpace(phoneConfigMessage)) { <div class="phone-config-note" role="status"><i class="fa fa-info-circle" aria-hidden="true"></i> @phoneConfigMessage</div> }
           </div>
           <div class="field-item">
-              <label for="email">Email</label>
-              @Html.TextBoxFor(m => m.Email, new { @placeholder = "Email", @class = "form-control maintain-text", id = "email" })
+               <label for="email">Email <span class="helper-text">Optional</span></label>
+               @Html.TextBoxFor(m => m.Email, new { @placeholder = "name@example.com", @class = "form-control maintain-text", id = "email", type = "email", autocomplete = "email" })
               <div id="emailError" class="field-error">Please enter a valid email address.</div>
           </div>
       </div>
+       </section>
 
       <div class="nav-actions">
         @{
@@ -558,12 +616,81 @@ textarea.maintain-text {
             <div id="customerActions" style="display:none;"></div>
         }
     </div>
+     </div>
      <script type='text/javascript'>
          (function () {
              function getValue(id) {
                  var element = document.getElementById(id);
                  return element && element.value ? element.value : "";
              }
+
+              function clearPhoneValidationState() {
+                  var phone = document.getElementById("phoneNumber");
+                  var error = document.getElementById("phoneError");
+                  if (phone) {
+                      phone.dataset.phoneValidated = "";
+                      phone.classList.remove("input-validation-error");
+                  }
+                  if (error) error.style.display = "none";
+              }
+
+              function setPhoneValidationError(message) {
+                  var phone = document.getElementById("phoneNumber");
+                  var error = document.getElementById("phoneError");
+                  if (error) {
+                      error.textContent = message || "Unable to validate the phone number. Please try again.";
+                      error.style.display = "block";
+                  }
+                  if (phone) phone.classList.add("input-validation-error");
+              }
+
+              function validatePhoneOnSave() {
+                  var phone = document.getElementById("phoneNumber");
+                  var country = document.getElementById("phoneCountryCode");
+                  if (!phone || !country) {
+                      return Promise.reject(new Error("Phone validation controls are unavailable."));
+                  }
+
+                  var phoneValue = phone.value.trim();
+                  var countryValue = country.value;
+                  var controller = typeof AbortController === "function" ? new AbortController() : null;
+                  var timeout = controller ? setTimeout(function () { controller.abort(); }, 10000) : null;
+                  var url = '@Url.Action("ValidatePhone", "Customer")'
+                      + '?phone=' + encodeURIComponent(phoneValue)
+                      + '&countryIso2=' + encodeURIComponent(countryValue);
+
+                  return fetch(url, {
+                      headers: { "X-Requested-With": "XMLHttpRequest" },
+                      signal: controller ? controller.signal : undefined
+                  })
+                      .then(function (response) {
+                          if (!response.ok) throw new Error("Phone validation service unavailable.");
+                          return response.json();
+                      })
+                      .then(function (result) {
+                          if (!result || result.isValid !== true || !result.normalizedNumber) {
+                              setPhoneValidationError(result && result.message);
+                              return false;
+                          }
+
+                          phone.value = result.normalizedNumber;
+                          phone.dataset.phoneValidated = phone.value + "|" + countryValue;
+                          var error = document.getElementById("phoneError");
+                          if (error) error.style.display = "none";
+                          phone.classList.remove("input-validation-error");
+                          return true;
+                      })
+                      .catch(function (error) {
+                          setPhoneValidationError(error && error.name === "AbortError"
+                              ? "Phone validation timed out. Please try again."
+                              : "Unable to validate the phone number. Please try again.");
+                          return false;
+                      })
+                      .then(function (result) {
+                          if (timeout) clearTimeout(timeout);
+                          return result;
+                      });
+              }
 
              function setValue(id, value) {
                  var element = document.getElementById(id);
@@ -618,6 +745,8 @@ textarea.maintain-text {
 
                  setValue("customerCodeHidden", "");
                  setText("customerCodeValue", "Auto-generated on Save");
+                 var country = document.getElementById("phoneCountryCode");
+                 if (country && '@defaultPhoneCountry') country.value = '@defaultPhoneCountry';
 
                  var saveButton = document.getElementById("custsave");
                  if (saveButton) {
@@ -649,9 +778,8 @@ textarea.maintain-text {
                  var isValid = true;
                  var customerName = (getValue("name") || "").trim();
                  var address = (getValue("address") || "").trim();
-                 var phoneNumber = getValue("phoneNumber") || "";
+                  var phoneNumber = getValue("phoneNumber") || "";
                  var email = getValue("email") || "";
-                 var phonePattern = /^\d{7,15}$/;
                  var emailPattern = /^[^\s\x40]+\x40[^\s\x40]+\.[^\s\x40]+$/;
                 // Read preferences cached on DOM load (if available)
                 var prefs = window.__customerPreferences || null;
@@ -710,21 +838,11 @@ textarea.maintain-text {
                         phone.classList.add("input-validation-error");
                     }
                     isValid = false;
-                } else if (phoneNumber.trim().length > 0) {
-                     var cleanedPhone = phoneNumber.replace(/\s+/g, "").trim();
-                     if (!phonePattern.test(cleanedPhone)) {
-                         var phoneError = document.getElementById("phoneError");
-                         var phone = document.getElementById("phoneNumber");
-                         if (phoneError) {
-                             phoneError.style.display = "block";
-                         }
-                         if (phone) {
-                             phone.classList.add("input-validation-error");
-                         }
-                         isValid = false;
-                     } else {
-                         setValue("phoneNumber", cleanedPhone);
-                     }
+                 } else if (phoneNumber.trim().length > 0) {
+                      var phone = document.getElementById("phoneNumber");
+                   if (phone && phone.dataset.phoneValidated !== "") {
+                       clearPhoneValidationState();
+                   }
                  }
                 var emailRequired = prefs && prefs.RequireEmail;
                 if (emailRequired && email.trim().length === 0) {
@@ -946,6 +1064,7 @@ textarea.maintain-text {
                      // MembershipId removed from UI
                      updatePayload.append("BarCode", getValue("barCode") || "");
                      updatePayload.append("PhoneNumber", getValue("phoneNumber") || "");
+                      updatePayload.append("PhoneCountryCode", getValue("phoneCountryCode") || "");
                      updatePayload.append("Email", getValue("email") || "");
                      updatePayload.append("customerCode", resolvedCode || "");
 
@@ -1171,19 +1290,58 @@ textarea.maintain-text {
                          element.addEventListener("blur", validateCustomerFields);
                      }
                  });
+                  var phoneInput = document.getElementById("phoneNumber");
+                  if (phoneInput) phoneInput.addEventListener("input", clearPhoneValidationState);
+                  var countrySelect = document.getElementById("phoneCountryCode");
+                   if (countrySelect) countrySelect.addEventListener("change", function () {
+                       var phone = document.getElementById("phoneNumber");
+                       if (phone) clearPhoneValidationState();
+                       validateCustomerFields();
+                   });
+                  var barcodeScan = document.getElementById("barcodeScan");
+                  if (barcodeScan) barcodeScan.addEventListener("click", function () { document.getElementById("barCode").focus(); });
 
                  var form = document.querySelector(".form");
                  if (form) {
                      form.addEventListener("submit", function (e) {
+                          var isCreateMode = '@(actionMode == "create" ? "true" : "false")' === "true";
+                          var saveButton = document.getElementById("custsave");
+
+                          if (isCreateMode && !form.dataset.phoneSaveValidationApproved) {
+                              e.preventDefault();
+                              if (form.dataset.phoneSaveValidationInFlight === "true") return false;
+
+                              form.dataset.phoneSaveValidationInFlight = "true";
+                              if (saveButton) {
+                                  saveButton.disabled = true;
+                                  saveButton.dataset.origValue = saveButton.value || "Save";
+                                  saveButton.innerHTML = '<span class="btn-spinner" aria-hidden="true"></span>Validating...';
+                              }
+
+                              validatePhoneOnSave().then(function (valid) {
+                                  if (!valid || !validateCustomerFields()) {
+                                      form.dataset.phoneSaveValidationInFlight = "false";
+                                      if (saveButton) {
+                                          saveButton.disabled = false;
+                                          saveButton.innerHTML = saveButton.dataset.origValue || "Save";
+                                      }
+                                      return;
+                                  }
+
+                                  form.dataset.phoneSaveValidationApproved = "true";
+                                  form.dataset.phoneSaveValidationInFlight = "false";
+                                  form.requestSubmit();
+                              });
+                              return false;
+                          }
+
+                          form.dataset.phoneSaveValidationApproved = "";
                          if (!validateCustomerFields()) {
                              e.preventDefault();
                              return false;
                          }
 
-                         var saveButton = document.getElementById("custsave");
-
                          // Only perform AJAX submit for create mode; preserve normal POST for update/delete
-                         var isCreateMode = '@(actionMode == "create" ? "true" : "false")' === "true";
                          if (!isCreateMode) {
                              if (saveButton) saveButton.disabled = true;
                              return; // allow normal form submit
@@ -1202,7 +1360,7 @@ textarea.maintain-text {
 
                          // Collect form values (prefer name attributes generated by Html helpers)
                          var toCollect = [
-                             'CustomerName', 'Address', 'BarCode', 'PhoneNumber', 'Email',
+                              'CustomerName', 'Address', 'BarCode', 'PhoneNumber', 'PhoneCountryCode', 'Email',
                              'customerCode', 'StoreCode', 'TenantName'
                          ];
 
@@ -1246,6 +1404,7 @@ textarea.maintain-text {
                                         return;
                                     }
 
+                                    if (saveButton) saveButton.innerHTML = '<i class="fa fa-check" aria-hidden="true"></i> Saved';
                                     // Show success toast only when not redirecting
                                     if (data.message && data.message.length > 0) {
                                         showToast(data.message, true);
@@ -1269,7 +1428,6 @@ textarea.maintain-text {
                                      try { saveButton.value = 'Save'; } catch (err) { }
                                  }
                              });
-
                          return false;
                      });
                  }

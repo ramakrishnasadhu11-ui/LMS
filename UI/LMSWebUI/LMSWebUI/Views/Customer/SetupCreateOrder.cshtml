@@ -1653,6 +1653,20 @@
                     orderLines.splice(idx, 1);
                     renderOrderLines();
                 }
+
+    function violatesPartialPaymentPolicy(netPayableAmount, paidNowAmount) {
+        if (allowPartialPayment) {
+            return false;
+        }
+
+        var tolerance = 0.01;
+        var netPayable = parseAmount(netPayableAmount);
+        var paidNow = parseAmount(paidNowAmount);
+        var isUnpaidOrder = paidNow <= tolerance;
+        var isFullyPaidOrder = netPayable <= tolerance;
+
+        return !isUnpaidOrder && !isFullyPaidOrder;
+    }
             });
         });
 
@@ -3490,10 +3504,10 @@
                     return;
                 }
 
-                // Enforce store payment policy: if partial payments are not allowed then Net Payable must be zero
-                // i.e., the customer's advance must cover the total before creating the order.
+                // Enforce store payment policy: partial disabled allows only unpaid or fully-paid collections.
                 var net = parseAmount(document.getElementById("netPayableInput").value || 0);
-                if (!allowPartialPayment && net > 0) {
+                var paidNow = parseAmount(document.getElementById("paidNow").value || 0);
+                if (violatesPartialPaymentPolicy(net, paidNow)) {
                     e.preventDefault();
                     showToast("Partial payments are disabled for this store. Please use customer's advance or collect full payment before creating the order.", false);
                     if (createOrderBtn) {

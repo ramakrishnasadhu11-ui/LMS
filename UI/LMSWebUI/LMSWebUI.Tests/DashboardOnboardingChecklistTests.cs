@@ -262,7 +262,7 @@ namespace LMSWebUI.Tests
         }
 
         [Fact]
-        public async Task Index_AdminTrialActiveTenant_ShowsTrialNotificationBanner_WithExactExpiryAndRemainingDays()
+        public async Task Index_AdminTrialActiveTenant_SetsTrialModelData_WithExactExpiryAndRemainingDays()
         {
             var loginApi = new InMemoryLoginApiClient
             {
@@ -301,11 +301,576 @@ namespace LMSWebUI.Tests
             Assert.True(model.TrialDaysRemaining.HasValue);
             Assert.True(model.TrialDaysRemaining.Value <= 7 && model.TrialDaysRemaining.Value >= 6);
 
+        }
+
+        [Fact]
+        public async Task Index_TrialActiveTenant_SetsSubscriptionBillingMessage_ForReminderThreshold15()
+        {
+            var loginApi = new InMemoryLoginApiClient
+            {
+                TenantProfileResponse = new LoginIoResponse
+                {
+                    TenantName = "trial15@example.com",
+                    PlanCode = "Standard",
+                    SubscriptionStatus = "TrialActive",
+                    TrialEndUtc = DateTime.UtcNow.AddDays(15).Date.AddHours(9)
+                },
+                StoreStatusesResponse = new JObject
+                {
+                    ["StoreStatuses"] = new JArray(
+                        new JObject
+                        {
+                            ["TenantName"] = "trial15@example.com",
+                            ["StoreCode"] = "S1",
+                            ["IsActive"] = true
+                        })
+                }
+            };
+
+            var controller = new DashboardController(loginApi, new InMemoryDashboardCustomerApiClient(), new ConfigurationBuilder().Build(), NullLogger<DashboardController>.Instance, new FakeWebHostEnvironment());
+            AttachSession(controller, "trial15@example.com", "S1", "StoreUser");
+
+            var result = await controller.Index(skipOnboardingGate: true);
+
+            var view = Assert.IsType<ViewResult>(result);
+            var model = Assert.IsType<LMSWebUI.Models.DashBoard.TenantInfoDto>(view.Model);
+            Assert.Equal("Trial", model.SubscriptionStatus);
+            Assert.Equal("trial-warning", Convert.ToString(controller.ViewData["SubscriptionBillingState"]));
+            Assert.Contains("15", Convert.ToString(controller.ViewData["SubscriptionBillingMessage"]), StringComparison.OrdinalIgnoreCase);
+        }
+
+        [Theory]
+        [InlineData(7)]
+        [InlineData(3)]
+        [InlineData(1)]
+        public async Task Index_TrialActiveTenant_SetsSubscriptionBillingMessages_ForReminderThresholds(int daysRemaining)
+        {
+            var loginApi = new InMemoryLoginApiClient
+            {
+                TenantProfileResponse = new LoginIoResponse
+                {
+                    TenantName = "trial-threshold@example.com",
+                    PlanCode = "Standard",
+                    SubscriptionStatus = "TrialActive",
+                    TrialEndUtc = DateTime.UtcNow.AddDays(daysRemaining).Date.AddHours(9)
+                },
+                StoreStatusesResponse = new JObject
+                {
+                    ["StoreStatuses"] = new JArray(
+                        new JObject
+                        {
+                            ["TenantName"] = "trial-threshold@example.com",
+                            ["StoreCode"] = "S1",
+                            ["IsActive"] = true
+                        })
+                }
+            };
+
+            var controller = new DashboardController(loginApi, new InMemoryDashboardCustomerApiClient(), new ConfigurationBuilder().Build(), NullLogger<DashboardController>.Instance, new FakeWebHostEnvironment());
+            AttachSession(controller, "trial-threshold@example.com", "S1", "StoreUser");
+
+            var result = await controller.Index(skipOnboardingGate: true);
+
+            var view = Assert.IsType<ViewResult>(result);
+            Assert.IsType<LMSWebUI.Models.DashBoard.TenantInfoDto>(view.Model);
+            Assert.Equal("trial-warning", Convert.ToString(controller.ViewData["SubscriptionBillingState"]));
+            Assert.Contains($"{daysRemaining}", Convert.ToString(controller.ViewData["SubscriptionBillingMessage"]), StringComparison.OrdinalIgnoreCase);
+        }
+
+        [Fact]
+        public async Task Index_TrialActiveTenant_Expired_SetsSubscriptionBillingUpgradeMessageState()
+        {
+            var loginApi = new InMemoryLoginApiClient
+            {
+                TenantProfileResponse = new LoginIoResponse
+                {
+                    TenantName = "trial-expired@example.com",
+                    PlanCode = "Standard",
+                    SubscriptionStatus = "TrialActive",
+                    TrialEndUtc = DateTime.UtcNow.AddDays(-1)
+                },
+                StoreStatusesResponse = new JObject
+                {
+                    ["StoreStatuses"] = new JArray(
+                        new JObject
+                        {
+                            ["TenantName"] = "trial-expired@example.com",
+                            ["StoreCode"] = "S1",
+                            ["IsActive"] = true
+                        })
+                }
+            };
+
+            var controller = new DashboardController(loginApi, new InMemoryDashboardCustomerApiClient(), new ConfigurationBuilder().Build(), NullLogger<DashboardController>.Instance, new FakeWebHostEnvironment());
+            AttachSession(controller, "trial-expired@example.com", "S1", "StoreUser");
+
+            var result = await controller.Index(skipOnboardingGate: true);
+
+            var view = Assert.IsType<ViewResult>(result);
+            var model = Assert.IsType<LMSWebUI.Models.DashBoard.TenantInfoDto>(view.Model);
+            Assert.Equal("Expired", model.SubscriptionStatus);
+            Assert.Equal("trial-expired", Convert.ToString(controller.ViewData["SubscriptionBillingState"]));
+            Assert.Contains("ended", Convert.ToString(controller.ViewData["SubscriptionBillingMessage"]), StringComparison.OrdinalIgnoreCase);
+        }
+
+        [Fact]
+        public async Task Index_ActiveTenant_DoesNotShowTrialWarningSubscriptionBillingState()
+        {
+            var loginApi = new InMemoryLoginApiClient
+            {
+                TenantProfileResponse = new LoginIoResponse
+                {
+                    TenantName = "paid-active@example.com",
+                    PlanCode = "Premium",
+                    SubscriptionStatus = "Active",
+                    TrialEndUtc = DateTime.UtcNow.AddDays(10)
+                },
+                StoreStatusesResponse = new JObject
+                {
+                    ["StoreStatuses"] = new JArray(
+                        new JObject
+                        {
+                            ["TenantName"] = "paid-active@example.com",
+                            ["StoreCode"] = "S1",
+                            ["IsActive"] = true
+                        })
+                }
+            };
+
+            var controller = new DashboardController(loginApi, new InMemoryDashboardCustomerApiClient(), new ConfigurationBuilder().Build(), NullLogger<DashboardController>.Instance, new FakeWebHostEnvironment());
+            AttachSession(controller, "paid-active@example.com", "S1", "StoreUser");
+
+            var result = await controller.Index(skipOnboardingGate: true);
+
+            var view = Assert.IsType<ViewResult>(result);
+            Assert.IsType<LMSWebUI.Models.DashBoard.TenantInfoDto>(view.Model);
+            Assert.Equal("paid-active", Convert.ToString(controller.ViewData["SubscriptionBillingState"]));
+        }
+
+        [Fact]
+        public async Task Index_TrialActiveTenant_SubscriptionBillingCard_TrialActiveState()
+        {
+            var loginApi = new InMemoryLoginApiClient
+            {
+                TenantProfileResponse = new LoginIoResponse
+                {
+                    TenantName = "billing-trial-active@example.com",
+                    PlanCode = "Standard",
+                    SubscriptionStatus = "TrialActive",
+                    TrialEndUtc = DateTime.UtcNow.AddDays(20)
+                },
+                StoreStatusesResponse = BuildActiveStoreStatuses("billing-trial-active@example.com", "S1")
+            };
+
+            var controller = new DashboardController(loginApi, new InMemoryDashboardCustomerApiClient(), new ConfigurationBuilder().Build(), NullLogger<DashboardController>.Instance, new FakeWebHostEnvironment());
+            AttachSession(controller, "billing-trial-active@example.com", "S1", "StoreUser");
+
+            var result = await controller.Index(skipOnboardingGate: true);
+
+            var view = Assert.IsType<ViewResult>(result);
+            Assert.IsType<LMSWebUI.Models.DashBoard.TenantInfoDto>(view.Model);
+            Assert.True(Convert.ToBoolean(controller.ViewData["ShowSubscriptionBillingCard"]));
+            Assert.Equal("trial-active", Convert.ToString(controller.ViewData["SubscriptionBillingState"]));
+            Assert.True(Convert.ToBoolean(controller.ViewData["SubscriptionBillingShowTrialProgress"]));
+        }
+
+        [Fact]
+        public async Task Index_TenantAdmin_SubscriptionBillingCard_AllowsManagementActions()
+        {
+            var loginApi = new InMemoryLoginApiClient
+            {
+                TenantProfileResponse = new LoginIoResponse
+                {
+                    TenantName = "billing-admin@example.com",
+                    PlanCode = "Premium",
+                    SubscriptionStatus = "Active",
+                    TrialEndUtc = DateTime.UtcNow.AddDays(5)
+                },
+                StoreStatusesResponse = BuildActiveStoreStatuses("billing-admin@example.com", "S1")
+            };
+
+            var controller = new DashboardController(loginApi, new InMemoryDashboardCustomerApiClient(), new ConfigurationBuilder().Build(), NullLogger<DashboardController>.Instance, new FakeWebHostEnvironment());
+            AttachSession(controller, "billing-admin@example.com", "S1", "Admin");
+
+            await controller.Index(skipOnboardingGate: true);
+
+            Assert.True(Convert.ToBoolean(controller.ViewData["ShowSubscriptionBillingCard"]));
+            Assert.True(Convert.ToBoolean(controller.ViewData["SubscriptionBillingCanManageActions"]));
+        }
+
+        [Fact]
+        public async Task Index_StoreUser_SubscriptionBillingCard_IsReadOnly()
+        {
+            var loginApi = new InMemoryLoginApiClient
+            {
+                TenantProfileResponse = new LoginIoResponse
+                {
+                    TenantName = "billing-storeuser@example.com",
+                    PlanCode = "Standard",
+                    SubscriptionStatus = "TrialActive",
+                    TrialEndUtc = DateTime.UtcNow.AddDays(10)
+                },
+                StoreStatusesResponse = BuildActiveStoreStatuses("billing-storeuser@example.com", "S1")
+            };
+
+            var controller = new DashboardController(loginApi, new InMemoryDashboardCustomerApiClient(), new ConfigurationBuilder().Build(), NullLogger<DashboardController>.Instance, new FakeWebHostEnvironment());
+            AttachSession(controller, "billing-storeuser@example.com", "S1", "StoreUser");
+
+            await controller.Index(skipOnboardingGate: true);
+
+            Assert.True(Convert.ToBoolean(controller.ViewData["ShowSubscriptionBillingCard"]));
+            Assert.False(Convert.ToBoolean(controller.ViewData["SubscriptionBillingCanManageActions"]));
+        }
+
+        [Fact]
+        public async Task Index_SuperAdmin_SubscriptionBillingCard_RemainsHidden()
+        {
+            var controller = new DashboardController(new InMemoryLoginApiClient(), new InMemoryDashboardCustomerApiClient(), new ConfigurationBuilder().Build(), NullLogger<DashboardController>.Instance, new FakeWebHostEnvironment());
+            AttachSession(controller, "superadmin@example.com", string.Empty, "SuperAdmin");
+
+            await controller.Index(skipOnboardingGate: true);
+
+            Assert.False(Convert.ToBoolean(controller.ViewData["ShowSubscriptionBillingCard"]));
+            Assert.False(Convert.ToBoolean(controller.ViewData["SubscriptionBillingCanManageActions"]));
+        }
+
+        [Fact]
+        public async Task Index_TrialActiveTenant_SubscriptionBillingCard_TrialEndingSoonState()
+        {
+            var loginApi = new InMemoryLoginApiClient
+            {
+                TenantProfileResponse = new LoginIoResponse
+                {
+                    TenantName = "billing-trial-warning@example.com",
+                    PlanCode = "Standard",
+                    SubscriptionStatus = "TrialActive",
+                    TrialEndUtc = DateTime.UtcNow.AddDays(7)
+                },
+                StoreStatusesResponse = BuildActiveStoreStatuses("billing-trial-warning@example.com", "S1")
+            };
+
+            var controller = new DashboardController(loginApi, new InMemoryDashboardCustomerApiClient(), new ConfigurationBuilder().Build(), NullLogger<DashboardController>.Instance, new FakeWebHostEnvironment());
+            AttachSession(controller, "billing-trial-warning@example.com", "S1", "StoreUser");
+
+            await controller.Index(skipOnboardingGate: true);
+
+            Assert.Equal("trial-warning", Convert.ToString(controller.ViewData["SubscriptionBillingState"]));
+            Assert.Contains("7", Convert.ToString(controller.ViewData["SubscriptionBillingMessage"]), StringComparison.OrdinalIgnoreCase);
+        }
+
+        [Fact]
+        public async Task Index_TrialActiveTenant_TrialDaysRemaining_ClampedTo45AndProgressCappedAt100()
+        {
+            var loginApi = new InMemoryLoginApiClient
+            {
+                TenantProfileResponse = new LoginIoResponse
+                {
+                    TenantName = "billing-trial-clamp-max@example.com",
+                    PlanCode = "Standard",
+                    SubscriptionStatus = "TrialActive",
+                    TrialEndUtc = DateTime.UtcNow.AddDays(200)
+                },
+                StoreStatusesResponse = BuildActiveStoreStatuses("billing-trial-clamp-max@example.com", "S1")
+            };
+
+            var controller = new DashboardController(loginApi, new InMemoryDashboardCustomerApiClient(), new ConfigurationBuilder().Build(), NullLogger<DashboardController>.Instance, new FakeWebHostEnvironment());
+            AttachSession(controller, "billing-trial-clamp-max@example.com", "S1", "StoreUser");
+
+            var result = await controller.Index(skipOnboardingGate: true);
+
+            var view = Assert.IsType<ViewResult>(result);
+            var model = Assert.IsType<LMSWebUI.Models.DashBoard.TenantInfoDto>(view.Model);
+            Assert.Equal(45, model.TrialDaysRemaining);
+            Assert.Equal(100, Convert.ToInt32(controller.ViewData["SubscriptionBillingTrialProgressPercent"]));
+        }
+
+        [Fact]
+        public async Task Index_TrialExpiredTenant_TrialDaysRemaining_ClampedToZeroAndProgressNotNegative()
+        {
+            var loginApi = new InMemoryLoginApiClient
+            {
+                TenantProfileResponse = new LoginIoResponse
+                {
+                    TenantName = "billing-trial-clamp-min@example.com",
+                    PlanCode = "Standard",
+                    SubscriptionStatus = "TrialActive",
+                    TrialEndUtc = DateTime.UtcNow.AddDays(-10)
+                },
+                StoreStatusesResponse = BuildActiveStoreStatuses("billing-trial-clamp-min@example.com", "S1")
+            };
+
+            var controller = new DashboardController(loginApi, new InMemoryDashboardCustomerApiClient(), new ConfigurationBuilder().Build(), NullLogger<DashboardController>.Instance, new FakeWebHostEnvironment());
+            AttachSession(controller, "billing-trial-clamp-min@example.com", "S1", "StoreUser");
+
+            var result = await controller.Index(skipOnboardingGate: true);
+
+            var view = Assert.IsType<ViewResult>(result);
+            var model = Assert.IsType<LMSWebUI.Models.DashBoard.TenantInfoDto>(view.Model);
+            Assert.Equal(0, model.TrialDaysRemaining);
+            Assert.Equal(0, Convert.ToInt32(controller.ViewData["SubscriptionBillingTrialProgressPercent"]));
+        }
+
+        [Fact]
+        public async Task Index_TrialActiveTenant_SubscriptionBillingCard_TrialExpiredState()
+        {
+            var loginApi = new InMemoryLoginApiClient
+            {
+                TenantProfileResponse = new LoginIoResponse
+                {
+                    TenantName = "billing-trial-expired@example.com",
+                    PlanCode = "Standard",
+                    SubscriptionStatus = "TrialActive",
+                    TrialEndUtc = DateTime.UtcNow.AddDays(-2)
+                },
+                StoreStatusesResponse = BuildActiveStoreStatuses("billing-trial-expired@example.com", "S1")
+            };
+
+            var controller = new DashboardController(loginApi, new InMemoryDashboardCustomerApiClient(), new ConfigurationBuilder().Build(), NullLogger<DashboardController>.Instance, new FakeWebHostEnvironment());
+            AttachSession(controller, "billing-trial-expired@example.com", "S1", "StoreUser");
+
+            await controller.Index(skipOnboardingGate: true);
+
+            Assert.Equal("trial-expired", Convert.ToString(controller.ViewData["SubscriptionBillingState"]));
+            Assert.Contains("ended", Convert.ToString(controller.ViewData["SubscriptionBillingMessage"]), StringComparison.OrdinalIgnoreCase);
+        }
+
+        [Fact]
+        public async Task Index_ActiveTenant_SubscriptionBillingCard_PaidActiveState()
+        {
+            var loginApi = new InMemoryLoginApiClient
+            {
+                TenantProfileResponse = new LoginIoResponse
+                {
+                    TenantName = "billing-paid-active@example.com",
+                    PlanCode = "Premium",
+                    SubscriptionStatus = "Active",
+                    TrialEndUtc = DateTime.UtcNow.AddDays(10)
+                },
+                StoreStatusesResponse = BuildActiveStoreStatuses("billing-paid-active@example.com", "S1")
+            };
+
+            var controller = new DashboardController(loginApi, new InMemoryDashboardCustomerApiClient(), new ConfigurationBuilder().Build(), NullLogger<DashboardController>.Instance, new FakeWebHostEnvironment());
+            AttachSession(controller, "billing-paid-active@example.com", "S1", "StoreUser");
+
+            await controller.Index(skipOnboardingGate: true);
+
+            Assert.Equal("paid-active", Convert.ToString(controller.ViewData["SubscriptionBillingState"]));
+            Assert.False(Convert.ToBoolean(controller.ViewData["SubscriptionBillingShowTrialProgress"]));
+        }
+
+        [Fact]
+        public async Task Index_MissingSubscriptionData_SubscriptionBillingCard_FallbackState()
+        {
+            var loginApi = new InMemoryLoginApiClient
+            {
+                TenantProfileResponse = new LoginIoResponse
+                {
+                    TenantName = "billing-missing@example.com",
+                    PlanCode = null,
+                    SubscriptionStatus = null,
+                    TrialEndUtc = null
+                },
+                StoreStatusesResponse = BuildActiveStoreStatuses("billing-missing@example.com", "S1")
+            };
+
+            var controller = new DashboardController(loginApi, new InMemoryDashboardCustomerApiClient(), new ConfigurationBuilder().Build(), NullLogger<DashboardController>.Instance, new FakeWebHostEnvironment());
+            AttachSession(controller, "billing-missing@example.com", "S1", "StoreUser");
+
+            await controller.Index(skipOnboardingGate: true);
+
+            Assert.Equal("missing", Convert.ToString(controller.ViewData["SubscriptionBillingState"]));
+            Assert.Contains("unavailable", Convert.ToString(controller.ViewData["SubscriptionBillingHeadline"]), StringComparison.OrdinalIgnoreCase);
+        }
+
+        [Fact]
+        public void DashboardIndex_View_ContainsSubscriptionBillingCardAndUpgradeLinks()
+        {
             var viewPath = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "LMSWebUI", "Views", "Dashboard", "Index.cshtml"));
             var viewContents = File.ReadAllText(viewPath);
-            Assert.Contains("id=\"dashboardTrialNotification\"", viewContents, StringComparison.Ordinal);
-            Assert.Contains("var showTrialNotification = !isSuperAdminUser", viewContents, StringComparison.Ordinal);
+
+            Assert.Contains("id=\"dashboardSubscriptionBillingCard\"", viewContents, StringComparison.Ordinal);
+            Assert.Contains("Subscription &amp; Billing", viewContents, StringComparison.Ordinal);
+            Assert.Contains("View Plans & Upgrade", viewContents, StringComparison.Ordinal);
+            Assert.Contains("Manage Subscription", viewContents, StringComparison.Ordinal);
+            Assert.Contains("Payment History", viewContents, StringComparison.Ordinal);
+            Assert.Contains("Renewals", viewContents, StringComparison.Ordinal);
+            Assert.Contains("canManageSubscriptionBillingActions", viewContents, StringComparison.Ordinal);
+            Assert.Contains("SubscriptionBillingCanManageActions", viewContents, StringComparison.Ordinal);
         }
+
+        [Fact]
+        public void DashboardIndex_View_DoesNotRenderStandaloneTrialBanners_WhileBillingCardRemainsVisible()
+        {
+            var viewPath = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "LMSWebUI", "Views", "Dashboard", "Index.cshtml"));
+            var viewContents = File.ReadAllText(viewPath);
+
+            Assert.Contains("id=\"dashboardSubscriptionBillingCard\"", viewContents, StringComparison.Ordinal);
+            Assert.DoesNotContain("id=\"dashboardTrialNotification\"", viewContents, StringComparison.Ordinal);
+            Assert.DoesNotContain("id=\"dashboardTrialStatusBanner\"", viewContents, StringComparison.Ordinal);
+            Assert.DoesNotContain("Your free trial is active", viewContents, StringComparison.OrdinalIgnoreCase);
+            Assert.DoesNotContain("Your 45-Day Free Trial Is Active", viewContents, StringComparison.Ordinal);
+        }
+
+        [Fact]
+        public void DashboardIndex_View_ContainsRefinedAdminHeaderContext_AndNoDuplicateHeaderSubscriptionLink()
+        {
+            var viewPath = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "LMSWebUI", "Views", "Dashboard", "Index.cshtml"));
+            var viewContents = File.ReadAllText(viewPath);
+
+            Assert.Contains("admin-store-dashboard-header", viewContents, StringComparison.Ordinal);
+            Assert.Contains("Tenant: <strong>@tenantName</strong>", viewContents, StringComparison.Ordinal);
+            Assert.Contains("Store: <strong>@tenantStore</strong>", viewContents, StringComparison.Ordinal);
+            Assert.Contains("admin-store-context-badge\">Current Store", viewContents, StringComparison.Ordinal);
+            Assert.Contains("Reporting Period: <strong id=\"adminHeaderPeriod\">Month to Date</strong>", viewContents, StringComparison.Ordinal);
+            Assert.Contains("Last Refreshed: <strong id=\"adminHeaderLastRefreshed\">--</strong>", viewContents, StringComparison.Ordinal);
+            Assert.Contains("id=\"adminHeaderRefreshStatusChip\"", viewContents, StringComparison.Ordinal);
+            Assert.Contains("style=\"display:none;\"", viewContents, StringComparison.Ordinal);
+            Assert.Contains("Manage Laundry Pricing", viewContents, StringComparison.Ordinal);
+            Assert.DoesNotContain(">Subscription Plans<", viewContents, StringComparison.Ordinal);
+        }
+
+        [Fact]
+        public void DashboardIndex_View_ContainsOperationsCommandCenter_AndCustomerLookupPanels()
+        {
+            var viewPath = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "LMSWebUI", "Views", "Dashboard", "Index.cshtml"));
+            var viewContents = File.ReadAllText(viewPath);
+
+            Assert.Contains("Operations Command Center", viewContents, StringComparison.Ordinal);
+            Assert.Contains("id=\"liveCounterPanel\"", viewContents, StringComparison.Ordinal);
+            Assert.Contains("id=\"lcPendingProcessing\"", viewContents, StringComparison.Ordinal);
+            Assert.Contains("id=\"lcPendingPaymentAmount\"", viewContents, StringComparison.Ordinal);
+            Assert.Contains("Today's Payment Summary", viewContents, StringComparison.Ordinal);
+            Assert.Contains("id=\"todayPaymentSummaryPanel\"", viewContents, StringComparison.Ordinal);
+            Assert.Contains("id=\"lcCashInHand\"", viewContents, StringComparison.Ordinal);
+            Assert.Contains("id=\"lcAmountCollectedToday\"", viewContents, StringComparison.Ordinal);
+            Assert.Contains("id=\"lcCashCollectedToday\"", viewContents, StringComparison.Ordinal);
+            Assert.Contains("id=\"lcUpiCollectedToday\"", viewContents, StringComparison.Ordinal);
+            Assert.Contains("id=\"lcCardCollectedToday\"", viewContents, StringComparison.Ordinal);
+            Assert.Contains("id=\"lcPaymentSummaryStatus\"", viewContents, StringComparison.Ordinal);
+            Assert.Contains("Create New Order", viewContents, StringComparison.Ordinal);
+            Assert.Contains("id=\"customerLookupPanel\"", viewContents, StringComparison.Ordinal);
+            Assert.Contains("Customer Lookup", viewContents, StringComparison.Ordinal);
+            Assert.Contains("id=\"searchOptionCustomer\"", viewContents, StringComparison.Ordinal);
+            Assert.Contains("id=\"searchOptionInvoice\"", viewContents, StringComparison.Ordinal);
+            Assert.Contains("id=\"selectedCustomerPanel\"", viewContents, StringComparison.Ordinal);
+            Assert.Contains("id=\"selectedCustomerEmptyState\"", viewContents, StringComparison.Ordinal);
+            Assert.Contains("Select a customer to enable customer-specific actions.", viewContents, StringComparison.Ordinal);
+        }
+
+        [Fact]
+        public void DashboardIndex_View_WiresPaymentSummaryToLiveCounterApi_WithNaFallbackContracts()
+        {
+            var viewPath = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "LMSWebUI", "Views", "Dashboard", "Index.cshtml"));
+            var viewContents = File.ReadAllText(viewPath);
+
+            Assert.Contains("function formatDashboardCurrencyOrNa(value)", viewContents, StringComparison.Ordinal);
+            Assert.Contains("function syncPaymentSummaryFromLiveCounters(response)", viewContents, StringComparison.Ordinal);
+            Assert.Contains("response.paymentSummaryAvailable === true", viewContents, StringComparison.Ordinal);
+            Assert.Contains("response.paymentSummaryReason", viewContents, StringComparison.Ordinal);
+            Assert.Contains("setStoreBoardValue(\"lcCashInHand\", \"N/A\", \"N/A\")", viewContents, StringComparison.Ordinal);
+            Assert.Contains("setStoreBoardValue(\"lcAmountCollectedToday\", \"N/A\", \"N/A\")", viewContents, StringComparison.Ordinal);
+            Assert.Contains("setStoreBoardValue(\"lcCashCollectedToday\", \"N/A\", \"N/A\")", viewContents, StringComparison.Ordinal);
+            Assert.Contains("setStoreBoardValue(\"lcUpiCollectedToday\", \"N/A\", \"N/A\")", viewContents, StringComparison.Ordinal);
+            Assert.Contains("setStoreBoardValue(\"lcCardCollectedToday\", \"N/A\", \"N/A\")", viewContents, StringComparison.Ordinal);
+            Assert.Contains("syncPaymentSummaryFromLiveCounters(response);", viewContents, StringComparison.Ordinal);
+        }
+
+        [Fact]
+        public void DashboardIndex_View_ContainsCustomerActionsAndDeleteConfirmationFlow()
+        {
+            var viewPath = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "LMSWebUI", "Views", "Dashboard", "Index.cshtml"));
+            var viewContents = File.ReadAllText(viewPath);
+
+            Assert.Contains("id=\"dashboardCreateOrderBtn\" disabled", viewContents, StringComparison.Ordinal);
+            Assert.Contains("id=\"dashboardEditCustomerBtn\" disabled", viewContents, StringComparison.Ordinal);
+            Assert.Contains("id=\"dashboardDeleteCustomerBtn\" disabled", viewContents, StringComparison.Ordinal);
+            Assert.Contains("Delete customer '", viewContents, StringComparison.Ordinal);
+            Assert.Contains("This action cannot be undone.", viewContents, StringComparison.Ordinal);
+            Assert.Contains("id=\"dashboardClearCustomerBtn\"", viewContents, StringComparison.Ordinal);
+            Assert.Contains("id=\"dashboardRefreshCustomerOrdersBtn\" disabled", viewContents, StringComparison.Ordinal);
+            Assert.Contains("Type to search. Use ↑/↓ to navigate suggestions and Enter to load customer history.", viewContents, StringComparison.Ordinal);
+            Assert.Contains("id=\"customerSearchGoBtn\">Search</button>", viewContents, StringComparison.Ordinal);
+            Assert.Contains("id=\"invoiceSearchGoBtn\">Search</button>", viewContents, StringComparison.Ordinal);
+        }
+
+        [Fact]
+        public void DashboardIndex_View_UsesSeparatePendingProcessingCount_ForStoreActionAndLiveCounters()
+        {
+            var viewPath = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "LMSWebUI", "Views", "Dashboard", "Index.cshtml"));
+            var viewContents = File.ReadAllText(viewPath);
+
+            Assert.Contains("setStoreBoardValue(\"actPendingCount\", asNumber(response.pendingProcessingCount), \"0\");", viewContents, StringComparison.Ordinal);
+            Assert.Contains("setLiveCounterValue(\"lcPendingProcessing\", response.pendingProcessingCount, \"0\");", viewContents, StringComparison.Ordinal);
+            Assert.DoesNotContain("setStoreBoardValue(\"actPendingCount\", asNumber(response.pendingDeliveryCount), \"0\");", viewContents, StringComparison.Ordinal);
+        }
+
+        [Fact]
+        public void DashboardIndex_View_ContainsRedesignedInvoiceLookupComponent_AndPreservesSearchHooks()
+        {
+            var viewPath = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "LMSWebUI", "Views", "Dashboard", "Index.cshtml"));
+            var viewContents = File.ReadAllText(viewPath);
+
+            Assert.Contains("Find Order or Invoice", viewContents, StringComparison.Ordinal);
+            Assert.Contains("invoice-lookup-wrap", viewContents, StringComparison.Ordinal);
+            Assert.Contains("invoice-lookup-row", viewContents, StringComparison.Ordinal);
+            Assert.Contains("invoice-lookup-icon", viewContents, StringComparison.Ordinal);
+            Assert.Contains("id=\"searchInvoiceText\"", viewContents, StringComparison.Ordinal);
+            Assert.Contains("placeholder=\"Enter Order No. / Invoice No.\"", viewContents, StringComparison.Ordinal);
+            Assert.Contains("id=\"invoiceSearchGoBtn\"", viewContents, StringComparison.Ordinal);
+            Assert.Contains("id=\"invoiceSearchMessage\"", viewContents, StringComparison.Ordinal);
+            Assert.Contains("invoice-lookup-info-row", viewContents, StringComparison.Ordinal);
+            Assert.Contains("Partial match supported. Press Enter to preview invoice details and open workflow.", viewContents, StringComparison.Ordinal);
+            Assert.Contains("executeInvoiceSearch", viewContents, StringComparison.Ordinal);
+            Assert.Contains("triggerInvoiceReferenceLookup", viewContents, StringComparison.Ordinal);
+        }
+
+        [Fact]
+        public void DashboardIndex_View_UsesPolishedLookupComponent_ForDefaultVisibleCustomerSearch()
+        {
+            var viewPath = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "LMSWebUI", "Views", "Dashboard", "Index.cshtml"));
+            var viewContents = File.ReadAllText(viewPath);
+
+            Assert.Contains("id=\"searchradio\" class=\"search-input-wrap autocomplete invoice-lookup-wrap\"", viewContents, StringComparison.Ordinal);
+            Assert.Contains("<div class=\"lookup-row\">", viewContents, StringComparison.Ordinal);
+            Assert.Contains("lookup-search-icon", viewContents, StringComparison.Ordinal);
+            Assert.Contains("lookup-filter-btn", viewContents, StringComparison.Ordinal);
+            Assert.Contains("Type to search. Use ↑/↓ to navigate suggestions and Enter to load customer history.", viewContents, StringComparison.Ordinal);
+            Assert.Contains(".search-hint {", viewContents, StringComparison.Ordinal);
+            Assert.Contains("background: #f8fafc;", viewContents, StringComparison.Ordinal);
+        }
+
+        [Fact]
+        public void DashboardIndex_View_PreservesCustomerReselectionFlow_AfterClearSelection()
+        {
+            var viewPath = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "LMSWebUI", "Views", "Dashboard", "Index.cshtml"));
+            var viewContents = File.ReadAllText(viewPath);
+
+            Assert.Contains("var customerSearchRequestSeq = 0;", viewContents, StringComparison.Ordinal);
+            Assert.Contains("var customerSelectionRequestSeq = 0;", viewContents, StringComparison.Ordinal);
+            Assert.Contains("var activeCustomerSelectionRequestSeq = 0;", viewContents, StringComparison.Ordinal);
+            Assert.Contains("activeCustomerSelectionRequestSeq = ++customerSelectionRequestSeq;", viewContents, StringComparison.Ordinal);
+            Assert.Contains("loadDashboardCustomerOrders(value, {", viewContents, StringComparison.Ordinal);
+            Assert.Contains("forceReload: source === \"search-go\" || source === \"change-event\"", viewContents, StringComparison.Ordinal);
+            Assert.Contains("if (!forceReload && codeKey && customerOrdersByCodeCache[codeKey])", viewContents, StringComparison.Ordinal);
+            Assert.Contains("if (searchInput) {", viewContents, StringComparison.Ordinal);
+            Assert.Contains("searchInput.dispatchEvent(new Event(\"input\"));", viewContents, StringComparison.Ordinal);
+            Assert.Contains("delete customerCodeByNameCache[previousNameKey];", viewContents, StringComparison.Ordinal);
+            Assert.Contains("delete customerOrdersByCodeCache[previousCodeKey];", viewContents, StringComparison.Ordinal);
+            Assert.Contains("if (searchRequestSeq !== customerSearchRequestSeq)", viewContents, StringComparison.Ordinal);
+            Assert.Contains("if (isStaleSelectionRequest())", viewContents, StringComparison.Ordinal);
+        }
+
+        private static JObject BuildActiveStoreStatuses(string tenantName, string storeCode)
+            => new JObject
+            {
+                ["StoreStatuses"] = new JArray(
+                    new JObject
+                    {
+                        ["TenantName"] = tenantName,
+                        ["StoreCode"] = storeCode,
+                        ["IsActive"] = true
+                    })
+            };
 
         private static async Task<(bool IsBusinessStoreSettingsCompleted, bool IsLaundryPricesCompleted, bool IsBarcodeTagsCompleted, bool IsFirstCustomerCompleted, bool IsFirstOrderCompleted)> InvokeChecklistProgressAsync(
             DashboardController controller,

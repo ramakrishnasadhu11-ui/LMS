@@ -110,14 +110,23 @@ namespace LMSWebUI.Controllers
                 TenantStore = tenanStore
             };
 
-            var isAdminUser = string.Equals(userRole, "Admin", System.StringComparison.OrdinalIgnoreCase)
-                              || isSuperAdminUser;
+            var isTenantAdminUser = string.Equals(userRole, "Admin", System.StringComparison.OrdinalIgnoreCase);
+            var isAdminUser = isTenantAdminUser || isSuperAdminUser;
 
             var shouldShowSubscriptionSpotlight = false;
             string subscriptionPlanCode = null;
             string normalizedSubscriptionStatus = null;
+            string rawSubscriptionStatus = null;
             DateTime? dashboardTrialEndUtc = null;
             int? dashboardTrialDaysRemaining = null;
+            string subscriptionBillingState = "missing";
+            string subscriptionBillingHeadline = "Subscription details unavailable";
+            string subscriptionBillingMessage = "We could not load subscription data right now. Open plans to review your subscription and billing options.";
+            bool showSubscriptionBillingCard = !isSuperAdminUser;
+            bool canManageSubscriptionBilling = isTenantAdminUser;
+            bool showTrialProgress = false;
+            int trialProgressPercent = 0;
+            DateTime? subscriptionExpiryUtc = null;
             if (!isSuperAdminUser && ShouldApplyTenantOnboardingGate(userRole))
             {
                 if (!onboardingStateLoaded)
@@ -142,18 +151,35 @@ namespace LMSWebUI.Controllers
                     ? profile.SubscriptionStatus
                     : GetJwtClaimValue(HttpContext.Session.GetString(AccessTokenSessionKey), "subscriptionStatus");
 
+                rawSubscriptionStatus = subscriptionStatus;
+
                 subscriptionPlanCode = profile?.PlanCode;
                 normalizedSubscriptionStatus = NormalizeSubscriptionStatus(subscriptionStatus, trialEndUtc);
+                subscriptionExpiryUtc = ResolveSubscriptionExpiryUtc(subscriptionStatus, normalizedSubscriptionStatus, trialEndUtc);
 
-                if (string.Equals(normalizedSubscriptionStatus, "Trial", StringComparison.OrdinalIgnoreCase)
-                    || string.Equals(normalizedSubscriptionStatus, "Expired", StringComparison.OrdinalIgnoreCase))
+                var trialDays = trialEndUtc.HasValue
+                    ? (int?)ComputeTrialDaysRemaining(trialEndUtc.Value)
+                    : null;
+
+                if (IsTrialActiveSubscription(rawSubscriptionStatus) && trialEndUtc.HasValue)
                 {
                     dashboardTrialEndUtc = trialEndUtc;
-                    if (trialEndUtc.HasValue)
-                    {
-                        dashboardTrialDaysRemaining = (int)Math.Ceiling((trialEndUtc.Value.ToUniversalTime() - DateTime.UtcNow).TotalDays);
-                    }
+                    dashboardTrialDaysRemaining = trialDays;
                 }
+
+                var billingCardState = BuildSubscriptionBillingCardState(
+                    rawSubscriptionStatus,
+                    normalizedSubscriptionStatus,
+                    trialEndUtc,
+                    trialDays,
+                    subscriptionPlanCode);
+
+                subscriptionBillingState = billingCardState.State;
+                subscriptionBillingHeadline = billingCardState.Headline;
+                subscriptionBillingMessage = billingCardState.Message;
+                showTrialProgress = billingCardState.ShowTrialProgress;
+                trialProgressPercent = billingCardState.TrialProgressPercent;
+
             }
 
             tenantInfoDto.SubscriptionStatus = normalizedSubscriptionStatus;
@@ -175,6 +201,15 @@ namespace LMSWebUI.Controllers
             ViewData["ShowSubscriptionSpotlight"] = shouldShowSubscriptionSpotlight;
             ViewData["CurrentPlanCode"] = subscriptionPlanCode;
             ViewData["CurrentSubscriptionStatus"] = normalizedSubscriptionStatus;
+            ViewData["RawSubscriptionStatus"] = rawSubscriptionStatus;
+            ViewData["ShowSubscriptionBillingCard"] = showSubscriptionBillingCard;
+            ViewData["SubscriptionBillingState"] = subscriptionBillingState;
+            ViewData["SubscriptionBillingHeadline"] = subscriptionBillingHeadline;
+            ViewData["SubscriptionBillingMessage"] = subscriptionBillingMessage;
+            ViewData["SubscriptionBillingShowTrialProgress"] = showTrialProgress;
+            ViewData["SubscriptionBillingTrialProgressPercent"] = trialProgressPercent;
+            ViewData["SubscriptionExpiryUtc"] = subscriptionExpiryUtc;
+            ViewData["SubscriptionBillingCanManageActions"] = canManageSubscriptionBilling;
 
             return View(tenantInfoDto);
         }
@@ -1526,6 +1561,119 @@ namespace LMSWebUI.Controllers
             }
 
             return "Not configured";
+        }
+
+        private static bool IsTrialActiveSubscription(string subscriptionStatus)
+            => string.Equals(subscriptionStatus?.Trim(), "TrialActive", StringComparison.OrdinalIgnoreCase);
+
+        private static string BuildTrialReminderMessage(int daysRemaining)
+        {
+            if (daysRemaining <= 0)
+            {
+                return "Your trial period has ended. Upgrade now to continue uninterrupted access.";
+            }
+
+            return daysRemaining switch
+            {
+                15 => "Reminder: 15 days left in your free trial. Explore plans to avoid any interruption.",
+                7 => "Reminder: 7 days left in your free trial. Choose a plan and stay uninterrupted.",
+                3 => "Reminder: 3 days left in your free trial. Upgrade today to keep your operations running.",
+                1 => "Reminder: 1 day left in your free trial. Upgrade now to avoid service interruption.",
+                _ => $"Your free trial has {daysRemaining} day(s) remaining."
+            };
+        }
+
+        private static (string State, string Headline, string Message, bool ShowTrialProgress, int TrialProgressPercent) BuildSubscriptionBillingCardState(
+            string rawSubscriptionStatus,
+            string normalizedSubscriptionStatus,
+            DateTime? trialEndUtc,
+            int? trialDaysRemaining,
+            string planCode)
+        {
+            var hasAnyData = !string.IsNullOrWhiteSpace(rawSubscriptionStatus)
+                             || !string.IsNullOrWhiteSpace(normalizedSubscriptionStatus)
+                             || !string.IsNullOrWhiteSpace(planCode)
+                             || trialEndUtc.HasValue;
+
+            if (!hasAnyData)
+            {
+                return (
+                    "missing",
+                    "Subscription details unavailable",
+                    "We could not load subscription data right now. Open plans to review your subscription and billing options.",
+                    false,
+                    0);
+            }
+
+            var normalized = normalizedSubscriptionStatus?.Trim();
+            if (string.Equals(normalized, "Active", StringComparison.OrdinalIgnoreCase))
+            {
+                return (
+                    "paid-active",
+                    "Subscription is active",
+                    "Your paid subscription is active. Review renewal date and billing details from Subscription Plans.",
+                    false,
+                    0);
+            }
+
+            var isTrialLike = string.Equals(normalized, "Trial", StringComparison.OrdinalIgnoreCase)
+                              || IsTrialActiveSubscription(rawSubscriptionStatus)
+                              || string.Equals(normalized, "Expired", StringComparison.OrdinalIgnoreCase);
+
+            if (isTrialLike)
+            {
+                var remaining = trialDaysRemaining ?? 0;
+                var progress = ComputeTrialProgressPercent(remaining);
+
+                if (remaining <= 0)
+                {
+                    return (
+                        "trial-expired",
+                        "Trial expired",
+                        "Your free trial has ended. Renew or upgrade now to continue uninterrupted access.",
+                        true,
+                        progress);
+                }
+
+                if (remaining <= 15)
+                {
+                    return (
+                        "trial-warning",
+                        "Trial ending soon",
+                        BuildTrialReminderMessage(remaining),
+                        true,
+                        progress);
+                }
+
+                return (
+                    "trial-active",
+                    "Your 45-Day Free Trial Is Active",
+                    BuildTrialReminderMessage(remaining),
+                    true,
+                    progress);
+            }
+
+            return (
+                "missing",
+                "Subscription details unavailable",
+                "We could not determine your subscription status. Open plans to review your subscription and billing options.",
+                false,
+                0);
+        }
+
+        private static int ComputeTrialProgressPercent(int daysRemaining)
+        {
+            const decimal trialWindowDays = 45m;
+            var clampedDays = Math.Max(0m, Math.Min(trialWindowDays, daysRemaining));
+            var pct = (int)Math.Round((clampedDays / trialWindowDays) * 100m, MidpointRounding.AwayFromZero);
+            return Math.Max(0, Math.Min(100, pct));
+        }
+
+        private static int ComputeTrialDaysRemaining(DateTime trialEndUtc)
+        {
+            const int maxTrialDays = 45;
+            var days = (int)Math.Ceiling((trialEndUtc.ToUniversalTime() - DateTime.UtcNow).TotalDays);
+            return Math.Max(0, Math.Min(maxTrialDays, days));
         }
 
         private static string ResolveRegisteredDomains(LoginIoResponse profile, string tenantEmail)

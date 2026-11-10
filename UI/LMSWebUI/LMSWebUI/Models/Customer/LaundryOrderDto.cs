@@ -68,6 +68,16 @@ namespace LMSWebUI.Models.Customer
 
         public string PaymentMode { get; set; } = "Cash";
 
+        public string PaymentId { get; set; }
+
+        public string TransactionId { get; set; }
+
+        public string PaymentTransactionId { get; set; }
+
+        public string SettlementId { get; set; }
+
+        public string ReceiptNo { get; set; }
+
         public string Notes { get; set; }
 
         public string OrderItemsJson { get; set; }

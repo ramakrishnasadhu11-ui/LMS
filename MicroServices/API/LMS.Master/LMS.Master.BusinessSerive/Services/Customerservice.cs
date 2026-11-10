@@ -3473,6 +3473,11 @@ namespace LMS.Master.BusinessSerive.Services
                 });
             }
 
+            await EnsurePaymentSettingsTableExistsAsync();
+            var paymentSettings = await _masterDbContext.PaymentSettings
+                .AsNoTracking()
+                .FirstOrDefaultAsync(x => x.TenantName == orderDto.TenantName && x.StoreCode == orderDto.StoreCode);
+
             await EnsureTaxInvoiceSettingsTableExistsAsync();
             await EnsureTaxInvoiceComponentsTableExistsAsync();
 
@@ -3543,6 +3548,26 @@ namespace LMS.Master.BusinessSerive.Services
             }
 
             orderDto.PaidNow = Math.Min(Math.Round(orderDto.PaidNow, 2, MidpointRounding.AwayFromZero), netAfterAdvance);
+
+            var enabledPaymentModes = GetEnabledPaymentModes(paymentSettings);
+            if (enabledPaymentModes.Count == 0)
+            {
+                if (orderDto.PaidNow > 0m)
+                {
+                    return ActionSet.ActionReturnType(HttpStatusCode.BadRequest, new CustomerIOResponse
+                    {
+                        StatusCode = "400",
+                        Message = "No payment mode is configured for this store. Save Payment Settings before collecting payment."
+                    });
+                }
+
+                orderDto.PaymentMode = "Cash";
+            }
+            else
+            {
+                orderDto.PaymentMode = ResolvePreferredPaymentMode(orderDto.PaymentMode, paymentSettings?.DefaultPaymentMode, enabledPaymentModes);
+            }
+
             orderDto.PendingAmount = Math.Max(0, Math.Round(netAfterAdvance - orderDto.PaidNow, 2, MidpointRounding.AwayFromZero));
             orderDto.NetPayable = orderDto.PendingAmount;
             var orderNo = GenerateOrderNo();
@@ -5943,6 +5968,60 @@ SELECT
                     Quantity = x.Quantity > 0 ? x.Quantity : 1
                 })
                 .ToList();
+        }
+
+        private static List<string> GetEnabledPaymentModes(PaymentSettingsEntity paymentSettings)
+        {
+            var modes = new List<string>();
+            if (paymentSettings == null)
+            {
+                return modes;
+            }
+
+            if (paymentSettings.EnableCash)
+            {
+                modes.Add("Cash");
+            }
+
+            if (paymentSettings.EnableUpi)
+            {
+                modes.Add("UPI");
+            }
+
+            if (paymentSettings.EnableCard)
+            {
+                modes.Add("Card");
+            }
+
+            if (paymentSettings.EnableWallet)
+            {
+                modes.Add("Wallet");
+            }
+
+            return modes;
+        }
+
+        private static string ResolvePreferredPaymentMode(string requestedPaymentMode, string defaultPaymentMode, List<string> enabledPaymentModes)
+        {
+            if (enabledPaymentModes == null || enabledPaymentModes.Count == 0)
+            {
+                return string.IsNullOrWhiteSpace(requestedPaymentMode) ? "Cash" : requestedPaymentMode.Trim();
+            }
+
+            var requested = string.IsNullOrWhiteSpace(requestedPaymentMode)
+                ? null
+                : enabledPaymentModes.FirstOrDefault(x => string.Equals(x, requestedPaymentMode.Trim(), StringComparison.OrdinalIgnoreCase));
+
+            if (!string.IsNullOrWhiteSpace(requested))
+            {
+                return requested;
+            }
+
+            var fallback = string.IsNullOrWhiteSpace(defaultPaymentMode)
+                ? null
+                : enabledPaymentModes.FirstOrDefault(x => string.Equals(x, defaultPaymentMode.Trim(), StringComparison.OrdinalIgnoreCase));
+
+            return !string.IsNullOrWhiteSpace(fallback) ? fallback : enabledPaymentModes[0];
         }
 
         private async Task PopulateOrderItemsAndTotalsAsync(string tenantName, string storeCode, List<LaundryOrderDto> orders)

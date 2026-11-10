@@ -24,6 +24,7 @@
     <PackageReference Include="MailKit" Version="4.16.0" />
     <PackageReference Include="Azure.Identity" Version="1.12.1" />
     <PackageReference Include="NuGet.Protocol" Version="6.11.2" />
+    <PackageReference Include="libphonenumber-csharp" Version="8.13.39" />
   </ItemGroup>
 
   <ItemGroup>
