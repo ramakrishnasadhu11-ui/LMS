@@ -148,6 +148,64 @@ namespace LMSWebUI.Controllers
                    || string.Equals(userRole, "SuperAdmin", StringComparison.OrdinalIgnoreCase);
         }
 
+        private string GetAuthenticatedTenantId()
+        {
+            var sessionTenantId = HttpContext.Session.GetString("TenantId");
+            if (!string.IsNullOrWhiteSpace(sessionTenantId))
+            {
+                return sessionTenantId.Trim();
+            }
+
+            var claimTenantId = User.FindFirst("tenantId")?.Value;
+            if (!string.IsNullOrWhiteSpace(claimTenantId))
+            {
+                return claimTenantId.Trim();
+            }
+
+            var accessToken = HttpContext.Session.GetString("AccessToken");
+            return GetJwtClaimValue(accessToken, "tenantId", "tenant_id", "tid", "TenantId");
+        }
+
+        private static string GetJwtClaimValue(string jwtToken, params string[] claimNames)
+        {
+            if (string.IsNullOrWhiteSpace(jwtToken) || claimNames == null || claimNames.Length == 0)
+            {
+                return null;
+            }
+
+            var parts = jwtToken.Split('.');
+            if (parts.Length < 2 || string.IsNullOrWhiteSpace(parts[1]))
+            {
+                return null;
+            }
+
+            try
+            {
+                var payloadSegment = parts[1].Replace('-', '+').Replace('_', '/');
+                var padding = payloadSegment.Length % 4;
+                if (padding > 0)
+                {
+                    payloadSegment = payloadSegment.PadRight(payloadSegment.Length + (4 - padding), '=');
+                }
+
+                var payload = JObject.Parse(Encoding.UTF8.GetString(Convert.FromBase64String(payloadSegment)));
+                foreach (var claimName in claimNames)
+                {
+                    var claim = payload.Properties().FirstOrDefault(property =>
+                        string.Equals(property.Name, claimName, StringComparison.OrdinalIgnoreCase));
+                    if (claim != null && !string.IsNullOrWhiteSpace(claim.Value?.ToString()))
+                    {
+                        return claim.Value.ToString().Trim();
+                    }
+                }
+            }
+            catch
+            {
+            }
+
+            return null;
+        }
+
         private bool IsSuperAdminUser()
         {
             var userRole = HttpContext.Session.GetString("UserRole");
@@ -864,8 +922,10 @@ namespace LMSWebUI.Controllers
                         customerInfoDto.Address = responseMessage.Address;
                         // MembershipId removed system-wide
                         customerInfoDto.BarCode = responseMessage.BarCode;
-                        customerInfoDto.PhoneNumber = responseMessage.PhoneNumber;
                         customerInfoDto.PhoneCountryCode = _customerPhoneService.GetRegionForNumber(responseMessage.PhoneNumber);
+                        customerInfoDto.PhoneNumber = _customerPhoneService.GetLocalNumber(
+                            responseMessage.PhoneNumber,
+                            customerInfoDto.PhoneCountryCode);
                         customerInfoDto.Email = responseMessage.Email;
                         customerInfoDto.customerCode = responseMessage.CustCode;
                         customerInfoDto.disableStatus = true;
@@ -5833,12 +5893,22 @@ namespace LMSWebUI.Controllers
 
                     foreach (var order in orders)
                     {
+                        if (!IsDashboardOrderInScope(order, tenantName, storeCode) || order.IsDeleted)
+                        {
+                            continue;
+                        }
+
                         var orderKey = BuildDashboardOrderAggregationKey(order);
                         var isUniqueOrder = countedOrderKeys.Add(orderKey);
 
                         if (isUniqueOrder)
                         {
                             var normalizedStatus = NormalizeDashboardOrderStatus(order?.Status);
+                            if (string.Equals(normalizedStatus, "ready", StringComparison.Ordinal))
+                            {
+                                readyForDeliveryCount++;
+                            }
+
                             if (string.Equals(normalizedStatus, "received", StringComparison.Ordinal)
                                 || string.Equals(normalizedStatus, "processing", StringComparison.Ordinal)
                                 || string.Equals(normalizedStatus, "in process", StringComparison.Ordinal))
@@ -5907,7 +5977,6 @@ namespace LMSWebUI.Controllers
 
                 if (deliveryStatus != null && deliveryStatus.StatusCode == "200")
                 {
-                    readyForDeliveryCount = deliveryStatus.ReadyForDeliveryCount;
                     pendingDeliveryCount = deliveryStatus.PendingDeliveryCount;
                 }
 
@@ -5955,9 +6024,40 @@ namespace LMSWebUI.Controllers
         }
 
         private static string NormalizeDashboardOrderStatus(string status)
-            => string.IsNullOrWhiteSpace(status)
-                ? "received"
-                : status.Trim().ToLowerInvariant();
+        {
+            if (string.IsNullOrWhiteSpace(status))
+            {
+                return "received";
+            }
+
+            var normalizedStatus = status.Trim().ToLowerInvariant();
+            return normalizedStatus switch
+            {
+                "ready for delivery" => "ready",
+                "in process" => "processing",
+                "cancelled" => "cancelled",
+                "canceled" => "cancelled",
+                "deleted" => "deleted",
+                "completed" => "completed",
+                "delivered" => "delivered",
+                _ => normalizedStatus
+            };
+        }
+
+        private static bool IsDashboardOrderInScope(LaundryOrderDto order, string tenantName, string storeCode)
+        {
+            if (order == null)
+            {
+                return false;
+            }
+
+            var tenantMatches = !string.IsNullOrWhiteSpace(order.TenantName)
+                && string.Equals(order.TenantName.Trim(), tenantName?.Trim(), StringComparison.OrdinalIgnoreCase);
+            var storeMatches = !string.IsNullOrWhiteSpace(order.StoreCode)
+                && string.Equals(order.StoreCode.Trim(), storeCode?.Trim(), StringComparison.OrdinalIgnoreCase);
+
+            return tenantMatches && storeMatches;
+        }
 
         private static string NormalizeDashboardPaymentMode(string paymentMode)
             => string.IsNullOrWhiteSpace(paymentMode)
@@ -6036,8 +6136,11 @@ namespace LMSWebUI.Controllers
 
             var tenantEmail = HttpContext.Session.GetString("TenantName");
             var currentStoreCode = HttpContext.Session.GetString("TenantStore");
+            var tenantId = GetAuthenticatedTenantId();
 
-            if (string.IsNullOrWhiteSpace(tenantEmail) || string.IsNullOrWhiteSpace(currentStoreCode))
+            if (string.IsNullOrWhiteSpace(tenantEmail)
+                || string.IsNullOrWhiteSpace(currentStoreCode)
+                || string.IsNullOrWhiteSpace(tenantId))
             {
                 return Json(new { success = false, message = "Session expired. Please log in again.", users = new List<object>() });
             }
@@ -6069,6 +6172,7 @@ namespace LMSWebUI.Controllers
                     {
                         response = await _loginApi.SendRequestAsync<JObject>("/GetStoreUsers", new Dictionary<string, string>
                         {
+                            { "tenantId", tenantId },
                             { "tenantEmail", tenantEmail },
                             { "storeCode", tenantStore }
                         }, Method.GET);
@@ -6083,30 +6187,17 @@ namespace LMSWebUI.Controllers
 
                 var users = allUsers
                     .Select(x => JObject.FromObject(x))
-                    .GroupBy(x => NormalizeEmail(x["email"]?.ToString() ?? x["Email"]?.ToString() ?? string.Empty))
-                    .Where(g => !string.IsNullOrWhiteSpace(g.Key)
-                        && g.Any(x => string.Equals(
-                            x["storeCode"]?.ToString() ?? x["StoreCode"]?.ToString() ?? string.Empty,
-                            resolvedStoreCode,
-                            StringComparison.OrdinalIgnoreCase)))
-                    .Select(g =>
+                    .Where(x => !string.IsNullOrWhiteSpace(x["email"]?.ToString() ?? x["Email"]?.ToString())
+                        && activeTenantStores.Contains(
+                            (x["storeCode"]?.ToString() ?? x["StoreCode"]?.ToString() ?? string.Empty).Trim(),
+                            StringComparer.OrdinalIgnoreCase))
+                    .Select(x => (object)new
                     {
-                        var first = g.First();
-                        var stores = g
-                            .Select(x => (x["storeCode"]?.ToString() ?? x["StoreCode"]?.ToString() ?? string.Empty).Trim())
-                            .Where(x => !string.IsNullOrWhiteSpace(x))
-                            .Distinct(StringComparer.OrdinalIgnoreCase)
-                            .OrderBy(x => x, StringComparer.OrdinalIgnoreCase)
-                            .ToList();
-
-                        return (object)new
-                        {
-                            email = first["email"]?.ToString() ?? first["Email"]?.ToString() ?? string.Empty,
-                            role = first["role"]?.ToString() ?? first["Role"]?.ToString() ?? "StoreUser",
-                            isActive = bool.TryParse(first["isActive"]?.ToString() ?? first["IsActive"]?.ToString(), out var isActive) && isActive,
-                            createdDate = first["createdDate"]?.ToString() ?? first["CreatedDate"]?.ToString() ?? string.Empty,
-                            storeCode = string.Join(", ", stores)
-                        };
+                        email = x["email"]?.ToString() ?? x["Email"]?.ToString() ?? string.Empty,
+                        role = x["role"]?.ToString() ?? x["Role"]?.ToString() ?? "StoreUser",
+                        isActive = bool.TryParse(x["isActive"]?.ToString() ?? x["IsActive"]?.ToString(), out var isActive) && isActive,
+                        createdDate = x["createdDate"]?.ToString() ?? x["CreatedDate"]?.ToString() ?? string.Empty,
+                        storeCode = (x["storeCode"]?.ToString() ?? x["StoreCode"]?.ToString() ?? string.Empty).Trim()
                     })
                     .ToList();
 
@@ -6598,10 +6689,18 @@ namespace LMSWebUI.Controllers
                 return RedirectToAction("Login", "Login");
             }
 
-            var phoneValidation = _customerPhoneService.ValidateAndNormalize(customerInfoDto.PhoneNumber, customerInfoDto.PhoneCountryCode, allowLegacyCompatibility: false);
+            var phoneValidation = _customerPhoneService.ValidateAndNormalize(
+                customerInfoDto.PhoneNumber,
+                customerInfoDto.PhoneCountryCode,
+                allowLegacyCompatibility: false);
             if (!phoneValidation.IsValid)
             {
-                TempData["UserMessage"] = JsonConvert.SerializeObject(new MessageDto { CssClassName = "alert-warning", Title = "Warning.", DisplayMessage = phoneValidation.Message });
+                TempData["UserMessage"] = JsonConvert.SerializeObject(new MessageDto
+                {
+                    CssClassName = "alert-warning",
+                    Title = "Warning.",
+                    DisplayMessage = phoneValidation.Message
+                });
                 return RedirectToAction("Index", "Customer");
             }
 
@@ -6719,6 +6818,9 @@ namespace LMSWebUI.Controllers
             {
                 isValid = validation.IsValid,
                 normalizedNumber = validation.NormalizedNumber,
+                localNumber = validation.IsValid
+                    ? _customerPhoneService.GetLocalNumber(phone, countryIso2)
+                    : null,
                 formattedNationalNumber = validation.FormattedNationalNumber,
                 message = validation.Message
             });
@@ -6763,17 +6865,14 @@ namespace LMSWebUI.Controllers
                 return Json(new { success = false, message = "Session expired. Please log in again." });
             }
 
-            var phoneValidation = _customerPhoneService.ValidateAndNormalize(customerInfoDto.PhoneNumber, customerInfoDto.PhoneCountryCode, allowLegacyCompatibility: true);
+            var phoneValidation = _customerPhoneService.ValidateAndNormalize(
+                customerInfoDto.PhoneNumber,
+                customerInfoDto.PhoneCountryCode,
+                allowLegacyCompatibility: false);
             var normalizedUpdatePhone = phoneValidation.NormalizedNumber;
             if (!phoneValidation.IsValid)
             {
-                var legacyPhone = NormalizePhoneNumberForStorage(customerInfoDto.PhoneNumber);
-                if (!LegacyDigitsRegex.IsMatch(legacyPhone ?? string.Empty))
-                {
-                    return Json(new { success = false, message = phoneValidation.Message });
-                }
-
-                normalizedUpdatePhone = legacyPhone;
+                return Json(new { success = false, message = phoneValidation.Message });
             }
 
             if (!string.IsNullOrWhiteSpace(customerInfoDto.Email) && !Regex.IsMatch(customerInfoDto.Email.Trim(), @"^[^\s@]+@[^\s@]+\.[^\s@]+$"))

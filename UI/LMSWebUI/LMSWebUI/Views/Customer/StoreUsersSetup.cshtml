@@ -528,6 +528,7 @@
                 + "<td>"
                 + "<button type='button' class='admin-btn secondary toggle-store-user-status-btn'"
                 + " data-email='" + encodeURIComponent(email) + "'"
+                 + " data-store-code='" + encodeURIComponent((u.storeCode || u.StoreCode || "")) + "'"
                 + " data-active='" + (isActive ? "true" : "false") + "'"
                 + " style='min-width:120px; min-height:34px;'>" + actionText + "</button>"
                 + "</td>"
@@ -544,6 +545,7 @@
                 var currentActive = (btn.getAttribute('data-active') || '').toLowerCase() === 'true';
                 var nextActive = !currentActive;
                 var userEmail = decodeURIComponent(encodedEmail);
+                var storeCode = decodeURIComponent(btn.getAttribute('data-store-code') || '');
                 var normalizedEmail = (userEmail || '').trim().toLowerCase();
 
                 if (!userEmail) {
@@ -556,11 +558,9 @@
                 }
 
                 var body = new URLSearchParams();
-                var selectedStores = getSelectedStoreCodes();
-                var selectedStore = selectedStores.length > 0 ? selectedStores[0] : "";
                 body.append('userEmail', userEmail);
                 body.append('isActive', nextActive ? 'true' : 'false');
-                body.append('storeCode', selectedStore);
+                body.append('storeCode', storeCode);
 
                 var originalText = btn.textContent;
                 statusRequestsInProgressByUser.add(normalizedEmail);
@@ -612,6 +612,7 @@
 
         fetch(requestUrl, {
             method: 'GET',
+            credentials: 'same-origin',
             headers: { 'X-Requested-With': 'XMLHttpRequest' }
         })
         .then(function (r) { return r.json(); })

@@ -489,6 +489,132 @@
             line-height: 1.45;
         }
 
+        .store-context-card {
+            display: none;
+            margin-top: 12px;
+            padding: 16px;
+            border: 1px solid #bfdbfe;
+            border-radius: 14px;
+            background: linear-gradient(135deg, #f8fbff 0%, #eef6ff 100%);
+            box-shadow: 0 10px 24px rgba(30, 64, 175, 0.1);
+        }
+
+        .store-context-card.is-visible {
+            display: block;
+        }
+
+        .store-context-card__header,
+        .store-context-card__store,
+        .store-context-card__security {
+            display: flex;
+            align-items: center;
+        }
+
+        .store-context-card__header {
+            justify-content: space-between;
+            gap: 12px;
+        }
+
+        .store-context-card__identity {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            min-width: 0;
+        }
+
+        .store-context-card__icon {
+            width: 36px;
+            height: 36px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            flex: 0 0 auto;
+            border-radius: 10px;
+            background: #dbeafe;
+            color: #1d4ed8;
+            font-size: 18px;
+        }
+
+        .store-context-card__heading {
+            margin: 0;
+            color: #0f2d75;
+            font-size: 15px;
+            font-weight: 700;
+        }
+
+        .store-context-card__subtitle {
+            margin: 2px 0 0;
+            color: #64748b;
+            font-size: 11px;
+            font-weight: 600;
+            letter-spacing: .04em;
+            text-transform: uppercase;
+        }
+
+        .store-context-card__badge {
+            flex: 0 0 auto;
+            padding: 5px 8px;
+            border: 1px solid #a7f3d0;
+            border-radius: 999px;
+            background: #ecfdf5;
+            color: #047857;
+            font-size: 10px;
+            font-weight: 700;
+            letter-spacing: .03em;
+        }
+
+        .store-context-card__store {
+            gap: 8px;
+            margin: 16px 0 8px 46px;
+            color: #0f172a;
+            font-size: 14px;
+            font-weight: 700;
+        }
+
+        .store-context-card__code {
+            padding: 3px 7px;
+            border-radius: 6px;
+            background: #dbeafe;
+            color: #1e40af;
+            font-size: 11px;
+            letter-spacing: .06em;
+        }
+
+        .store-context-card__supporting {
+            margin: 0 0 12px 46px;
+            color: #475569;
+            font-size: 12px;
+            line-height: 1.5;
+        }
+
+        .store-context-card__security {
+            gap: 6px;
+            margin-left: 46px;
+            color: #047857;
+            font-size: 11px;
+            font-weight: 700;
+        }
+
+        @@media (max-width: 480px) {
+            .store-context-card {
+                padding: 14px;
+            }
+
+            .store-context-card__header {
+                align-items: flex-start;
+            }
+
+            .store-context-card__badge {
+                white-space: nowrap;
+            }
+
+            .store-context-card__store,
+            .store-context-card__supporting,
+            .store-context-card__security {
+                margin-left: 0;
+            }
+        }
+
         .login-card .form-button {
             display: flex;
             flex-direction: column;
@@ -821,6 +947,24 @@
                         <div id="storeUserHint" class="login-hint">
                             Tenant/Admin login: select a store when multiple are available. Store-user login: auto-selected only when exactly one active assigned store exists.
                         </div>
+                         <section id="storeContextCard" class="store-context-card" aria-live="polite" aria-label="Store context confirmation">
+                             <div class="store-context-card__header">
+                                 <div class="store-context-card__identity">
+                                     <span class="store-context-card__icon" aria-hidden="true">⌂</span>
+                                     <div>
+                                         <h3 class="store-context-card__heading">Your workspace is ready</h3>
+                                         <p class="store-context-card__subtitle">Store login detected</p>
+                                     </div>
+                                 </div>
+                                 <span class="store-context-card__badge">Auto-selected</span>
+                             </div>
+                             <div class="store-context-card__store">
+                                 <span id="storeContextName"></span>
+                                 <span id="storeContextCode" class="store-context-card__code"></span>
+                             </div>
+                             <p class="store-context-card__supporting">Your store has been securely identified. Your workspace will open after successful authentication.</p>
+                             <div class="store-context-card__security"><span aria-hidden="true">✓</span> Verified store assignment</div>
+                         </section>
                         <div id="storeUserModeBadge" style="display:none; margin-top:8px;">
                             <span id="storeUserModeBadgeText" style="display:inline-block; padding:4px 10px; border-radius:999px; font-size:11px; font-weight:700; letter-spacing:.2px; background:color-mix(in srgb, var(--els-accent) 45%, #ffffff); color:var(--els-primary-dark); border:1px solid var(--els-primary-light);">
                                 Store User Mode
@@ -950,7 +1094,14 @@
             var modeBadge = $('#storeUserModeBadge');
             var modeBadgeText = $('#storeUserModeBadgeText');
             var storeDropdownContainer = $('#storeDropdownContainer');
+            var storeContextCard = $('#storeContextCard');
+            var storeContextName = $('#storeContextName');
+            var storeContextCode = $('#storeContextCode');
             if (!hint.length) return;
+
+            storeContextCard.removeClass('is-visible');
+            storeContextName.text('');
+            storeContextCode.text('');
 
             if (isSuperAdmin) {
                 hint.css('color', '#7c4dff');
@@ -970,7 +1121,10 @@
             if (isStoreUser) {
                 hint.css('color', '#0b7285');
                 if (autoStore) {
-                    hint.html('Store-user login detected. Store auto-selected: <b>' + autoStore + '</b>.');
+                    storeContextName.text('Store ' + autoStore);
+                    storeContextCode.text(autoStore);
+                    storeContextCard.addClass('is-visible');
+                    hint.text('');
                     if (storeDropdownContainer.length) {
                         storeDropdownContainer.hide();
                     }

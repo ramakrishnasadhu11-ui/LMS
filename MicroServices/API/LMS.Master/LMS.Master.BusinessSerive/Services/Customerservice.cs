@@ -35,6 +35,9 @@ namespace LMS.Master.BusinessSerive.Services
         private const string InternalWebhookSecretRevealedKey = "__els_webhook_secret_revealed";
         private const string InternalWebhookSecretGeneratedAtKey = "__els_webhook_secret_generated_at_utc";
         private const string InternalWebhookSecretRevealedAtKey = "__els_webhook_secret_revealed_at_utc";
+        private static readonly Regex CustomerE164PhoneRegex = new Regex(@"^\+[1-9][0-9]{6,14}$", RegexOptions.Compiled | RegexOptions.CultureInvariant);
+        private static readonly Regex CustomerIndianE164PhoneRegex = new Regex(@"^\+91[6-9][0-9]{9}$", RegexOptions.Compiled | RegexOptions.CultureInvariant);
+        private static readonly Regex CustomerLegacyPhoneRegex = new Regex(@"^[0-9]{7,15}$", RegexOptions.Compiled | RegexOptions.CultureInvariant);
 
         private sealed class IntegrationSettingsPayload
         {
@@ -247,6 +250,13 @@ namespace LMS.Master.BusinessSerive.Services
             });
         }
 
+        private static bool IsValidCustomerPhonePayload(string phone)
+        {
+            return phone.StartsWith("+91", StringComparison.Ordinal)
+                ? CustomerIndianE164PhoneRegex.IsMatch(phone)
+                : CustomerE164PhoneRegex.IsMatch(phone) || CustomerLegacyPhoneRegex.IsMatch(phone);
+        }
+
         public async Task<ActionReturnType> AddCustomer(CustomerDto customerDto)
         {
             if (customerDto == null)
@@ -292,7 +302,7 @@ namespace LMS.Master.BusinessSerive.Services
             if (!string.IsNullOrWhiteSpace(customerDto.PhoneNumber))
             {
                 customerDto.PhoneNumber = customerDto.PhoneNumber.Trim().Replace(" ", string.Empty);
-                if (!Regex.IsMatch(customerDto.PhoneNumber, @"^\d{7,15}$"))
+                if (!IsValidCustomerPhonePayload(customerDto.PhoneNumber))
                 {
                     return ActionSet.ActionReturnType(HttpStatusCode.BadRequest, new CustomerIOResponse { StatusCode = "400", Message = CustomerValidationMessage.CUSTOMER_PHONE_INVALID_MESSAGE });
                 }
@@ -394,7 +404,7 @@ namespace LMS.Master.BusinessSerive.Services
             if (!string.IsNullOrWhiteSpace(customerDto.PhoneNumber))
             {
                 customerDto.PhoneNumber = customerDto.PhoneNumber.Trim().Replace(" ", string.Empty);
-                if (!Regex.IsMatch(customerDto.PhoneNumber, @"^\d{7,15}$"))
+                if (!IsValidCustomerPhonePayload(customerDto.PhoneNumber))
                 {
                     return ActionSet.ActionReturnType(HttpStatusCode.BadRequest, new CustomerIOResponse { StatusCode = "400", Message = CustomerValidationMessage.CUSTOMER_PHONE_INVALID_MESSAGE });
                 }
