@@ -107,8 +107,22 @@ namespace LMSWebUI.Controllers
             var tenantInfoDto = new TenantInfoDto
             {
                 TenantName = tenantName,
-                TenantStore = tenanStore
+                TenantStore = tenanStore,
+                StoreName = tenanStore,
+                IsStoreActive = true
             };
+
+            if (!isSuperAdminUser)
+            {
+                tenantInfoDto.ActiveStores = await GetActiveDashboardStoresAsync(tenantName, tenanStore);
+                var currentStore = tenantInfoDto.ActiveStores.FirstOrDefault(x =>
+                    string.Equals(x.StoreCode, tenanStore, StringComparison.OrdinalIgnoreCase));
+                if (currentStore != null)
+                {
+                    tenantInfoDto.StoreName = currentStore.StoreName;
+                    tenantInfoDto.IsStoreActive = currentStore.IsActive;
+                }
+            }
 
             var isTenantAdminUser = string.Equals(userRole, "Admin", System.StringComparison.OrdinalIgnoreCase);
             var isAdminUser = isTenantAdminUser || isSuperAdminUser;
@@ -212,6 +226,42 @@ namespace LMSWebUI.Controllers
             ViewData["SubscriptionBillingCanManageActions"] = canManageSubscriptionBilling;
 
             return View(tenantInfoDto);
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> SwitchStore(string storeCode)
+        {
+            var tenantName = HttpContext.Session.GetString("TenantName");
+            var currentStore = HttpContext.Session.GetString("TenantStore");
+            var userRole = HttpContext.Session.GetString("UserRole");
+
+            if (string.IsNullOrWhiteSpace(tenantName)
+                || string.IsNullOrWhiteSpace(currentStore)
+                || string.IsNullOrWhiteSpace(userRole)
+                || string.IsNullOrWhiteSpace(storeCode))
+            {
+                return RedirectToAction("Login", "Login");
+            }
+
+            var activeStores = await GetActiveDashboardStoresAsync(tenantName, currentStore);
+            var selectedStore = activeStores.FirstOrDefault(x =>
+                string.Equals(x.StoreCode, storeCode.Trim(), StringComparison.OrdinalIgnoreCase)
+                && x.IsActive);
+
+            if (selectedStore == null)
+            {
+                TempData["UserMessage"] = JsonConvert.SerializeObject(new MessageDto
+                {
+                    CssClassName = "alert alert-danger",
+                    Title = "Store switch blocked.",
+                    DisplayMessage = "The selected store is not active or is not authorized for this account."
+                });
+                return RedirectToAction(nameof(Index));
+            }
+
+            HttpContext.Session.SetString("TenantStore", selectedStore.StoreCode);
+            return RedirectToAction(nameof(Index));
         }
 
         [HttpGet]
@@ -513,6 +563,74 @@ namespace LMSWebUI.Controllers
             }
 
             return (true, string.Empty);
+        }
+
+        private async Task<List<DashboardStoreOption>> GetActiveDashboardStoresAsync(string tenantName, string currentStoreCode)
+        {
+            var activeStores = new List<DashboardStoreOption>();
+            if (string.IsNullOrWhiteSpace(tenantName))
+            {
+                return activeStores;
+            }
+
+            var allowedStores = (HttpContext.Session.GetString(AllowedStoresSessionKey) ?? string.Empty)
+                .Split(',', StringSplitOptions.RemoveEmptyEntries)
+                .Select(x => x.Trim())
+                .Where(x => !string.IsNullOrWhiteSpace(x))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+            try
+            {
+                var response = await _loginApi.SendRequestAsync<JObject>(
+                    "/GetAllStoreStatuses",
+                    new Dictionary<string, string>(),
+                    Method.GET);
+
+                var statusesToken = response?["StoreStatuses"] ?? response?["storeStatuses"] ?? new JArray();
+                var statusesArray = statusesToken as JArray ?? statusesToken?["$values"] as JArray ?? new JArray();
+
+                activeStores = statusesArray
+                    .Select(x => new
+                    {
+                        StoreCode = (x?["StoreCode"] ?? x?["storeCode"])?.ToString()?.Trim(),
+                        StoreName = (x?["StoreName"] ?? x?["storeName"] ?? x?["Name"] ?? x?["name"])?.ToString()?.Trim(),
+                        TenantName = (x?["TenantName"] ?? x?["tenantName"])?.ToString()?.Trim(),
+                        TenantEmail = (x?["TenantEmail"] ?? x?["tenantEmail"])?.ToString()?.Trim(),
+                        IsActive = (bool?)(x?["IsActive"] ?? x?["isActive"]) ?? false
+                    })
+                    .Where(x => x.IsActive
+                        && !string.IsNullOrWhiteSpace(x.StoreCode)
+                        && (string.Equals(x.TenantName, tenantName, StringComparison.OrdinalIgnoreCase)
+                            || string.Equals(x.TenantEmail, tenantName, StringComparison.OrdinalIgnoreCase))
+                        && (allowedStores.Count == 0 || allowedStores.Contains(x.StoreCode)))
+                    .Select(x => new DashboardStoreOption
+                    {
+                        StoreCode = x.StoreCode,
+                        StoreName = string.IsNullOrWhiteSpace(x.StoreName) ? x.StoreCode : x.StoreName,
+                        IsActive = x.IsActive
+                    })
+                    .GroupBy(x => x.StoreCode, StringComparer.OrdinalIgnoreCase)
+                    .Select(x => x.First())
+                    .OrderBy(x => x.StoreName, StringComparer.OrdinalIgnoreCase)
+                    .ToList();
+            }
+            catch
+            {
+            }
+
+            if (!activeStores.Any(x => string.Equals(x.StoreCode, currentStoreCode, StringComparison.OrdinalIgnoreCase))
+                && !string.IsNullOrWhiteSpace(currentStoreCode))
+            {
+                activeStores.Add(new DashboardStoreOption
+                {
+                    StoreCode = currentStoreCode.Trim(),
+                    StoreName = currentStoreCode.Trim(),
+                    IsActive = true
+                });
+            }
+
+            return activeStores;
         }
 
         private async Task<(bool IsBusinessStoreSettingsCompleted, bool IsLaundryPricesCompleted, bool IsBarcodeTagsCompleted, bool IsFirstCustomerCompleted, bool IsFirstOrderCompleted)> ResolveOnboardingChecklistProgressAsync(string tenantName, string tenantStore)

@@ -58,6 +58,8 @@ namespace LMSWebUI.Models.Customer
 
         public string Status { get; set; }
 
+        public bool IsDeleted { get; set; }
+
         public decimal AdvanceUsed { get; set; }
 
         public decimal PaidNow { get; set; }

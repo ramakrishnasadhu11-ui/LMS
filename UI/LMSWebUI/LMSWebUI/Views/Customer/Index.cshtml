@@ -352,33 +352,41 @@ textarea.maintain-text {
 .customer-box { border: 1px solid #e6edf5; border-radius: 18px; box-shadow: 0 16px 45px rgba(22, 42, 70, .10); }
 .customer-title { padding: 24px 30px; font-size: 24px; letter-spacing: -.3px; }
 .customer-body { padding: 26px 30px 30px; }
-.customer-code { display: flex; align-items: center; gap: 8px; margin: 0 0 22px; padding: 12px 16px; border: 1px solid #dfe9f4; border-radius: 12px; background: #f8fbff; color: #52657b; }
-.customer-code .input1-field { border: 0; padding: 0; width: auto; background: transparent; color: #1d3552; }
-.profile-layout { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(300px, .85fr); gap: 20px; }
+.customer-code { display: grid; grid-template-columns: minmax(130px, auto) minmax(220px, 360px); align-items: center; gap: 10px 14px; margin: 0 0 22px; padding: 14px 16px; border: 1px solid #dfe9f4; border-radius: 12px; background: #f8fbff; color: #52657b; }
+.customer-code label { margin: 0; color: #334b66; font-size: 13px; font-weight: 700; }
+.customer-code input { width: 100%; min-height: 42px; margin: 0; border: 1px solid #d7e2ee; border-radius: 10px; background: #eef4fa; color: #52657b; font-size: 14px; font-weight: 600; }
+.profile-layout { display: block; }
 .profile-card { border: 1px solid #e5ecf4; border-radius: 16px; padding: 22px; background: #fff; box-shadow: 0 7px 22px rgba(30, 55, 85, .06); }
 .profile-card h2 { margin: 0 0 4px; color: #19324f; font-size: 17px; font-weight: 700; }
 .profile-card .card-subtitle { margin: 0 0 20px; color: #74869a; font-size: 13px; }
-.profile-card .input-container { margin-bottom: 14px; gap: 12px; }
+.profile-card .input-container { margin: 0; gap: 12px; }
 .profile-card .icon { width: 40px; min-width: 40px; padding: 11px 8px; border-radius: 10px; background: #edf5ff; color: var(--els-primary); }
 .profile-card .input-container input, .profile-card .input-container textarea { border-radius: 10px; border-color: #d7e2ee; }
-.field-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin: 0; }
-.field-grid .field-item { gap: 7px; }
+.profile-card .profile-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px 20px; margin: 0; }
+.profile-card .field-item { display: flex; flex-direction: column; min-width: 0; gap: 7px; }
+.profile-card .field-item--wide { grid-column: 1 / -1; }
 .field-grid label, .profile-card label { font-weight: 700; color: #334b66; }
 .required-mark { color: #c33b4a; }
-.phone-input-group { display: flex; gap: 8px; }
-.phone-country { flex: 0 0 145px; min-width: 0; border: 1px solid #d7e2ee; border-radius: 10px; padding: 10px 8px; color: #203b58; background: #fbfdff; }
+.phone-input-group { display: grid; grid-template-columns: minmax(126px, 145px) minmax(0, 1fr); gap: 8px; align-items: start; }
+.phone-country { width: 100%; min-width: 0; min-height: 42px; border: 1px solid #d7e2ee; border-radius: 10px; padding: 10px 8px; color: #203b58; background: #fbfdff; }
 .phone-input-group input { min-width: 0; }
 .barcode-input { display: flex; gap: 8px; }
 .barcode-input input { min-width: 0; }
 .barcode-scan { flex: 0 0 44px; border: 1px solid #c9dced; border-radius: 10px; background: #eff7ff; color: var(--els-primary); }
 .barcode-scan:hover, .barcode-scan:focus-visible { background: #dceeff; }
 .helper-text { color: #77899d; font-size: 12px; margin-top: 2px; }
+.phone-input-guidance { display: flex; align-items: flex-start; gap: 8px; width: 100%; margin-top: 7px; padding: 9px 11px; border: 1px solid #dce8f4; border-radius: 9px; background: #f5f9fe; color: #526b84; font-size: 12px; line-height: 1.5; }
+.phone-input-guidance i { flex: 0 0 auto; margin-top: 2px; color: var(--els-primary); }
+.phone-guidance-content { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.phone-guidance-summary { color: #294662; font-weight: 700; }
+.phone-guidance-country { color: #526b84; }
+.phone-guidance-detail { color: #71859a; }
 .phone-config-note { color: #936b19; background: #fff8e6; border: 1px solid #f3dfaa; border-radius: 9px; padding: 9px 11px; font-size: 12px; margin-top: 9px; }
-.profile-card .field-error { margin-left: 52px; }
+.profile-card .field-error { margin: 0; min-height: 0; }
 .nav-actions { grid-column: 1 / -1; margin-top: 2px; padding: 20px 0 0; }
 .nav-actions #custsave { min-width: 190px; }
-@@media (max-width: 900px) { .profile-layout { grid-template-columns: 1fr; } }
-@@media (max-width: 560px) { .customer-page { padding: 16px 10px; } .customer-body { padding: 18px 14px 22px; } .customer-title { padding: 20px; } .profile-card { padding: 17px; } .field-grid { grid-template-columns: 1fr; } .phone-country { flex-basis: 126px; } }
+@@media (max-width: 700px) { .profile-card .profile-fields { grid-template-columns: 1fr; } .profile-card .field-item--wide { grid-column: auto; } }
+@@media (max-width: 560px) { .customer-page { padding: 16px 10px; } .customer-body { padding: 18px 14px 22px; } .customer-title { padding: 20px; } .profile-card { padding: 17px; } .customer-code { grid-template-columns: 1fr; gap: 7px; } .phone-input-group { grid-template-columns: minmax(112px, 128px) minmax(0, 1fr); } }
 </style>
 
 </style>
@@ -504,9 +512,9 @@ textarea.maintain-text {
      }
      @using (Html.BeginForm("Index","Customer", FormMethod.Post, new { @class = "form" }))
    {
-      <div class="customer-code" aria-label="Customer code status">
-    <label class="input1-field"><b>Customer Code:</b></label>
-    <span id="customerCodeValue">@(string.IsNullOrWhiteSpace(Convert.ToString(TempData["customerCode"])) ? "Auto-generated on Save" : Convert.ToString(TempData["customerCode"]))</span>
+       <div class="customer-code" aria-label="Customer code status">
+     <label for="customerCodeValue">Customer Code</label>
+     <input type="text" id="customerCodeValue" value="@(string.IsNullOrWhiteSpace(Convert.ToString(TempData["customerCode"])) ? "Auto-generated on Save" : Convert.ToString(TempData["customerCode"]))" readonly aria-readonly="true" />
     <input type="hidden" id="customerCodeHidden" name="customerCode" value="@(TempData["customerCode"] ?? string.Empty)" />
     @* Ensure the logged-in store/tenant are posted so server binding works even if session is missing *@
     @{
@@ -516,36 +524,34 @@ textarea.maintain-text {
     <input type="hidden" id="StoreCode" name="StoreCode" value="@storeVal" />
     <input type="hidden" id="TenantName" name="TenantName" value="@tenantVal" />
          </div>
-       <div class="profile-layout">
+        <div class="profile-layout">
        <section class="profile-card" aria-labelledby="profile-details-heading">
            <h2 id="profile-details-heading"><i class="fa fa-user-circle-o" aria-hidden="true"></i> Profile details</h2>
            <p class="card-subtitle">Add the customer details used across orders and history.</p>
-       <div class="input-container">
-          <i class="fa fa-user icon"></i>
-           @Html.TextBoxFor(m => m.CustomerName, new { @placeholder = "Customer name", @class = "form-control maintain-text", id = "name", aria_required = "true", autocomplete = "name" })
-      </div>
-       <div id="nameError" class="field-error" role="alert">Customer name is required.</div>
-      <div class="input-container">
-          <i class="fa fa-map-marker icon"></i>
-           @Html.TextAreaFor(m => m.Address, new { @placeholder = "Address", @class = "form-control maintain-text", id = "address", rows = "3", aria_required = "true", autocomplete = "street-address" })
-      </div>
-       <div id="addressError" class="field-error" role="alert">Customer address is required.</div>
-       </section>
-
-       <section class="profile-card" aria-labelledby="contact-details-heading">
-           <h2 id="contact-details-heading"><i class="fa fa-address-card-o" aria-hidden="true"></i> Contact &amp; identification</h2>
-           <p class="card-subtitle">Use a barcode or phone number to find this profile quickly.</p>
-       <div class="field-grid">
-
-          <div class="field-item">
-               <label for="barCode">Barcode <span class="helper-text">Manual or scanned</span></label>
-               <div class="barcode-input">
-                   @Html.TextBoxFor(m => m.BarCode, new { @placeholder = "Scan or enter barcode", @class = "form-control maintain-text", id = "barCode", autocomplete = "off" })
-                   <button type="button" class="barcode-scan" id="barcodeScan" title="Focus barcode scanner input" aria-label="Focus barcode scanner input"><i class="fa fa-barcode" aria-hidden="true"></i></button>
-               </div>
-          </div>
-          <div class="field-item">
-               <label for="phoneNumber">Phone number <span class="helper-text">International format</span></label>
+        <div class="profile-fields">
+           <div class="field-item">
+                <label for="name">Customer name <span class="required-mark">*</span></label>
+                <div class="input-container">
+                    <i class="fa fa-user icon" aria-hidden="true"></i>
+                    @Html.TextBoxFor(m => m.CustomerName, new { @placeholder = "Customer name", @class = "form-control maintain-text", id = "name", aria_required = "true", autocomplete = "name" })
+                </div>
+                <div id="nameError" class="field-error" role="alert">Customer name is required.</div>
+           </div>
+           <div class="field-item">
+                <label for="email">Email <span class="helper-text">Optional</span></label>
+                @Html.TextBoxFor(m => m.Email, new { @placeholder = "name@example.com", @class = "form-control maintain-text", id = "email", type = "email", autocomplete = "email" })
+                <div id="emailError" class="field-error">Please enter a valid email address.</div>
+           </div>
+           <div class="field-item field-item--wide">
+                <label for="address">Address <span class="required-mark">*</span></label>
+                <div class="input-container">
+                    <i class="fa fa-map-marker icon" aria-hidden="true"></i>
+                    @Html.TextAreaFor(m => m.Address, new { @placeholder = "Address", @class = "form-control maintain-text", id = "address", rows = "3", aria_required = "true", autocomplete = "street-address" })
+                </div>
+                <div id="addressError" class="field-error" role="alert">Customer address is required.</div>
+           </div>
+           <div class="field-item">
+                <label for="phoneNumber">Phone number</label>
                <div class="phone-input-group">
                    <select id="phoneCountryCode" name="PhoneCountryCode" class="phone-country" aria-label="Phone country" autocomplete="tel-country-code">
                        @foreach (var country in phoneCountries)
@@ -553,15 +559,18 @@ textarea.maintain-text {
                            <option value="@country.Iso2" data-calling-code="@country.CallingCode" selected="@(string.Equals(defaultPhoneCountry, country.Iso2, StringComparison.OrdinalIgnoreCase) ? "selected" : null)">@country.Flag @country.Name (@country.CallingCode)</option>
                        }
                    </select>
-                   @Html.TextBoxFor(m => m.PhoneNumber, new { @placeholder = "Phone number", @class = "form-control maintain-text", id = "phoneNumber", type = "tel", inputmode = "tel", autocomplete = "tel" })
+                   @Html.TextBoxFor(m => m.PhoneNumber, new { @placeholder = "Local phone number", @class = "form-control maintain-text", id = "phoneNumber", type = "tel", inputmode = "tel", autocomplete = "tel" })
                </div>
                <div id="phoneError" class="field-error" role="alert">Enter a valid phone number for the selected country.</div>
+                 <div id="phoneGuidance" class="phone-input-guidance" role="note" aria-live="polite">
+                     <i class="fa fa-info-circle" aria-hidden="true"></i>
+                     <div class="phone-guidance-content">
+                         <span class="phone-guidance-summary">Phone number Optional; exactly 10 digits when provided.</span>
+                         <span id="phoneGuidanceCountry" class="phone-guidance-country"></span>
+                         <span id="phoneGuidanceText" class="phone-guidance-detail"></span>
+                     </div>
+                </div>
                @if (!string.IsNullOrWhiteSpace(phoneConfigMessage)) { <div class="phone-config-note" role="status"><i class="fa fa-info-circle" aria-hidden="true"></i> @phoneConfigMessage</div> }
-          </div>
-          <div class="field-item">
-               <label for="email">Email <span class="helper-text">Optional</span></label>
-               @Html.TextBoxFor(m => m.Email, new { @placeholder = "name@example.com", @class = "form-control maintain-text", id = "email", type = "email", autocomplete = "email" })
-              <div id="emailError" class="field-error">Please enter a valid email address.</div>
           </div>
       </div>
        </section>
@@ -644,6 +653,65 @@ textarea.maintain-text {
                   if (phone) phone.classList.add("input-validation-error");
               }
 
+               function isIndiaPhoneCountry() {
+                   var country = document.getElementById("phoneCountryCode");
+                   return country && (country.value || "").toUpperCase() === "IN";
+               }
+
+               function updatePhoneGuidance() {
+                   var country = document.getElementById("phoneCountryCode");
+                   var guidance = document.getElementById("phoneGuidanceText");
+                   var guidanceCountry = document.getElementById("phoneGuidanceCountry");
+                   var phone = document.getElementById("phoneNumber");
+                   if (!country || !guidance || !guidanceCountry) return;
+
+                   var selected = country.options[country.selectedIndex];
+                   var countryName = selected ? (selected.textContent || "").replace(/^\S+\s+/, "").replace(/\s*\([^)]*\)\s*$/, "").trim() : "selected country";
+                   var flag = selected ? (selected.textContent || "").split(/\s+/)[0] : "";
+                   var callingCode = selected ? (selected.getAttribute("data-calling-code") || "") : "";
+                   var countryValue = (country.value || "").toUpperCase();
+                   var examples = {
+                       US: "202 555 0125",
+                       GB: "020 7946 0018",
+                       CA: "416 555 0123",
+                       AU: "02 9374 4000",
+                       AE: "04 123 4567"
+                   };
+                   var example = examples[countryValue] || "local number";
+                   var placeholder = countryValue === "IN" ? "10-digit mobile number" : "Local number, e.g. " + example;
+                   if (phone) phone.placeholder = placeholder;
+                   guidanceCountry.textContent = flag + " " + countryName + (callingCode ? " (" + callingCode + ")" : "");
+
+                   if (countryValue === "IN") {
+                       guidance.textContent = "Enter 10 digits starting with 6, 7, 8, or 9. You may also enter a number with +91.";
+                       return;
+                   }
+
+                   guidance.textContent = callingCode
+                       ? "Enter the local number for " + countryName + " without " + callingCode + ". Example: " + example + "."
+                       : "Enter the local phone number for " + countryName + ". Include the country code only in the selector.";
+               }
+
+               function validatePhoneInput() {
+                   var phone = document.getElementById("phoneNumber");
+                   if (!phone) return false;
+
+                   var phoneValue = phone.value.trim();
+                   if (!phoneValue) {
+                       clearPhoneValidationState();
+                       return true;
+                   }
+
+                    var indiaPhoneValue = phoneValue.indexOf("+91") === 0 ? phoneValue.substring(3) : phoneValue;
+                    if (isIndiaPhoneCountry() && !/^[6-9][0-9]{9}$/.test(indiaPhoneValue)) {
+                       setPhoneValidationError("Enter a valid 10-digit Indian mobile number starting with 6, 7, 8, or 9.");
+                       return false;
+                   }
+
+                   clearPhoneValidationState();
+                   return true;
+               }
+
               function validatePhoneOnSave() {
                   var phone = document.getElementById("phoneNumber");
                   var country = document.getElementById("phoneCountryCode");
@@ -652,6 +720,15 @@ textarea.maintain-text {
                   }
 
                   var phoneValue = phone.value.trim();
+                  if (!phoneValue) {
+                      clearPhoneValidationState();
+                      return Promise.resolve(true);
+                  }
+                    var indiaPhoneValue = phoneValue.indexOf("+91") === 0 ? phoneValue.substring(3) : phoneValue;
+                    if (isIndiaPhoneCountry() && !/^[6-9][0-9]{9}$/.test(indiaPhoneValue)) {
+                       setPhoneValidationError("Enter a valid 10-digit Indian mobile number starting with 6, 7, 8, or 9.");
+                      return Promise.resolve(false);
+                  }
                   var countryValue = country.value;
                   var controller = typeof AbortController === "function" ? new AbortController() : null;
                   var timeout = controller ? setTimeout(function () { controller.abort(); }, 10000) : null;
@@ -673,7 +750,7 @@ textarea.maintain-text {
                               return false;
                           }
 
-                          phone.value = result.normalizedNumber;
+                          phone.value = result.localNumber || phoneValue;
                           phone.dataset.phoneValidated = phone.value + "|" + countryValue;
                           var error = document.getElementById("phoneError");
                           if (error) error.style.display = "none";
@@ -702,7 +779,11 @@ textarea.maintain-text {
              function setText(id, value) {
                  var element = document.getElementById(id);
                  if (element) {
-                     element.textContent = value || "";
+                      if ("value" in element) {
+                          element.value = value || "";
+                      } else {
+                          element.textContent = value || "";
+                      }
                  }
              }
 
@@ -826,24 +907,9 @@ textarea.maintain-text {
                      setValue("address", address);
                  }
 
-                var phoneRequired = prefs && prefs.RequirePhoneNumber;
-                if (phoneRequired && phoneNumber.trim().length === 0) {
-                    var phoneError = document.getElementById("phoneError");
-                    var phone = document.getElementById("phoneNumber");
-                    if (phoneError) {
-                        phoneError.textContent = 'Phone number is required.';
-                        phoneError.style.display = "block";
-                    }
-                    if (phone) {
-                        phone.classList.add("input-validation-error");
-                    }
-                    isValid = false;
-                 } else if (phoneNumber.trim().length > 0) {
-                      var phone = document.getElementById("phoneNumber");
-                   if (phone && phone.dataset.phoneValidated !== "") {
-                       clearPhoneValidationState();
-                   }
-                 }
+                  if (!validatePhoneInput()) {
+                      isValid = false;
+                  }
                 var emailRequired = prefs && prefs.RequireEmail;
                 if (emailRequired && email.trim().length === 0) {
                     var emailError = document.getElementById("emailError");
@@ -1047,17 +1113,19 @@ textarea.maintain-text {
                      e.stopPropagation();
                  }
 
-                 if (!validateCustomerFields()) {
-                     showToast("Please correct validation errors before update.", false);
-                     return false;
-                 }
-
                  var editButton = document.getElementById("custedit");
                  if (editButton) {
                      editButton.disabled = true;
                  }
 
-                 resolveCustomerCode(function (resolvedCode) {
+                 validatePhoneOnSave().then(function (phoneValid) {
+                     if (!phoneValid || !validateCustomerFields()) {
+                         showToast("Please correct validation errors before update.", false);
+                         if (editButton) editButton.disabled = false;
+                         return;
+                     }
+
+                     resolveCustomerCode(function (resolvedCode) {
                      var updatePayload = new URLSearchParams();
                      updatePayload.append("CustomerName", getValue("name") || "");
                      updatePayload.append("Address", getValue("address") || "");
@@ -1254,9 +1322,6 @@ textarea.maintain-text {
                         var prefs = (typeof prefsJson === 'string') ? JSON.parse(prefsJson) : prefsJson;
                         // cache for validators
                         window.__customerPreferences = prefs || null;
-                        // Always require phone and email for laundry customer creation UI
-                        var phoneLabel = document.querySelector('label[for="phoneNumber"]');
-                        if (phoneLabel) phoneLabel.textContent = 'Phone Number *';
                         var emailLabel = document.querySelector('label[for="email"]');
                         if (emailLabel) emailLabel.textContent = 'Email *';
                         if (prefs && prefs.AutoGenerateCustomerCode) {
@@ -1291,13 +1356,15 @@ textarea.maintain-text {
                      }
                  });
                   var phoneInput = document.getElementById("phoneNumber");
-                  if (phoneInput) phoneInput.addEventListener("input", clearPhoneValidationState);
+                   if (phoneInput) phoneInput.addEventListener("input", validatePhoneInput);
                   var countrySelect = document.getElementById("phoneCountryCode");
                    if (countrySelect) countrySelect.addEventListener("change", function () {
                        var phone = document.getElementById("phoneNumber");
                        if (phone) clearPhoneValidationState();
+                       updatePhoneGuidance();
                        validateCustomerFields();
                    });
+                   updatePhoneGuidance();
                   var barcodeScan = document.getElementById("barcodeScan");
                   if (barcodeScan) barcodeScan.addEventListener("click", function () { document.getElementById("barCode").focus(); });
 
@@ -1430,6 +1497,11 @@ textarea.maintain-text {
                              });
                          return false;
                      });
+                 }).catch(function () {
+                     showToast("Unable to validate the phone number. Please try again.", false);
+                     if (editButton) editButton.disabled = false;
+                 });
+                 return false;
                  }
 
                  var customerActions = document.getElementById("customerActions");

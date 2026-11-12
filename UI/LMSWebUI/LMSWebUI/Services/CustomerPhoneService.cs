@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 using PhoneNumbers;
+using System.Text.RegularExpressions;
 
 namespace LMSWebUI.Services
 {
@@ -29,12 +30,14 @@ namespace LMSWebUI.Services
         CustomerPhoneCountry FindCountry(string iso2);
         CustomerPhoneCountry FindCountryByName(string name);
         CustomerPhoneValidationResult ValidateAndNormalize(string phone, string countryIso2, bool allowLegacyCompatibility);
+        string GetLocalNumber(string phone, string countryIso2);
         string GetRegionForNumber(string phone);
     }
 
     public sealed class CustomerPhoneService : ICustomerPhoneService
     {
         private readonly PhoneNumberUtil _phoneUtil = PhoneNumberUtil.GetInstance();
+        private static readonly Regex IndianMobileRegex = new("^[6-9][0-9]{9}$", RegexOptions.Compiled | RegexOptions.CultureInvariant);
 
         public IReadOnlyList<CustomerPhoneCountry> GetSupportedCountries()
         {
@@ -74,9 +77,7 @@ namespace LMSWebUI.Services
         {
             if (string.IsNullOrWhiteSpace(phone))
             {
-                return allowLegacyCompatibility
-                    ? new CustomerPhoneValidationResult { IsValid = true }
-                    : Invalid("Enter a valid phone number for the selected country.");
+                return new CustomerPhoneValidationResult { IsValid = true };
             }
 
             var input = phone.Trim();
@@ -100,6 +101,26 @@ namespace LMSWebUI.Services
             if (region == null && !input.StartsWith("+", StringComparison.Ordinal))
             {
                 return Invalid("Select a supported country to validate this phone number.");
+            }
+
+            var indianLocalNumber = input.StartsWith("+91", StringComparison.Ordinal)
+                ? input[3..]
+                : input;
+
+            if (string.Equals(region, "IN", StringComparison.OrdinalIgnoreCase)
+                && !IndianMobileRegex.IsMatch(indianLocalNumber))
+            {
+                return Invalid(BuildInvalidMessage(region));
+            }
+
+            if (string.Equals(region, "IN", StringComparison.OrdinalIgnoreCase))
+            {
+                return new CustomerPhoneValidationResult
+                {
+                    IsValid = true,
+                    NormalizedNumber = "+91" + indianLocalNumber,
+                    FormattedNationalNumber = "0" + indianLocalNumber
+                };
             }
 
             try
@@ -135,6 +156,50 @@ namespace LMSWebUI.Services
             {
                 return Invalid(BuildInvalidMessage(region));
             }
+        }
+
+        public string GetLocalNumber(string phone, string countryIso2)
+        {
+            if (string.IsNullOrWhiteSpace(phone))
+            {
+                return null;
+            }
+
+            var input = phone.Trim();
+            var region = FindCountry(countryIso2)?.Iso2;
+
+            if (string.Equals(region, "IN", StringComparison.OrdinalIgnoreCase))
+            {
+                if (input.StartsWith("+91", StringComparison.Ordinal))
+                {
+                    var nationalNumber = input[3..];
+                    return IndianMobileRegex.IsMatch(nationalNumber)
+                        ? nationalNumber
+                        : input;
+                }
+
+                return input;
+            }
+
+            if (!input.StartsWith("+", StringComparison.Ordinal))
+            {
+                return input;
+            }
+
+            try
+            {
+                var parsed = _phoneUtil.ParseAndKeepRawInput(input, null);
+                if (string.Equals(_phoneUtil.GetRegionCodeForNumber(parsed), region, StringComparison.OrdinalIgnoreCase))
+                {
+                    return _phoneUtil.GetNationalSignificantNumber(parsed);
+                }
+            }
+            catch (NumberParseException)
+            {
+                // Preserve the stored value when it cannot be parsed for display.
+            }
+
+            return input;
         }
 
         public string GetRegionForNumber(string phone)
