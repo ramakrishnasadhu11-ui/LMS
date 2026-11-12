@@ -16,6 +16,8 @@ namespace LMS.Master.DTO
 
         public string ItemName { get; set; }
 
+        public string ImagePath { get; set; }
+
         public decimal UnitPrice { get; set; }
 
         public bool IsActive { get; set; }

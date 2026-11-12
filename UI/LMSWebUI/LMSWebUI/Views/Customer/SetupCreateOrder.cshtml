@@ -116,7 +116,7 @@
 .item-card { border: 1px solid var(--els-border); border-radius: 8px; background: #fff; padding: 8px; text-align: center; cursor: pointer; transition: transform 0.15s ease, box-shadow 0.2s ease; }
 .item-card:hover { transform: translateY(-1px); box-shadow: 0 4px 10px rgba(0,0,0,0.15); }
 .item-card.active { border-color: var(--els-primary); box-shadow: 0 0 0 2px rgba(31,95,143,0.2); }
-.item-icon { font-size: 30px; margin-bottom: 4px; }
+.item-image { width: 100%; aspect-ratio: 1 / 1; object-fit: contain; border-radius: 6px; background: var(--els-accent); margin-bottom: 6px; }
 .item-name { font-size: 12px; font-weight: 600; color: var(--els-text); }
 .item-price { margin-top: 2px; font-size: 12px; color: var(--els-primary); font-weight: 700; }
 .right-pane { padding: 10px; }
@@ -564,6 +564,7 @@
                     <div class="setup-content">
                         <div class="left-pane" id="piecesPane">
                             <div id="catalogStats" style="font-size:12px; margin-bottom:8px; color:#475467;"></div>
+                            <div id="catalogImageDiagnostics" style="font-size:11px; margin-bottom:8px; color:#8a5b00;" role="status" aria-live="polite"></div>
                             <div class="tab-row" id="serviceTabs"></div>
                             <div class="tab-row" id="categoryTabs"></div>
                             <div class="catalog-grid" id="catalogGrid"></div>
@@ -763,6 +764,10 @@
     var storeMastersLoaded = false;
     var storeMastersFailed = false;
     var configuredItemsLoaded = false;
+    var catalogueManifest = null;
+    var catalogueManifestLoaded = false;
+    var catalogueManifestFailed = false;
+    var catalogueImageDiagnostics = { missing: [], unapproved: [], duplicate: [] };
     var orderHistoryCache = [];
     var cfgPickerEntriesByKey = {};
     var loadItemsRequestId = 0;
@@ -1005,6 +1010,45 @@
         });
     }
 
+    function loadCatalogueManifest() {
+        catalogueManifestLoaded = false;
+        catalogueManifestFailed = false;
+        resetCatalogueImageDiagnostics();
+
+        return fetch('@Url.Content("~/catalog/laundry-item-catalogue.json")?_ts=' + Date.now(), {
+            method: 'GET',
+            cache: 'no-store',
+            credentials: 'same-origin'
+        })
+        .then(function (response) {
+            if (!response.ok) {
+                throw new Error("Unable to load laundry catalogue manifest.");
+            }
+            return response.json();
+        })
+        .then(function (data) {
+            catalogueManifest = data && Array.isArray(data.items) ? data : { items: [] };
+            var manifestKeys = catalogueManifest.items.map(function (entry) {
+                return catalogueKey(entry.serviceType, entry.category, entry.itemName);
+            });
+            manifestKeys.forEach(function (key, index) {
+                if (manifestKeys.indexOf(key) !== index
+                    && catalogueImageDiagnostics.duplicate.indexOf(key) < 0) {
+                    catalogueImageDiagnostics.duplicate.push(key);
+                }
+            });
+            catalogueManifestLoaded = true;
+            catalogueManifestFailed = false;
+            renderAllTabsAndCatalog();
+        })
+        .catch(function () {
+            catalogueManifest = { items: [] };
+            catalogueManifestLoaded = false;
+            catalogueManifestFailed = true;
+            renderAllTabsAndCatalog();
+        });
+    }
+
     function isBackedByActiveMasterHierarchy(row) {
         var serviceName = normalizeText(row.ServiceType || row.serviceType || "");
         var categoryName = normalizeText(row.Category || row.category || "");
@@ -1092,14 +1136,87 @@
             var category = normalizeText(item.Category || item.category || "Others") || "Others";
             var itemName = normalizeText(item.ItemName || item.itemName || "Item") || "Item";
             var price = parseAmount(item.UnitPrice || item.unitPrice || 0);
+            var image = resolveCatalogueImage(item);
 
             if (!grouped[service]) grouped[service] = {};
             if (!grouped[service][category]) grouped[service][category] = [];
 
-            grouped[service][category].push({ name: itemName, price: price, icon: "🧺" });
+            grouped[service][category].push({ name: itemName, price: price, imagePath: image.path, imageStatus: image.status });
         });
 
         return grouped;
+    }
+
+    function catalogueKey(serviceType, category, itemName) {
+        return [serviceType, category, itemName].map(function (value) {
+            return normalizeText(value).toLowerCase();
+        }).join("|");
+    }
+
+    function resetCatalogueImageDiagnostics() {
+        catalogueImageDiagnostics = { missing: [], unapproved: [], duplicate: [] };
+    }
+
+    function findCatalogueManifestItem(item) {
+        if (!catalogueManifest || !Array.isArray(catalogueManifest.items)) {
+            return null;
+        }
+
+        var key = catalogueKey(
+            item.ServiceType || item.serviceType,
+            item.Category || item.category,
+            item.ItemName || item.itemName);
+        return catalogueManifest.items.find(function (entry) {
+            return catalogueKey(entry.serviceType, entry.category, entry.itemName) === key;
+        }) || null;
+    }
+
+    function resolveCatalogueImage(item) {
+        var key = catalogueKey(
+            item.ServiceType || item.serviceType,
+            item.Category || item.category,
+            item.ItemName || item.itemName);
+        var entry = findCatalogueManifestItem(item);
+        if (catalogueImageDiagnostics.duplicate.indexOf(key) >= 0) {
+            return { path: "", status: "duplicate" };
+        }
+
+        if (!entry) {
+            catalogueImageDiagnostics.missing.push(key);
+            return { path: "", status: "missing" };
+        }
+
+        if (String(entry.assetStatus || "").toLowerCase() !== "approved") {
+            catalogueImageDiagnostics.unapproved.push(catalogueKey(entry.serviceType, entry.category, entry.itemName));
+            return { path: "", status: "unapproved" };
+        }
+
+        if (!entry.imagePath) {
+            catalogueImageDiagnostics.missing.push(key);
+            return { path: "", status: "missing" };
+        }
+
+        return { path: entry.imagePath, status: "approved" };
+    }
+
+    function updateCatalogueImageDiagnostics() {
+        var diagnostics = document.getElementById("catalogImageDiagnostics");
+        if (!diagnostics || setupOnly) return;
+
+        var missing = Array.from(new Set(catalogueImageDiagnostics.missing || []));
+        var unapproved = Array.from(new Set(catalogueImageDiagnostics.unapproved || []));
+        var duplicate = Array.from(new Set(catalogueImageDiagnostics.duplicate || []));
+        if (catalogueManifestFailed) {
+            diagnostics.textContent = "Catalogue manifest unavailable; using placeholder images.";
+        } else if (missing.length || unapproved.length || duplicate.length) {
+            var parts = [];
+            if (missing.length) parts.push("Missing mappings: " + missing.length);
+            if (unapproved.length) parts.push("Unapproved images: " + unapproved.length);
+            if (duplicate.length) parts.push("Duplicate mappings: " + duplicate.length);
+            diagnostics.textContent = "Image diagnostics — " + parts.join("; ") + ". Placeholder images are in use.";
+        } else {
+            diagnostics.textContent = "All displayed items have approved catalogue images.";
+        }
     }
 
     function isActiveRecord(row) {
@@ -1568,7 +1685,8 @@
                         if (!name) return;
                         if (!equalsNormalized(svc, selectedService)) return;
                         if (selectedCategory !== "__ALL__" && !equalsNormalized(cat, selectedCategory)) return;
-                        fallback.push({ name: name, price: 0, icon: "🧺" });
+                        var image = resolveCatalogueImage(m);
+                        fallback.push({ name: name, price: 0, imagePath: image.path, imageStatus: image.status });
                     });
                 }
             } catch (e) {
@@ -1583,19 +1701,51 @@
             items = fallback;
         }
 
-            items.forEach(function (item) {
+        var placeholderImage = '@Url.Content("~/dist/img/noimage.png")';
+        function resolveCatalogImagePath(value) {
+            var path = (value || "").toString().trim();
+            if (!path || path.indexOf("://") >= 0 || path.indexOf("//") === 0) {
+                return placeholderImage;
+            }
+
+            return path.charAt(0) === "/" ? path : "/" + path;
+        }
+
+        items.forEach(function (item) {
             var card = document.createElement("div");
             card.className = "item-card" + (selectedItem && selectedItem.name === item.name ? " active" : "");
-            card.innerHTML = "<div class='item-icon'>" + item.icon + "</div>"
-                + "<div class='item-name'>" + item.name + "</div>"
-                + "<div class='item-price'>" + formatCurrency(item.price) + "</div>";
+            var image = document.createElement("img");
+            image.className = "item-image";
+            image.loading = "lazy";
+            image.alt = item.name;
+            image.src = resolveCatalogImagePath(item.imagePath);
+            image.onerror = function () {
+                if (image.src.indexOf(placeholderImage) < 0) {
+                    catalogueImageDiagnostics.missing.push(catalogueKey(item.service, item.category, item.name));
+                    updateCatalogueImageDiagnostics();
+                    image.src = placeholderImage;
+                }
+            };
+
+            var name = document.createElement("div");
+            name.className = "item-name";
+            name.textContent = item.name;
+
+            var price = document.createElement("div");
+            price.className = "item-price";
+            price.textContent = formatCurrency(item.price);
+
+            card.appendChild(image);
+            card.appendChild(name);
+            card.appendChild(price);
             card.onclick = function () {
-                selectedItem = { service: selectedService, category: selectedCategory, name: item.name, price: item.price, icon: item.icon };
+                selectedItem = { service: selectedService, category: selectedCategory, name: item.name, price: item.price, imagePath: item.imagePath };
                 renderCatalogGrid();
                 renderSelectedItemPane();
             };
             grid.appendChild(card);
         });
+        updateCatalogueImageDiagnostics();
     }
 
     function renderSelectedItemPane() {
@@ -3293,7 +3443,7 @@
 
         renderSelectedItemPane();
         loadStoreMasters();
-        loadConfiguredItems();
+        loadCatalogueManifest().then(loadConfiguredItems);
         renderOrderLines();
 
         if (!setupOnly) {

@@ -263,6 +263,10 @@ namespace LMS.Master.BusinessSerive.Data.Migrations
                     b.Property<DateTime>("CreatedDate")
                         .HasColumnType("datetime2");
 
+                    b.Property<string>("ImagePath")
+                        .HasMaxLength(512)
+                        .HasColumnType("nvarchar(512)");
+
                     b.Property<bool>("IsActive")
                         .HasColumnType("bit");
 
@@ -797,6 +801,10 @@ namespace LMS.Master.BusinessSerive.Data.Migrations
                     b.Property<string>("Description")
                         .HasMaxLength(256)
                         .HasColumnType("nvarchar(256)");
+
+                    b.Property<string>("ImagePath")
+                        .HasMaxLength(512)
+                        .HasColumnType("nvarchar(512)");
 
                     b.Property<bool>("IsActive")
                         .HasColumnType("bit");

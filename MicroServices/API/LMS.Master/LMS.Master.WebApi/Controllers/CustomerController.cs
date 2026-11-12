@@ -1310,7 +1310,12 @@ namespace LMS.Master.WebApi.Controllers
         [ProducesResponseType(StatusCodes.Status400BadRequest, Type = typeof(Result<object>))]
         public async Task<ActionResult> GetStoreItemMasters(string tenantName, string storeCode, bool includeInactive = false)
         {
-            var result = await _customer.GetStoreItemMasters(tenantName, storeCode, includeInactive);
+            if (!TryResolveTenantStoreScope(tenantName, storeCode, out var scopedTenantName, out var scopedStoreCode, out var scopeValidationError))
+            {
+                return BadRequest(scopeValidationError);
+            }
+
+            var result = await _customer.GetStoreItemMasters(scopedTenantName, scopedStoreCode, includeInactive);
             return StatusCode((int)result.StatusCode, result.ResultSet);
         }
     }

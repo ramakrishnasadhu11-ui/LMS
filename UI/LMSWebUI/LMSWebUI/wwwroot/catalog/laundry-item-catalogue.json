@@ -1,0 +1,20 @@
+{
+  "version": 1,
+  "status": "placeholder-pending-approved-assets",
+  "imageFormat": "webp",
+  "imageDimensions": "400x400",
+  "rootPath": "/catalog/laundry-items",
+  "placeholderPath": "/dist/img/noimage.png",
+  "items": [
+    { "serviceType": "Dry Clean", "category": "Men", "itemName": "Shirt", "imagePath": "/catalog/laundry-items/dry-clean/men/shirt.webp", "assetStatus": "placeholder" },
+    { "serviceType": "Dry Clean", "category": "Men", "itemName": "Pant", "imagePath": "/catalog/laundry-items/dry-clean/men/pant.webp", "assetStatus": "placeholder" },
+    { "serviceType": "Dry Clean", "category": "Women", "itemName": "Top", "imagePath": "/catalog/laundry-items/dry-clean/women/top.webp", "assetStatus": "placeholder" },
+    { "serviceType": "Dry Clean", "category": "Women", "itemName": "Saree", "imagePath": "/catalog/laundry-items/dry-clean/women/saree.webp", "assetStatus": "placeholder" },
+    { "serviceType": "Dry Clean", "category": "Kids", "itemName": "Kid Shirt", "imagePath": "/catalog/laundry-items/dry-clean/kids/kid-shirt.webp", "assetStatus": "placeholder" },
+    { "serviceType": "Dry Clean", "category": "Household", "itemName": "Blanket", "imagePath": "/catalog/laundry-items/dry-clean/household/blanket.webp", "assetStatus": "placeholder" },
+    { "serviceType": "Steam Iron", "category": "Men", "itemName": "Shirt", "imagePath": "/catalog/laundry-items/steam-iron/men/shirt.webp", "assetStatus": "placeholder" },
+    { "serviceType": "Steam Iron", "category": "Women", "itemName": "Dress", "imagePath": "/catalog/laundry-items/steam-iron/women/dress.webp", "assetStatus": "placeholder" },
+    { "serviceType": "Wash & Fold", "category": "Men", "itemName": "Daily Wear", "imagePath": "/catalog/laundry-items/wash-fold/men/daily-wear.webp", "assetStatus": "placeholder" },
+    { "serviceType": "Wash & Fold", "category": "Household", "itemName": "Mixed Load", "imagePath": "/catalog/laundry-items/wash-fold/household/mixed-load.webp", "assetStatus": "placeholder" }
+  ]
+}

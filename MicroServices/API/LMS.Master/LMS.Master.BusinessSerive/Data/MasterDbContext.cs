@@ -255,6 +255,7 @@ namespace LMS.Master.BusinessSerive.Data
                 entity.Property(x => x.ServiceType).HasMaxLength(64).IsRequired();
                 entity.Property(x => x.Category).HasMaxLength(64).IsRequired();
                 entity.Property(x => x.ItemName).HasMaxLength(128).IsRequired();
+                entity.Property(x => x.ImagePath).HasMaxLength(512);
                 entity.Property(x => x.UnitPrice).HasColumnType("decimal(18,2)");
 
                 entity.HasIndex(x => new { x.TenantName, x.StoreCode, x.ServiceType, x.Category, x.ItemName }).IsUnique();
@@ -281,6 +282,7 @@ namespace LMS.Master.BusinessSerive.Data
                 entity.Property(x => x.Category).HasMaxLength(64).IsRequired();
                 entity.Property(x => x.ItemName).HasMaxLength(128).IsRequired();
                 entity.Property(x => x.Description).HasMaxLength(256);
+                entity.Property(x => x.ImagePath).HasMaxLength(512);
 
                 entity.HasIndex(x => new { x.TenantName, x.StoreCode, x.ServiceType, x.Category, x.ItemName }).IsUnique();
             });
