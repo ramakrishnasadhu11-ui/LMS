@@ -140,16 +140,15 @@ namespace LMSWebUI.Tests
         }
 
         [Fact]
-        public async Task LegacyFallbackRemainsWhenNoConfig()
+        public async Task UnknownCountryRemainsUnresolvedWhenNoConfig()
         {
             var cache = new MemoryCache(new MemoryCacheOptions());
             var api = new InMemoryLoginApiClient();
             var scs = new StoreConfigurationService(api, cache);
             var cs = new CurrencyService(scs, cache);
 
-            var resolved = await cs.GetEffectiveCurrencyAsync("tenant@example.com", "S3");
-            Assert.Equal("INR", resolved.CurrencyCode);
-            Assert.Equal("₹", resolved.CurrencySymbol);
+            var resolved = await cs.ResolveAsync("tenant@example.com", "S3");
+            Assert.False(resolved.IsResolved);
         }
 
         [Fact]
@@ -168,7 +167,7 @@ namespace LMSWebUI.Tests
         }
 
         [Fact]
-        public async Task LegacyFallbackUsedOnlyWhenNoValidConfig()
+        public async Task MissingConfigurationDoesNotUseLegacyINR()
         {
             var storeCfg = new StoreConfigurationViewModel { CurrencyCode = null };
             var tenantCfg = new StoreConfigurationViewModel { CurrencyCode = null };
@@ -176,11 +175,8 @@ namespace LMSWebUI.Tests
             var cache = new MemoryCache(new MemoryCacheOptions());
             var svc = new CurrencyService(fake, cache);
 
-            var resolved = await svc.GetEffectiveCurrencyAsync("tenant@example.com", "S1");
-            Assert.Equal("INR", resolved.CurrencyCode);
-            Assert.Equal("₹", resolved.CurrencySymbol);
-            Assert.Equal("en-IN", resolved.CurrencyLocale);
-            Assert.Equal(2, resolved.DecimalDigits);
+            var resolved = await svc.ResolveAsync("tenant@example.com", "S1");
+            Assert.False(resolved.IsResolved);
         }
 
         [Fact]
@@ -264,8 +260,7 @@ namespace LMSWebUI.Tests
         public void CurrencyFormatting_FallsBackWhenServiceNull()
         {
             var formatted = CurrencyFormatting.FormatAmount(10m, null, null);
-            // Legacy fallback uses ₹ and en-IN; formatted result should contain either ₹ or a numeric string
-            Assert.True(formatted.Contains("₹") || formatted.Contains("10"));
+            Assert.Equal("Currency configuration unavailable", formatted);
         }
     }
 }

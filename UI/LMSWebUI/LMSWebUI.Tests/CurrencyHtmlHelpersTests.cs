@@ -128,7 +128,7 @@ namespace LMSWebUI.Tests
         }
 
         [Fact]
-        public async Task FormatCurrency_TenantFallbackAndLegacyFallback()
+        public async Task FormatCurrency_TenantFallbackAndUnresolvedWarning()
         {
             var storeCfg = new StoreConfigurationViewModel { CurrencyCode = null, CurrencySymbol = null, CurrencyLocale = null, CurrencyDecimalDigits = null };
             var tenantCfg = new StoreConfigurationViewModel { CurrencyCode = "EUR", CurrencySymbol = "€", CurrencyLocale = "fr-FR", CurrencyDecimalDigits = 2 };
@@ -142,14 +142,12 @@ namespace LMSWebUI.Tests
             var expected = svc.Format(10m, cfg);
             Assert.Equal(expected, formatted);
 
-            // Legacy fallback when both null
+            // Unknown country must not silently fall back to INR.
             var fake2 = new SimpleStoreConfigService(new StoreConfigurationViewModel { CurrencyCode = null }, new StoreConfigurationViewModel { CurrencyCode = null });
-            var svc2 = new CurrencyService(fake2, cache);
+            var svc2 = new CurrencyService(fake2, new MemoryCache(new MemoryCacheOptions()));
             var helper2 = CreateHtmlHelperWithServices(svc2);
             var formatted2 = (await CurrencyHtmlHelpers.FormatCurrencyAsync(helper2, 5m)).ToString();
-            var cfg2 = await svc2.GetEffectiveCurrencyAsync("tenant@example.com", "S1");
-            var expected2 = svc2.Format(5m, cfg2);
-            Assert.Equal(expected2, formatted2);
+            Assert.Equal("Currency configuration required", formatted2);
         }
     }
 }

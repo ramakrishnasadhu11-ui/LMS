@@ -5069,28 +5069,14 @@ namespace LMSWebUI.Controllers
                 {
                     cfgLookup.TryGetValue(code, out var cfg);
 
-                    // Safe defaults
-                    var defaultCode = "INR";
-                    var defaultSymbol = "₹";
-                    var defaultLocale = "en-IN";
-                    var defaultDigits = 2;
-
-                    // UK heuristic: if store code begins with 'UK' and no explicit currency configured, treat as GBP
-                    var isUk = code != null && code.StartsWith("UK", StringComparison.OrdinalIgnoreCase);
-
-                    var currencyCode = !string.IsNullOrWhiteSpace(cfg.code) ? cfg.code : (isUk ? "GBP" : defaultCode);
-                    var currencySymbol = !string.IsNullOrWhiteSpace(cfg.symbol) ? cfg.symbol : (isUk ? "£" : defaultSymbol);
-                    var currencyLocale = !string.IsNullOrWhiteSpace(cfg.locale) ? cfg.locale : (isUk ? "en-GB" : defaultLocale);
-                    var currencyDigits = cfg.digits ?? defaultDigits;
-
                     return new TenantStoreStatusViewModel
                     {
                         StoreCode = code,
                         IsActive = statusLookup.TryGetValue(code, out var isActive) && isActive,
-                        CurrencyCode = currencyCode,
-                        CurrencySymbol = currencySymbol,
-                        CurrencyLocale = currencyLocale,
-                        CurrencyDecimalDigits = currencyDigits
+                        CurrencyCode = cfg.code,
+                        CurrencySymbol = cfg.symbol,
+                        CurrencyLocale = cfg.locale,
+                        CurrencyDecimalDigits = cfg.digits
                     };
                 })
                 .ToList();
@@ -7242,6 +7228,8 @@ namespace LMSWebUI.Controllers
                 return RedirectToAction("Index", "Dashboard");
             }
 
+            var currencyResolution = await _currencyService.ResolveAsync(tenantName, storeCode);
+
             await EnsureDefaultWalkInCustomerInitializedAsync(tenantName, storeCode);
 
             var selectedCustomerName = string.IsNullOrWhiteSpace(customerName)
@@ -7311,6 +7299,8 @@ namespace LMSWebUI.Controllers
             ViewData["AllowPartialPayment"] = paymentSettings.AllowPartialPayment;
             ViewData["AllowCredit"] = paymentSettings.AllowCredit;
             ViewData["RoundOffPayableAmount"] = paymentSettings.RoundOffPayableAmount;
+            ViewData["CurrencyResolution"] = currencyResolution;
+            ViewData["CurrencyWarning"] = currencyResolution.IsResolved ? null : currencyResolution.Warning;
 
             var pricingRules = await LoadPricingRulesAsync(tenantName, storeCode);
             ViewData["EnableMinimumOrder"] = pricingRules.EnableMinimumOrder;
@@ -7391,6 +7381,13 @@ namespace LMSWebUI.Controllers
                 });
 
                 return RedirectToAction("Index", "Dashboard");
+            }
+
+            var currencyResolution = await _currencyService.ResolveAsync(tenantName, storeCode);
+            if (!currencyResolution.IsResolved)
+            {
+                TempData["SetupCreateOrderToast"] = currencyResolution.Warning;
+                return RedirectToAction(nameof(SetupCreateOrder), new { customerName = model?.CustomerName, customerCode = model?.CustCode, orderMode = model?.OrderMode });
             }
 
             model.TenantName = tenantName;

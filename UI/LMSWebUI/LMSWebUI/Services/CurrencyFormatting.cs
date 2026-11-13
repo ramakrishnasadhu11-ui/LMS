@@ -15,19 +15,22 @@ namespace LMSWebUI.Services
                     return currencyService.Format(value, effectiveCfg);
                 }
 
-                // Fallback to local formatting when service is not available
-                var c = effectiveCfg ?? new CurrencyConfig { CurrencyCode = "INR", CurrencySymbol = "₹", CurrencyLocale = "en-IN", DecimalDigits = 2 };
+                if (!CurrencyService.IsValid(effectiveCfg))
+                {
+                    return "Currency configuration unavailable";
+                }
+
+                // Fallback to local formatting only for an explicitly supplied valid configuration.
+                var c = effectiveCfg;
                 var culture = new CultureInfo(c.CurrencyLocale ?? "en-IN");
                 var nfi = (NumberFormatInfo)culture.NumberFormat.Clone();
-                nfi.CurrencySymbol = c.CurrencySymbol ?? "₹";
+                nfi.CurrencySymbol = c.CurrencySymbol;
                 nfi.CurrencyDecimalDigits = c.DecimalDigits;
                 return value.ToString("C", nfi);
             }
             catch
             {
-                var sym = currencyCfg?.CurrencySymbol ?? "₹";
-                var d = currencyCfg?.DecimalDigits ?? 2;
-                return sym + " " + Math.Round(value, d).ToString($"N{d}", CultureInfo.InvariantCulture);
+                return "Currency configuration unavailable";
             }
         }
     }

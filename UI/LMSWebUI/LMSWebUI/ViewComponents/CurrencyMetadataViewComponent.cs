@@ -36,8 +36,9 @@ namespace LMSWebUI.ViewComponents
                     return Content("<script>window.__currency = {};</script>");
                 }
 
-                var cfg = await _currencyService.GetEffectiveCurrencyAsync(tenant ?? string.Empty, store ?? string.Empty);
-                var payload = new { symbol = cfg?.CurrencySymbol, locale = cfg?.CurrencyLocale, digits = cfg?.DecimalDigits, code = cfg?.CurrencyCode };
+                var resolution = await _currencyService.ResolveAsync(tenant ?? string.Empty, store ?? string.Empty);
+                var cfg = resolution.Currency;
+                var payload = new { resolved = resolution.IsResolved, warning = resolution.Warning, symbol = cfg?.CurrencySymbol, locale = cfg?.CurrencyLocale, digits = cfg?.DecimalDigits, code = cfg?.CurrencyCode };
                 var json = JsonConvert.SerializeObject(payload);
                 var script = $"<script>window.__currency = {json};</script>";
                 // Return as HtmlContent so Razor does not HTML-encode the script tag and
@@ -47,7 +48,7 @@ namespace LMSWebUI.ViewComponents
             catch (Exception ex)
             {
                 try { _logger?.LogWarning(ex, "Currency metadata rendering failed"); } catch { }
-                return new HtmlContentViewComponentResult(new HtmlString("<script>window.__currency = {};</script>"));
+                return new HtmlContentViewComponentResult(new HtmlString("<script>window.__currency = { resolved: false, warning: 'Currency configuration required.' };</script>"));
             }
         }
     }

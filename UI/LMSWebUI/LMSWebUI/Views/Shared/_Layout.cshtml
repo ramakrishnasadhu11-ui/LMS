@@ -436,20 +436,15 @@
 
     <script type="text/javascript">
         // window.__currency: authoritative client-side metadata for formatting monetary values
-        // Start with safe client-side defaults (no server-side interpolation here) so
-        // Razor does not attempt to evaluate server variables in the script body.
-        window.__currency = {
-            code: 'INR',
-            symbol: '₹',
-            locale: 'en-IN',
-            decimalDigits: 2
-        };
+        // The metadata component replaces this before page scripts use monetary values.
+        window.__currency = { resolved: false, warning: 'Currency configuration required.' };
 
         // Shared client-side currency formatter used across pages. Uses Intl.NumberFormat when possible
         // and falls back to symbol + fixed decimal formatting. Does not infer currency from client locale.
         function formatCurrency(value) {
             try {
-                var meta = window.__currency || { code: 'INR', symbol: '₹', locale: 'en-IN', decimalDigits: 2 };
+                var meta = window.__currency || { resolved: false };
+                if (meta.resolved === false || !meta.code || !meta.symbol || !meta.locale) return '';
                 var digits = Number.isFinite(Number(meta.decimalDigits)) ? Number(meta.decimalDigits) : 2;
                 var num = Number(value);
                 if (!isFinite(num)) return '';

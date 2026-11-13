@@ -1,6 +1,10 @@
 using System;
+using System.Collections.Generic;
 using System.Globalization;
+using System.Linq;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
+using LMSWebUI.Models;
 using LMSWebUI.Models.Admin;
 using Microsoft.Extensions.Caching.Memory;
 
@@ -10,168 +14,166 @@ namespace LMSWebUI.Services
     {
         private readonly IStoreConfigurationService _storeConfigurationService;
         private readonly IMemoryCache _cache;
-        private static readonly CurrencyConfig LegacyDefault = new CurrencyConfig
-        {
-            CurrencyCode = "INR",
-            CurrencySymbol = "₹",
-            CurrencyLocale = "en-IN",
-            DecimalDigits = 2
-        };
+        private readonly ILoginApiClient _loginApi;
 
-        public CurrencyService(IStoreConfigurationService storeConfigurationService, IMemoryCache cache)
+        public CurrencyService(IStoreConfigurationService storeConfigurationService, IMemoryCache cache, ILoginApiClient loginApi = null)
         {
             _storeConfigurationService = storeConfigurationService ?? throw new ArgumentNullException(nameof(storeConfigurationService));
             _cache = cache ?? throw new ArgumentNullException(nameof(cache));
+            _loginApi = loginApi;
         }
 
         public async Task<CurrencyConfig> GetEffectiveCurrencyAsync(string tenantEmail, string storeCode)
         {
-            if (string.IsNullOrWhiteSpace(tenantEmail)) throw new ArgumentNullException(nameof(tenantEmail));
+            var result = await ResolveAsync(tenantEmail, storeCode);
+            return result.IsResolved ? result.Currency : null;
+        }
 
-            var cacheKey = CurrencyCacheKeys.CurrencyKey(_cache, tenantEmail ?? string.Empty, storeCode ?? string.Empty);
-            if (_cache.TryGetValue(cacheKey, out CurrencyConfig cached))
+        public async Task<CurrencyResolutionResult> ResolveAsync(string tenantEmail, string storeCode)
+        {
+            if (string.IsNullOrWhiteSpace(tenantEmail))
+            {
+                return Unresolved("Tenant identity is required before currency can be resolved.");
+            }
+
+            var cacheKey = CurrencyCacheKeys.CurrencyKey(_cache, tenantEmail, storeCode);
+            if (_cache.TryGetValue(cacheKey, out CurrencyResolutionResult cached))
             {
                 return cached;
             }
 
-            // First try store-specific configuration. If store provides only a subset of fields
-            // the effective configuration should inherit missing valid fields from tenant-level
-            // configuration rather than defaulting to the legacy fallback.
-            LMSWebUI.Models.Admin.StoreConfigurationViewModel tenantCfgFromStoreStage = null;
-            try
+            StoreConfigurationViewModel store = null;
+            StoreConfigurationViewModel tenant = null;
+            try { store = await _storeConfigurationService.LoadAsync(tenantEmail, storeCode); } catch { }
+            try { tenant = await _storeConfigurationService.LoadAsync(tenantEmail, string.Empty); } catch { }
+
+            var country = FirstNonEmpty(store?.Country, tenant?.Country);
+            var countryCode = NormalizeCountryCode(FirstNonEmpty(GetCountryCode(store), GetCountryCode(tenant)));
+            if (string.IsNullOrWhiteSpace(country) && string.IsNullOrWhiteSpace(countryCode) && _loginApi != null)
             {
-                var storeConfig = await _storeConfigurationService.LoadAsync(tenantEmail, storeCode);
-                // Only treat storeConfig as an overriding configuration if it's an existing saved record.
-                if (storeConfig != null && storeConfig.IsExistingRecord)
+                try
                 {
-                    var code = storeConfig.CurrencyCode?.Trim();
-                    var symbol = storeConfig.CurrencySymbol?.Trim();
-                    var locale = storeConfig.CurrencyLocale?.Trim();
-                    int digits = storeConfig.CurrencyDecimalDigits ?? int.MinValue; // sentinel
-
-                    bool codeValid = !string.IsNullOrWhiteSpace(code) && System.Text.RegularExpressions.Regex.IsMatch(code, "^[A-Za-z]{3}$");
-                    bool localeValid = true;
-                    if (!string.IsNullOrWhiteSpace(locale))
-                    {
-                        try { var _ = new CultureInfo(locale); }
-                        catch { localeValid = false; }
-                    }
-
-                    // Determine if store intends to override (either provides a valid ISO code or provides both symbol and a valid locale)
-                    if (codeValid || (!string.IsNullOrWhiteSpace(symbol) && localeValid))
-                    {
-                        // sanitize digits
-                        if (digits == int.MinValue) digits = LegacyDefault.DecimalDigits;
-                        if (digits < 0 || digits > 6) digits = LegacyDefault.DecimalDigits;
-
-                        // If store config is partial, attempt to load tenant-level configuration to inherit missing values
-                        try
-                        {
-                            tenantCfgFromStoreStage = await _storeConfigurationService.LoadAsync(tenantEmail, string.Empty);
-                        }
-                        catch
-                        {
-                            tenantCfgFromStoreStage = null;
-                        }
-
-                        // Tenant-level validated values
-                        string tenantCode = tenantCfgFromStoreStage?.CurrencyCode?.Trim();
-                        string tenantSymbol = tenantCfgFromStoreStage?.CurrencySymbol?.Trim();
-                        string tenantLocale = tenantCfgFromStoreStage?.CurrencyLocale?.Trim();
-                        int tenantDigits = tenantCfgFromStoreStage?.CurrencyDecimalDigits ?? LegacyDefault.DecimalDigits;
-
-                        bool tenantCodeValid = !string.IsNullOrWhiteSpace(tenantCode) && System.Text.RegularExpressions.Regex.IsMatch(tenantCode, "^[A-Za-z]{3}$");
-                        bool tenantLocaleValid = true;
-                        if (!string.IsNullOrWhiteSpace(tenantLocale))
-                        {
-                            try { var _ = new CultureInfo(tenantLocale); }
-                            catch { tenantLocaleValid = false; }
-                        }
-
-                        var resolved = new CurrencyConfig
-                        {
-                            CurrencyCode = codeValid ? code.ToUpperInvariant() : (tenantCodeValid ? tenantCode.ToUpperInvariant() : LegacyDefault.CurrencyCode),
-                            CurrencySymbol = !string.IsNullOrWhiteSpace(symbol) ? symbol : (!string.IsNullOrWhiteSpace(tenantSymbol) ? tenantSymbol : LegacyDefault.CurrencySymbol),
-                            CurrencyLocale = (localeValid && !string.IsNullOrWhiteSpace(locale)) ? locale : (tenantLocaleValid && !string.IsNullOrWhiteSpace(tenantLocale) ? tenantLocale : LegacyDefault.CurrencyLocale),
-                            DecimalDigits = digits != int.MinValue ? digits : (tenantCfgFromStoreStage?.CurrencyDecimalDigits ?? LegacyDefault.DecimalDigits)
-                        };
-
-                        _cache.Set(cacheKey, resolved, TimeSpan.FromMinutes(15));
-                        return resolved;
-                    }
+                    var profile = await _loginApi.SendRequestAsync<LoginIoResponse>(
+                        "/TenantprofileDetails",
+                        new Dictionary<string, string> { { "eMail", tenantEmail } },
+                        RestSharp.Method.GET);
+                    country = FirstNonEmpty(profile?.Country);
+                    countryCode = NormalizeCountryCode(FirstNonEmpty(profile?.CountryCode));
                 }
-            }
-            catch
-            {
-                // Ignore and try tenant-level below
+                catch { }
             }
 
-            // Try tenant-level configuration by calling LoadAsync with empty storeCode
-            try
-            {
-                var tenantConfig = await _storeConfigurationService.LoadAsync(tenantEmail, string.Empty);
-                if (tenantConfig != null)
+            var countryDefault = CountryCurrencyMapping.GetDefaultForCountry(countryCode)
+                                 ?? CountryCurrencyMapping.GetDefaultForCountry(country);
+
+            var resolved = TryBuild(store, tenant, countryDefault, true)
+                           ?? TryBuild(null, tenant, countryDefault, true)
+                           ?? countryDefault;
+
+            var result = resolved == null
+                ? Unresolved(BuildWarning(country, countryCode))
+                : new CurrencyResolutionResult
                 {
-                    var code = tenantConfig.CurrencyCode?.Trim();
-                    var symbol = tenantConfig.CurrencySymbol?.Trim();
-                    var locale = tenantConfig.CurrencyLocale?.Trim();
-                    int digits = tenantConfig.CurrencyDecimalDigits ?? LegacyDefault.DecimalDigits;
+                    Currency = resolved,
+                    IsResolved = true,
+                    Source = HasCurrency(store) ? "Store" : HasCurrency(tenant) ? "Tenant" : "CountryDefault",
+                    Country = country,
+                    CountryCode = countryCode
+                };
 
-                    bool codeValid = !string.IsNullOrWhiteSpace(code) && System.Text.RegularExpressions.Regex.IsMatch(code, "^[A-Za-z]{3}$");
-                    bool localeValid = true;
-                    if (!string.IsNullOrWhiteSpace(locale))
-                    {
-                        try { var _ = new CultureInfo(locale); }
-                        catch { localeValid = false; }
-                    }
-
-                    if (codeValid || (!string.IsNullOrWhiteSpace(symbol) && localeValid))
-                    {
-                        if (digits < 0 || digits > 6) digits = LegacyDefault.DecimalDigits;
-
-                        var resolved = new CurrencyConfig
-                        {
-                            CurrencyCode = codeValid ? code.ToUpperInvariant() : LegacyDefault.CurrencyCode,
-                            CurrencySymbol = string.IsNullOrWhiteSpace(symbol) ? LegacyDefault.CurrencySymbol : symbol,
-                            CurrencyLocale = localeValid && !string.IsNullOrWhiteSpace(locale) ? locale : LegacyDefault.CurrencyLocale,
-                            DecimalDigits = digits
-                        };
-
-                        _cache.Set(cacheKey, resolved, TimeSpan.FromMinutes(15));
-                        return resolved;
-                    }
-                }
-            }
-            catch
-            {
-                // ignore
-            }
-
-            // Final fallback: legacy default to preserve existing behavior
-            _cache.Set(cacheKey, LegacyDefault, TimeSpan.FromMinutes(15));
-            return LegacyDefault;
+            _cache.Set(cacheKey, result, TimeSpan.FromMinutes(15));
+            return result;
         }
 
         public string Format(decimal amount, CurrencyConfig config)
         {
-            if (config == null) config = LegacyDefault;
+            if (!IsValid(config))
+            {
+                throw new InvalidOperationException("A resolved currency configuration is required to format monetary values.");
+            }
 
-            try
-            {
-                var culture = new CultureInfo(config.CurrencyLocale ?? LegacyDefault.CurrencyLocale);
-                // clone number format to set decimal digits and currency symbol
-                var nfi = (NumberFormatInfo)culture.NumberFormat.Clone();
-                nfi.CurrencySymbol = config.CurrencySymbol ?? LegacyDefault.CurrencySymbol;
-                nfi.CurrencyDecimalDigits = config.DecimalDigits;
-                return amount.ToString("C", nfi);
-            }
-            catch
-            {
-                // If invalid locale or other error, fall back to a safe formatted string
-                var symbol = config?.CurrencySymbol ?? LegacyDefault.CurrencySymbol;
-                var digits = config?.DecimalDigits ?? LegacyDefault.DecimalDigits;
-                return symbol + " " + Math.Round(amount, digits).ToString($"N{digits}", CultureInfo.InvariantCulture);
-            }
+            var culture = new CultureInfo(config.CurrencyLocale);
+            var nfi = (NumberFormatInfo)culture.NumberFormat.Clone();
+            nfi.CurrencySymbol = config.CurrencySymbol;
+            nfi.CurrencyDecimalDigits = config.DecimalDigits;
+            return amount.ToString("C", nfi);
         }
+
+        internal static bool IsValid(CurrencyConfig config)
+        {
+            if (config == null || string.IsNullOrWhiteSpace(config.CurrencyCode)
+                || !Regex.IsMatch(config.CurrencyCode.Trim(), "^[A-Za-z]{3}$")
+                || string.IsNullOrWhiteSpace(config.CurrencySymbol)
+                || string.IsNullOrWhiteSpace(config.CurrencyLocale)
+                || config.DecimalDigits < 0 || config.DecimalDigits > 6)
+            {
+                return false;
+            }
+
+            try { _ = new CultureInfo(config.CurrencyLocale); return true; }
+            catch { return false; }
+        }
+
+        private static CurrencyConfig TryBuild(StoreConfigurationViewModel store, StoreConfigurationViewModel tenant, CurrencyConfig country, bool allowCountry)
+        {
+            if (!HasCurrency(store) && !HasCurrency(tenant)) return null;
+            var config = new CurrencyConfig
+            {
+                CountryCode = FirstNonEmpty(store?.Country, tenant?.Country, country?.CountryCode),
+                CurrencyCode = FirstValidCode(store?.CurrencyCode, tenant?.CurrencyCode, allowCountry ? country?.CurrencyCode : null),
+                CurrencySymbol = FirstNonEmpty(store?.CurrencySymbol, tenant?.CurrencySymbol, allowCountry ? country?.CurrencySymbol : null),
+                CurrencyLocale = FirstValidLocale(store?.CurrencyLocale, tenant?.CurrencyLocale, allowCountry ? country?.CurrencyLocale : null),
+                DecimalDigits = FirstValidDigits(store?.CurrencyDecimalDigits, tenant?.CurrencyDecimalDigits, country?.DecimalDigits)
+            };
+            config.CurrencyCode = config.CurrencyCode?.Trim().ToUpperInvariant();
+            return IsValid(config) ? config : null;
+        }
+
+        private static bool HasCurrency(StoreConfigurationViewModel model) => model?.IsExistingRecord == true
+            && (!string.IsNullOrWhiteSpace(model.CurrencyCode) || !string.IsNullOrWhiteSpace(model.CurrencySymbol)
+                || !string.IsNullOrWhiteSpace(model.CurrencyLocale) || model.CurrencyDecimalDigits.HasValue);
+
+        private static string GetCountryCode(StoreConfigurationViewModel model) => model?.CountryCode;
+
+        private static string FirstNonEmpty(params string[] values) => values?.FirstOrDefault(x => !string.IsNullOrWhiteSpace(x))?.Trim();
+
+        private static string FirstValidCode(params string[] values) => values?.FirstOrDefault(x => !string.IsNullOrWhiteSpace(x) && Regex.IsMatch(x.Trim(), "^[A-Za-z]{3}$"))?.Trim();
+
+        private static string FirstValidLocale(params string[] values)
+        {
+            foreach (var value in values ?? Array.Empty<string>())
+            {
+                if (string.IsNullOrWhiteSpace(value)) continue;
+                try { _ = new CultureInfo(value.Trim()); return value.Trim(); } catch { }
+            }
+            return null;
+        }
+
+        private static int FirstValidDigits(int? store, int? tenant, int? country)
+        {
+            foreach (var value in new[] { store, tenant, country })
+            {
+                if (value.HasValue && value.Value >= 0 && value.Value <= 6) return value.Value;
+            }
+            return -1;
+        }
+
+        private static string NormalizeCountryCode(string value)
+        {
+            if (string.IsNullOrWhiteSpace(value)) return null;
+            var normalized = value.Trim().ToUpperInvariant();
+            return normalized switch { "USA" => "US", "IND" => "IN", "GBR" => "GB", "ARE" => "AE", _ => normalized };
+        }
+
+        private static string BuildWarning(string country, string countryCode) => string.IsNullOrWhiteSpace(country) && string.IsNullOrWhiteSpace(countryCode)
+            ? "Currency is not configured and the tenant country is unknown. Configure a tenant or store currency before displaying or creating orders."
+            : $"Currency is not configured for country {countryCode ?? country}. Configure a valid tenant or store currency before displaying or creating orders.";
+
+        private static CurrencyResolutionResult Unresolved(string warning) => new CurrencyResolutionResult
+        {
+            IsResolved = false,
+            Warning = warning,
+            Source = "Unresolved"
+        };
     }
 }
