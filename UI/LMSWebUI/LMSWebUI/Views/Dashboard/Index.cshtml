@@ -79,6 +79,7 @@
     {
         var _currency = await CurrencyService.GetEffectiveCurrencyAsync(tenantName, tenantStore);
         _currencyJson = Newtonsoft.Json.JsonConvert.SerializeObject(new {
+            resolved = _currency != null,
             symbol = _currency?.CurrencySymbol,
             locale = _currency?.CurrencyLocale,
             digits = _currency?.DecimalDigits,
@@ -87,7 +88,7 @@
     }
     catch
     {
-        // swallow - client will use legacy hardcoded formatting if needed
+        _currencyJson = "{\"resolved\":false,\"warning\":\"Currency configuration could not be loaded.\"}";
     }
 }
 <style>
@@ -1156,10 +1157,30 @@
     }
 
     .store-dashboard-create-order-button:hover,
-    .store-dashboard-create-order-button:focus {
+    .store-dashboard-create-order-button:focus-visible {
         background: var(--els-primary-light);
         color: #fff;
         text-decoration: none;
+        outline: 3px solid rgba(40, 120, 200, .3);
+        outline-offset: 3px;
+    }
+
+    .store-dashboard-create-order-button.is-disabled,
+    .store-dashboard-create-order-button[aria-disabled="true"] {
+        background: #d7dee8;
+        color: #718096;
+        cursor: not-allowed;
+        box-shadow: none;
+        opacity: .8;
+    }
+
+    .store-dashboard-create-order-button.is-disabled:hover,
+    .store-dashboard-create-order-button.is-disabled:focus-visible,
+    .store-dashboard-create-order-button[aria-disabled="true"]:hover,
+    .store-dashboard-create-order-button[aria-disabled="true"]:focus-visible {
+        background: #d7dee8;
+        color: #718096;
+        outline: none;
     }
 
     .store-action-board,
@@ -3094,7 +3115,7 @@
                     </button>
                 </div>
                 <div class="store-dashboard-create-order-bottom">
-                    <a class="btn btn-primary store-dashboard-create-order-button" href="@Url.Action("SetupCreateOrder", "Customer")">
+                    <a class="btn btn-primary store-dashboard-create-order-button is-disabled" id="dashboardCreateOrderBtn" aria-disabled="true" tabindex="-1" href="#">
                         <i class="fa fa-plus" aria-hidden="true"></i>
                         <span>Create New Order</span>
                     </a>
@@ -3996,6 +4017,7 @@
         var editBtn = document.getElementById("dashboardEditCustomerBtn");
         var deleteBtn = document.getElementById("dashboardDeleteCustomerBtn");
         var refreshBtn = document.getElementById("dashboardRefreshCustomerOrdersBtn");
+        var createOrderBtn = document.getElementById("dashboardCreateOrderBtn");
 
         if (editBtn) {
             editBtn.disabled = !hasCustomer;
@@ -4005,6 +4027,15 @@
         }
         if (refreshBtn) {
             refreshBtn.disabled = !hasCustomer;
+        }
+        if (createOrderBtn) {
+            var createOrderEnabled = hasCustomer;
+            createOrderBtn.classList.toggle("is-disabled", !createOrderEnabled);
+            createOrderBtn.setAttribute("aria-disabled", createOrderEnabled ? "false" : "true");
+            createOrderBtn.tabIndex = createOrderEnabled ? 0 : -1;
+            createOrderBtn.href = createOrderEnabled
+                ? '@Url.Action("SetupCreateOrder", "Customer")' + "?customerName=" + encodeURIComponent(selectedDashboardCustomer.name || "") + "&customerCode=" + encodeURIComponent(selectedDashboardCustomer.code || "")
+                : "#";
         }
     }
 
@@ -5244,9 +5275,20 @@ document.addEventListener("click", function (e)
         var dashboardDeleteCustomerBtn = document.getElementById("dashboardDeleteCustomerBtn");
         var dashboardClearCustomerBtn = document.getElementById("dashboardClearCustomerBtn");
         var dashboardRefreshCustomerOrdersBtn = document.getElementById("dashboardRefreshCustomerOrdersBtn");
+        var dashboardCreateOrderBtn = document.getElementById("dashboardCreateOrderBtn");
         var dashboardSaveCustomerBtn = document.getElementById("dashboardSaveCustomerBtn");
         var editCustomerPhoneCountry = document.getElementById("editCustomerPhoneCountry");
         var dashboardPhoneCountries = @Html.Raw(dashboardPhoneCountriesJson);
+
+        if (dashboardCreateOrderBtn) {
+            dashboardCreateOrderBtn.addEventListener("click", function (event) {
+                if (dashboardCreateOrderBtn.getAttribute("aria-disabled") === "true") {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    setCustomerActionMessage("Select a customer before creating an order.");
+                }
+            });
+        }
 
         function setEditCustomerValidationMessage(message) {
             setEditCustomerMessage(message || "");

@@ -147,6 +147,7 @@ namespace LMSWebUI.Services
             model.State = model.State?.Trim();
             model.PostalCode = model.PostalCode?.Trim();
             model.Country = model.Country?.Trim();
+            model.CountryCode = model.CountryCode?.Trim().ToUpperInvariant();
             model.CurrencyDisplay = model.CurrencyDisplay?.Trim();
             model.TimeZoneIana = model.TimeZoneIana?.Trim();
             model.PhoneDialingCode = model.PhoneDialingCode?.Trim();
@@ -424,6 +425,8 @@ namespace LMSWebUI.Services
                 CurrencyCode = obj["CurrencyCode"]?.ToString() ?? obj["currencyCode"]?.ToString(),
                 CurrencySymbol = obj["CurrencySymbol"]?.ToString() ?? obj["currencySymbol"]?.ToString(),
                 CurrencyLocale = obj["CurrencyLocale"]?.ToString() ?? obj["currencyLocale"]?.ToString(),
+                Country = obj["Country"]?.ToString() ?? obj["country"]?.ToString(),
+                CountryCode = obj["CountryCode"]?.ToString() ?? obj["countryCode"]?.ToString(),
                 CurrencyDecimalDigits = obj["CurrencyDecimalDigits"] != null ? (int?)obj["CurrencyDecimalDigits"].ToObject<int>() : (obj["currencyDecimalDigits"] != null ? (int?)obj["currencyDecimalDigits"].ToObject<int>() : null)
             };
         }

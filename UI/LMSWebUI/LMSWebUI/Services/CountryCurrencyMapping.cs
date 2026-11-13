@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 
 namespace LMSWebUI.Services
@@ -23,8 +24,35 @@ namespace LMSWebUI.Services
         {
             if (string.IsNullOrWhiteSpace(country)) return null;
             var maps = GetMappings();
-            if (maps.TryGetValue(country.Trim(), out var cfg)) return cfg;
+            var value = country.Trim();
+            if (maps.TryGetValue(value, out var cfg)) return Clone(cfg);
+
+            foreach (var item in maps)
+            {
+                if (string.Equals(item.Value.CountryCode, value, StringComparison.OrdinalIgnoreCase))
+                {
+                    return Clone(item.Value);
+                }
+            }
+
+            foreach (var item in maps)
+            {
+                if (string.Equals(item.Key, value, StringComparison.OrdinalIgnoreCase))
+                {
+                    return Clone(item.Value);
+                }
+            }
+
             return null;
         }
+
+        private static CurrencyConfig Clone(CurrencyConfig source) => new CurrencyConfig
+        {
+            CountryCode = source.CountryCode,
+            CurrencyCode = source.CurrencyCode,
+            CurrencySymbol = source.CurrencySymbol,
+            CurrencyLocale = source.CurrencyLocale,
+            DecimalDigits = source.DecimalDigits
+        };
     }
 }

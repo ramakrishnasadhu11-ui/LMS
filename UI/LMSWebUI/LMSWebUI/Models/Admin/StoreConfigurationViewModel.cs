@@ -36,6 +36,9 @@ namespace LMSWebUI.Models.Admin
         [StringLength(128)]
         public string Country { get; set; }
 
+        [StringLength(8)]
+        public string CountryCode { get; set; }
+
         [Display(Name = "Currency")]
         [StringLength(32)]
         public string CurrencyDisplay { get; set; }

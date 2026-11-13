@@ -11,7 +11,7 @@ namespace LMSWebUI.Helpers
     {
         /// <summary>
         /// Formats a monetary amount according to the resolved tenant/store currency configuration.
-        /// If tenant/store cannot be resolved, falls back to the legacy currency.
+        /// If tenant/store cannot be resolved, renders an explicit configuration warning.
         /// </summary>
         public static IHtmlContent FormatCurrency(this IHtmlHelper html, decimal? amount)
         {
@@ -30,8 +30,12 @@ namespace LMSWebUI.Helpers
                 // Resolve tenant/store from session (server-side authoritative source)
                 var tenant = html.ViewContext.HttpContext.Session.GetString("TenantName");
                 var store = html.ViewContext.HttpContext.Session.GetString("TenantStore");
-                var cfg = svc.GetEffectiveCurrencyAsync(tenant ?? string.Empty, store ?? string.Empty).GetAwaiter().GetResult();
-                var formatted = svc.Format(amount.Value, cfg);
+                var resolution = svc.ResolveAsync(tenant ?? string.Empty, store ?? string.Empty).GetAwaiter().GetResult();
+                if (!resolution.IsResolved)
+                {
+                    return new HtmlString("Currency configuration required");
+                }
+                var formatted = svc.Format(amount.Value, resolution.Currency);
 
                 return new HtmlString(formatted);
             }
@@ -62,8 +66,12 @@ namespace LMSWebUI.Helpers
 
                 var tenant = html.ViewContext.HttpContext.Session.GetString("TenantName");
                 var store = html.ViewContext.HttpContext.Session.GetString("TenantStore");
-                var cfg = await svc.GetEffectiveCurrencyAsync(tenant ?? string.Empty, store ?? string.Empty);
-                var formatted = svc.Format(amount.Value, cfg);
+                var resolution = await svc.ResolveAsync(tenant ?? string.Empty, store ?? string.Empty);
+                if (!resolution.IsResolved)
+                {
+                    return new HtmlString("Currency configuration required");
+                }
+                var formatted = svc.Format(amount.Value, resolution.Currency);
 
                 return new HtmlString(formatted);
             }

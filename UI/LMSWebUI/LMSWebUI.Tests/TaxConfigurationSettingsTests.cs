@@ -3502,7 +3502,21 @@ namespace LMSWebUI.Tests
         private static CustomerController CreateController(InMemoryCustomerApiClient customerApi, InMemoryTaxLoginApiClient loginApi)
         {
             var cache = new MemoryCache(new MemoryCacheOptions());
-            var storeCfg = new FakeStoreConfigService(new StoreConfigurationViewModel(), new StoreConfigurationViewModel());
+            var storeCfg = new FakeStoreConfigService(
+                new StoreConfigurationViewModel
+                {
+                    CurrencyCode = "INR",
+                    CurrencySymbol = "₹",
+                    CurrencyLocale = "en-IN",
+                    CurrencyDecimalDigits = 2
+                },
+                new StoreConfigurationViewModel
+                {
+                    CurrencyCode = "INR",
+                    CurrencySymbol = "₹",
+                    CurrencyLocale = "en-IN",
+                    CurrencyDecimalDigits = 2
+                });
             var currencyService = new CurrencyService(storeCfg, cache);
             var config = new ConfigurationBuilder().Build();
             var dbOptions = new DbContextOptionsBuilder<ApplicationDbContext>().Options;

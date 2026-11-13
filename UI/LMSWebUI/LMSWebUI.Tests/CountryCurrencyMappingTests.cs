@@ -20,5 +20,14 @@ namespace LMSWebUI.Tests
             var cfg = CountryCurrencyMapping.GetDefaultForCountry("Atlantis");
             Assert.Null(cfg);
         }
+
+        [Fact]
+        public void UnitedStates_Code_Defaults_To_USD()
+        {
+            var cfg = CountryCurrencyMapping.GetDefaultForCountry("US");
+            Assert.NotNull(cfg);
+            Assert.Equal("USD", cfg.CurrencyCode);
+            Assert.Equal("$", cfg.CurrencySymbol);
+        }
     }
 }

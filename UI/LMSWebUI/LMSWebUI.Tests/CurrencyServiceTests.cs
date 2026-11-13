@@ -85,16 +85,45 @@ namespace LMSWebUI.Tests
         }
 
         [Fact]
-        public async Task LegacyFallback_WhenNoneConfigured()
+        public async Task MissingConfiguration_IsUnresolved()
         {
-            var storeCfg = new StoreConfigurationViewModel { CurrencyCode = null };
-            var tenantCfg = new StoreConfigurationViewModel { CurrencyCode = null };
+            var storeCfg = new StoreConfigurationViewModel { Country = "Atlantis", CurrencyCode = null };
+            var tenantCfg = new StoreConfigurationViewModel { Country = "Atlantis", CurrencyCode = null };
             var fake = new FakeStoreConfigService(storeCfg, tenantCfg);
             var cache = new MemoryCache(new MemoryCacheOptions());
             var svc = new CurrencyService(fake, cache);
 
-            var resolved = await svc.GetEffectiveCurrencyAsync("tenant@example.com", "S1");
-            Assert.Equal("INR", resolved.CurrencyCode);
+            var resolved = await svc.ResolveAsync("tenant@example.com", "S1");
+            Assert.False(resolved.IsResolved);
+            Assert.Contains("Currency", resolved.Warning);
+        }
+
+        [Fact]
+        public async Task UnitedStates_CountryDefault_IsUSD()
+        {
+            var fake = new FakeStoreConfigService(
+                new StoreConfigurationViewModel { CountryCode = "US" },
+                new StoreConfigurationViewModel { CountryCode = "US" });
+            var svc = new CurrencyService(fake, new MemoryCache(new MemoryCacheOptions()));
+
+            var resolved = await svc.ResolveAsync("tenant@example.com", "S1");
+
+            Assert.True(resolved.IsResolved);
+            Assert.Equal("USD", resolved.Currency.CurrencyCode);
+        }
+
+        [Fact]
+        public async Task IndianCountryDefault_IsINR()
+        {
+            var fake = new FakeStoreConfigService(
+                new StoreConfigurationViewModel { CountryCode = "IN" },
+                new StoreConfigurationViewModel { CountryCode = "IN" });
+            var svc = new CurrencyService(fake, new MemoryCache(new MemoryCacheOptions()));
+
+            var resolved = await svc.ResolveAsync("tenant@example.com", "S1");
+
+            Assert.True(resolved.IsResolved);
+            Assert.Equal("INR", resolved.Currency.CurrencyCode);
         }
 
         [Fact]

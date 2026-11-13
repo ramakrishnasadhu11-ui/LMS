@@ -781,7 +781,13 @@ namespace LMSWebUI.Tests
             var viewPath = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "LMSWebUI", "Views", "Dashboard", "Index.cshtml"));
             var viewContents = File.ReadAllText(viewPath);
 
-            Assert.Contains("id=\"dashboardCreateOrderBtn\" disabled", viewContents, StringComparison.Ordinal);
+            Assert.Contains("id=\"dashboardCreateOrderBtn\"", viewContents, StringComparison.Ordinal);
+            Assert.Contains("aria-disabled=\"true\"", viewContents, StringComparison.Ordinal);
+            Assert.Contains("classList.toggle(\"is-disabled\", !createOrderEnabled)", viewContents, StringComparison.Ordinal);
+            Assert.Contains("createOrderBtn.href = createOrderEnabled", viewContents, StringComparison.Ordinal);
+            Assert.Contains("dashboardCreateOrderBtn.addEventListener(\"click\"", viewContents, StringComparison.Ordinal);
+            Assert.Contains("tabIndex = createOrderEnabled ? 0 : -1", viewContents, StringComparison.Ordinal);
+            Assert.Contains("Select a customer before creating an order.", viewContents, StringComparison.Ordinal);
             Assert.Contains("id=\"dashboardEditCustomerBtn\" disabled", viewContents, StringComparison.Ordinal);
             Assert.Contains("id=\"dashboardDeleteCustomerBtn\" disabled", viewContents, StringComparison.Ordinal);
             Assert.Contains("Delete customer '", viewContents, StringComparison.Ordinal);
