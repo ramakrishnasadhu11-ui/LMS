@@ -32,6 +32,14 @@
             </div>
 
             <div class="customer-card">
+                <div class="customer-card-title"><i class="fa fa-picture-o" aria-hidden="true"></i> Default Laundry Items (Visual Reference)</div>
+                <div id="catalogImageDiagnostics" class="catalog-image-diagnostics" role="status" aria-live="polite"></div>
+                <div id="visualCatalogWrap" class="visual-catalog-wrap">
+                    <div class="catalog-loading">Loading default catalogue items...</div>
+                </div>
+            </div>
+
+            <div class="customer-card">
                 <div class="customer-card-title"><i class="fa fa-exchange" aria-hidden="true"></i> CSV Import/Export</div>
                 <div class="bulk-import-grid">
                     <div class="bulk-import-file-wrap">
@@ -51,6 +59,37 @@
                         <input type="checkbox" id="overwriteExistingPricesChk" />
                         Overwrite existing prices when <b>ServiceType + Category + ItemName</b> matches.
                     </label>
+                </div>
+            </div>
+
+            <div id="csvImportPreviewCard" class="customer-card" style="display:none;">
+                <div class="customer-card-title"><i class="fa fa-eye" aria-hidden="true"></i> CSV Import Preview</div>
+                <div class="import-preview-summary">
+                    <div class="import-summary-chip"><span>Total Rows</span><b id="previewTotalRows">0</b></div>
+                    <div class="import-summary-chip"><span>Valid Rows</span><b id="previewValidRows">0</b></div>
+                    <div class="import-summary-chip"><span>Invalid Rows</span><b id="previewInvalidRows">0</b></div>
+                    <div class="import-summary-chip"><span>Price Changes</span><b id="previewChangedRows">0</b></div>
+                </div>
+                <div id="importPreviewHint" class="field-hint"></div>
+                <div class="import-preview-table-wrap">
+                    <table class="import-preview-table">
+                        <thead>
+                            <tr>
+                                <th>Image</th>
+                                <th>Service Type</th>
+                                <th>Category</th>
+                                <th>Item Name</th>
+                                <th>Current Price</th>
+                                <th>Imported Price</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="importPreviewBody"></tbody>
+                    </table>
+                </div>
+                <div class="bulk-import-actions" style="margin-top:10px;">
+                    <button type="button" class="action-btn tertiary" id="applyPreviewImportBtn"><i class="fa fa-check" aria-hidden="true"></i> Apply Valid Price Updates</button>
+                    <button type="button" class="action-btn secondary" id="clearPreviewBtn"><i class="fa fa-times" aria-hidden="true"></i> Clear Preview</button>
                 </div>
             </div>
 
@@ -490,6 +529,7 @@
 
 .toast-message.success { background: #2f8f46; }
 .toast-message.error { background: #b63838; }
+.toast-message.info { background: #2563eb; }
 
 .catalog-status-box {
     border: 1px solid var(--els-border);
@@ -521,6 +561,150 @@
     color: var(--els-text-muted);
     margin-top: 8px;
 }
+
+.catalog-image-diagnostics {
+    font-size: 11px;
+    color: #8a5b00;
+    margin-bottom: 8px;
+}
+
+.visual-catalog-wrap {
+    display: grid;
+    gap: 12px;
+}
+
+.catalog-loading,
+.visual-catalog-empty {
+    border: 1px dashed var(--els-border);
+    border-radius: 8px;
+    background: #f8fafc;
+    color: var(--els-text-muted);
+    font-size: 12px;
+    padding: 12px;
+}
+
+.visual-service-group {
+    border: 1px solid var(--els-border);
+    border-radius: 10px;
+    background: #fff;
+    padding: 10px;
+}
+
+.visual-service-title {
+    margin: 0 0 8px;
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--els-primary);
+}
+
+.visual-category-title {
+    margin: 8px 0 6px;
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--els-text);
+}
+
+.visual-item-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: 10px;
+}
+
+.visual-item-card {
+    border: 1px solid var(--els-border);
+    border-radius: 10px;
+    background: #fff;
+    padding: 8px;
+    display: grid;
+    gap: 6px;
+}
+
+.visual-item-image {
+    width: 100%;
+    height: 88px;
+    object-fit: contain;
+    border: 1px solid var(--els-border);
+    border-radius: 8px;
+    background: var(--els-accent);
+}
+
+.visual-item-name {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--els-text);
+    line-height: 1.25;
+}
+
+.visual-item-price {
+    font-size: 11px;
+    color: var(--els-text-muted);
+}
+
+.import-preview-summary {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(120px, 1fr));
+    gap: 8px;
+    margin-bottom: 8px;
+}
+
+.import-preview-table-wrap {
+    border: 1px solid var(--els-border);
+    border-radius: 8px;
+    overflow: auto;
+    max-height: 460px;
+}
+
+.import-preview-table {
+    width: 100%;
+    border-collapse: collapse;
+    min-width: 820px;
+}
+
+.import-preview-table th,
+.import-preview-table td {
+    border-bottom: 1px solid var(--els-border);
+    padding: 8px;
+    font-size: 12px;
+    text-align: left;
+    vertical-align: middle;
+}
+
+.import-preview-table th {
+    position: sticky;
+    top: 0;
+    background: #f8fafc;
+    z-index: 1;
+    font-weight: 700;
+}
+
+.preview-item-image {
+    width: 54px;
+    height: 54px;
+    object-fit: contain;
+    border: 1px solid var(--els-border);
+    border-radius: 8px;
+    background: var(--els-accent);
+}
+
+.preview-row.valid-update { background: #edf9f1; }
+.preview-row.unchanged { background: #f8fafc; }
+.preview-row.invalid-item,
+.preview-row.invalid-price,
+.preview-row.invalid-duplicate { background: #fff1f1; }
+
+.preview-status {
+    display: inline-block;
+    padding: 4px 8px;
+    border-radius: 999px;
+    font-weight: 700;
+    font-size: 11px;
+}
+
+.preview-status.valid-update { background: #d8f3e2; color: #166534; }
+.preview-status.unchanged { background: #e2e8f0; color: #334155; }
+.preview-status.invalid-item,
+.preview-status.invalid-price,
+.preview-status.invalid-duplicate { background: #fee2e2; color: #991b1b; }
 
 .overwrite-check-label {
     font-size: 12px;
@@ -557,6 +741,10 @@
         grid-template-columns: 1fr;
     }
 
+    .import-preview-summary {
+        grid-template-columns: repeat(2, minmax(120px, 1fr));
+    }
+
     .action-btn {
         width: 100%;
     }
@@ -570,6 +758,12 @@
 <script>
 (function () {
     var importInProgress = false;
+    var pendingImportPreviewRows = [];
+    var catalogueManifest = null;
+    var catalogueManifestFailed = false;
+    var catalogueImageDiagnostics = { missing: [], unapproved: [] };
+    var currentPricedItems = [];
+    var placeholderImage = '@Url.Content("~/dist/img/noimage.png")';
 
     if (!window.location.search) {
         var customItemsCsvFileInput = document.getElementById("customItemsCsvFile");
@@ -578,15 +772,19 @@
         }
     }
 
-    function showToast(message, isSuccess) {
+    function showToast(message, isSuccess, tone) {
         var toast = document.getElementById("csvToast");
         if (!toast) {
             window.alert(message || "Operation completed.");
             return;
         }
 
-        toast.classList.remove("success", "error");
-        toast.classList.add(isSuccess ? "success" : "error");
+        var resolvedTone = tone === "info"
+            ? "info"
+            : (isSuccess ? "success" : "error");
+
+        toast.classList.remove("success", "error", "info");
+        toast.classList.add(resolvedTone);
         toast.textContent = message || "Operation completed.";
         toast.style.display = "block";
 
@@ -602,6 +800,593 @@
     function parseAmount(value) {
         var number = Number(value);
         return Number.isFinite(number) ? number : 0;
+    }
+
+    function normalizeText(value) {
+        return (value == null ? "" : String(value)).trim();
+    }
+
+    function catalogueKey(serviceType, category, itemName) {
+        return [serviceType, category, itemName].map(function (value) {
+            return normalizeText(value).toLowerCase();
+        }).join("|");
+    }
+
+    function resolveCatalogImagePath(value) {
+        var path = (value || "").toString().trim();
+        if (!path || path.indexOf("://") >= 0 || path.indexOf("//") === 0) {
+            return placeholderImage;
+        }
+
+        return path.charAt(0) === "/" ? path : "/" + path;
+    }
+
+    function findCatalogueManifestEntry(serviceType, category, itemName) {
+        var manifestItems = catalogueManifest && Array.isArray(catalogueManifest.items) ? catalogueManifest.items : [];
+        if (!manifestItems.length) {
+            return null;
+        }
+
+        var key = catalogueKey(serviceType, category, itemName);
+        for (var i = 0; i < manifestItems.length; i++) {
+            var entry = manifestItems[i];
+            if (!entry) {
+                continue;
+            }
+
+            if (catalogueKey(entry.serviceType, entry.category, entry.itemName) === key) {
+                return entry;
+            }
+        }
+
+        return null;
+    }
+
+    function resolveItemImageForPreview(serviceType, category, itemName) {
+        var entry = findCatalogueManifestEntry(serviceType, category, itemName);
+        if (!entry) {
+            return "";
+        }
+
+        if (String(entry.assetStatus || "").toLowerCase() !== "approved") {
+            return "";
+        }
+
+        return entry.imagePath || "";
+    }
+
+    function findExistingPriceForKey(items, serviceType, category, itemName) {
+        var targetKey = catalogueKey(serviceType, category, itemName);
+        var matches = (items || []).filter(function (item) {
+            var key = catalogueKey(item.ServiceType || item.serviceType, item.Category || item.category, item.ItemName || item.itemName);
+            return key === targetKey;
+        });
+
+        if (!matches.length) {
+            return null;
+        }
+
+        var activeMatch = matches.find(function (item) {
+            return !!(item.IsActive ?? item.isActive ?? true);
+        });
+
+        var match = activeMatch || matches[0];
+        return {
+            unitPrice: parseAmount(match.UnitPrice || match.unitPrice || 0),
+            isActive: !!(match.IsActive ?? match.isActive ?? true)
+        };
+    }
+
+    function parseCsvHeaderAndRows(csvContent) {
+        var lines = (csvContent || "").split(/\r?\n/);
+        if (!lines.length) {
+            return { header: "", rows: [] };
+        }
+
+        var header = (lines[0] || "").replace(/^\uFEFF/, "").trim();
+        var rows = [];
+
+        for (var i = 1; i < lines.length; i++) {
+            var lineText = lines[i] || "";
+            if (!lineText.trim()) {
+                continue;
+            }
+
+            var columns = [];
+            var cursor = 0;
+            var current = "";
+            var inQuotes = false;
+
+            while (cursor < lineText.length) {
+                var ch = lineText[cursor];
+                if (ch === '"') {
+                    if (inQuotes && lineText[cursor + 1] === '"') {
+                        current += '"';
+                        cursor += 2;
+                        continue;
+                    }
+
+                    inQuotes = !inQuotes;
+                    cursor++;
+                    continue;
+                }
+
+                if (ch === ',' && !inQuotes) {
+                    columns.push(current.trim());
+                    current = "";
+                    cursor++;
+                    continue;
+                }
+
+                current += ch;
+                cursor++;
+            }
+
+            columns.push(current.trim());
+            rows.push({ lineNumber: i + 1, columns: columns });
+        }
+
+        return { header: header, rows: rows };
+    }
+
+    function buildImportPreview(rows) {
+        var dedupe = {};
+        var result = [];
+
+        (rows || []).forEach(function (row) {
+            var cols = row.columns || [];
+            var serviceType = normalizeText(cols[0] || "");
+            var category = normalizeText(cols[1] || "");
+            var itemName = normalizeText(cols[2] || "");
+            var importedPriceRaw = normalizeText(cols[3] || "");
+            var importedPrice = Number(importedPriceRaw);
+            var key = catalogueKey(serviceType, category, itemName);
+
+            var previewRow = {
+                lineNumber: row.lineNumber,
+                serviceType: serviceType,
+                category: category,
+                itemName: itemName,
+                importedPriceRaw: importedPriceRaw,
+                importedPrice: importedPrice,
+                currentPrice: null,
+                status: "",
+                statusText: "",
+                reason: "",
+                key: key,
+                imagePath: resolveItemImageForPreview(serviceType, category, itemName)
+            };
+
+            if (!serviceType || !category || !itemName) {
+                previewRow.status = "invalid-item";
+                previewRow.statusText = "Invalid item";
+                previewRow.reason = "Missing ServiceType, Category or ItemName.";
+                result.push(previewRow);
+                return;
+            }
+
+            if (!Number.isFinite(importedPrice) || importedPrice < 0) {
+                previewRow.status = "invalid-price";
+                previewRow.statusText = "Invalid price";
+                previewRow.reason = "UnitPrice must be a valid number (0 or higher).";
+                result.push(previewRow);
+                return;
+            }
+
+            if (dedupe[key]) {
+                previewRow.status = "invalid-duplicate";
+                previewRow.statusText = "Duplicate row";
+                previewRow.reason = "Duplicate ServiceType + Category + ItemName in uploaded CSV.";
+                result.push(previewRow);
+                return;
+            }
+            dedupe[key] = true;
+
+            var existing = findExistingPriceForKey(currentPricedItems, serviceType, category, itemName);
+            if (!existing) {
+                previewRow.status = "invalid-item";
+                previewRow.statusText = "Item not found";
+                previewRow.reason = "Item is not available in this store catalog.";
+                result.push(previewRow);
+                return;
+            }
+
+            previewRow.currentPrice = existing.unitPrice;
+
+            if (Math.abs(existing.unitPrice - importedPrice) < 0.0001) {
+                previewRow.status = "unchanged";
+                previewRow.statusText = "Unchanged";
+                previewRow.reason = "Imported price matches current store price.";
+            } else {
+                previewRow.status = "valid-update";
+                previewRow.statusText = "Valid update";
+                previewRow.reason = "Price will be updated.";
+            }
+
+            result.push(previewRow);
+        });
+
+        return result;
+    }
+
+    function renderImportPreview(previewRows) {
+        var card = document.getElementById("csvImportPreviewCard");
+        var body = document.getElementById("importPreviewBody");
+        var hint = document.getElementById("importPreviewHint");
+        var totalEl = document.getElementById("previewTotalRows");
+        var validEl = document.getElementById("previewValidRows");
+        var invalidEl = document.getElementById("previewInvalidRows");
+        var changedEl = document.getElementById("previewChangedRows");
+        var applyBtn = document.getElementById("applyPreviewImportBtn");
+
+        if (!card || !body || !hint || !totalEl || !validEl || !invalidEl || !changedEl || !applyBtn) {
+            return;
+        }
+
+        var rows = Array.isArray(previewRows) ? previewRows : [];
+        var validRows = rows.filter(function (row) { return row.status === "valid-update"; });
+        var invalidRows = rows.filter(function (row) { return row.status.indexOf("invalid") === 0; });
+        var changedRows = validRows.length;
+
+        totalEl.textContent = String(rows.length);
+        validEl.textContent = String(validRows.length);
+        invalidEl.textContent = String(invalidRows.length);
+        changedEl.textContent = String(changedRows);
+
+        body.innerHTML = "";
+
+        rows.forEach(function (row) {
+            var tr = document.createElement("tr");
+            tr.className = "preview-row " + row.status;
+
+            var imageTd = document.createElement("td");
+            var img = document.createElement("img");
+            img.className = "preview-item-image";
+            img.loading = "lazy";
+            img.alt = row.itemName || "Laundry item";
+            img.src = resolveCatalogImagePath(row.imagePath);
+            img.onerror = function () {
+                if (img.src.indexOf(placeholderImage) < 0) {
+                    img.src = placeholderImage;
+                }
+            };
+            imageTd.appendChild(img);
+
+            var serviceTd = document.createElement("td");
+            serviceTd.textContent = row.serviceType || "-";
+            var categoryTd = document.createElement("td");
+            categoryTd.textContent = row.category || "-";
+            var itemTd = document.createElement("td");
+            itemTd.textContent = row.itemName || "-";
+            var currentTd = document.createElement("td");
+            currentTd.textContent = Number.isFinite(row.currentPrice) ? row.currentPrice.toFixed(2) : "-";
+            var importedTd = document.createElement("td");
+            importedTd.textContent = Number.isFinite(row.importedPrice) ? row.importedPrice.toFixed(2) : (row.importedPriceRaw || "-");
+
+            var statusTd = document.createElement("td");
+            var status = document.createElement("span");
+            status.className = "preview-status " + row.status;
+            status.textContent = row.statusText;
+            statusTd.appendChild(status);
+            if (row.reason) {
+                var reason = document.createElement("div");
+                reason.style.fontSize = "11px";
+                reason.style.marginTop = "4px";
+                reason.style.color = "#64748B";
+                reason.textContent = row.reason;
+                statusTd.appendChild(reason);
+            }
+
+            tr.appendChild(imageTd);
+            tr.appendChild(serviceTd);
+            tr.appendChild(categoryTd);
+            tr.appendChild(itemTd);
+            tr.appendChild(currentTd);
+            tr.appendChild(importedTd);
+            tr.appendChild(statusTd);
+            body.appendChild(tr);
+        });
+
+        hint.textContent = validRows.length > 0
+            ? ("Ready to apply " + validRows.length + " valid price update(s). Invalid rows will be ignored.")
+            : "No valid price updates found in the uploaded CSV.";
+
+        applyBtn.disabled = importInProgress || validRows.length === 0;
+        card.style.display = rows.length ? "block" : "none";
+    }
+
+    function clearImportPreview() {
+        pendingImportPreviewRows = [];
+        renderImportPreview([]);
+    }
+
+    function executeCsvImportFromPreview() {
+        var validRows = pendingImportPreviewRows.filter(function (row) { return row.status === "valid-update"; });
+        if (!validRows.length) {
+            showToast("No valid rows to import.", false);
+            return;
+        }
+
+        if (!window.confirm("Apply " + validRows.length + " valid price update(s)? Invalid rows will not be applied.")) {
+            return;
+        }
+
+        var fileInput = document.getElementById("customItemsCsvFile");
+        var uploadBtn = document.getElementById("importUploadedItemsBtn");
+        var exportBtn = document.getElementById("downloadItemsTemplateBtn");
+        var applyBtn = document.getElementById("applyPreviewImportBtn");
+        var overwriteChk = document.getElementById("overwriteExistingPricesChk");
+        var selectedFile = fileInput && fileInput.files && fileInput.files.length ? fileInput.files[0] : null;
+
+        if (!selectedFile) {
+            showToast("Please choose a CSV file again before applying import.", false);
+            return;
+        }
+
+        importInProgress = true;
+        if (uploadBtn) {
+            uploadBtn.disabled = true;
+            uploadBtn.innerHTML = "<i class='fa fa-spinner fa-spin' aria-hidden='true'></i> Importing CSV...";
+        }
+        if (applyBtn) {
+            applyBtn.disabled = true;
+            applyBtn.innerHTML = "<i class='fa fa-spinner fa-spin' aria-hidden='true'></i> Applying...";
+        }
+        if (exportBtn) {
+            exportBtn.disabled = true;
+        }
+        if (fileInput) {
+            fileInput.disabled = true;
+        }
+
+        var filteredCsvRows = ["ServiceType,Category,ItemName,UnitPrice"];
+        validRows.forEach(function (row) {
+            filteredCsvRows.push([
+                csvEscape(row.serviceType || ""),
+                csvEscape(row.category || ""),
+                csvEscape(row.itemName || ""),
+                csvEscape(parseAmount(row.importedPrice).toFixed(2))
+            ].join(","));
+        });
+
+        var filteredCsvBlob = new Blob([filteredCsvRows.join("\r\n")], { type: "text/csv;charset=utf-8;" });
+        var formData = new FormData();
+        formData.append("csvFile", filteredCsvBlob, "LaundryItemPrices.valid-updates.csv");
+        formData.append("overwriteExisting", overwriteChk && overwriteChk.checked ? "true" : "false");
+
+        fetch('@Url.Action("ImportLaundryItemPricesCsv", "Customer")', {
+            method: 'POST',
+            headers: { 'X-Requested-With': 'XMLHttpRequest' },
+            body: formData
+        })
+            .then(function (response) { return response.json(); })
+            .then(function (data) {
+                if (!data || !data.success) {
+                    renderImportSummary(data || null);
+                    showToast((data && data.message) || "Unable to import uploaded CSV items.", false);
+                    return;
+                }
+
+                renderImportSummary(data);
+                showToast(data.message || "Uploaded CSV items imported successfully.", true);
+                clearImportPreview();
+                if (fileInput) {
+                    fileInput.value = "";
+                }
+                updateImportActionState();
+                loadCatalogStatus();
+            })
+            .catch(function () {
+                showToast("Unable to import uploaded CSV items.", false);
+            })
+            .finally(function () {
+                importInProgress = false;
+                if (uploadBtn) {
+                    uploadBtn.innerHTML = "<i class='fa fa-upload' aria-hidden='true'></i> Import CSV File";
+                }
+                if (applyBtn) {
+                    applyBtn.innerHTML = "<i class='fa fa-check' aria-hidden='true'></i> Apply Valid Price Updates";
+                }
+                if (exportBtn) {
+                    exportBtn.disabled = false;
+                }
+                if (fileInput) {
+                    fileInput.disabled = false;
+                }
+                updateImportActionState();
+                renderImportPreview(pendingImportPreviewRows);
+            });
+    }
+
+    function resetCatalogueImageDiagnostics() {
+        catalogueImageDiagnostics = { missing: [], unapproved: [] };
+    }
+
+    function updateCatalogueImageDiagnostics() {
+        var diagnosticsEl = document.getElementById("catalogImageDiagnostics");
+        if (!diagnosticsEl) {
+            return;
+        }
+
+        var missing = Array.from(new Set(catalogueImageDiagnostics.missing || []));
+        var unapproved = Array.from(new Set(catalogueImageDiagnostics.unapproved || []));
+
+        if (catalogueManifestFailed) {
+            diagnosticsEl.textContent = "Catalogue manifest unavailable; using placeholder images.";
+            return;
+        }
+
+        if (missing.length || unapproved.length) {
+            var parts = [];
+            if (missing.length) parts.push("Missing mappings: " + missing.length);
+            if (unapproved.length) parts.push("Unapproved images: " + unapproved.length);
+            diagnosticsEl.textContent = "Image diagnostics — " + parts.join("; ") + ". Placeholder images are in use.";
+            return;
+        }
+
+        diagnosticsEl.textContent = "All displayed default items have approved catalogue images.";
+    }
+
+    function loadCatalogueManifest() {
+        catalogueManifestFailed = false;
+        resetCatalogueImageDiagnostics();
+
+        return fetch('@Url.Content("~/catalog/laundry-item-catalogue.json")?_ts=' + Date.now(), {
+            method: 'GET',
+            cache: 'no-store',
+            credentials: 'same-origin',
+            headers: { 'X-Requested-With': 'XMLHttpRequest' }
+        })
+            .then(function (response) {
+                if (!response.ok) {
+                    throw new Error("Unable to load laundry catalogue manifest.");
+                }
+                return response.json();
+            })
+            .then(function (data) {
+                catalogueManifest = data && Array.isArray(data.items) ? data : { items: [] };
+            })
+            .catch(function () {
+                catalogueManifestFailed = true;
+                catalogueManifest = { items: [] };
+            });
+    }
+
+    function buildPriceLookup(items) {
+        var lookup = {};
+        (items || []).forEach(function (item) {
+            var key = catalogueKey(item.ServiceType || item.serviceType, item.Category || item.category, item.ItemName || item.itemName);
+            if (!key) {
+                return;
+            }
+
+            lookup[key] = parseAmount(item.UnitPrice || item.unitPrice || 0);
+        });
+
+        return lookup;
+    }
+
+    function resolveCatalogueImageFromEntry(entry) {
+        var key = catalogueKey(entry.serviceType, entry.category, entry.itemName);
+        var status = String(entry.assetStatus || "").toLowerCase();
+
+        if (!entry.imagePath) {
+            catalogueImageDiagnostics.missing.push(key);
+            return "";
+        }
+
+        if (status && status !== "approved") {
+            catalogueImageDiagnostics.unapproved.push(key);
+            return "";
+        }
+
+        return entry.imagePath;
+    }
+
+    function renderVisualCatalog() {
+        var wrap = document.getElementById("visualCatalogWrap");
+        if (!wrap) {
+            return;
+        }
+
+        wrap.innerHTML = "";
+        resetCatalogueImageDiagnostics();
+
+        var manifestItems = catalogueManifest && Array.isArray(catalogueManifest.items) ? catalogueManifest.items : [];
+        var priceLookup = buildPriceLookup(currentPricedItems);
+        if (!manifestItems.length) {
+            wrap.innerHTML = "<div class='visual-catalog-empty'>No default catalogue items were found.</div>";
+            updateCatalogueImageDiagnostics();
+            return;
+        }
+
+        var grouped = {};
+        manifestItems.forEach(function (entry) {
+            if (!entry) {
+                return;
+            }
+
+            var service = normalizeText(entry.serviceType || "Others") || "Others";
+            var category = normalizeText(entry.category || "Others") || "Others";
+            var itemName = normalizeText(entry.itemName || "Item") || "Item";
+            var key = catalogueKey(service, category, itemName);
+
+            if (!grouped[service]) {
+                grouped[service] = {};
+            }
+            if (!grouped[service][category]) {
+                grouped[service][category] = [];
+            }
+
+            grouped[service][category].push({
+                name: itemName,
+                imagePath: resolveCatalogueImageFromEntry(entry),
+                price: priceLookup[key],
+                key: key
+            });
+        });
+
+        var serviceNames = Object.keys(grouped).sort();
+        serviceNames.forEach(function (serviceName) {
+            var serviceSection = document.createElement("section");
+            serviceSection.className = "visual-service-group";
+
+            var serviceTitle = document.createElement("h3");
+            serviceTitle.className = "visual-service-title";
+            serviceTitle.textContent = serviceName;
+            serviceSection.appendChild(serviceTitle);
+
+            Object.keys(grouped[serviceName]).sort().forEach(function (categoryName) {
+                var categoryTitle = document.createElement("div");
+                categoryTitle.className = "visual-category-title";
+                categoryTitle.textContent = categoryName;
+                serviceSection.appendChild(categoryTitle);
+
+                var grid = document.createElement("div");
+                grid.className = "visual-item-grid";
+
+                grouped[serviceName][categoryName].sort(function (a, b) {
+                    return a.name.localeCompare(b.name);
+                }).forEach(function (item) {
+                    var card = document.createElement("div");
+                    card.className = "visual-item-card";
+
+                    var image = document.createElement("img");
+                    image.className = "visual-item-image";
+                    image.loading = "lazy";
+                    image.alt = item.name;
+                    image.src = resolveCatalogImagePath(item.imagePath);
+                    image.onerror = function () {
+                        if (image.src.indexOf(placeholderImage) < 0) {
+                            catalogueImageDiagnostics.missing.push(item.key);
+                            updateCatalogueImageDiagnostics();
+                            image.src = placeholderImage;
+                        }
+                    };
+
+                    var name = document.createElement("div");
+                    name.className = "visual-item-name";
+                    name.textContent = item.name;
+
+                    var price = document.createElement("div");
+                    price.className = "visual-item-price";
+                    price.textContent = Number.isFinite(item.price)
+                        ? ("Current price: " + item.price.toFixed(2))
+                        : "Current price: not set";
+
+                    card.appendChild(image);
+                    card.appendChild(name);
+                    card.appendChild(price);
+                    grid.appendChild(card);
+                });
+
+                serviceSection.appendChild(grid);
+            });
+
+            wrap.appendChild(serviceSection);
+        });
+
+        updateCatalogueImageDiagnostics();
     }
 
     function csvEscape(value) {
@@ -671,6 +1456,7 @@
                 }
 
                 var items = Array.isArray(data.items) ? data.items : [];
+                currentPricedItems = items;
                 var activeItems = items.filter(function (item) {
                     return !!(item.IsActive ?? item.isActive ?? true);
                 });
@@ -690,6 +1476,7 @@
                 };
 
                 if (!items.length) {
+                    renderVisualCatalog();
                     setCatalogStatus(
                         "empty",
                         "This store has no prices yet. Exporting now gives you a sample template to fill in, and importing will create the catalog from scratch.",
@@ -711,10 +1498,14 @@
                         inactive: inactiveCount,
                         services: serviceNames.length
                     });
+
+                renderVisualCatalog();
             })
             .catch(function (error) {
                 existingCatalog = { loaded: false, activeCount: 0, inactiveCount: 0 };
+                currentPricedItems = [];
                 setCatalogStatus("error", error.message || "Unable to read the current price catalog.", "", null);
+                renderVisualCatalog();
             });
     }
 
@@ -965,59 +1756,33 @@
                     return;
                 }
 
-                importInProgress = true;
-                if (uploadBtn) {
-                    uploadBtn.disabled = true;
-                    uploadBtn.innerHTML = "<i class='fa fa-spinner fa-spin' aria-hidden='true'></i> Importing CSV...";
-                }
-                if (exportBtn) {
-                    exportBtn.disabled = true;
-                }
-                if (fileInput) {
-                    fileInput.disabled = true;
+                var parsed = parseCsvHeaderAndRows(content);
+                pendingImportPreviewRows = buildImportPreview(parsed.rows || []);
+                renderImportPreview(pendingImportPreviewRows);
+
+                if (!pendingImportPreviewRows.length) {
+                    showToast("No data rows found in the uploaded CSV.", false);
+                    return;
                 }
 
-                var formData = new FormData();
-                formData.append("csvFile", selectedFile);
-                formData.append("overwriteExisting", overwriteChk && overwriteChk.checked ? "true" : "false");
+                var validUpdates = pendingImportPreviewRows.filter(function (row) { return row.status === "valid-update"; }).length;
+                var invalidRows = pendingImportPreviewRows.filter(function (row) { return row.status.indexOf("invalid") === 0; }).length;
+                var unchangedRows = pendingImportPreviewRows.filter(function (row) { return row.status === "unchanged"; }).length;
 
-                fetch('@Url.Action("ImportLaundryItemPricesCsv", "Customer")', {
-                    method: 'POST',
-                    headers: { 'X-Requested-With': 'XMLHttpRequest' },
-                    body: formData
-                })
-                    .then(function (response) { return response.json(); })
-                    .then(function (data) {
-                        if (!data || !data.success) {
-                            renderImportSummary(data || null);
-                            showToast((data && data.message) || "Unable to import uploaded CSV items.", false);
-                            return;
-                        }
+                if (validUpdates <= 0) {
+                    if (unchangedRows > 0 && invalidRows > 0) {
+                        showToast("No price changes found. Some rows are unchanged and others contain validation errors. Review the preview details.", false);
+                    } else if (unchangedRows > 0) {
+                        showToast("No price changes found. All valid imported prices already match the current prices.", false, "info");
+                    } else {
+                        showToast("No valid price updates found. Please review the invalid rows and their validation reasons.", false);
+                    }
+                    return;
+                }
 
-                        renderImportSummary(data);
-                        showToast(data.message || "Uploaded CSV items imported successfully.", true);
-                        if (fileInput) {
-                            fileInput.value = "";
-                        }
-                        updateImportActionState();
-                        loadCatalogStatus();
-                    })
-                    .catch(function () {
-                        showToast("Unable to import uploaded CSV items.", false);
-                    })
-                    .finally(function () {
-                        importInProgress = false;
-                        if (uploadBtn) {
-                            uploadBtn.innerHTML = "<i class='fa fa-upload' aria-hidden='true'></i> Import CSV File";
-                        }
-                        if (exportBtn) {
-                            exportBtn.disabled = false;
-                        }
-                        if (fileInput) {
-                            fileInput.disabled = false;
-                        }
-                        updateImportActionState();
-                    });
+                showToast(
+                    "Preview ready: " + validUpdates + " valid update(s), " + invalidRows + " invalid row(s). Confirm to apply valid updates.",
+                    true);
             })
             .catch(function () {
                 renderImportSummary(null);
@@ -1043,8 +1808,10 @@
     document.getElementById("csvRulesBackdrop")?.addEventListener("click", function () { setCsvRulesModalVisibility(false); });
     document.getElementById("importUploadedItemsBtn")?.addEventListener("click", function (e) { e.preventDefault(); importUploadedItemsCsv(); });
     document.getElementById("downloadItemsTemplateBtn")?.addEventListener("click", function (e) { e.preventDefault(); downloadItemsTemplateCsv(); });
+    document.getElementById("applyPreviewImportBtn")?.addEventListener("click", function (e) { e.preventDefault(); executeCsvImportFromPreview(); });
+    document.getElementById("clearPreviewBtn")?.addEventListener("click", function (e) { e.preventDefault(); clearImportPreview(); });
 
     updateImportActionState();
-    loadCatalogStatus();
+    loadCatalogueManifest().then(loadCatalogStatus);
 })();
 </script>

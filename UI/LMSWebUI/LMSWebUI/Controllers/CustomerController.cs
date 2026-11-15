@@ -1052,10 +1052,14 @@ namespace LMSWebUI.Controllers
             }
 
             SetCreateModeState();
-            return View("Index", new CustomerInfoDto
+            var customerInfoDto = new CustomerInfoDto
             {
                 disableStatus = false
-            });
+            };
+
+            await LoadCustomerPhoneContextAsync(customerInfoDto);
+
+            return View("Index", customerInfoDto);
         }
 
         [HttpGet]
@@ -7225,7 +7229,13 @@ namespace LMSWebUI.Controllers
         public async Task<IActionResult> SetupCreateOrder(string customerName = null, string customerCode = null, string orderMode = null, bool setupOnly = false, string orderSearch = null, bool showPostActions = false)
         {
             var tenantName = HttpContext.Session.GetString("TenantName");
-            var storeCode = HttpContext.Session.GetString("TenantStore");
+            var sessionStoreCode = HttpContext.Session.GetString("TenantStore");
+            var storeCode = ResolveCurrentStoreCode(sessionStoreCode);
+
+            if (!string.IsNullOrWhiteSpace(storeCode) && string.IsNullOrWhiteSpace(sessionStoreCode))
+            {
+                HttpContext.Session.SetString("TenantStore", storeCode);
+            }
 
             if (string.IsNullOrWhiteSpace(tenantName) || string.IsNullOrWhiteSpace(storeCode))
             {
@@ -7365,6 +7375,7 @@ namespace LMSWebUI.Controllers
 
             // Expose admin flag to the view so price-config controls can be gated client-side
             ViewData["IsAdminUser"] = IsAdminUser();
+            ViewData["IsStoreUser"] = string.Equals(HttpContext.Session.GetString("UserRole"), "StoreUser", StringComparison.OrdinalIgnoreCase);
 
             var completionPayload = Convert.ToString(TempData["OrderCompletionContext"]);
             if (showPostActions && !string.IsNullOrWhiteSpace(completionPayload))
@@ -7380,7 +7391,13 @@ namespace LMSWebUI.Controllers
         public async Task<IActionResult> SetupCreateOrder(LaundryOrderDto model)
         {
             var tenantName = HttpContext.Session.GetString("TenantName");
-            var storeCode = HttpContext.Session.GetString("TenantStore");
+            var sessionStoreCode = HttpContext.Session.GetString("TenantStore");
+            var storeCode = ResolveCurrentStoreCode(sessionStoreCode);
+
+            if (!string.IsNullOrWhiteSpace(storeCode) && string.IsNullOrWhiteSpace(sessionStoreCode))
+            {
+                HttpContext.Session.SetString("TenantStore", storeCode);
+            }
 
             if (string.IsNullOrWhiteSpace(tenantName) || string.IsNullOrWhiteSpace(storeCode))
             {

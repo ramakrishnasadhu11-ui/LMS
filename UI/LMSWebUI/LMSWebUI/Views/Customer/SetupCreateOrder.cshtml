@@ -41,6 +41,7 @@
     var enableMinimumOrder = Convert.ToBoolean(ViewData["EnableMinimumOrder"] ?? false);
     var minimumOrderAmount = Convert.ToDecimal(ViewData["MinimumOrderAmount"] ?? 0m);
     var isAdminUser = Convert.ToBoolean(ViewData["IsAdminUser"] ?? false);
+    var isStoreUser = Convert.ToBoolean(ViewData["IsStoreUser"] ?? false);
     var orderHistorySearch = Convert.ToString(ViewData["OrderHistorySearch"] ?? string.Empty);
 }
 
@@ -394,6 +395,31 @@
     padding: 7px 11px;
     box-shadow: 0 2px 6px rgba(27, 55, 87, 0.04);
 }
+.assigned-store-banner {
+    position: relative;
+    z-index: 1;
+    margin-top: 10px;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    border-radius: 10px;
+    border: 1px solid #bdd6f5;
+    background: linear-gradient(90deg, #eaf3ff 0%, #f4f8ff 100%);
+    color: #1d4f83;
+    padding: 9px 12px;
+    font-size: 13px;
+    font-weight: 700;
+}
+.assigned-store-banner .label {
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    font-size: 11px;
+    color: #315d8c;
+}
+.assigned-store-banner .value {
+    font-size: 15px;
+    color: #173f67;
+}
 .customer-card, .left-pane, .right-pane, .setup-orders {
     border-color: #dfe8f2;
     border-radius: 16px;
@@ -615,6 +641,7 @@
             @using (Html.BeginForm("SetupCreateOrder", "Customer", FormMethod.Post, new { id = "setupOrderForm", novalidate = "novalidate" }))
             {
                 @Html.AntiForgeryToken()
+                @Html.HiddenFor(m => m.StoreCode, new { id = "storeCode" })
                 @Html.HiddenFor(m => m.CustCode, new { id = "custCode" })
                 @Html.HiddenFor(m => m.ServiceType, new { id = "serviceType" })
                 @Html.HiddenFor(m => m.OrderAmount, new { id = "orderAmount" })
@@ -643,6 +670,13 @@
                         <div>
                             <h2 class="order-page-title"><i class="fa fa-clipboard" aria-hidden="true"></i> Create Order</h2>
                             <p class="order-page-subtitle">Professional order capture with active catalog and tenant-store scoped pricing.</p>
+                            @if (isStoreUser)
+                            {
+                                <div class="assigned-store-banner" title="Assigned store for your login">
+                                    <span class="label">Assigned Store</span>
+                                    <span class="value">@(string.IsNullOrWhiteSpace(Model?.StoreCode) ? "-" : Model.StoreCode)</span>
+                                </div>
+                            }
                         </div>
                         <div class="order-context-wrap">
                             <span class="order-context-chip">Order: @(!string.IsNullOrWhiteSpace(Model?.OrderNo) ? Model.OrderNo : "Auto-generated")</span>
@@ -988,6 +1022,7 @@
     var allowPartialPayment = @Html.Raw(Convert.ToBoolean(ViewData["AllowPartialPayment"] ?? true).ToString().ToLowerInvariant());
     // Expose admin flag to client side so non-admins don't see price-edit controls
     var isAdminUser = @Html.Raw(Convert.ToBoolean(ViewData["IsAdminUser"] ?? false).ToString().ToLowerInvariant());
+    var isStoreUser = @Html.Raw(Convert.ToBoolean(ViewData["IsStoreUser"] ?? false).ToString().ToLowerInvariant());
     var currentTenantName = '@Html.Raw(System.Text.Encodings.Web.JavaScriptEncoder.Default.Encode(Model.TenantName ?? string.Empty))';
     var currentStoreCode = '@Html.Raw(System.Text.Encodings.Web.JavaScriptEncoder.Default.Encode(Model.StoreCode ?? string.Empty))';
     var currentAdvanceBalance = 0;
@@ -1017,6 +1052,13 @@
     var customerSuggestTimer = 0;
     var knownCustomerSuggestions = [];
     var antiForgeryTokenInput = document.querySelector('#setupOrderForm input[name="__RequestVerificationToken"]');
+
+    var storeCodeInput = document.getElementById("storeCode");
+    if (storeCodeInput) {
+        if (isStoreUser || !storeCodeInput.value) {
+            storeCodeInput.value = currentStoreCode || storeCodeInput.value || "";
+        }
+    }
     var antiForgeryToken = antiForgeryTokenInput ? antiForgeryTokenInput.value : "";
     var initialMode = '@Html.Raw(System.Text.Encodings.Web.JavaScriptEncoder.Default.Encode(orderMode ?? "pieces"))';
     var currentOrderMode = (initialMode || "pieces").toLowerCase() === "weight" ? "weight" : "pieces";
@@ -3839,6 +3881,10 @@
 
             var form = document.getElementById("setupOrderForm");
             form.addEventListener("submit", function (e) {
+                if (storeCodeInput && (isStoreUser || !storeCodeInput.value)) {
+                    storeCodeInput.value = currentStoreCode || "";
+                }
+
                 var itemsPayloadInput = document.getElementById("orderItemsJson");
                 if (itemsPayloadInput) {
                     var payloadItems = orderLines.map(function (line) {

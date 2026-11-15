@@ -1367,6 +1367,7 @@
         var tenantStoreLookupLastCompletedEmail = '';
         var tenantStoreLookupLastRequestedEmail = '';
         var tenantStoreLookupNeedsPasswordRetry = false;
+        var tenantStoreLookupPasswordCompletedEmail = '';
 
         $(document).ready(function ()
         {
@@ -1383,6 +1384,9 @@
             $('#tenantEmail').on('input', function () {
                 setAccountActionsEligibilityState(false);
                 var normalizedEmail = normalizeLookupEmail(this.value);
+                if (normalizedEmail !== tenantStoreLookupPasswordCompletedEmail) {
+                    tenantStoreLookupPasswordCompletedEmail = '';
+                }
                 if (normalizedEmail !== tenantStoreLookupInFlightEmail) {
                     abortTenantLookupRequests();
                 }
@@ -1395,6 +1399,9 @@
             $('#tenantEmail').on('change blur', function () {
                 setAccountActionsEligibilityState(false);
                 var normalizedEmail = normalizeLookupEmail(this.value);
+                if (normalizedEmail !== tenantStoreLookupPasswordCompletedEmail) {
+                    tenantStoreLookupPasswordCompletedEmail = '';
+                }
                 if (normalizedEmail !== tenantStoreLookupInFlightEmail) {
                     abortTenantLookupRequests();
                 }
@@ -1403,11 +1410,20 @@
             });
 
             $('#tenantPassword').on('change blur', function () {
+                var passwordValue = ((this.value || '') + '').trim();
+                var normalizedEmail = normalizeLookupEmail($('#tenantEmail').val());
+                if (normalizedEmail) {
+                    if (passwordValue.length > 0) {
+                        tenantStoreLookupPasswordCompletedEmail = normalizedEmail;
+                    } else if (tenantStoreLookupPasswordCompletedEmail === normalizedEmail) {
+                        tenantStoreLookupPasswordCompletedEmail = '';
+                    }
+                }
+
                 if (!tenantStoreLookupNeedsPasswordRetry) {
                     return;
                 }
 
-                var normalizedEmail = normalizeLookupEmail($('#tenantEmail').val());
                 if (!normalizedEmail) {
                     return;
                 }
@@ -1917,6 +1933,7 @@
                     tenantStoreLookupLastRequestedEmail = '';
                     tenantStoreLookupLastCompletedEmail = '';
                     tenantStoreLookupNeedsPasswordRetry = false;
+                    tenantStoreLookupPasswordCompletedEmail = '';
                     abortTenantLookupRequests();
                     setLoginModeHint(false, "", false);
                     $('#Store').empty();
@@ -1931,6 +1948,7 @@
                     tenantStoreLookupLastRequestedEmail = '';
                     tenantStoreLookupLastCompletedEmail = '';
                     tenantStoreLookupNeedsPasswordRetry = false;
+                    tenantStoreLookupPasswordCompletedEmail = '';
                     abortTenantLookupRequests();
                     setLoginModeHint(false, "", false);
                     $('#Store').empty();
@@ -2043,7 +2061,8 @@
                             $('#LoginCheck').prop('disabled', false);
 
                             var passwordValue = (($('#tenantPassword').val() || '') + '').trim();
-                            if (passwordValue.length > 0) {
+                            var hasPasswordCompletionSignal = tenantStoreLookupPasswordCompletedEmail === normalizedTenantEmail && passwordValue.length > 0;
+                            if (hasPasswordCompletionSignal) {
                                 setLoginModeHint(true, "", false, 'provisional');
                                 tenantResolveStoresRequest = $.ajax({
                                     type: "GET",
