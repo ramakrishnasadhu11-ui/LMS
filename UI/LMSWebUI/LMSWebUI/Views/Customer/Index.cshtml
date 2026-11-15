@@ -17,6 +17,7 @@
            : "Customer Create";
    ViewData["Title"] = pageTitle;
     var phoneCountries = JsonConvert.DeserializeObject<List<CustomerPhoneCountry>>(Convert.ToString(ViewData["CustomerPhoneCountries"]) ?? "[]") ?? new List<CustomerPhoneCountry>();
+    var phoneCountriesJson = JsonConvert.SerializeObject(phoneCountries);
     var defaultPhoneCountry = Convert.ToString(Model?.PhoneCountryCode ?? ViewData["CustomerDefaultPhoneCountry"] ?? string.Empty);
     var phoneConfigMessage = Convert.ToString(ViewData["CustomerPhoneConfigMessage"] ?? string.Empty);
 }
@@ -367,9 +368,9 @@ textarea.maintain-text {
 .profile-card .field-item--wide { grid-column: 1 / -1; }
 .field-grid label, .profile-card label { font-weight: 700; color: #334b66; }
 .required-mark { color: #c33b4a; }
-.phone-input-group { display: grid; grid-template-columns: minmax(126px, 145px) minmax(0, 1fr); gap: 8px; align-items: start; }
-.phone-country { width: 100%; min-width: 0; min-height: 42px; border: 1px solid #d7e2ee; border-radius: 10px; padding: 10px 8px; color: #203b58; background: #fbfdff; }
-.phone-input-group input { min-width: 0; }
+.phone-input-group { display: grid; grid-template-columns: minmax(210px, 0.8fr) minmax(260px, 1.75fr); gap: 8px; align-items: start; }
+.phone-country { width: 100%; min-width: 0; min-height: 42px; border: 1px solid #d7e2ee; border-radius: 10px; padding: 10px 36px 10px 10px; color: #203b58; background: #fbfdff; }
+.phone-input-group input { width: 100%; min-width: 0; }
 .barcode-input { display: flex; gap: 8px; }
 .barcode-input input { min-width: 0; }
 .barcode-scan { flex: 0 0 44px; border: 1px solid #c9dced; border-radius: 10px; background: #eff7ff; color: var(--els-primary); }
@@ -385,8 +386,8 @@ textarea.maintain-text {
 .profile-card .field-error { margin: 0; min-height: 0; }
 .nav-actions { grid-column: 1 / -1; margin-top: 2px; padding: 20px 0 0; }
 .nav-actions #custsave { min-width: 190px; }
-@@media (max-width: 700px) { .profile-card .profile-fields { grid-template-columns: 1fr; } .profile-card .field-item--wide { grid-column: auto; } }
-@@media (max-width: 560px) { .customer-page { padding: 16px 10px; } .customer-body { padding: 18px 14px 22px; } .customer-title { padding: 20px; } .profile-card { padding: 17px; } .customer-code { grid-template-columns: 1fr; gap: 7px; } .phone-input-group { grid-template-columns: minmax(112px, 128px) minmax(0, 1fr); } }
+@@media (max-width: 700px) { .profile-card .profile-fields { grid-template-columns: 1fr; } .profile-card .field-item--wide { grid-column: auto; } .phone-input-group { grid-template-columns: 1fr; } }
+@@media (max-width: 560px) { .customer-page { padding: 16px 10px; } .customer-body { padding: 18px 14px 22px; } .customer-title { padding: 20px; } .profile-card { padding: 17px; } .customer-code { grid-template-columns: 1fr; gap: 7px; } }
 </style>
 
 </style>
@@ -556,7 +557,7 @@ textarea.maintain-text {
                    <select id="phoneCountryCode" name="PhoneCountryCode" class="phone-country" aria-label="Phone country" autocomplete="tel-country-code">
                        @foreach (var country in phoneCountries)
                        {
-                           <option value="@country.Iso2" data-calling-code="@country.CallingCode" selected="@(string.Equals(defaultPhoneCountry, country.Iso2, StringComparison.OrdinalIgnoreCase) ? "selected" : null)">@country.Flag @country.Name (@country.CallingCode)</option>
+                           <option value="@country.Iso2" data-calling-code="@country.CallingCode" data-example-local-number="@country.ExampleLocalNumber" selected="@(string.Equals(defaultPhoneCountry, country.Iso2, StringComparison.OrdinalIgnoreCase) ? "selected" : null)">@country.Flag @country.Name (@country.CallingCode)</option>
                        }
                    </select>
                    @Html.TextBoxFor(m => m.PhoneNumber, new { @placeholder = "Local phone number", @class = "form-control maintain-text", id = "phoneNumber", type = "tel", inputmode = "tel", autocomplete = "tel" })
@@ -565,7 +566,7 @@ textarea.maintain-text {
                  <div id="phoneGuidance" class="phone-input-guidance" role="note" aria-live="polite">
                      <i class="fa fa-info-circle" aria-hidden="true"></i>
                      <div class="phone-guidance-content">
-                         <span class="phone-guidance-summary">Phone number Optional; exactly 10 digits when provided.</span>
+                         <span class="phone-guidance-summary">Phone number is optional.</span>
                          <span id="phoneGuidanceCountry" class="phone-guidance-country"></span>
                          <span id="phoneGuidanceText" class="phone-guidance-detail"></span>
                      </div>
@@ -628,6 +629,8 @@ textarea.maintain-text {
      </div>
      <script type='text/javascript'>
          (function () {
+              var customerPhoneCountries = @Html.Raw(phoneCountriesJson);
+
              function getValue(id) {
                  var element = document.getElementById(id);
                  return element && element.value ? element.value : "";
@@ -665,31 +668,32 @@ textarea.maintain-text {
                    var phone = document.getElementById("phoneNumber");
                    if (!country || !guidance || !guidanceCountry) return;
 
-                   var selected = country.options[country.selectedIndex];
-                   var countryName = selected ? (selected.textContent || "").replace(/^\S+\s+/, "").replace(/\s*\([^)]*\)\s*$/, "").trim() : "selected country";
-                   var flag = selected ? (selected.textContent || "").split(/\s+/)[0] : "";
-                   var callingCode = selected ? (selected.getAttribute("data-calling-code") || "") : "";
-                   var countryValue = (country.value || "").toUpperCase();
-                   var examples = {
-                       US: "202 555 0125",
-                       GB: "020 7946 0018",
-                       CA: "416 555 0123",
-                       AU: "02 9374 4000",
-                       AE: "04 123 4567"
-                   };
-                   var example = examples[countryValue] || "local number";
-                   var placeholder = countryValue === "IN" ? "10-digit mobile number" : "Local number, e.g. " + example;
-                   if (phone) phone.placeholder = placeholder;
-                   guidanceCountry.textContent = flag + " " + countryName + (callingCode ? " (" + callingCode + ")" : "");
+                    if (!country.value && country.options && country.options.length > 0) {
+                        country.selectedIndex = 0;
+                    }
 
+                   var selected = country.options[country.selectedIndex];
+                    var selectedCountry = (Array.isArray(customerPhoneCountries) ? customerPhoneCountries : []).find(function (item) {
+                        return (item.Iso2 || "").toUpperCase() === (country.value || "").toUpperCase();
+                    });
+                    var countryName = selectedCountry
+                        ? (selectedCountry.Name || "selected country")
+                        : (selected ? (selected.textContent || "").replace(/^\S+\s+/, "").replace(/\s*\([^)]*\)\s*$/, "").trim() : "selected country");
+                    var flag = selectedCountry ? (selectedCountry.Flag || "") : "";
+                    var callingCode = selectedCountry ? (selectedCountry.CallingCode || "") : (selected ? (selected.getAttribute("data-calling-code") || "") : "");
+                   var countryValue = (country.value || "").toUpperCase();
+                    var example = selectedCountry ? (selectedCountry.ExampleLocalNumber || "") : (selected ? (selected.getAttribute("data-example-local-number") || "") : "");
+                   var placeholder = countryValue === "IN" ? "10-digit mobile number" : (example ? "Local number, e.g. " + example : "Local phone number");
+                   if (phone) phone.placeholder = placeholder;
+                    guidanceCountry.textContent = "Select " + ((flag ? (flag + " ") : "") + countryName + (callingCode ? " (" + callingCode + ")" : ""));
+
+                   var codeText = callingCode || "the selected country code";
                    if (countryValue === "IN") {
-                       guidance.textContent = "Enter 10 digits starting with 6, 7, 8, or 9. You may also enter a number with +91.";
+                        guidance.textContent = "Enter the 10-digit mobile number without " + codeText + "." + (example ? " Example (local): " + example + "." : "");
                        return;
                    }
 
-                   guidance.textContent = callingCode
-                       ? "Enter the local number for " + countryName + " without " + callingCode + ". Example: " + example + "."
-                       : "Enter the local phone number for " + countryName + ". Include the country code only in the selector.";
+                   guidance.textContent = "Enter the local number without " + codeText + "." + (example ? " Example (local): " + example + "." : "");
                }
 
                function validatePhoneInput() {
@@ -1362,7 +1366,17 @@ textarea.maintain-text {
                        var phone = document.getElementById("phoneNumber");
                        if (phone) clearPhoneValidationState();
                        updatePhoneGuidance();
-                       validateCustomerFields();
+                        if (phone && phone.value.trim()) {
+                            validatePhoneOnSave().then(function () {
+                                validateCustomerFields();
+                            }).catch(function () {
+                                validateCustomerFields();
+                            });
+                            return;
+                        }
+
+                        validatePhoneInput();
+                        validateCustomerFields();
                    });
                    updatePhoneGuidance();
                   var barcodeScan = document.getElementById("barcodeScan");

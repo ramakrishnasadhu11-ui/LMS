@@ -952,18 +952,18 @@
                                  <div class="store-context-card__identity">
                                      <span class="store-context-card__icon" aria-hidden="true">⌂</span>
                                      <div>
-                                         <h3 class="store-context-card__heading">Your workspace is ready</h3>
-                                         <p class="store-context-card__subtitle">Store login detected</p>
+                                          <h3 id="storeContextHeading" class="store-context-card__heading">Your workspace is ready</h3>
+                                          <p id="storeContextSubtitle" class="store-context-card__subtitle">Store login detected</p>
                                      </div>
                                  </div>
-                                 <span class="store-context-card__badge">Auto-selected</span>
+                                 <span id="storeContextBadge" class="store-context-card__badge">Auto-selected</span>
                              </div>
                              <div class="store-context-card__store">
                                  <span id="storeContextName"></span>
                                  <span id="storeContextCode" class="store-context-card__code"></span>
                              </div>
-                             <p class="store-context-card__supporting">Your store has been securely identified. Your workspace will open after successful authentication.</p>
-                             <div class="store-context-card__security"><span aria-hidden="true">✓</span> Verified store assignment</div>
+                              <p id="storeContextSupporting" class="store-context-card__supporting">Your store has been securely identified. Your workspace will open after successful authentication.</p>
+                              <div id="storeContextSecurity" class="store-context-card__security"><span aria-hidden="true">✓</span> Verified store assignment</div>
                          </section>
                         <div id="storeUserModeBadge" style="display:none; margin-top:8px;">
                             <span id="storeUserModeBadgeText" style="display:inline-block; padding:4px 10px; border-radius:999px; font-size:11px; font-weight:700; letter-spacing:.2px; background:color-mix(in srgb, var(--els-accent) 45%, #ffffff); color:var(--els-primary-dark); border:1px solid var(--els-primary-light);">
@@ -1089,19 +1089,41 @@
             }
         }
 
-        function setLoginModeHint(isStoreUser, autoStore, isSuperAdmin) {
+        function setLoginModeHint(isStoreUser, autoStore, isSuperAdmin, storeUserState) {
             var hint = $('#storeUserHint');
             var modeBadge = $('#storeUserModeBadge');
             var modeBadgeText = $('#storeUserModeBadgeText');
             var storeDropdownContainer = $('#storeDropdownContainer');
             var storeContextCard = $('#storeContextCard');
+            var storeContextBadge = $('#storeContextBadge');
+            var storeContextHeading = $('#storeContextHeading');
+            var storeContextSubtitle = $('#storeContextSubtitle');
+            var storeContextSupporting = $('#storeContextSupporting');
+            var storeContextSecurity = $('#storeContextSecurity');
             var storeContextName = $('#storeContextName');
             var storeContextCode = $('#storeContextCode');
             if (!hint.length) return;
 
             storeContextCard.removeClass('is-visible');
+            if (storeContextBadge.length) {
+                storeContextBadge.text('Auto-selected');
+            }
+            if (storeContextHeading.length) {
+                storeContextHeading.text('Your workspace is ready');
+            }
+            if (storeContextSubtitle.length) {
+                storeContextSubtitle.text('Store login detected');
+            }
+            if (storeContextSupporting.length) {
+                storeContextSupporting.text('Your store has been securely identified. Your workspace will open after successful authentication.');
+            }
+            if (storeContextSecurity.length) {
+                storeContextSecurity.html('<span aria-hidden="true">✓</span> Verified store assignment');
+            }
             storeContextName.text('');
             storeContextCode.text('');
+
+            var normalizedStoreUserState = ((storeUserState || '') + '').toLowerCase();
 
             if (isSuperAdmin) {
                 hint.css('color', '#7c4dff');
@@ -1123,8 +1145,44 @@
                 if (autoStore) {
                     storeContextName.text('Store ' + autoStore);
                     storeContextCode.text(autoStore);
+                    if (storeContextBadge.length) {
+                        storeContextBadge.text('Auto-selected: ' + autoStore);
+                    }
                     storeContextCard.addClass('is-visible');
                     hint.text('');
+                    if (storeDropdownContainer.length) {
+                        storeDropdownContainer.hide();
+                    }
+                } else if (normalizedStoreUserState === 'provisional' || normalizedStoreUserState === 'provisionalerror') {
+                    if (storeContextHeading.length) {
+                        storeContextHeading.text('Workspace is being prepared');
+                    }
+                    if (storeContextSubtitle.length) {
+                        storeContextSubtitle.text('Store login detected');
+                    }
+                    if (storeContextBadge.length) {
+                        storeContextBadge.text('Store User (pending)');
+                    }
+                    storeContextName.text('Store account identified');
+                    if (normalizedStoreUserState === 'provisionalerror') {
+                        if (storeContextSupporting.length) {
+                            storeContextSupporting.text('We could not verify your store assignment right now. Keep this email and retry after entering your password.');
+                        }
+                    } else {
+                        if (storeContextSupporting.length) {
+                            storeContextSupporting.text('Enter your password to verify your assigned store.');
+                        }
+                    }
+                    if (storeContextSecurity.length) {
+                        storeContextSecurity.html('<span aria-hidden="true">⏳</span> Store assignment pending verification');
+                    }
+                    storeContextCard.addClass('is-visible');
+                    hint.text('');
+                    if (storeDropdownContainer.length) {
+                        storeDropdownContainer.hide();
+                    }
+                } else if (normalizedStoreUserState === 'empty') {
+                    hint.text('Store-user login detected. No active store assignment found for this account.');
                     if (storeDropdownContainer.length) {
                         storeDropdownContainer.hide();
                     }
@@ -1287,6 +1345,29 @@
             return true;
         }
 
+        function normalizeLookupEmail(email) {
+            return ((email || '') + '').trim().toLowerCase();
+        }
+
+        function abortTenantLookupRequests() {
+            if (tenantStoresRequest && tenantStoresRequest.readyState !== 4) {
+                tenantStoresRequest.abort();
+            }
+
+            if (tenantResolveStoresRequest && tenantResolveStoresRequest.readyState !== 4) {
+                tenantResolveStoresRequest.abort();
+            }
+        }
+
+        var storeLookupTimer = null;
+        var tenantResolveStoresRequest = null;
+        var tenantStoreLookupSequence = 0;
+        var tenantStoreLookupLatestIssuedSequence = 0;
+        var tenantStoreLookupInFlightEmail = '';
+        var tenantStoreLookupLastCompletedEmail = '';
+        var tenantStoreLookupLastRequestedEmail = '';
+        var tenantStoreLookupNeedsPasswordRetry = false;
+
         $(document).ready(function ()
         {
             $('#information').hide();
@@ -1299,9 +1380,12 @@
                 $('input[type=checkbox], input[type=radio]').prop('checked', false);
             }
 
-            let storeLookupTimer;
             $('#tenantEmail').on('input', function () {
                 setAccountActionsEligibilityState(false);
+                var normalizedEmail = normalizeLookupEmail(this.value);
+                if (normalizedEmail !== tenantStoreLookupInFlightEmail) {
+                    abortTenantLookupRequests();
+                }
                 clearTimeout(storeLookupTimer);
                 storeLookupTimer = setTimeout(function () {
                     BindTenantStores();
@@ -1310,8 +1394,28 @@
 
             $('#tenantEmail').on('change blur', function () {
                 setAccountActionsEligibilityState(false);
+                var normalizedEmail = normalizeLookupEmail(this.value);
+                if (normalizedEmail !== tenantStoreLookupInFlightEmail) {
+                    abortTenantLookupRequests();
+                }
                 clearTimeout(storeLookupTimer);
                 BindTenantStores();
+            });
+
+            $('#tenantPassword').on('change blur', function () {
+                if (!tenantStoreLookupNeedsPasswordRetry) {
+                    return;
+                }
+
+                var normalizedEmail = normalizeLookupEmail($('#tenantEmail').val());
+                if (!normalizedEmail) {
+                    return;
+                }
+
+                clearTimeout(storeLookupTimer);
+                storeLookupTimer = setTimeout(function () {
+                    BindTenantStores();
+                }, 120);
             });
 
             $('.login-password-toggle').click(function () {
@@ -1803,30 +1907,67 @@
                 setPendingApprovalState(false);
                 setAccountActionsEligibilityState(false);
 
-                var tenantEmail = $("#tenantEmail").get(0).value;
+                var tenantEmailElement = $("#tenantEmail").get(0);
+                var tenantEmail = tenantEmailElement ? tenantEmailElement.value : '';
+                var normalizedTenantEmail = normalizeLookupEmail(tenantEmail);
                 var emailPattern = /^[^\s\x40]+\x40[^\s\x40]+\.[^\s\x40]+$/;
-                if (!tenantEmail || tenantEmail.trim().length === 0)
+                if (!tenantEmail || normalizedTenantEmail.length === 0)
                 {
+                    tenantStoreLookupInFlightEmail = '';
+                    tenantStoreLookupLastRequestedEmail = '';
+                    tenantStoreLookupLastCompletedEmail = '';
+                    tenantStoreLookupNeedsPasswordRetry = false;
+                    abortTenantLookupRequests();
+                    setLoginModeHint(false, "", false);
                     $('#Store').empty();
                     $('#Store').append($('<option></option>').val('').html('Select a Store...'));
                     $('#LoginCheck').prop('disabled', true);
                     return;
                 }
 
-                if (!emailPattern.test(tenantEmail.trim()))
+                if (!emailPattern.test(normalizedTenantEmail))
                 {
+                    tenantStoreLookupInFlightEmail = '';
+                    tenantStoreLookupLastRequestedEmail = '';
+                    tenantStoreLookupLastCompletedEmail = '';
+                    tenantStoreLookupNeedsPasswordRetry = false;
+                    abortTenantLookupRequests();
+                    setLoginModeHint(false, "", false);
                     $('#Store').empty();
                     $('#Store').append($('<option></option>').val('').html('Select a Store...'));
                     $('#LoginCheck').prop('disabled', true);
                     return;
+                }
+
+                if (normalizedTenantEmail === tenantStoreLookupLastCompletedEmail && !tenantStoreLookupNeedsPasswordRetry) {
+                    return;
+                }
+
+                if (tenantStoresRequest && tenantStoresRequest.readyState !== 4) {
+                    if (tenantStoreLookupInFlightEmail === normalizedTenantEmail || tenantStoreLookupLastRequestedEmail === normalizedTenantEmail) {
+                        return;
+                    }
+
+                    tenantStoresRequest.abort();
+                }
+
+                if (tenantResolveStoresRequest && tenantResolveStoresRequest.readyState !== 4) {
+                    if (tenantStoreLookupInFlightEmail === normalizedTenantEmail || tenantStoreLookupLastRequestedEmail === normalizedTenantEmail) {
+                        return;
+                    }
+
+                    tenantResolveStoresRequest.abort();
                 }
 
                 var model = {
-                    'tenantEmail': $("#tenantEmail").get(0).value,
+                    'tenantEmail': tenantEmail,
              }
-                if (tenantStoresRequest && tenantStoresRequest.readyState !== 4) {
-                    tenantStoresRequest.abort();
-                }
+
+                tenantStoreLookupLastRequestedEmail = normalizedTenantEmail;
+                tenantStoreLookupInFlightEmail = normalizedTenantEmail;
+                tenantStoreLookupNeedsPasswordRetry = false;
+                var currentLookupSequence = ++tenantStoreLookupSequence;
+                tenantStoreLookupLatestIssuedSequence = currentLookupSequence;
 
                 $('#Store').empty();
                 $('#Store').append($('<option></option>').val('').html('Loading stores...'));
@@ -1836,6 +1977,14 @@
                     url: '@Url.Action("GetAllStoresByTenant", "Login")',
                     data: model,
                     success: function (data) {
+                        if (currentLookupSequence !== tenantStoreLookupLatestIssuedSequence) {
+                            return;
+                        }
+
+                        if (normalizeLookupEmail($("#tenantEmail").val()) !== normalizedTenantEmail) {
+                            return;
+                        }
+
                         var mySelect = $('#Store');
                         mySelect.empty();
                         mySelect.append($('<option></option>').val('').html('Select a Store...'));
@@ -1849,6 +1998,8 @@
                             $('#information').hide();
                             setLoginModeHint(false, "", true);
                             $('#LoginCheck').prop('disabled', false);
+                            tenantStoreLookupLastCompletedEmail = normalizedTenantEmail;
+                            tenantStoreLookupNeedsPasswordRetry = false;
                             return;
                         }
 
@@ -1863,6 +2014,8 @@
                             $('#Store').empty();
                             $('#Store').append($('<option></option>').val('').html('Select a Store...'));
                             $('#storeDropdownContainer').hide();
+                            tenantStoreLookupLastCompletedEmail = normalizedTenantEmail;
+                            tenantStoreLookupNeedsPasswordRetry = false;
                             return;
                         }
 
@@ -1877,6 +2030,8 @@
                             $('#LoginCheck').prop('disabled', false);
 
                             bindStoreOptions(data, $('#Store option:selected').val());
+                            tenantStoreLookupLastCompletedEmail = normalizedTenantEmail;
+                            tenantStoreLookupNeedsPasswordRetry = false;
                         }
                         else
                         {
@@ -1884,18 +2039,30 @@
                             // This can still be a valid StoreUser; let password-based login resolve it.
                             $('#information').hide();
                             $('#information').empty();
-                            setLoginModeHint(true, "", false);
+                            setLoginModeHint(true, "", false, 'provisional');
                             $('#LoginCheck').prop('disabled', false);
 
                             var passwordValue = (($('#tenantPassword').val() || '') + '').trim();
                             if (passwordValue.length > 0) {
-                                $.ajax({
+                                setLoginModeHint(true, "", false, 'provisional');
+                                tenantResolveStoresRequest = $.ajax({
                                     type: "GET",
                                     url: '@Url.Action("ResolveLoginStores", "Login")',
                                     data: { email: tenantEmail, password: passwordValue },
                                     success: function (resolveData) {
+                                        if (currentLookupSequence !== tenantStoreLookupLatestIssuedSequence) {
+                                            return;
+                                        }
+
+                                        if (normalizeLookupEmail($("#tenantEmail").val()) !== normalizedTenantEmail) {
+                                            return;
+                                        }
+
                                         if (!resolveData || !resolveData.success) {
+                                            tenantStoreLookupLastCompletedEmail = '';
+                                            tenantStoreLookupNeedsPasswordRetry = true;
                                             setAccountActionsEligibilityState(false);
+                                            setLoginModeHint(true, "", false, 'provisionalerror');
                                             if (resolveData && resolveData.message) {
                                                 showInfo(resolveData.message, 'warning');
                                             }
@@ -1911,21 +2078,64 @@
 
                                         if (isStoreUser && stores.length > 1) {
                                             bindStoreOptions(stores, $('#Store option:selected').val());
-                                            setLoginModeHint(true, "", false);
+                                            setLoginModeHint(true, "", false, 'multiple');
+                                            tenantStoreLookupLastCompletedEmail = normalizedTenantEmail;
+                                            tenantStoreLookupNeedsPasswordRetry = false;
                                         } else if (isStoreUser && stores.length === 1) {
                                             bindStoreOptions(stores, stores[0]);
                                             setLoginModeHint(true, stores[0], false);
+                                            tenantStoreLookupLastCompletedEmail = normalizedTenantEmail;
+                                            tenantStoreLookupNeedsPasswordRetry = false;
+                                        } else if (isStoreUser && stores.length === 0) {
+                                            setLoginModeHint(true, "", false, 'empty');
+                                            tenantStoreLookupLastCompletedEmail = normalizedTenantEmail;
+                                            tenantStoreLookupNeedsPasswordRetry = false;
+                                        } else {
+                                            setLoginModeHint(false, "", isSuperAdmin);
+                                            tenantStoreLookupLastCompletedEmail = normalizedTenantEmail;
+                                            tenantStoreLookupNeedsPasswordRetry = false;
                                         }
                                     },
-                                    error: function () {
+                                    error: function (_, resolveTextStatus) {
+                                        if (resolveTextStatus === 'abort') {
+                                            return;
+                                        }
+
+                                        if (currentLookupSequence !== tenantStoreLookupLatestIssuedSequence) {
+                                            return;
+                                        }
+
+                                        if (normalizeLookupEmail($("#tenantEmail").val()) !== normalizedTenantEmail) {
+                                            return;
+                                        }
+
+                                        tenantStoreLookupLastCompletedEmail = '';
+                                        tenantStoreLookupNeedsPasswordRetry = true;
                                         setAccountActionsEligibilityState(false);
+                                        setLoginModeHint(true, "", false, 'provisionalerror');
                                         showInfo('Unable to load store assignments right now. Please try again.', 'warning');
                                     }
                                 });
+                            } else {
+                                setLoginModeHint(true, "", false, 'provisional');
+                                tenantStoreLookupLastCompletedEmail = '';
+                                tenantStoreLookupNeedsPasswordRetry = true;
                             }
                         }
                     },
-                    error: function (xhr) {
+                    error: function (xhr, textStatus) {
+                        if (textStatus === 'abort') {
+                            return;
+                        }
+
+                        if (currentLookupSequence !== tenantStoreLookupLatestIssuedSequence) {
+                            return;
+                        }
+
+                        if (normalizeLookupEmail($("#tenantEmail").val()) !== normalizedTenantEmail) {
+                            return;
+                        }
+
                         setPendingApprovalState(false);
                         setAccountActionsEligibilityState(false);
                         var mySelect = $('#Store');
