@@ -3,6 +3,7 @@
 @using Newtonsoft.Json
 @using LMSWebUI.Services
 @using System.Collections.Generic
+@inject LMSWebUI.Services.ICustomerPhoneService CustomerPhoneService
 @{
    Layout = "~/Views/Shared/_HeaderMenuItemsLayout.cshtml";
    var hideButton = false;
@@ -17,6 +18,10 @@
            : "Customer Create";
    ViewData["Title"] = pageTitle;
     var phoneCountries = JsonConvert.DeserializeObject<List<CustomerPhoneCountry>>(Convert.ToString(ViewData["CustomerPhoneCountries"]) ?? "[]") ?? new List<CustomerPhoneCountry>();
+    if (phoneCountries.Count == 0)
+    {
+        phoneCountries = CustomerPhoneService.GetSupportedCountries().ToList();
+    }
     var phoneCountriesJson = JsonConvert.SerializeObject(phoneCountries);
     var defaultPhoneCountry = Convert.ToString(Model?.PhoneCountryCode ?? ViewData["CustomerDefaultPhoneCountry"] ?? string.Empty);
     var phoneConfigMessage = Convert.ToString(ViewData["CustomerPhoneConfigMessage"] ?? string.Empty);
@@ -630,6 +635,9 @@ textarea.maintain-text {
      <script type='text/javascript'>
          (function () {
               var customerPhoneCountries = @Html.Raw(phoneCountriesJson);
+              if (!Array.isArray(customerPhoneCountries)) {
+                  customerPhoneCountries = [];
+              }
 
              function getValue(id) {
                  var element = document.getElementById(id);
@@ -679,7 +687,9 @@ textarea.maintain-text {
                     var countryName = selectedCountry
                         ? (selectedCountry.Name || "selected country")
                         : (selected ? (selected.textContent || "").replace(/^\S+\s+/, "").replace(/\s*\([^)]*\)\s*$/, "").trim() : "selected country");
-                    var flag = selectedCountry ? (selectedCountry.Flag || "") : "";
+                    var flag = selectedCountry
+                        ? (selectedCountry.Flag || "")
+                        : (selected ? ((selected.textContent || "").split(/\s+/)[0] || "") : "");
                     var callingCode = selectedCountry ? (selectedCountry.CallingCode || "") : (selected ? (selected.getAttribute("data-calling-code") || "") : "");
                    var countryValue = (country.value || "").toUpperCase();
                     var example = selectedCountry ? (selectedCountry.ExampleLocalNumber || "") : (selected ? (selected.getAttribute("data-example-local-number") || "") : "");
@@ -857,6 +867,8 @@ textarea.maintain-text {
                          input.classList.remove("input-validation-error");
                      }
                  });
+
+                  updatePhoneGuidance();
              }
 
              function validateCustomerFields() {
@@ -1181,6 +1193,8 @@ textarea.maintain-text {
                      }
                  });
 
+                  });
+
                  return false;
              }
 
@@ -1307,7 +1321,7 @@ textarea.maintain-text {
              window.showCustomerToast = showToast;
              window.resetCustomerFormToCreateMode = resetCustomerFormToCreateMode;
 
-             document.addEventListener("DOMContentLoaded", function () {
+             function initializeCustomerPage() {
                 var shouldClearCreateFieldsOnFreshLoad = !window.location.search
                     && !window.location.hash
                     && '@(actionMode == "create" ? "true" : "false")' === "true"
@@ -1511,11 +1525,6 @@ textarea.maintain-text {
                              });
                          return false;
                      });
-                 }).catch(function () {
-                     showToast("Unable to validate the phone number. Please try again.", false);
-                     if (editButton) editButton.disabled = false;
-                 });
-                 return false;
                  }
 
                  var customerActions = document.getElementById("customerActions");
@@ -1564,7 +1573,13 @@ textarea.maintain-text {
                  // NEW: Load existing orders for the selected customer
                   //  loadExistingCustomerOrders();
 
-             });
+             }
+
+             if (document.readyState === "loading") {
+                 document.addEventListener("DOMContentLoaded", initializeCustomerPage);
+             } else {
+                 initializeCustomerPage();
+             }
          })();
     </script>
      }

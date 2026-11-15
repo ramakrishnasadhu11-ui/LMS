@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "status": "placeholder-pending-approved-assets",
+  "status": "approved",
   "imageFormat": "webp",
   "imageDimensions": "400x400",
   "rootPath": "/catalog/laundry-items",
@@ -58,7 +58,7 @@
     { "serviceType": "Wash & Fold", "category": "Household", "itemName": "Mixed Load", "imagePath": "/catalog/laundry-items/wash-fold/household/mixed-load.webp", "assetStatus": "approved" },
     { "serviceType": "Wash & Fold", "category": "Household", "itemName": "Bedsheet Set", "imagePath": "/catalog/laundry-items/wash-fold/household/bedsheet-set.webp", "assetStatus": "approved" },
     { "serviceType": "Wash & Fold", "category": "Household", "itemName": "Towels Set", "imagePath": "/catalog/laundry-items/wash-fold/household/towels-set.webp", "assetStatus": "approved" },
-    { "serviceType": "Wash & Fold", "category": "Others", "itemName": "Gym Wear Set", "imagePath": "/catalog/laundry-items/wash-fold/others/gym-wear-set.webp", "assetStatus": "placeholder" },
-    { "serviceType": "Wash & Fold", "category": "Others", "itemName": "Misc Load", "imagePath": "/catalog/laundry-items/wash-fold/others/misc-load.webp", "assetStatus": "placeholder" }
+    { "serviceType": "Wash & Fold", "category": "Others", "itemName": "Gym Wear Set", "imagePath": "/catalog/laundry-items/wash-fold/others/gym-wear-set.webp", "assetStatus": "approved" },
+    { "serviceType": "Wash & Fold", "category": "Others", "itemName": "Misc Load", "imagePath": "/catalog/laundry-items/wash-fold/others/misc-load.webp", "assetStatus": "approved" }
   ]
 }
