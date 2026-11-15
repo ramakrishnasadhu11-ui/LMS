@@ -493,6 +493,28 @@ namespace LMSWebUI.Controllers
             return allowedStores;
         }
 
+        private string ResolveCurrentStoreCode(string currentStoreCode)
+        {
+            if (!string.IsNullOrWhiteSpace(currentStoreCode))
+            {
+                return currentStoreCode.Trim();
+            }
+
+            var claimStoreCode = User?.FindFirst("storeCode")?.Value;
+            if (!string.IsNullOrWhiteSpace(claimStoreCode))
+            {
+                return claimStoreCode.Trim();
+            }
+
+            var allowedStores = GetAllowedStores(string.Empty);
+            if (allowedStores.Count == 1)
+            {
+                return allowedStores[0];
+            }
+
+            return string.Empty;
+        }
+
         private bool TryResolveTargetStore(string currentStoreCode, string requestedStoreCode, out string resolvedStoreCode, out string validationMessage)
         {
             resolvedStoreCode = string.IsNullOrWhiteSpace(requestedStoreCode)
@@ -1008,7 +1030,13 @@ namespace LMSWebUI.Controllers
         public async Task<IActionResult> AddNewCustomer()
         {
             var tenantName = HttpContext.Session.GetString("TenantName");
-            var storeCode = HttpContext.Session.GetString("TenantStore");
+            var storeCode = ResolveCurrentStoreCode(HttpContext.Session.GetString("TenantStore"));
+
+            if (!string.IsNullOrWhiteSpace(storeCode)
+                && string.IsNullOrWhiteSpace(HttpContext.Session.GetString("TenantStore")))
+            {
+                HttpContext.Session.SetString("TenantStore", storeCode);
+            }
 
             var scopeValidation = await ValidateCurrentStoreAccessAsync(tenantName, storeCode);
             if (!scopeValidation.IsValid)

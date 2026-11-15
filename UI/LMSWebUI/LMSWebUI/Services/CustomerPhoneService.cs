@@ -13,6 +13,7 @@ namespace LMSWebUI.Services
         public string Name { get; init; }
         public string CallingCode { get; init; }
         public string Flag { get; init; }
+        public string ExampleLocalNumber { get; init; }
     }
 
     public sealed class CustomerPhoneValidationResult
@@ -230,13 +231,47 @@ namespace LMSWebUI.Services
                     Iso2 = region,
                     Name = name,
                     CallingCode = "+" + _phoneUtil.GetCountryCodeForRegion(region),
-                    Flag = ToFlag(region)
+                    Flag = ToFlag(region),
+                    ExampleLocalNumber = GetExampleLocalNumber(region)
                 };
             }
             catch (ArgumentException)
             {
                 return null;
             }
+        }
+
+        private string GetExampleLocalNumber(string region)
+        {
+            if (string.IsNullOrWhiteSpace(region))
+            {
+                return null;
+            }
+
+            var upperRegion = region.Trim().ToUpperInvariant();
+            var example = _phoneUtil.GetExampleNumberForType(upperRegion, PhoneNumberType.MOBILE)
+                ?? _phoneUtil.GetExampleNumberForType(upperRegion, PhoneNumberType.FIXED_LINE_OR_MOBILE)
+                ?? _phoneUtil.GetExampleNumberForType(upperRegion, PhoneNumberType.FIXED_LINE)
+                ?? _phoneUtil.GetExampleNumber(upperRegion);
+
+            if (example == null)
+            {
+                return null;
+            }
+
+            var localNumber = _phoneUtil.GetNationalSignificantNumber(example);
+            if (string.IsNullOrWhiteSpace(localNumber))
+            {
+                return null;
+            }
+
+            if (string.Equals(upperRegion, "IN", StringComparison.OrdinalIgnoreCase)
+                && !IndianMobileRegex.IsMatch(localNumber))
+            {
+                return null;
+            }
+
+            return localNumber;
         }
 
         private static bool IsLegacyDigits(string input)

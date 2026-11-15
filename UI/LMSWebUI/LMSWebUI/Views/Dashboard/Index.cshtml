@@ -336,13 +336,18 @@
 
     #dashboardEditCustomerModal .edit-customer-phone-group {
         display: grid;
-        grid-template-columns: minmax(145px, .9fr) minmax(0, 1.6fr);
+        grid-template-columns: minmax(210px, .8fr) minmax(260px, 1.75fr);
         gap: 8px;
     }
 
     #dashboardEditCustomerModal .edit-customer-phone-country {
         min-width: 0;
-        padding-right: 28px;
+        padding-right: 36px;
+    }
+
+    #dashboardEditCustomerModal #editCustomerPhone {
+        width: 100%;
+        min-width: 0;
     }
 
     #dashboardEditCustomerModal .edit-customer-phone-guidance {
@@ -467,7 +472,7 @@
         }
 
         #dashboardEditCustomerModal .edit-customer-phone-group {
-            grid-template-columns: minmax(118px, .85fr) minmax(0, 1.5fr);
+            grid-template-columns: 1fr;
         }
 
         #dashboardEditCustomerModal .edit-customer-field--wide,
@@ -3166,7 +3171,7 @@
                                         <div id="editCustomerPhoneGuidance" class="edit-customer-phone-guidance" role="note" aria-live="polite">
                                             <i class="fa fa-info-circle" aria-hidden="true"></i>
                                             <div class="edit-customer-phone-guidance-content">
-                                                <span class="edit-customer-phone-guidance-summary">Phone number Optional; exactly 10 digits when provided.</span>
+                                                <span class="edit-customer-phone-guidance-summary">Phone number is optional.</span>
                                                 <span id="editCustomerPhoneGuidanceCountry" class="edit-customer-phone-guidance-country"></span>
                                                 <span id="editCustomerPhoneGuidanceText" class="edit-customer-phone-guidance-detail"></span>
                                             </div>
@@ -5307,6 +5312,10 @@ document.addEventListener("click", function (e)
                 return;
             }
 
+            if (!country.value && country.options && country.options.length > 0) {
+                country.selectedIndex = 0;
+            }
+
             var selected = country.options[country.selectedIndex];
             var selectedCountry = (Array.isArray(dashboardPhoneCountries) ? dashboardPhoneCountries : []).find(function (item) {
                 return (item.Iso2 || "").toUpperCase() === (country.value || "").toUpperCase();
@@ -5315,24 +5324,17 @@ document.addEventListener("click", function (e)
             var flag = selectedCountry ? (selectedCountry.Flag || "") : "";
             var callingCode = selectedCountry ? (selectedCountry.CallingCode || "") : (selected ? selected.getAttribute("data-calling-code") || "" : "");
             var countryValue = (country.value || "").toUpperCase();
-            var placeholder = countryValue === "IN" ? "10-digit mobile number" : "Local phone number";
-            var examples = {
-                US: "202 555 0125",
-                GB: "020 7946 0018",
-                CA: "416 555 0123",
-                AU: "02 9374 4000",
-                AE: "04 123 4567"
-            };
+            var example = selectedCountry ? (selectedCountry.ExampleLocalNumber || "") : "";
+            var placeholder = countryValue === "IN" ? "10-digit mobile number" : (example ? "Local number, e.g. " + example : "Local phone number");
 
             if (phone) {
                 phone.placeholder = placeholder;
             }
-            countryGuidance.textContent = flag + " " + countryName + (callingCode ? " (" + callingCode + ")" : "");
+            countryGuidance.textContent = "Select " + ((flag ? (flag + " ") : "") + countryName + (callingCode ? " (" + callingCode + ")" : ""));
+            var codeText = callingCode || "the selected country code";
             detailGuidance.textContent = countryValue === "IN"
-                ? "Enter 10 digits starting with 6, 7, 8, or 9. You may also enter a number with +91."
-                : (callingCode
-                    ? "Enter the local number without " + callingCode + ". Example: " + (examples[countryValue] || "local number") + "."
-                    : "Enter the local phone number for the selected country.");
+                ? "Enter the 10-digit mobile number without " + codeText + "." + (example ? " Example (local): " + example + "." : "")
+                : "Enter the local number without " + codeText + "." + (example ? " Example (local): " + example + "." : "");
         }
 
         function renderEditCustomerPhoneCountries(selectedCountry) {
@@ -5346,6 +5348,7 @@ document.addEventListener("click", function (e)
                 option.value = country.Iso2 || "";
                 option.textContent = (country.Flag || "") + " " + (country.Name || "") + " (" + (country.CallingCode || "") + ")";
                 option.setAttribute("data-calling-code", country.CallingCode || "");
+                option.setAttribute("data-example-local-number", country.ExampleLocalNumber || "");
                 option.selected = (country.Iso2 || "").toUpperCase() === (selectedCountry || "").toUpperCase();
                 editCustomerPhoneCountry.appendChild(option);
             });

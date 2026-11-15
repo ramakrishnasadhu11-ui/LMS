@@ -5,6 +5,7 @@ using System.Net.Security;
 using System.Security.Cryptography.X509Certificates;
 using System;
 using System.Collections.Generic;
+using System.Collections.Concurrent;
 using System.Net;
 using System.Threading.Tasks;
 
@@ -12,21 +13,37 @@ namespace LMSClientFactory.Helper
 {
     public class HttpClientApi : IHttpClientApi
     {
+        private static readonly ConcurrentDictionary<string, IRestClient> ClientPool = new ConcurrentDictionary<string, IRestClient>(StringComparer.OrdinalIgnoreCase);
         private readonly IRestClient _client;
+        private readonly string _accessToken;
         private readonly string _authenticationValidationError;
         public HttpClientApi(string url)
         {
-            _client = new RestClient(url);
+            _client = GetOrCreateClient(url);
+            _accessToken = string.Empty;
             _authenticationValidationError = string.Empty;
         }
         public HttpClientApi(string url, string access_token, string authenticationValidationError = null)
         {
-            _client = new RestClient(url);
+            _client = GetOrCreateClient(url);
+            _accessToken = string.IsNullOrWhiteSpace(access_token) ? string.Empty : access_token.Trim();
             _authenticationValidationError = authenticationValidationError ?? string.Empty;
-            if (!string.IsNullOrWhiteSpace(access_token))
+        }
+
+        private static IRestClient GetOrCreateClient(string url)
+        {
+            var normalizedUrl = string.IsNullOrWhiteSpace(url) ? string.Empty : url.TrimEnd('/');
+            return ClientPool.GetOrAdd(normalizedUrl, key => new RestClient(key));
+        }
+
+        private void ApplyAuthorizationHeader(IRestRequest request)
+        {
+            if (request == null || string.IsNullOrWhiteSpace(_accessToken))
             {
-                _client.AddDefaultHeader("Authorization", $"Bearer {access_token.Trim()}");
+                return;
             }
+
+            request.AddHeader("Authorization", $"Bearer {_accessToken}");
         }
         /// <summary>
         /// Async Call
@@ -43,6 +60,7 @@ namespace LMSClientFactory.Helper
 
             request.RequestFormat = DataFormat.Json;
             request.JsonSerializer = new RestSharpJsonNetSerializer();
+            ApplyAuthorizationHeader(request);
 
             IRestResponse response;
             try

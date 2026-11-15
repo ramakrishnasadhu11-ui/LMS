@@ -18,6 +18,7 @@ namespace LMSWebUI.Tests
             var view = LoginViewContents();
 
             Assert.Contains("id=\"storeContextCard\"", view);
+            Assert.Contains("id=\"storeContextBadge\"", view);
             Assert.Contains("Your workspace is ready", view);
             Assert.Contains("Store login detected", view);
             Assert.Contains("Auto-selected", view);
@@ -49,6 +50,31 @@ namespace LMSWebUI.Tests
             Assert.Contains("storeContextName.text('Store ' + autoStore)", view);
             Assert.Contains("storeContextCode.text(autoStore)", view);
             Assert.DoesNotContain("Store-user login detected. Store auto-selected:", view);
+        }
+
+        [Fact]
+        public void LoginView_StoreLookupRetryProtection_AllowsPasswordRetryWithoutDuplicateSpam()
+        {
+            var view = LoginViewContents();
+
+            Assert.Contains("var tenantStoreLookupNeedsPasswordRetry = false;", view);
+            Assert.Contains("normalizedTenantEmail === tenantStoreLookupLastCompletedEmail && !tenantStoreLookupNeedsPasswordRetry", view);
+            Assert.Contains("tenantStoreLookupNeedsPasswordRetry = true;", view);
+            Assert.Contains("$('#tenantPassword').on('change blur'", view);
+            Assert.Contains("setLoginModeHint(true, \"\", false, 'empty')", view);
+            Assert.Contains("setLoginModeHint(true, \"\", false, 'pending')", view);
+            Assert.Contains("setLoginModeHint(true, \"\", false, 'multiple')", view);
+            Assert.Contains("storeContextBadge.text('Auto-selected: ' + autoStore)", view);
+            Assert.Contains("No active store assignment found for this account.", view);
+            Assert.Contains("Checking your workspace...", view);
+        }
+
+        [Fact]
+        public void LoginView_StoreLookupInputDebounce_IsSetToFastGuardedValue()
+        {
+            var view = LoginViewContents();
+
+            Assert.Contains("}, 120);", view);
         }
     }
 }
