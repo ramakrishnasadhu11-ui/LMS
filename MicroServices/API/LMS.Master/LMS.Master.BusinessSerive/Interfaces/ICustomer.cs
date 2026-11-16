@@ -50,6 +50,9 @@ namespace LMS.Master.BusinessSerive.Interfaces
         Task<ActionReturnType> SaveStoreItemMaster(StoreItemMasterDto itemDto);
         Task<ActionReturnType> SetStoreItemMasterStatus(string tenantName, string storeCode, string serviceType, string category, string itemName, bool isActive);
         Task<ActionReturnType> GetStoreItemMasters(string tenantName, string storeCode, bool includeInactive = false);
+        Task<ActionReturnType> UploadStoreItemImage(string tenantName, string storeCode, int itemId, Microsoft.AspNetCore.Http.IFormFile imageFile);
+        Task<ActionReturnType> RemoveStoreItemImage(string tenantName, string storeCode, int itemId);
+        Task<ActionReturnType> GetStoreItemImage(string tenantName, string storeCode, int itemId);
         Task<ActionReturnType> GetTenantIntegrationSettings(string tenantName, string storeCode, string category = null);
         Task<ActionReturnType> SaveTenantIntegrationSettings(TenantIntegrationSettingsDto integrationDto);
         Task<ActionReturnType> SetTenantIntegrationEnabled(string tenantName, string storeCode, string category, string providerKey, bool isEnabled);

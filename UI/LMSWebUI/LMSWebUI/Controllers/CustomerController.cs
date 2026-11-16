@@ -6462,7 +6462,8 @@ namespace LMSWebUI.Controllers
                 MinimumOrderAmount = 0,
                 StandardTurnaroundHours = 48,
                 ExpressTurnaroundHours = 24,
-                RoundOffInvoiceTotal = true
+                RoundOffInvoiceTotal = true,
+                AllowZeroPriceItems = false
             };
         }
 
@@ -7343,6 +7344,7 @@ namespace LMSWebUI.Controllers
             var pricingRules = await LoadPricingRulesAsync(tenantName, storeCode);
             ViewData["EnableMinimumOrder"] = pricingRules.EnableMinimumOrder;
             ViewData["MinimumOrderAmount"] = pricingRules.MinimumOrderAmount;
+            ViewData["AllowZeroPriceItems"] = pricingRules.AllowZeroPriceItems;
 
             var taxContext = await LoadCreateOrderTaxContextAsync(tenantName, storeCode);
             ViewData["TaxEnabled"] = taxContext.EnableTax;
@@ -11077,10 +11079,48 @@ namespace LMSWebUI.Controllers
                 };
 
                 var response = await _clientApi.SendRequestAsync<CustomerIOResponse>("/SaveStoreItemMaster", request, Method.POST);
+                int resolvedId = 0;
+                if (response != null)
+                {
+                    var idCandidates = new[]
+                    {
+                        response.CustCode,
+                        response.BarCode
+                    };
+
+                    foreach (var candidate in idCandidates)
+                    {
+                        if (int.TryParse(candidate, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsedId)
+                            && parsedId > 0)
+                        {
+                            resolvedId = parsedId;
+                            break;
+                        }
+                    }
+                }
+
+                if (resolvedId <= 0)
+                {
+                    try
+                    {
+                        var existingItems = await GetScopedStoreItemMastersAsync(tenantName, storeCode, includeInactive: true);
+                        resolvedId = (existingItems ?? new List<StoreItemMasterDto>())
+                            .Where(x => string.Equals((x.ServiceType ?? string.Empty).Trim(), request.ServiceType, StringComparison.OrdinalIgnoreCase)
+                                && string.Equals((x.Category ?? string.Empty).Trim(), request.Category, StringComparison.OrdinalIgnoreCase)
+                                && string.Equals((x.ItemName ?? string.Empty).Trim(), request.ItemName, StringComparison.OrdinalIgnoreCase))
+                            .Select(x => x.Id)
+                            .FirstOrDefault(x => x > 0);
+                    }
+                    catch
+                    {
+                    }
+                }
+
                 return Json(new
                 {
                     success = response != null && response.StatusCode == "200",
-                    message = response?.Message ?? "Item master saved successfully."
+                    message = response?.Message ?? "Item master saved successfully.",
+                    itemId = resolvedId > 0 ? resolvedId : 0
                 });
             }
             catch (Exception ex)
@@ -11090,6 +11130,181 @@ namespace LMSWebUI.Controllers
                     success = false,
                     message = BuildApiErrorMessage(ex, "Unable to save item master entry.")
                 });
+            }
+        }
+
+        [HttpPost]
+        public async Task<JsonResult> UploadStoreItemImage(int itemId, IFormFile imageFile)
+        {
+            var tenantName = HttpContext.Session.GetString("TenantName");
+            var storeCode = HttpContext.Session.GetString("TenantStore");
+
+            if (string.IsNullOrWhiteSpace(tenantName) || string.IsNullOrWhiteSpace(storeCode))
+            {
+                return Json(new { success = false, message = "Session expired. Please log in again." });
+            }
+
+            if (itemId <= 0)
+            {
+                return Json(new { success = false, message = "Invalid item image request." });
+            }
+
+            if (imageFile == null || imageFile.Length <= 0)
+            {
+                return Json(new { success = false, message = "Please choose an image to upload." });
+            }
+
+            try
+            {
+                using var stream = imageFile.OpenReadStream();
+                using var memory = new MemoryStream();
+                await stream.CopyToAsync(memory);
+
+                var request = new RestRequest("UploadStoreItemImage", Method.POST);
+                request.AddHeader("X-Requested-With", "XMLHttpRequest");
+                request.AlwaysMultipartFormData = true;
+                request.AddParameter("itemId", itemId.ToString(CultureInfo.InvariantCulture), ParameterType.GetOrPost);
+                request.AddFile("imageFile", memory.ToArray(), imageFile.FileName, imageFile.ContentType ?? "application/octet-stream");
+
+                var accessToken = HttpContext.Session.GetString("AccessToken")?.Trim();
+                if (!string.IsNullOrWhiteSpace(accessToken))
+                {
+                    request.AddHeader("Authorization", $"Bearer {accessToken}");
+                }
+
+                request.AddHeader("X-TenantName", tenantName);
+                request.AddHeader("X-StoreCode", storeCode);
+
+                var endpoint = (_configuration["Services:Master:BaseUrl"] ?? string.Empty).TrimEnd('/') + "/Customer";
+                var client = new RestClient(endpoint);
+                var response = await client.ExecuteTaskAsync(request);
+
+                JObject parsed = null;
+                try
+                {
+                    if (!string.IsNullOrWhiteSpace(response.Content))
+                    {
+                        parsed = JObject.Parse(response.Content);
+                    }
+                }
+                catch
+                {
+                    parsed = null;
+                }
+
+                var message = parsed?["Message"]?.ToString()
+                    ?? parsed?["message"]?.ToString()
+                    ?? parsed?["ResultSet"]?["Message"]?.ToString()
+                    ?? parsed?["resultSet"]?["message"]?.ToString();
+
+                var statusCode = parsed?["StatusCode"]?.ToString()
+                    ?? parsed?["statusCode"]?.ToString()
+                    ?? parsed?["ResultSet"]?["StatusCode"]?.ToString()
+                    ?? parsed?["resultSet"]?["statusCode"]?.ToString();
+
+                var isSuccess = response.StatusCode == HttpStatusCode.OK
+                    && (string.IsNullOrWhiteSpace(statusCode) || statusCode == "200");
+
+                if (string.IsNullOrWhiteSpace(message))
+                {
+                    message = isSuccess
+                        ? "Item image uploaded successfully."
+                        : "Unable to upload item image right now. Please try again.";
+                }
+
+                return Json(new
+                {
+                    success = isSuccess,
+                    message
+                });
+            }
+            catch (Exception ex)
+            {
+                return Json(new
+                {
+                    success = false,
+                    message = BuildApiErrorMessage(ex, "Unable to upload item image.")
+                });
+            }
+        }
+
+        [HttpPost]
+        public async Task<JsonResult> RemoveStoreItemImage(int itemId)
+        {
+            var tenantName = HttpContext.Session.GetString("TenantName");
+            var storeCode = HttpContext.Session.GetString("TenantStore");
+
+            if (string.IsNullOrWhiteSpace(tenantName) || string.IsNullOrWhiteSpace(storeCode))
+            {
+                return Json(new { success = false, message = "Session expired. Please log in again." });
+            }
+
+            if (itemId <= 0)
+            {
+                return Json(new { success = false, message = "Invalid item image request." });
+            }
+
+            try
+            {
+                var request = new StoreItemImageActionRequestDto
+                {
+                    ItemId = itemId
+                };
+
+                var response = await _clientApi.SendRequestAsync<CustomerIOResponse>("/RemoveStoreItemImage", request, Method.POST);
+                return Json(new
+                {
+                    success = response != null && response.StatusCode == "200",
+                    message = response?.Message ?? "Item image removed successfully."
+                });
+            }
+            catch (Exception ex)
+            {
+                return Json(new
+                {
+                    success = false,
+                    message = BuildApiErrorMessage(ex, "Unable to remove item image.")
+                });
+            }
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> StoreItemImage(int itemId)
+        {
+            var tenantName = HttpContext.Session.GetString("TenantName");
+            var storeCode = HttpContext.Session.GetString("TenantStore");
+
+            if (string.IsNullOrWhiteSpace(tenantName) || string.IsNullOrWhiteSpace(storeCode))
+            {
+                return NotFound();
+            }
+
+            if (itemId <= 0)
+            {
+                return NotFound();
+            }
+
+            try
+            {
+                var response = await _clientApi.SendRequestAsync<StoreItemImageContentDto>(
+                    "/GetStoreItemImage",
+                    new Dictionary<string, string>
+                    {
+                        { "itemId", itemId.ToString(CultureInfo.InvariantCulture) }
+                    },
+                    Method.GET);
+
+                if (response == null || response.Content == null || response.Content.Length == 0)
+                {
+                    return NotFound();
+                }
+
+                var contentType = string.IsNullOrWhiteSpace(response.ContentType) ? "image/jpeg" : response.ContentType;
+                return File(response.Content, contentType);
+            }
+            catch
+            {
+                return NotFound();
             }
         }
 

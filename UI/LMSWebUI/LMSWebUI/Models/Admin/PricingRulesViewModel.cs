@@ -32,6 +32,9 @@ namespace LMSWebUI.Models.Admin
         [Display(Name = "Round Off Invoice Total")]
         public bool RoundOffInvoiceTotal { get; set; }
 
+        [Display(Name = "Allow Zero-Price Items")]
+        public bool AllowZeroPriceItems { get; set; }
+
         [Display(Name = "Notes")]
         [StringLength(300, ErrorMessage = "Notes cannot exceed 300 characters.")]
         public string Notes { get; set; }

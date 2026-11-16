@@ -5,6 +5,8 @@ using LMS.Master.DTO;
 using LMS.Master.DTO.Entity;
 using LMS.Master.Utilities;
 using MailKit.Security;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
@@ -35,6 +37,14 @@ namespace LMS.Master.BusinessSerive.Services
         private const string InternalWebhookSecretRevealedKey = "__els_webhook_secret_revealed";
         private const string InternalWebhookSecretGeneratedAtKey = "__els_webhook_secret_generated_at_utc";
         private const string InternalWebhookSecretRevealedAtKey = "__els_webhook_secret_revealed_at_utc";
+        private const long DefaultMaxStoreItemImageBytes = 5L * 1024L * 1024L;
+        private static readonly HashSet<string> AllowedStoreItemImageExtensions = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ".jpg",
+            ".jpeg",
+            ".png",
+            ".webp"
+        };
         private static readonly Regex CustomerE164PhoneRegex = new Regex(@"^\+[1-9][0-9]{6,14}$", RegexOptions.Compiled | RegexOptions.CultureInvariant);
         private static readonly Regex CustomerIndianE164PhoneRegex = new Regex(@"^\+91[6-9][0-9]{9}$", RegexOptions.Compiled | RegexOptions.CultureInvariant);
         private static readonly Regex CustomerLegacyPhoneRegex = new Regex(@"^[0-9]{7,15}$", RegexOptions.Compiled | RegexOptions.CultureInvariant);
@@ -98,15 +108,17 @@ namespace LMS.Master.BusinessSerive.Services
         private readonly MasterDbContext _masterDbContext;
         private readonly IConfiguration _configuration;
         private readonly ILogger<Customerservice> _logger;
+        private readonly IWebHostEnvironment _hostEnvironment;
         private readonly string _integrationEncryptionKeyMaterial;
         private readonly List<string> _seedFilePaths;
 
-        public Customerservice(IMapper mapper, MasterDbContext masterDbContext, IConfiguration configuration, ILogger<Customerservice> logger)
+        public Customerservice(IMapper mapper, MasterDbContext masterDbContext, IConfiguration configuration, ILogger<Customerservice> logger, IWebHostEnvironment hostEnvironment)
         {
             _mapper = mapper ?? throw new ArgumentNullException(nameof(mapper));
             _masterDbContext = masterDbContext ?? throw new ArgumentNullException(nameof(masterDbContext));
             _configuration = configuration;
             _logger = logger;
+            _hostEnvironment = hostEnvironment;
             var encryptionKey = configuration?["IntegrationSettings:EncryptionKey"];
             if (string.IsNullOrWhiteSpace(encryptionKey))
             {
@@ -680,6 +692,7 @@ namespace LMS.Master.BusinessSerive.Services
                 existing.StandardTurnaroundHours = pricingRulesDto.StandardTurnaroundHours;
                 existing.ExpressTurnaroundHours = pricingRulesDto.ExpressTurnaroundHours;
                 existing.RoundOffInvoiceTotal = pricingRulesDto.RoundOffInvoiceTotal;
+                existing.AllowZeroPriceItems = pricingRulesDto.AllowZeroPriceItems;
                 existing.Notes = pricingRulesDto.Notes;
                 existing.ModifiedDate = DateTime.UtcNow;
             }
@@ -3403,7 +3416,80 @@ namespace LMS.Master.BusinessSerive.Services
                 orderDto.OrderAmount = Math.Round(orderDto.WeightInKg * orderDto.RatePerKg, 2, MidpointRounding.AwayFromZero);
             }
 
-            if (orderDto.OrderAmount <= 0)
+            await EnsurePricingRulesTableExistsAsync();
+            var pricingRules = await _masterDbContext.PricingRules
+                .AsNoTracking()
+                .FirstOrDefaultAsync(x => x.TenantName == orderDto.TenantName && x.StoreCode == orderDto.StoreCode);
+
+            var allowZeroPriceItems = pricingRules?.AllowZeroPriceItems ?? false;
+
+            var submittedItems = NormalizeSubmittedOrderItems(orderDto.Items);
+            if (string.Equals(orderDto.OrderMode, "pieces", StringComparison.OrdinalIgnoreCase) && submittedItems.Count == 0)
+            {
+                return ActionSet.ActionReturnType(HttpStatusCode.BadRequest, new CustomerIOResponse
+                {
+                    StatusCode = "400",
+                    Message = "Please add at least one garment item for piece-based orders."
+                });
+            }
+
+            if (string.Equals(orderDto.OrderMode, "pieces", StringComparison.OrdinalIgnoreCase))
+            {
+                var configuredPrices = await _masterDbContext.LaundryItemPrices
+                    .AsNoTracking()
+                    .Where(x => x.TenantName == orderDto.TenantName
+                                && x.StoreCode == orderDto.StoreCode
+                                && x.IsActive)
+                    .ToListAsync();
+
+                string BuildPriceKey(string serviceType, string category, string itemName)
+                {
+                    return string.Join("|",
+                        (serviceType ?? string.Empty).Trim().ToLowerInvariant(),
+                        (category ?? string.Empty).Trim().ToLowerInvariant(),
+                        (itemName ?? string.Empty).Trim().ToLowerInvariant());
+                }
+
+                var configuredPriceLookup = configuredPrices
+                    .GroupBy(x => BuildPriceKey(x.ServiceType, x.Category, x.ItemName))
+                    .ToDictionary(x => x.Key, x => x.OrderByDescending(y => y.ModifiedDate).First(), StringComparer.OrdinalIgnoreCase);
+
+                foreach (var item in submittedItems)
+                {
+                    var resolvedServiceType = string.IsNullOrWhiteSpace(item.ServiceType) ? orderDto.ServiceType : item.ServiceType;
+                    var key = BuildPriceKey(resolvedServiceType, item.Category, item.ItemName);
+                    if (!configuredPriceLookup.TryGetValue(key, out var configuredPriceRow))
+                    {
+                        return ActionSet.ActionReturnType(HttpStatusCode.BadRequest, new CustomerIOResponse
+                        {
+                            StatusCode = "400",
+                            Message = $"Price not set for \"{item.ItemName}\". Please configure item price before checkout."
+                        });
+                    }
+
+                    var configuredUnitPrice = Math.Round(Math.Max(0m, configuredPriceRow.UnitPrice), 2, MidpointRounding.AwayFromZero);
+                    if (configuredUnitPrice == 0m && !allowZeroPriceItems)
+                    {
+                        return ActionSet.ActionReturnType(HttpStatusCode.BadRequest, new CustomerIOResponse
+                        {
+                            StatusCode = "400",
+                            Message = $"\"{item.ItemName}\" is configured as free (₹0.00), but free items are disabled for this store. Enable Allow Zero-Price Items in Pricing Rules to proceed."
+                        });
+                    }
+
+                    item.ServiceType = resolvedServiceType;
+                    item.Category = configuredPriceRow.Category;
+                    item.ItemName = configuredPriceRow.ItemName;
+                    item.UnitPrice = configuredUnitPrice;
+                }
+
+                orderDto.OrderAmount = Math.Round(
+                    submittedItems.Sum(x => Math.Max(0, x.Quantity) * Math.Max(0m, x.UnitPrice)),
+                    2,
+                    MidpointRounding.AwayFromZero);
+            }
+
+            if (string.Equals(orderDto.OrderMode, "weight", StringComparison.OrdinalIgnoreCase) && orderDto.OrderAmount <= 0)
             {
                 return ActionSet.ActionReturnType(HttpStatusCode.BadRequest, new CustomerIOResponse
                 {
@@ -3411,11 +3497,6 @@ namespace LMS.Master.BusinessSerive.Services
                     Message = "Order amount should be greater than zero."
                 });
             }
-
-            await EnsurePricingRulesTableExistsAsync();
-            var pricingRules = await _masterDbContext.PricingRules
-                .AsNoTracking()
-                .FirstOrDefaultAsync(x => x.TenantName == orderDto.TenantName && x.StoreCode == orderDto.StoreCode);
 
             if (pricingRules != null && pricingRules.EnableMinimumOrder && pricingRules.MinimumOrderAmount > 0)
             {
@@ -3429,16 +3510,6 @@ namespace LMS.Master.BusinessSerive.Services
                         Message = $"Minimum order amount is {minimumOrderAmount:0.00}. Current order amount is {currentOrderAmount:0.00}."
                     });
                 }
-            }
-
-            var submittedItems = NormalizeSubmittedOrderItems(orderDto.Items);
-            if (string.Equals(orderDto.OrderMode, "pieces", StringComparison.OrdinalIgnoreCase) && submittedItems.Count == 0)
-            {
-                return ActionSet.ActionReturnType(HttpStatusCode.BadRequest, new CustomerIOResponse
-                {
-                    StatusCode = "400",
-                    Message = "Please add at least one garment item for piece-based orders."
-                });
             }
 
             var totalPieces = string.Equals(orderDto.OrderMode, "pieces", StringComparison.OrdinalIgnoreCase)
@@ -7126,6 +7197,511 @@ SELECT
             return ActionSet.ActionReturnType(HttpStatusCode.OK, items);
         }
 
+        public async Task<ActionReturnType> UploadStoreItemImage(string tenantName, string storeCode, int itemId, IFormFile imageFile)
+        {
+            await EnsureStoreMasterTablesExistAsync();
+
+            if (string.IsNullOrWhiteSpace(tenantName)
+                || string.IsNullOrWhiteSpace(storeCode)
+                || itemId <= 0)
+            {
+                return ActionSet.ActionReturnType(HttpStatusCode.BadRequest, new CustomerIOResponse
+                {
+                    StatusCode = "400",
+                    Message = "Invalid item image upload request."
+                });
+            }
+
+            if (imageFile == null || imageFile.Length <= 0)
+            {
+                return ActionSet.ActionReturnType(HttpStatusCode.BadRequest, new CustomerIOResponse
+                {
+                    StatusCode = "400",
+                    Message = "Please choose an image to upload."
+                });
+            }
+
+            tenantName = tenantName.Trim();
+            storeCode = storeCode.Trim();
+
+            var item = await _masterDbContext.StoreItemMasters.FirstOrDefaultAsync(x =>
+                x.Id == itemId
+                && x.TenantName == tenantName
+                && x.StoreCode == storeCode);
+
+            if (item == null)
+            {
+                return ActionSet.ActionReturnType(HttpStatusCode.NotFound, new CustomerIOResponse
+                {
+                    StatusCode = "404",
+                    Message = "Item master entry not found for this tenant/store."
+                });
+            }
+
+            var extension = Path.GetExtension(imageFile.FileName)?.Trim();
+            if (string.IsNullOrWhiteSpace(extension) || !AllowedStoreItemImageExtensions.Contains(extension))
+            {
+                return ActionSet.ActionReturnType(HttpStatusCode.BadRequest, new CustomerIOResponse
+                {
+                    StatusCode = "400",
+                    Message = "Only JPG, JPEG, PNG, and WEBP files are allowed."
+                });
+            }
+
+            var maxBytes = ResolveMaxStoreItemImageBytes();
+            if (imageFile.Length > maxBytes)
+            {
+                return ActionSet.ActionReturnType(HttpStatusCode.BadRequest, new CustomerIOResponse
+                {
+                    StatusCode = "400",
+                    Message = $"Item image must be {Math.Max(1, maxBytes / (1024 * 1024))} MB or smaller."
+                });
+            }
+
+            if (!IsAllowedStoreItemImageContentType(imageFile.ContentType, extension)
+                || !IsSupportedStoreItemImageContent(imageFile, extension))
+            {
+                return ActionSet.ActionReturnType(HttpStatusCode.BadRequest, new CustomerIOResponse
+                {
+                    StatusCode = "400",
+                    Message = "Invalid image content. Please upload a valid JPG, JPEG, PNG, or WEBP file."
+                });
+            }
+
+            var uploadsRoot = GetStoreItemImagesRootPath();
+            var tenantKey = BuildScopeKey(tenantName);
+            var storeKey = BuildScopeKey(storeCode);
+            var itemFolderPath = GetSafeOwnedItemFolderPath(uploadsRoot, tenantKey, storeKey, item.Id);
+            Directory.CreateDirectory(itemFolderPath);
+
+            var safeFileName = $"{Guid.NewGuid():N}{extension.ToLowerInvariant()}";
+            var newFilePath = GetSafeOwnedFilePath(itemFolderPath, safeFileName);
+            var newRelativePath = BuildStoreItemImageRelativePath(tenantKey, storeKey, item.Id, safeFileName);
+            var previousRelativePath = item.ImagePath;
+
+            try
+            {
+                await using (var outputStream = new FileStream(newFilePath, FileMode.CreateNew, FileAccess.Write, FileShare.None))
+                {
+                    await imageFile.CopyToAsync(outputStream);
+                }
+
+                item.ImagePath = newRelativePath;
+                item.ModifiedDate = DateTime.UtcNow;
+                await _masterDbContext.SaveChangesAsync();
+            }
+            catch (Exception ex)
+            {
+                TryDeleteOwnedImageFile(uploadsRoot, newFilePath, tenantKey, storeKey, item.Id, "newly uploaded store item image", ex);
+
+                return ActionSet.ActionReturnType(HttpStatusCode.InternalServerError, new CustomerIOResponse
+                {
+                    StatusCode = "500",
+                    Message = "Unable to save item image right now. Please try again."
+                });
+            }
+
+            TryDeletePreviousStoreItemImage(uploadsRoot, previousRelativePath, tenantKey, storeKey, item.Id);
+
+            return ActionSet.ActionReturnType(HttpStatusCode.OK, new CustomerIOResponse
+            {
+                StatusCode = "200",
+                Message = "Item image uploaded successfully."
+            });
+        }
+
+        public async Task<ActionReturnType> RemoveStoreItemImage(string tenantName, string storeCode, int itemId)
+        {
+            await EnsureStoreMasterTablesExistAsync();
+
+            if (string.IsNullOrWhiteSpace(tenantName)
+                || string.IsNullOrWhiteSpace(storeCode)
+                || itemId <= 0)
+            {
+                return ActionSet.ActionReturnType(HttpStatusCode.BadRequest, new CustomerIOResponse
+                {
+                    StatusCode = "400",
+                    Message = "Invalid item image remove request."
+                });
+            }
+
+            tenantName = tenantName.Trim();
+            storeCode = storeCode.Trim();
+
+            var item = await _masterDbContext.StoreItemMasters.FirstOrDefaultAsync(x =>
+                x.Id == itemId
+                && x.TenantName == tenantName
+                && x.StoreCode == storeCode);
+
+            if (item == null)
+            {
+                return ActionSet.ActionReturnType(HttpStatusCode.NotFound, new CustomerIOResponse
+                {
+                    StatusCode = "404",
+                    Message = "Item master entry not found for this tenant/store."
+                });
+            }
+
+            var previousRelativePath = item.ImagePath;
+            if (string.IsNullOrWhiteSpace(previousRelativePath))
+            {
+                return ActionSet.ActionReturnType(HttpStatusCode.OK, new CustomerIOResponse
+                {
+                    StatusCode = "200",
+                    Message = "Item image removed successfully."
+                });
+            }
+
+            item.ImagePath = null;
+            item.ModifiedDate = DateTime.UtcNow;
+
+            try
+            {
+                await _masterDbContext.SaveChangesAsync();
+            }
+            catch
+            {
+                return ActionSet.ActionReturnType(HttpStatusCode.InternalServerError, new CustomerIOResponse
+                {
+                    StatusCode = "500",
+                    Message = "Unable to remove item image right now. Please try again."
+                });
+            }
+
+            var uploadsRoot = GetStoreItemImagesRootPath();
+            var tenantKey = BuildScopeKey(tenantName);
+            var storeKey = BuildScopeKey(storeCode);
+            TryDeletePreviousStoreItemImage(uploadsRoot, previousRelativePath, tenantKey, storeKey, item.Id);
+
+            return ActionSet.ActionReturnType(HttpStatusCode.OK, new CustomerIOResponse
+            {
+                StatusCode = "200",
+                Message = "Item image removed successfully."
+            });
+        }
+
+        public async Task<ActionReturnType> GetStoreItemImage(string tenantName, string storeCode, int itemId)
+        {
+            await EnsureStoreMasterTablesExistAsync();
+
+            if (string.IsNullOrWhiteSpace(tenantName)
+                || string.IsNullOrWhiteSpace(storeCode)
+                || itemId <= 0)
+            {
+                return ActionSet.ActionReturnType(HttpStatusCode.BadRequest, new CustomerIOResponse
+                {
+                    StatusCode = "400",
+                    Message = "Invalid item image request."
+                });
+            }
+
+            tenantName = tenantName.Trim();
+            storeCode = storeCode.Trim();
+
+            var item = await _masterDbContext.StoreItemMasters.AsNoTracking().FirstOrDefaultAsync(x =>
+                x.Id == itemId
+                && x.TenantName == tenantName
+                && x.StoreCode == storeCode);
+
+            if (item == null)
+            {
+                return ActionSet.ActionReturnType(HttpStatusCode.NotFound, new CustomerIOResponse
+                {
+                    StatusCode = "404",
+                    Message = "Item master entry not found for this tenant/store."
+                });
+            }
+
+            if (string.IsNullOrWhiteSpace(item.ImagePath))
+            {
+                return ActionSet.ActionReturnType(HttpStatusCode.NotFound, new CustomerIOResponse
+                {
+                    StatusCode = "404",
+                    Message = "Item image not found."
+                });
+            }
+
+            var uploadsRoot = GetStoreItemImagesRootPath();
+            var tenantKey = BuildScopeKey(tenantName);
+            var storeKey = BuildScopeKey(storeCode);
+            var absolutePath = TryResolveOwnedAbsolutePath(uploadsRoot, item.ImagePath, tenantKey, storeKey, item.Id);
+
+            if (string.IsNullOrWhiteSpace(absolutePath) || !File.Exists(absolutePath))
+            {
+                return ActionSet.ActionReturnType(HttpStatusCode.NotFound, new CustomerIOResponse
+                {
+                    StatusCode = "404",
+                    Message = "Item image not found."
+                });
+            }
+
+            byte[] content;
+            try
+            {
+                content = await File.ReadAllBytesAsync(absolutePath);
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogError(ex, "Failed to read store item image for item {ItemId}.", item.Id);
+                return ActionSet.ActionReturnType(HttpStatusCode.InternalServerError, new CustomerIOResponse
+                {
+                    StatusCode = "500",
+                    Message = "Unable to read item image right now."
+                });
+            }
+
+            var extension = Path.GetExtension(absolutePath)?.ToLowerInvariant();
+            var contentType = ResolveImageContentType(extension);
+
+            return ActionSet.ActionReturnType(HttpStatusCode.OK, new StoreItemImageContentDto
+            {
+                Content = content,
+                ContentType = contentType,
+                FileName = Path.GetFileName(absolutePath)
+            });
+        }
+
+        private long ResolveMaxStoreItemImageBytes()
+        {
+            var configured = _configuration?["StoreItemImages:MaxFileSizeBytes"];
+            if (long.TryParse(configured, out var bytes) && bytes > 0)
+            {
+                return bytes;
+            }
+
+            return DefaultMaxStoreItemImageBytes;
+        }
+
+        private static bool IsAllowedStoreItemImageContentType(string contentType, string extension)
+        {
+            var normalizedContentType = contentType?.Trim();
+            var normalizedExtension = extension?.ToLowerInvariant();
+            if (normalizedExtension == ".jpg" || normalizedExtension == ".jpeg")
+            {
+                return string.Equals(normalizedContentType, "image/jpeg", StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(normalizedContentType, "image/jpg", StringComparison.OrdinalIgnoreCase);
+            }
+
+            if (normalizedExtension == ".png")
+            {
+                return string.Equals(normalizedContentType, "image/png", StringComparison.OrdinalIgnoreCase);
+            }
+
+            if (normalizedExtension == ".webp")
+            {
+                return string.Equals(normalizedContentType, "image/webp", StringComparison.OrdinalIgnoreCase);
+            }
+
+            return false;
+        }
+
+        private static string ResolveImageContentType(string extension)
+        {
+            if (string.Equals(extension, ".png", StringComparison.OrdinalIgnoreCase))
+            {
+                return "image/png";
+            }
+
+            if (string.Equals(extension, ".webp", StringComparison.OrdinalIgnoreCase))
+            {
+                return "image/webp";
+            }
+
+            return "image/jpeg";
+        }
+
+        private static bool IsSupportedStoreItemImageContent(IFormFile file, string extension)
+        {
+            if (file == null || file.Length <= 0)
+            {
+                return false;
+            }
+
+            using var stream = file.OpenReadStream();
+            Span<byte> signature = stackalloc byte[12];
+            var bytesRead = stream.Read(signature);
+            if (bytesRead < 4)
+            {
+                return false;
+            }
+
+            if (extension.Equals(".png", StringComparison.OrdinalIgnoreCase))
+            {
+                return bytesRead >= 8
+                    && signature[0] == 0x89
+                    && signature[1] == 0x50
+                    && signature[2] == 0x4E
+                    && signature[3] == 0x47
+                    && signature[4] == 0x0D
+                    && signature[5] == 0x0A
+                    && signature[6] == 0x1A
+                    && signature[7] == 0x0A;
+            }
+
+            if (extension.Equals(".jpg", StringComparison.OrdinalIgnoreCase)
+                || extension.Equals(".jpeg", StringComparison.OrdinalIgnoreCase))
+            {
+                return signature[0] == 0xFF
+                    && signature[1] == 0xD8
+                    && signature[2] == 0xFF;
+            }
+
+            if (extension.Equals(".webp", StringComparison.OrdinalIgnoreCase))
+            {
+                return bytesRead >= 12
+                    && signature[0] == 0x52
+                    && signature[1] == 0x49
+                    && signature[2] == 0x46
+                    && signature[3] == 0x46
+                    && signature[8] == 0x57
+                    && signature[9] == 0x45
+                    && signature[10] == 0x42
+                    && signature[11] == 0x50;
+            }
+
+            return false;
+        }
+
+        private static string BuildScopeKey(string value)
+        {
+            var normalized = value?.Trim().ToLowerInvariant() ?? string.Empty;
+            using var sha256 = SHA256.Create();
+            var hashBytes = sha256.ComputeHash(Encoding.UTF8.GetBytes(normalized));
+            return Convert.ToHexString(hashBytes).ToLowerInvariant();
+        }
+
+        private static string BuildStoreItemImageRelativePath(string tenantKey, string storeKey, int itemId, string fileName)
+        {
+            return $"~/uploads/store-item-images/{tenantKey}/{storeKey}/{itemId}/{fileName}";
+        }
+
+        private string GetStoreItemImagesRootPath()
+        {
+            var contentRootPath = _hostEnvironment?.ContentRootPath;
+            if (string.IsNullOrWhiteSpace(contentRootPath))
+            {
+                contentRootPath = AppContext.BaseDirectory;
+            }
+
+            return Path.Combine(contentRootPath, "wwwroot", "uploads", "store-item-images");
+        }
+
+        private static string GetSafeOwnedItemFolderPath(string uploadsRoot, string tenantKey, string storeKey, int itemId)
+        {
+            var rootFullPath = Path.GetFullPath(uploadsRoot);
+            var folderPath = Path.Combine(rootFullPath, tenantKey, storeKey, itemId.ToString(CultureInfo.InvariantCulture));
+            var folderFullPath = Path.GetFullPath(folderPath);
+            EnsurePathUnderRoot(folderFullPath, rootFullPath);
+            return folderFullPath;
+        }
+
+        private static string GetSafeOwnedFilePath(string itemFolderPath, string fileName)
+        {
+            var safeName = Path.GetFileName(fileName);
+            var candidatePath = Path.Combine(itemFolderPath, safeName);
+            var candidateFullPath = Path.GetFullPath(candidatePath);
+            EnsurePathUnderRoot(candidateFullPath, itemFolderPath);
+            return candidateFullPath;
+        }
+
+        private static void EnsurePathUnderRoot(string candidateFullPath, string rootFullPath)
+        {
+            if (string.IsNullOrWhiteSpace(candidateFullPath) || string.IsNullOrWhiteSpace(rootFullPath))
+            {
+                throw new InvalidOperationException("Invalid storage path.");
+            }
+
+            var normalizedRoot = rootFullPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
+                + Path.DirectorySeparatorChar;
+            if (!candidateFullPath.StartsWith(normalizedRoot, StringComparison.OrdinalIgnoreCase)
+                && !string.Equals(candidateFullPath, rootFullPath, StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidOperationException("Invalid storage path.");
+            }
+        }
+
+        private static string TryResolveOwnedAbsolutePath(string uploadsRoot, string relativePath, string tenantKey, string storeKey, int itemId)
+        {
+            if (string.IsNullOrWhiteSpace(relativePath))
+            {
+                return null;
+            }
+
+            var normalizedRelative = relativePath.Trim().Replace('\\', '/');
+            if (normalizedRelative.StartsWith("~/", StringComparison.Ordinal))
+            {
+                normalizedRelative = normalizedRelative.Substring(2);
+            }
+            else if (normalizedRelative.StartsWith("/", StringComparison.Ordinal))
+            {
+                normalizedRelative = normalizedRelative.Substring(1);
+            }
+
+            if (!normalizedRelative.StartsWith("uploads/store-item-images/", StringComparison.OrdinalIgnoreCase))
+            {
+                return null;
+            }
+
+            if (normalizedRelative.StartsWith("catalog/", StringComparison.OrdinalIgnoreCase)
+                || normalizedRelative.Contains("/catalog/", StringComparison.OrdinalIgnoreCase))
+            {
+                return null;
+            }
+
+            var expectedPrefix = $"uploads/store-item-images/{tenantKey}/{storeKey}/{itemId.ToString(CultureInfo.InvariantCulture)}/";
+            if (!normalizedRelative.StartsWith(expectedPrefix, StringComparison.OrdinalIgnoreCase))
+            {
+                return null;
+            }
+
+            var rootFullPath = Path.GetFullPath(uploadsRoot);
+            var relativeToUploadsRoot = normalizedRelative.Substring("uploads/store-item-images/".Length);
+            var candidatePath = Path.Combine(rootFullPath, relativeToUploadsRoot.Replace('/', Path.DirectorySeparatorChar));
+            var candidateFullPath = Path.GetFullPath(candidatePath);
+            EnsurePathUnderRoot(candidateFullPath, rootFullPath);
+            return candidateFullPath;
+        }
+
+        private void TryDeletePreviousStoreItemImage(string uploadsRoot, string previousRelativePath, string tenantKey, string storeKey, int itemId)
+        {
+            var previousAbsolutePath = TryResolveOwnedAbsolutePath(uploadsRoot, previousRelativePath, tenantKey, storeKey, itemId);
+            if (string.IsNullOrWhiteSpace(previousAbsolutePath) || !File.Exists(previousAbsolutePath))
+            {
+                return;
+            }
+
+            try
+            {
+                File.Delete(previousAbsolutePath);
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogWarning(ex, "Failed to remove previous store item image for item {ItemId}.", itemId);
+            }
+        }
+
+        private void TryDeleteOwnedImageFile(string uploadsRoot, string absolutePath, string tenantKey, string storeKey, int itemId, string reason, Exception exception)
+        {
+            try
+            {
+                if (!string.IsNullOrWhiteSpace(absolutePath)
+                    && File.Exists(absolutePath)
+                    && string.Equals(
+                        TryResolveOwnedAbsolutePath(uploadsRoot, BuildStoreItemImageRelativePath(tenantKey, storeKey, itemId, Path.GetFileName(absolutePath)), tenantKey, storeKey, itemId),
+                        absolutePath,
+                        StringComparison.OrdinalIgnoreCase))
+                {
+                    File.Delete(absolutePath);
+                }
+            }
+            catch (Exception cleanupEx)
+            {
+                _logger?.LogWarning(cleanupEx, "Failed cleanup for {Reason} on item {ItemId}.", reason, itemId);
+            }
+
+            _logger?.LogError(exception, "Failed to persist store item image for item {ItemId}.", itemId);
+        }
+
         private async Task EnsureCustomerPreferencesTableExistsAsync()
         {
             const string createTableSql = @"
@@ -7181,11 +7757,19 @@ BEGIN
         [StandardTurnaroundHours] [int] NOT NULL,
         [ExpressTurnaroundHours] [int] NOT NULL,
         [RoundOffInvoiceTotal] [bit] NOT NULL,
+        [AllowZeroPriceItems] [bit] NOT NULL,
         [Notes] [nvarchar](300) NULL,
         [CreatedDate] [datetime2](7) NOT NULL,
         [ModifiedDate] [datetime2](7) NOT NULL,
         CONSTRAINT [PK_PricingRules] PRIMARY KEY CLUSTERED ([Id] ASC)
     );
+END;
+
+IF COL_LENGTH(N'[dbo].[PricingRules]', N'AllowZeroPriceItems') IS NULL
+BEGIN
+    ALTER TABLE [dbo].[PricingRules]
+    ADD [AllowZeroPriceItems] [bit] NOT NULL
+        CONSTRAINT [DF_PricingRules_AllowZeroPriceItems] DEFAULT ((0));
 END;
 
 IF NOT EXISTS (

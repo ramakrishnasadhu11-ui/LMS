@@ -11,6 +11,7 @@ namespace LMS.Master.DTO
         public int StandardTurnaroundHours { get; set; }
         public int ExpressTurnaroundHours { get; set; }
         public bool RoundOffInvoiceTotal { get; set; }
+        public bool AllowZeroPriceItems { get; set; }
         public string Notes { get; set; }
     }
 }
