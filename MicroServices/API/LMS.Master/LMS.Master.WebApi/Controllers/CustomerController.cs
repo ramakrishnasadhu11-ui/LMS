@@ -230,6 +230,93 @@ namespace LMS.Master.WebApi.Controllers
             return true;
         }
 
+        private bool TryResolveAuthenticatedTenantStoreScope(out string resolvedTenantName, out string resolvedStoreCode, out string validationError)
+        {
+            resolvedStoreCode = null;
+            resolvedTenantName = User?.FindFirst("tenantName")?.Value?.Trim();
+            if (string.IsNullOrWhiteSpace(resolvedTenantName))
+            {
+                resolvedTenantName = User?.FindFirst("email")?.Value?.Trim();
+            }
+
+            if (string.IsNullOrWhiteSpace(resolvedTenantName))
+            {
+                resolvedTenantName = User?.FindFirst(System.Security.Claims.ClaimTypes.Email)?.Value?.Trim();
+            }
+
+            var claimStoreCode = User?.FindFirst("storeCode")?.Value?.Trim();
+            var claimStoreCodes = User?.FindFirst("storeCodes")?.Value;
+            var allowedStores = (claimStoreCodes ?? string.Empty)
+                .Split(',', StringSplitOptions.RemoveEmptyEntries)
+                .Select(x => x?.Trim())
+                .Where(x => !string.IsNullOrWhiteSpace(x))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            var headerTenant = Request?.Headers["X-TenantName"].ToString()?.Trim();
+            var headerStore = Request?.Headers["X-StoreCode"].ToString()?.Trim();
+
+            if (string.IsNullOrWhiteSpace(resolvedTenantName) || allowedStores.Count == 0)
+            {
+                validationError = "Tenant/store scope claims are required for this operation.";
+                return false;
+            }
+
+            if (!string.IsNullOrWhiteSpace(claimStoreCode)
+                && !allowedStores.Contains(claimStoreCode, StringComparer.OrdinalIgnoreCase))
+            {
+                validationError = "Unauthorized store access.";
+                return false;
+            }
+
+            if (!string.IsNullOrWhiteSpace(headerTenant)
+                && !string.Equals(headerTenant, resolvedTenantName, StringComparison.OrdinalIgnoreCase))
+            {
+                validationError = "Tenant scope mismatch.";
+                return false;
+            }
+
+            if (!string.IsNullOrWhiteSpace(headerStore)
+                && !string.IsNullOrWhiteSpace(claimStoreCode)
+                && !string.Equals(headerStore, claimStoreCode, StringComparison.OrdinalIgnoreCase))
+            {
+                validationError = "Store scope mismatch.";
+                return false;
+            }
+
+            var resolvedStore = !string.IsNullOrWhiteSpace(headerStore)
+                ? headerStore
+                : !string.IsNullOrWhiteSpace(claimStoreCode)
+                    ? claimStoreCode
+                    : allowedStores.Count == 1
+                        ? allowedStores[0]
+                        : null;
+
+            if (string.IsNullOrWhiteSpace(resolvedStore))
+            {
+                validationError = "Unable to determine active store scope. Specify X-StoreCode for one authorized store.";
+                return false;
+            }
+
+            if (!allowedStores.Contains(resolvedStore, StringComparer.OrdinalIgnoreCase))
+            {
+                validationError = "Unauthorized store access.";
+                return false;
+            }
+
+            if (!string.IsNullOrWhiteSpace(headerStore)
+                && !string.Equals(headerStore, resolvedStore, StringComparison.OrdinalIgnoreCase))
+            {
+                validationError = "Store scope mismatch.";
+                return false;
+            }
+
+            resolvedStoreCode = resolvedStore;
+
+            validationError = null;
+            return true;
+        }
+
         [HttpGet(nameof(GetPaymentSettings))]
         [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(Result<PaymentSettingsDto>))]
         [ProducesResponseType(StatusCodes.Status500InternalServerError, Type = typeof(Result<object>))]
@@ -1316,6 +1403,72 @@ namespace LMS.Master.WebApi.Controllers
             }
 
             var result = await _customer.GetStoreItemMasters(scopedTenantName, scopedStoreCode, includeInactive);
+            return StatusCode((int)result.StatusCode, result.ResultSet);
+        }
+
+        [HttpPost(nameof(UploadStoreItemImage))]
+        [Consumes("multipart/form-data")]
+        [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(Result<CustomerIOResponse>))]
+        [ProducesResponseType(StatusCodes.Status500InternalServerError, Type = typeof(Result<object>))]
+        [ProducesResponseType(StatusCodes.Status400BadRequest, Type = typeof(Result<object>))]
+        public async Task<ActionResult> UploadStoreItemImage([FromForm] int itemId, IFormFile imageFile)
+        {
+            if (User?.Identity?.IsAuthenticated != true)
+            {
+                return Unauthorized("Unauthorized access.");
+            }
+
+            if (!TryResolveAuthenticatedTenantStoreScope(out var scopedTenantName, out var scopedStoreCode, out var scopeValidationError))
+            {
+                return BadRequest(scopeValidationError);
+            }
+
+            var result = await _customer.UploadStoreItemImage(scopedTenantName, scopedStoreCode, itemId, imageFile);
+            return StatusCode((int)result.StatusCode, result.ResultSet);
+        }
+
+        [HttpPost(nameof(RemoveStoreItemImage))]
+        [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(Result<CustomerIOResponse>))]
+        [ProducesResponseType(StatusCodes.Status500InternalServerError, Type = typeof(Result<object>))]
+        [ProducesResponseType(StatusCodes.Status400BadRequest, Type = typeof(Result<object>))]
+        public async Task<ActionResult> RemoveStoreItemImage([FromBody] StoreItemImageActionRequestDto request)
+        {
+            if (User?.Identity?.IsAuthenticated != true)
+            {
+                return Unauthorized("Unauthorized access.");
+            }
+
+            if (request == null)
+            {
+                return BadRequest("Invalid data for this operation.");
+            }
+
+            if (!TryResolveAuthenticatedTenantStoreScope(out var scopedTenantName, out var scopedStoreCode, out var scopeValidationError))
+            {
+                return BadRequest(scopeValidationError);
+            }
+
+            var result = await _customer.RemoveStoreItemImage(scopedTenantName, scopedStoreCode, request.ItemId);
+            return StatusCode((int)result.StatusCode, result.ResultSet);
+        }
+
+        [HttpGet(nameof(GetStoreItemImage))]
+        [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(Result<StoreItemImageContentDto>))]
+        [ProducesResponseType(StatusCodes.Status500InternalServerError, Type = typeof(Result<object>))]
+        [ProducesResponseType(StatusCodes.Status400BadRequest, Type = typeof(Result<object>))]
+        public async Task<ActionResult> GetStoreItemImage(int itemId)
+        {
+            if (User?.Identity?.IsAuthenticated != true)
+            {
+                return Unauthorized("Unauthorized access.");
+            }
+
+            if (!TryResolveAuthenticatedTenantStoreScope(out var scopedTenantName, out var scopedStoreCode, out var scopeValidationError))
+            {
+                return BadRequest(scopeValidationError);
+            }
+
+            var result = await _customer.GetStoreItemImage(scopedTenantName, scopedStoreCode, itemId);
             return StatusCode((int)result.StatusCode, result.ResultSet);
         }
     }

@@ -40,6 +40,7 @@
         .ToList();
     var enableMinimumOrder = Convert.ToBoolean(ViewData["EnableMinimumOrder"] ?? false);
     var minimumOrderAmount = Convert.ToDecimal(ViewData["MinimumOrderAmount"] ?? 0m);
+    var allowZeroPriceItems = Convert.ToBoolean(ViewData["AllowZeroPriceItems"] ?? false);
     var isAdminUser = Convert.ToBoolean(ViewData["IsAdminUser"] ?? false);
     var isStoreUser = Convert.ToBoolean(ViewData["IsStoreUser"] ?? false);
     var orderHistorySearch = Convert.ToString(ViewData["OrderHistorySearch"] ?? string.Empty);
@@ -120,6 +121,7 @@
 .item-image { width: 100%; aspect-ratio: 1 / 1; object-fit: contain; border-radius: 6px; background: var(--els-accent); margin-bottom: 6px; }
 .item-name { font-size: 12px; font-weight: 600; color: var(--els-text); }
 .item-price { margin-top: 2px; font-size: 12px; color: var(--els-primary); font-weight: 700; }
+.item-price.price-not-set { color: #b54708; }
 .right-pane { padding: 10px; }
 .side-block { border: 1px solid var(--els-border); border-radius: 6px; padding: 10px; margin-bottom: 10px; }
 .side-title { font-size: 12px; font-weight: 700; margin-bottom: 8px; color: var(--els-text); }
@@ -202,6 +204,19 @@
 .csv-rules-table th, .csv-rules-table td { border:1px solid var(--els-border); padding:6px 8px; text-align:left; font-size:12px; }
 .csv-rules-table th { background: rgba(48, 96, 189, 0.12); font-weight:700; }
 .csv-rules-modal-footer { padding: 0 14px 14px 14px; display:flex; justify-content:flex-end; }
+.zero-price-modal-backdrop { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.45); z-index: 9998; display: none; }
+.zero-price-modal { position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(680px, 92vw); background: var(--els-surface); border: 1px solid var(--els-border); border-radius: 12px; box-shadow: 0 14px 36px rgba(0,0,0,0.25); z-index: 9999; display: none; }
+.zero-price-modal-header { display:flex; justify-content:space-between; align-items:center; padding:11px 14px; border-bottom: 1px solid var(--els-border); background: linear-gradient(90deg, var(--els-primary) 0%, var(--els-primary-dark) 100%); color:#fff; border-top-left-radius:12px; border-top-right-radius:12px; }
+.zero-price-modal-title { font-size:14px; font-weight:700; margin:0; }
+.zero-price-modal-body { padding:12px 14px; font-size:12px; color: var(--els-text); max-height: 58vh; overflow-y: auto; }
+.zero-price-modal-message { margin: 0 0 10px 0; color: var(--els-text); }
+.zero-price-table { width:100%; border-collapse: collapse; }
+.zero-price-table th, .zero-price-table td { border:1px solid var(--els-border); padding:6px 8px; text-align:left; font-size:12px; }
+.zero-price-table th { background: rgba(48, 96, 189, 0.12); font-weight:700; }
+.zero-price-table td:last-child { font-weight:700; color: #8a5b00; white-space:nowrap; }
+.zero-price-modal-footer { padding: 0 14px 14px 14px; display:flex; justify-content:flex-end; gap:8px; flex-wrap:wrap; }
+.zero-price-modal-footer .setup-btn { margin-bottom: 0; }
+.zero-price-modal-close { border: none; background: transparent; color: #fff; font-size: 22px; line-height: 1; cursor: pointer; }
 .import-summary-box { margin-top: 10px; border: 1px solid var(--els-border); border-radius: 8px; background: #f8fafc; padding: 10px; display: none; }
 .import-summary-title { font-size: 12px; font-weight: 700; color: var(--els-text); margin-bottom: 6px; }
 .import-summary-grid { display:grid; grid-template-columns: repeat(3, minmax(100px, 1fr)); gap:8px; }
@@ -213,6 +228,12 @@
 .setup-box { border-radius: 16px; border: 1px solid #e8eef6; box-shadow: 0 18px 40px rgba(16, 24, 40, 0.08); }
 .setup-title { display: none; }
 .setup-body { padding: 20px; }
+
+@@media (max-width: 640px) {
+    .zero-price-modal { width: min(96vw, 680px); }
+    .zero-price-modal-footer { justify-content: stretch; }
+    .zero-price-modal-footer .setup-btn { width: 100%; }
+}
 
 .order-page-header {
     border: 1px solid #dbe6f4;
@@ -922,6 +943,7 @@
                                                 </div>
                                             }
                                         }
+
                                         else
                                         {
                                             var taxLabel = string.Equals(taxMode, "VAT", StringComparison.OrdinalIgnoreCase)
@@ -1001,6 +1023,34 @@
     </div>
 </section>
 
+<div id="zeroPriceModalBackdrop" class="zero-price-modal-backdrop" aria-hidden="true"></div>
+<div id="zeroPriceModal" class="zero-price-modal" role="dialog" aria-modal="true" aria-labelledby="zeroPriceModalTitle" aria-describedby="zeroPriceModalMessage" aria-hidden="true">
+    <div class="zero-price-modal-header">
+        <h3 id="zeroPriceModalTitle" class="zero-price-modal-title">Zero-Price Items Detected</h3>
+        <button type="button" class="zero-price-modal-close" id="zeroPriceModalCloseBtn" aria-label="Close">&times;</button>
+    </div>
+    <div class="zero-price-modal-body">
+        <p id="zeroPriceModalMessage" class="zero-price-modal-message">This order contains items configured with a zero price. Please verify these items before creating the order.</p>
+        <table class="zero-price-table" aria-label="Zero-price items list">
+            <thead>
+                <tr>
+                    <th>Item</th>
+                    <th>Service Type</th>
+                    <th>Category</th>
+                    <th>Price</th>
+                </tr>
+            </thead>
+            <tbody id="zeroPriceItemsBody">
+                <tr><td colspan="4">No zero-price items detected.</td></tr>
+            </tbody>
+        </table>
+    </div>
+    <div class="zero-price-modal-footer">
+        <button type="button" class="setup-btn secondary" id="zeroPriceGoBackBtn">Go Back</button>
+        <button type="button" class="setup-btn" id="zeroPriceContinueBtn">Continue &amp; Create Order</button>
+    </div>
+</div>
+
 <script type="text/javascript">
 (function () {
     var setupOnly = @Html.Raw(setupOnly ? "true" : "false");
@@ -1019,6 +1069,7 @@
     }
     var enableMinimumOrder = @Html.Raw(enableMinimumOrder ? "true" : "false");
     var minimumOrderAmount = @Html.Raw(minimumOrderAmount.ToString(System.Globalization.CultureInfo.InvariantCulture));
+    var allowZeroPriceItems = @Html.Raw(allowZeroPriceItems ? "true" : "false");
     var allowPartialPayment = @Html.Raw(Convert.ToBoolean(ViewData["AllowPartialPayment"] ?? true).ToString().ToLowerInvariant());
     // Expose admin flag to client side so non-admins don't see price-edit controls
     var isAdminUser = @Html.Raw(Convert.ToBoolean(ViewData["IsAdminUser"] ?? false).ToString().ToLowerInvariant());
@@ -1052,6 +1103,9 @@
     var customerSuggestTimer = 0;
     var knownCustomerSuggestions = [];
     var antiForgeryTokenInput = document.querySelector('#setupOrderForm input[name="__RequestVerificationToken"]');
+    var zeroPriceWarningAcknowledged = false;
+    var isCreateOrderSubmitInProgress = false;
+    var zeroPriceModalDismissTarget = null;
 
     var storeCodeInput = document.getElementById("storeCode");
     if (storeCodeInput) {
@@ -1144,6 +1198,147 @@
     function parseAmount(value) {
         var n = Number(value);
         return Number.isFinite(n) ? n : 0;
+    }
+
+    function isConfiguredPositivePrice(value) {
+        return parseAmount(value) > 0;
+    }
+
+    function isConfiguredPriceAvailable(hasConfiguredPrice, value) {
+        return !!hasConfiguredPrice && parseAmount(value) >= 0;
+    }
+
+    function isExplicitZeroPrice(hasConfiguredPrice, value) {
+        return isConfiguredPriceAvailable(hasConfiguredPrice, value) && parseAmount(value) === 0;
+    }
+
+    function isPriceAllowedForOrder(hasConfiguredPrice, value) {
+        var price = parseAmount(value);
+        if (!isConfiguredPriceAvailable(hasConfiguredPrice, value)) {
+            return false;
+        }
+
+        return price > 0 || (price === 0 && allowZeroPriceItems);
+    }
+
+    function getItemPriceDisplayText(value, hasConfiguredPrice) {
+        var price = parseAmount(value);
+        if (!isConfiguredPriceAvailable(hasConfiguredPrice, value)) {
+            return "Price Not Set";
+        }
+
+        if (price === 0) {
+            return formatCurrency(0) + " (Free)";
+        }
+
+        return formatCurrency(price);
+    }
+
+    function getItemPricingValidationMessage(item) {
+        var itemName = (item && item.name) ? item.name : "selected item";
+        if (!isConfiguredPriceAvailable(item && item.hasConfiguredPrice, item && item.price)) {
+            return "Price not set for \"" + itemName + "\". Please configure the item price before adding it to the order.";
+        }
+
+        if (isExplicitZeroPrice(item && item.hasConfiguredPrice, item && item.price) && !allowZeroPriceItems) {
+            return "\"" + itemName + "\" is configured as free (\u20b90.00), but free items are disabled for this store. Enable Allow Zero-Price Items in Pricing Rules to proceed.";
+        }
+
+        return "";
+    }
+
+    function getExplicitZeroPriceOrderLines() {
+        if (currentOrderMode !== "pieces") {
+            return [];
+        }
+
+        return (orderLines || []).filter(function (line) {
+            return isExplicitZeroPrice(line && line.hasConfiguredPrice, line && line.price);
+        }).map(function (line) {
+            return {
+                name: (line && line.name) ? line.name : "-",
+                service: (line && line.service) ? line.service : (selectedService || "-"),
+                category: (line && line.category) ? line.category : (selectedCategory || "-"),
+                price: parseAmount(line && line.price)
+            };
+        });
+    }
+
+    function setCreateOrderButtonState(disabled, text) {
+        var createOrderBtn = document.getElementById("createOrderBtn");
+        if (!createOrderBtn) {
+            return;
+        }
+
+        createOrderBtn.disabled = !!disabled;
+        if (text) {
+            createOrderBtn.textContent = text;
+        }
+    }
+
+    function isZeroPriceModalOpen() {
+        var modal = document.getElementById("zeroPriceModal");
+        return !!modal && modal.style.display === "block";
+    }
+
+    function closeZeroPriceModal() {
+        var modal = document.getElementById("zeroPriceModal");
+        var backdrop = document.getElementById("zeroPriceModalBackdrop");
+        if (modal) {
+            modal.style.display = "none";
+            modal.setAttribute("aria-hidden", "true");
+        }
+        if (backdrop) {
+            backdrop.style.display = "none";
+            backdrop.setAttribute("aria-hidden", "true");
+        }
+
+        setCreateOrderButtonState(false, "Save Order");
+        if (zeroPriceModalDismissTarget && typeof zeroPriceModalDismissTarget.focus === "function") {
+            zeroPriceModalDismissTarget.focus();
+        }
+        zeroPriceModalDismissTarget = null;
+    }
+
+    function showZeroPriceModal(items) {
+        var modal = document.getElementById("zeroPriceModal");
+        var backdrop = document.getElementById("zeroPriceModalBackdrop");
+        var body = document.getElementById("zeroPriceItemsBody");
+        var continueBtn = document.getElementById("zeroPriceContinueBtn");
+
+        if (!modal || !backdrop || !body) {
+            return;
+        }
+
+        body.innerHTML = "";
+        (items || []).forEach(function (item) {
+            var row = document.createElement("tr");
+            var itemCell = document.createElement("td");
+            var serviceCell = document.createElement("td");
+            var categoryCell = document.createElement("td");
+            var priceCell = document.createElement("td");
+
+            itemCell.textContent = item.name || "-";
+            serviceCell.textContent = item.service || "-";
+            categoryCell.textContent = item.category || "-";
+            priceCell.textContent = formatCurrency(item.price);
+
+            row.appendChild(itemCell);
+            row.appendChild(serviceCell);
+            row.appendChild(categoryCell);
+            row.appendChild(priceCell);
+            body.appendChild(row);
+        });
+
+        modal.style.display = "block";
+        modal.setAttribute("aria-hidden", "false");
+        backdrop.style.display = "block";
+        backdrop.setAttribute("aria-hidden", "false");
+        setCreateOrderButtonState(true, "Save Order");
+        zeroPriceModalDismissTarget = document.activeElement;
+        if (continueBtn) {
+            continueBtn.focus();
+        }
     }
 
     function normalizeText(value) {
@@ -1424,7 +1619,15 @@
             if (!grouped[service]) grouped[service] = {};
             if (!grouped[service][category]) grouped[service][category] = [];
 
-            grouped[service][category].push({ name: itemName, price: price, imagePath: image.path, imageStatus: image.status });
+            grouped[service][category].push({
+                service: service,
+                category: category,
+                name: itemName,
+                price: price,
+                hasConfiguredPrice: true,
+                imagePath: image.path,
+                imageStatus: image.status
+            });
         });
 
         return grouped;
@@ -1480,6 +1683,16 @@
         }
 
         return { path: entry.imagePath, status: "approved" };
+    }
+
+    function resolveStoreItemCustomImagePath(item) {
+        var persistedId = Number((item && (item.Id ?? item.id)) || 0);
+        var storedImagePath = normalizeText(item && (item.ImagePath || item.imagePath || ""));
+        if (persistedId <= 0 || !storedImagePath) {
+            return "";
+        }
+
+        return '@Url.Action("StoreItemImage", "Customer")' + '?itemId=' + encodeURIComponent(persistedId) + '&v=' + encodeURIComponent(persistedId);
     }
 
     function updateCatalogueImageDiagnostics() {
@@ -1949,41 +2162,155 @@
         if (groups[selectedServiceKey]) {
             if (selectedCategory === "__ALL__") {
                 Object.keys(groups[selectedServiceKey]).forEach(function (cat) {
-                    items = items.concat(groups[selectedServiceKey][cat] || []);
+                    items = items.concat((groups[selectedServiceKey][cat] || []).map(function (entry) {
+                        return {
+                            service: entry.service || selectedService,
+                            category: entry.category || cat,
+                            name: entry.name,
+                            price: entry.price,
+                            hasConfiguredPrice: !!entry.hasConfiguredPrice,
+                            imagePath: entry.imagePath,
+                            imageStatus: entry.imageStatus
+                        };
+                    }));
                 });
             } else {
                 var selectedCategoryKey = findMatchingValue(Object.keys(groups[selectedServiceKey] || {}), selectedCategory) || selectedCategory;
-                items = groups[selectedServiceKey][selectedCategoryKey] || [];
+                items = (groups[selectedServiceKey][selectedCategoryKey] || []).map(function (entry) {
+                    return {
+                        service: entry.service || selectedService,
+                        category: entry.category || selectedCategoryKey,
+                        name: entry.name,
+                        price: entry.price,
+                        hasConfiguredPrice: !!entry.hasConfiguredPrice,
+                        imagePath: entry.imagePath,
+                        imageStatus: entry.imageStatus
+                    };
+                });
             }
         }
 
-        // If no configured prices are present, fall back to showing master items (names only)
-        if (!items.length) {
-            var fallback = [];
-            try {
-                if (masterItems && masterItems.length) {
-                    masterItems.forEach(function (m) {
-                        var svc = normalizeText(m.ServiceType || m.serviceType || "");
-                        var cat = normalizeText(m.Category || m.category || "");
-                        var name = normalizeText(m.ItemName || m.itemName || "");
-                        if (!name) return;
-                        if (!equalsNormalized(svc, selectedService)) return;
-                        if (selectedCategory !== "__ALL__" && !equalsNormalized(cat, selectedCategory)) return;
-                        var image = resolveCatalogueImage(m);
-                        fallback.push({ name: name, price: 0, imagePath: image.path, imageStatus: image.status });
-                    });
-                }
-            } catch (e) {
-                // ignore
+        var scopedMasterItems = [];
+        (masterItems || []).forEach(function (m) {
+            var svc = normalizeText(m.ServiceType || m.serviceType || "");
+            var cat = normalizeText(m.Category || m.category || "");
+            var name = normalizeText(m.ItemName || m.itemName || "");
+            if (!name) {
+                return;
             }
-
-            if (!fallback.length) {
-                grid.innerHTML = "<div class='empty-state'>No items configured for selected service/category.</div>";
+            if (!equalsNormalized(svc, selectedService)) {
+                return;
+            }
+            if (selectedCategory !== "__ALL__" && !equalsNormalized(cat, selectedCategory)) {
                 return;
             }
 
-            items = fallback;
+            scopedMasterItems.push(m);
+        });
+
+        var masterByKey = {};
+        scopedMasterItems.forEach(function (m) {
+            var key = buildServiceCategoryItemKey(m.ServiceType || m.serviceType, m.Category || m.category, m.ItemName || m.itemName);
+            if (!key) {
+                return;
+            }
+
+            if (!masterByKey[key]) {
+                masterByKey[key] = m;
+            }
+        });
+
+        var mergedByKey = {};
+        function addOrMergeItem(entry) {
+            if (!entry) {
+                return;
+            }
+
+            var key = buildServiceCategoryItemKey(entry.service, entry.category, entry.name);
+            if (!key || key === "||") {
+                return;
+            }
+
+            if (!mergedByKey[key]) {
+                mergedByKey[key] = {
+                    service: normalizeText(entry.service),
+                    category: normalizeText(entry.category),
+                    name: normalizeText(entry.name),
+                    price: parseAmount(entry.price),
+                    hasConfiguredPrice: !!entry.hasConfiguredPrice,
+                    imagePath: entry.imagePath || "",
+                    imageStatus: entry.imageStatus || ""
+                };
+                return;
+            }
+
+            var current = mergedByKey[key];
+            var nextPrice = parseAmount(entry.price);
+            if (current.price <= 0 && nextPrice > 0) {
+                current.price = nextPrice;
+            }
+            if (!!entry.hasConfiguredPrice) {
+                current.hasConfiguredPrice = true;
+                if (nextPrice === 0 || current.price <= 0) {
+                    current.price = nextPrice;
+                }
+            }
+            if (!current.imagePath && entry.imagePath) {
+                current.imagePath = entry.imagePath;
+                current.imageStatus = entry.imageStatus || current.imageStatus;
+            }
         }
+
+        items.forEach(addOrMergeItem);
+
+        scopedMasterItems.forEach(function (m) {
+            addOrMergeItem({
+                service: m.ServiceType || m.serviceType,
+                category: m.Category || m.category,
+                name: m.ItemName || m.itemName,
+                price: 0,
+                hasConfiguredPrice: false,
+                imagePath: "",
+                imageStatus: ""
+            });
+        });
+
+        items = Object.keys(mergedByKey).map(function (key) {
+            var entry = mergedByKey[key];
+            var masterRow = masterByKey[key];
+            var customImagePath = resolveStoreItemCustomImagePath(masterRow);
+            if (customImagePath) {
+                entry.imagePath = customImagePath;
+                entry.imageStatus = "custom";
+                return entry;
+            }
+
+            if (!entry.imagePath) {
+                var catalogueImage = resolveCatalogueImage({
+                    ServiceType: entry.service,
+                    Category: entry.category,
+                    ItemName: entry.name
+                });
+                entry.imagePath = catalogueImage.path;
+                entry.imageStatus = catalogueImage.status;
+            }
+
+            return entry;
+        });
+
+        if (!items.length) {
+            grid.innerHTML = "<div class='empty-state'>No items configured for selected service/category.</div>";
+            return;
+        }
+
+        items.sort(function (a, b) {
+            var byCategory = normalizeText(a.category).localeCompare(normalizeText(b.category));
+            if (byCategory !== 0) {
+                return byCategory;
+            }
+
+            return normalizeText(a.name).localeCompare(normalizeText(b.name));
+        });
 
         var placeholderImage = '@Url.Content("~/dist/img/noimage.png")';
         function resolveCatalogImagePath(value) {
@@ -2017,13 +2344,23 @@
 
             var price = document.createElement("div");
             price.className = "item-price";
-            price.textContent = formatCurrency(item.price);
+            if (!isConfiguredPriceAvailable(item.hasConfiguredPrice, item.price)) {
+                price.classList.add("price-not-set");
+            }
+            price.textContent = getItemPriceDisplayText(item.price, item.hasConfiguredPrice);
 
             card.appendChild(image);
             card.appendChild(name);
             card.appendChild(price);
             card.onclick = function () {
-                selectedItem = { service: selectedService, category: selectedCategory, name: item.name, price: item.price, imagePath: item.imagePath };
+                selectedItem = {
+                    service: item.service || selectedService,
+                    category: item.category || (selectedCategory === "__ALL__" ? "" : selectedCategory),
+                    name: item.name,
+                    price: item.price,
+                    hasConfiguredPrice: !!item.hasConfiguredPrice,
+                    imagePath: item.imagePath
+                };
                 renderCatalogGrid();
                 renderSelectedItemPane();
             };
@@ -2046,13 +2383,15 @@
             if (manualNameEl) manualNameEl.style.display = 'none';
             if (manualPriceEl) manualPriceEl.style.display = 'none';
             nameEl.textContent = selectedItem.name;
-            priceEl.textContent = formatCurrency(selectedItem.price);
+            priceEl.textContent = getItemPriceDisplayText(selectedItem.price, selectedItem.hasConfiguredPrice);
+            priceEl.classList.toggle("price-not-set", !isConfiguredPriceAvailable(selectedItem.hasConfiguredPrice, selectedItem.price));
         } else {
             if (manualNameEl) manualNameEl.style.display = 'block';
             if (manualPriceEl) manualPriceEl.style.display = 'block';
             nameEl.textContent = (manualNameEl && manualNameEl.value) ? manualNameEl.value : "-";
             var manualPrice = manualPriceEl ? parseAmount(manualPriceEl.value) : 0;
             priceEl.textContent = formatCurrency(manualPrice > 0 ? manualPrice : 0);
+            priceEl.classList.remove("price-not-set");
         }
     }
 
@@ -2148,12 +2487,22 @@
 
         // If an item is selected from catalog, use it. Otherwise allow manual entry.
         if (selectedItem) {
+            var pricingMessage = getItemPricingValidationMessage(selectedItem);
+            if (pricingMessage) {
+                showToast(pricingMessage, false);
+                return;
+            }
+
             var existing = orderLines.find(function (line) {
                 return line.service === selectedItem.service && line.category === selectedItem.category && line.name === selectedItem.name;
             });
 
-            if (existing) existing.qty += qty;
-            else orderLines.push({ service: selectedItem.service, category: selectedCategory, name: selectedItem.name, price: selectedItem.price, qty: qty });
+            if (existing) {
+                existing.qty += qty;
+                existing.price = parseAmount(selectedItem.price);
+                existing.hasConfiguredPrice = !!selectedItem.hasConfiguredPrice;
+            }
+            else orderLines.push({ service: selectedItem.service, category: selectedItem.category, name: selectedItem.name, price: selectedItem.price, qty: qty, hasConfiguredPrice: !!selectedItem.hasConfiguredPrice });
         } else {
             var manualNameEl = document.getElementById('manualItemName');
             var manualPriceEl = document.getElementById('manualUnitPrice');
@@ -3881,6 +4230,11 @@
 
             var form = document.getElementById("setupOrderForm");
             form.addEventListener("submit", function (e) {
+                if (isCreateOrderSubmitInProgress || isZeroPriceModalOpen()) {
+                    e.preventDefault();
+                    return;
+                }
+
                 if (storeCodeInput && (isStoreUser || !storeCodeInput.value)) {
                     storeCodeInput.value = currentStoreCode || "";
                 }
@@ -3915,6 +4269,35 @@
                     showToast("Please add at least one garment item to Order Lines before submitting.", false);
                     return;
                 }
+
+                if (currentOrderMode === "pieces") {
+                    var invalidPriceLine = (orderLines || []).find(function (line) {
+                        var hasConfiguredPrice = line && line.hasConfiguredPrice;
+                        var price = parseAmount(line && line.price);
+                        if (!isConfiguredPriceAvailable(hasConfiguredPrice, price)) {
+                            return true;
+                        }
+
+                        return price === 0 && !allowZeroPriceItems;
+                    });
+                    if (invalidPriceLine) {
+                        e.preventDefault();
+                        zeroPriceWarningAcknowledged = false;
+                        var submitPricingMessage = getItemPricingValidationMessage(invalidPriceLine)
+                            || ("Price not set for \"" + (invalidPriceLine.name || "selected item") + "\". Please configure item price before proceeding to checkout.");
+                        showToast(submitPricingMessage, false);
+                        return;
+                    }
+
+                    var zeroPriceLines = getExplicitZeroPriceOrderLines();
+                    if (zeroPriceLines.length && !zeroPriceWarningAcknowledged) {
+                        e.preventDefault();
+                        showZeroPriceModal(zeroPriceLines);
+                        return;
+                    }
+                }
+
+                zeroPriceWarningAcknowledged = false;
 
                 if (currentOrderMode === "weight") {
                     var weight = parseAmount(document.getElementById("weightInKg").value);
@@ -3966,8 +4349,58 @@
                     createOrderBtn.disabled = true;
                     createOrderBtn.textContent = "Saving...";
                 }
+                isCreateOrderSubmitInProgress = true;
 
                 showToast("Submitting order. Please wait...", true);
+            });
+
+            var zeroPriceCloseBtn = document.getElementById("zeroPriceModalCloseBtn");
+            var zeroPriceGoBackBtn = document.getElementById("zeroPriceGoBackBtn");
+            var zeroPriceContinueBtn = document.getElementById("zeroPriceContinueBtn");
+            var zeroPriceBackdrop = document.getElementById("zeroPriceModalBackdrop");
+
+            if (zeroPriceCloseBtn) {
+                zeroPriceCloseBtn.addEventListener("click", function () {
+                    zeroPriceWarningAcknowledged = false;
+                    closeZeroPriceModal();
+                });
+            }
+
+            if (zeroPriceGoBackBtn) {
+                zeroPriceGoBackBtn.addEventListener("click", function () {
+                    zeroPriceWarningAcknowledged = false;
+                    closeZeroPriceModal();
+                });
+            }
+
+            if (zeroPriceBackdrop) {
+                zeroPriceBackdrop.addEventListener("click", function () {
+                    zeroPriceWarningAcknowledged = false;
+                    closeZeroPriceModal();
+                });
+            }
+
+            if (zeroPriceContinueBtn) {
+                zeroPriceContinueBtn.addEventListener("click", function () {
+                    if (isCreateOrderSubmitInProgress) {
+                        return;
+                    }
+
+                    zeroPriceWarningAcknowledged = true;
+                    closeZeroPriceModal();
+                    if (typeof form.requestSubmit === "function") {
+                        form.requestSubmit();
+                    } else {
+                        form.submit();
+                    }
+                });
+            }
+
+            document.addEventListener("keydown", function (event) {
+                if (event.key === "Escape" && isZeroPriceModalOpen()) {
+                    zeroPriceWarningAcknowledged = false;
+                    closeZeroPriceModal();
+                }
             });
 
             var hasCustomer = document.getElementById("customerName") && document.getElementById("customerName").value;

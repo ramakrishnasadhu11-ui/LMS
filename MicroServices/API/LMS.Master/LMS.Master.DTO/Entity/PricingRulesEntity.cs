@@ -26,6 +26,8 @@ namespace LMS.Master.DTO.Entity
 
         public bool RoundOffInvoiceTotal { get; set; }
 
+        public bool AllowZeroPriceItems { get; set; }
+
         public string Notes { get; set; }
 
         public DateTime CreatedDate { get; set; }

@@ -3,6 +3,8 @@ using LMS.Master.BusinessSerive.Data;
 using LMS.Master.BusinessSerive.Services;
 using LMS.Master.DTO;
 using LMS.Master.DTO.Entity;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.Extensions.FileProviders;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Configuration;
@@ -442,11 +444,27 @@ namespace LMS.Master.WebApi.Tests
                 })
                 .Build();
 
+            var hostEnvironment = new TestWebHostEnvironment
+            {
+                ContentRootPath = AppContext.BaseDirectory
+            };
+
             return new Customerservice(
                 mapperConfig.CreateMapper(),
                 context,
                 configuration,
-                NullLogger<Customerservice>.Instance);
+                NullLogger<Customerservice>.Instance,
+                hostEnvironment);
+        }
+
+        private sealed class TestWebHostEnvironment : IWebHostEnvironment
+        {
+            public string ApplicationName { get; set; }
+            public IFileProvider WebRootFileProvider { get; set; }
+            public string WebRootPath { get; set; }
+            public string EnvironmentName { get; set; }
+            public string ContentRootPath { get; set; }
+            public IFileProvider ContentRootFileProvider { get; set; }
         }
     }
 }
