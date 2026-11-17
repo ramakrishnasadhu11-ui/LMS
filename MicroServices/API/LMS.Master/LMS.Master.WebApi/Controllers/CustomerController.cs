@@ -1310,6 +1310,112 @@ namespace LMS.Master.WebApi.Controllers
             return true;
         }
 
+        [HttpPost(nameof(SaveTopUpServiceMaster))]
+        [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(Result<SaveTopUpServiceMasterResponseDto>))]
+        [ProducesResponseType(StatusCodes.Status500InternalServerError, Type = typeof(Result<object>))]
+        [ProducesResponseType(StatusCodes.Status400BadRequest, Type = typeof(Result<object>))]
+        public async Task<ActionResult> SaveTopUpServiceMaster([FromBody] SaveTopUpServiceMasterRequestDto request)
+        {
+            if (request?.TopUpService == null)
+            {
+                return BadRequest("Invalid data for this operation.");
+            }
+
+            var requestedTenant = string.IsNullOrWhiteSpace(request.TenantName)
+                ? request.TopUpService.TenantName
+                : request.TenantName;
+            var requestedStore = string.IsNullOrWhiteSpace(request.StoreCode)
+                ? request.TopUpService.StoreCode
+                : request.StoreCode;
+
+            if (!TryResolveStrictPricingScope(requestedTenant, requestedStore, out var scopedTenantName, out var scopedStoreCode, out var scopeValidationError))
+            {
+                return StatusCode(StatusCodes.Status403Forbidden, scopeValidationError);
+            }
+
+            request.TenantName = scopedTenantName;
+            request.StoreCode = scopedStoreCode;
+            request.TopUpService.TenantName = scopedTenantName;
+            request.TopUpService.StoreCode = scopedStoreCode;
+            if (request.TopUpService.Applicability != null)
+            {
+                foreach (var row in request.TopUpService.Applicability)
+                {
+                    if (row == null)
+                    {
+                        continue;
+                    }
+
+                    row.TenantName = scopedTenantName;
+                    row.StoreCode = scopedStoreCode;
+                }
+            }
+
+            var result = await _customer.SaveTopUpServiceMaster(request);
+            return StatusCode((int)result.StatusCode, result.ResultSet);
+        }
+
+        [HttpGet(nameof(GetTopUpServiceMasters))]
+        [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(Result<GetTopUpServiceMastersResponseDto>))]
+        [ProducesResponseType(StatusCodes.Status500InternalServerError, Type = typeof(Result<object>))]
+        [ProducesResponseType(StatusCodes.Status400BadRequest, Type = typeof(Result<object>))]
+        public async Task<ActionResult> GetTopUpServiceMasters(string tenantName, string storeCode, bool includeInactive = false)
+        {
+            if (!TryResolveStrictPricingScope(tenantName, storeCode, out var scopedTenantName, out var scopedStoreCode, out var scopeValidationError))
+            {
+                return StatusCode(StatusCodes.Status403Forbidden, scopeValidationError);
+            }
+
+            var result = await _customer.GetTopUpServiceMasters(scopedTenantName, scopedStoreCode, includeInactive);
+            return StatusCode((int)result.StatusCode, result.ResultSet);
+        }
+
+        [HttpPost(nameof(SetTopUpServiceStatus))]
+        [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(Result<SetTopUpServiceStatusResponseDto>))]
+        [ProducesResponseType(StatusCodes.Status500InternalServerError, Type = typeof(Result<object>))]
+        [ProducesResponseType(StatusCodes.Status400BadRequest, Type = typeof(Result<object>))]
+        public async Task<ActionResult> SetTopUpServiceStatus([FromBody] SetTopUpServiceStatusRequestDto request)
+        {
+            if (request == null)
+            {
+                return BadRequest("Invalid data for this operation.");
+            }
+
+            if (!TryResolveStrictPricingScope(request.TenantName, request.StoreCode, out var scopedTenantName, out var scopedStoreCode, out var scopeValidationError))
+            {
+                return StatusCode(StatusCodes.Status403Forbidden, scopeValidationError);
+            }
+
+            request.TenantName = scopedTenantName;
+            request.StoreCode = scopedStoreCode;
+
+            var result = await _customer.SetTopUpServiceStatus(request);
+            return StatusCode((int)result.StatusCode, result.ResultSet);
+        }
+
+        [HttpPost(nameof(GetApplicableTopUps))]
+        [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(Result<GetApplicableTopUpsResponseDto>))]
+        [ProducesResponseType(StatusCodes.Status500InternalServerError, Type = typeof(Result<object>))]
+        [ProducesResponseType(StatusCodes.Status400BadRequest, Type = typeof(Result<object>))]
+        public async Task<ActionResult> GetApplicableTopUps([FromBody] GetApplicableTopUpsRequestDto request)
+        {
+            if (request == null)
+            {
+                return BadRequest("Invalid data for this operation.");
+            }
+
+            if (!TryResolveStrictPricingScope(request.TenantName, request.StoreCode, out var scopedTenantName, out var scopedStoreCode, out var scopeValidationError))
+            {
+                return StatusCode(StatusCodes.Status403Forbidden, scopeValidationError);
+            }
+
+            request.TenantName = scopedTenantName;
+            request.StoreCode = scopedStoreCode;
+
+            var result = await _customer.GetApplicableTopUps(request);
+            return StatusCode((int)result.StatusCode, result.ResultSet);
+        }
+
         [HttpPost(nameof(SaveStoreServiceMaster))]
         [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(Result<CustomerIOResponse>))]
         [ProducesResponseType(StatusCodes.Status500InternalServerError, Type = typeof(Result<object>))]

@@ -62,11 +62,11 @@ namespace LMSWebUI.Tests
             Assert.Contains("tenantStoreLookupNeedsPasswordRetry = true;", view);
             Assert.Contains("$('#tenantPassword').on('change blur'", view);
             Assert.Contains("setLoginModeHint(true, \"\", false, 'empty')", view);
-            Assert.Contains("setLoginModeHint(true, \"\", false, 'pending')", view);
+            Assert.Contains("setLoginModeHint(true, \"\", false, 'provisional')", view);
             Assert.Contains("setLoginModeHint(true, \"\", false, 'multiple')", view);
             Assert.Contains("storeContextBadge.text('Auto-selected: ' + autoStore)", view);
             Assert.Contains("No active store assignment found for this account.", view);
-            Assert.Contains("Checking your workspace...", view);
+            Assert.Contains("Workspace is being prepared", view);
         }
 
         [Fact]

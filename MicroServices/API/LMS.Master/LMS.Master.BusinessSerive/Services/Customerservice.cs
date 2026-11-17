@@ -3331,6 +3331,7 @@ namespace LMS.Master.BusinessSerive.Services
             await EnsurePaymentTransactionsTableExistsAsync();
             await EnsureCustomerAdvancesTableExistsAsync();
             await EnsureLaundryItemPricesTableExistsAsync();
+            await EnsureTopUpTablesExistAsync();
 
             if (orderDto == null
                 || string.IsNullOrWhiteSpace(orderDto.TenantName)
@@ -3487,6 +3488,18 @@ namespace LMS.Master.BusinessSerive.Services
                     submittedItems.Sum(x => Math.Max(0, x.Quantity) * Math.Max(0m, x.UnitPrice)),
                     2,
                     MidpointRounding.AwayFromZero);
+            }
+
+            var (topUpValidation, resolvedTopUps, topUpSubtotal) = await TryResolveOrderTopUpsAsync(orderDto, submittedItems);
+            if (topUpValidation != null)
+            {
+                return topUpValidation;
+            }
+
+            orderDto.TopUpAmount = topUpSubtotal;
+            if (topUpSubtotal > 0m)
+            {
+                orderDto.OrderAmount = Math.Round(orderDto.OrderAmount + topUpSubtotal, 2, MidpointRounding.AwayFromZero);
             }
 
             if (string.Equals(orderDto.OrderMode, "weight", StringComparison.OrdinalIgnoreCase) && orderDto.OrderAmount <= 0)
@@ -3655,6 +3668,7 @@ namespace LMS.Master.BusinessSerive.Services
             var invoiceNo = BuildInvoiceNo(taxSettings, orderNo);
             var defaultStatus = await GetDefaultWorkflowStatusAsync(orderDto.TenantName, orderDto.StoreCode);
             var persistedItems = new List<LaundryOrderItemDto>();
+            var persistedTopUps = new List<LaundryOrderTopUpDto>();
             LaundryOrderEntity orderEntity = null;
 
             await using (var tx = await _masterDbContext.Database.BeginTransactionAsync(IsolationLevel.Serializable))
@@ -3772,6 +3786,7 @@ namespace LMS.Master.BusinessSerive.Services
                         var qty = item.Quantity > 0 ? item.Quantity : 1;
                         for (var pieceNo = 1; pieceNo <= qty; pieceNo++)
                         {
+                            var pieceDetail = ResolvePieceDetailForPersistence(item, pieceNo, qty);
                             string tagNo = null;
                             if (taggingEnabled)
                             {
@@ -3790,6 +3805,13 @@ namespace LMS.Master.BusinessSerive.Services
                                 UnitPrice = item.UnitPrice,
                                 PieceNo = pieceNo,
                                 TagNo = tagNo,
+                                BrandName = pieceDetail?.BrandName,
+                                PrimaryColor = pieceDetail?.PrimaryColor,
+                                SecondaryColor = pieceDetail?.SecondaryColor,
+                                Pattern = pieceDetail?.Pattern,
+                                ExistingDefects = pieceDetail?.ExistingDefects,
+                                DefectRemarks = pieceDetail?.DefectRemarks,
+                                SpecialInstructions = pieceDetail?.SpecialInstructions,
                                 CreatedDate = DateTime.UtcNow
                             });
 
@@ -3801,7 +3823,14 @@ namespace LMS.Master.BusinessSerive.Services
                                 UnitPrice = item.UnitPrice,
                                 Quantity = 1,
                                 PieceNo = pieceNo,
-                                TagNo = tagNo
+                                TagNo = tagNo,
+                                BrandName = pieceDetail?.BrandName,
+                                PrimaryColor = pieceDetail?.PrimaryColor,
+                                SecondaryColor = pieceDetail?.SecondaryColor,
+                                Pattern = pieceDetail?.Pattern,
+                                ExistingDefects = pieceDetail?.ExistingDefects,
+                                DefectRemarks = pieceDetail?.DefectRemarks,
+                                SpecialInstructions = pieceDetail?.SpecialInstructions
                             });
                         }
                     }
@@ -3810,6 +3839,53 @@ namespace LMS.Master.BusinessSerive.Services
                     {
                         tagSettings.NextTagNumber = tagSequence;
                         tagSettings.ModifiedDate = DateTime.UtcNow;
+                    }
+                }
+
+                if (resolvedTopUps.Count > 0)
+                {
+                    var lineNo = 1;
+                    foreach (var topUp in resolvedTopUps)
+                    {
+                        var entity = new LaundryOrderTopUpEntity
+                        {
+                            LaundryOrderId = orderEntity.Id,
+                            TenantName = orderDto.TenantName,
+                            StoreCode = orderDto.StoreCode,
+                            OrderNo = orderNo,
+                            LineNo = lineNo++,
+                            TopUpName = topUp.Master.TopUpName,
+                            ChargeType = topUp.Master.ChargeType,
+                            ServiceType = topUp.AppliedRule?.ServiceType,
+                            Category = topUp.AppliedRule?.Category,
+                            ItemName = topUp.AppliedRule?.ItemName,
+                            PieceNo = 0,
+                            AppliedQuantity = Math.Round(Math.Max(0m, topUp.AppliedQuantity), 3, MidpointRounding.AwayFromZero),
+                            UnitPriceSnapshot = Math.Round(Math.Max(0m, topUp.UnitPrice), 2, MidpointRounding.AwayFromZero),
+                            LineAmountSnapshot = Math.Round(Math.Max(0m, topUp.LineAmount), 2, MidpointRounding.AwayFromZero),
+                            CreatedDate = DateTime.UtcNow
+                        };
+
+                        _masterDbContext.LaundryOrderTopUps.Add(entity);
+
+                        persistedTopUps.Add(new LaundryOrderTopUpDto
+                        {
+                            LaundryOrderId = orderEntity.Id,
+                            TenantName = entity.TenantName,
+                            StoreCode = entity.StoreCode,
+                            OrderNo = entity.OrderNo,
+                            LineNo = entity.LineNo,
+                            TopUpName = entity.TopUpName,
+                            ChargeType = entity.ChargeType,
+                            ServiceType = entity.ServiceType,
+                            Category = entity.Category,
+                            ItemName = entity.ItemName,
+                            PieceNo = entity.PieceNo,
+                            AppliedQuantity = entity.AppliedQuantity,
+                            UnitPriceSnapshot = entity.UnitPriceSnapshot,
+                            LineAmountSnapshot = entity.LineAmountSnapshot,
+                            CreatedDate = entity.CreatedDate
+                        });
                     }
                 }
 
@@ -3857,11 +3933,13 @@ namespace LMS.Master.BusinessSerive.Services
                 PaidNow = orderEntity.PaidNow,
                 PendingAmount = orderEntity.PendingAmount,
                 NetPayable = orderEntity.NetPayable,
+                TopUpAmount = topUpSubtotal,
                 PaymentMode = orderEntity.PaymentMode,
                 Notes = orderEntity.Notes,
                 CreatedDate = orderEntity.CreatedDate,
                 TotalPieces = totalPieces,
-                Items = persistedItems
+                Items = persistedItems,
+                TopUps = persistedTopUps
             });
         }
 
@@ -6046,9 +6124,122 @@ SELECT
                     Category = string.IsNullOrWhiteSpace(x.Category) ? null : x.Category.Trim(),
                     ItemName = x.ItemName.Trim(),
                     UnitPrice = x.UnitPrice,
-                    Quantity = x.Quantity > 0 ? x.Quantity : 1
+                    Quantity = x.Quantity > 0 ? x.Quantity : 1,
+                    BrandName = TrimOrNull(x.BrandName, 64),
+                    PrimaryColor = TrimOrNull(x.PrimaryColor, 32),
+                    SecondaryColor = TrimOrNull(x.SecondaryColor, 32),
+                    Pattern = NormalizePattern(x.Pattern),
+                    ExistingDefects = TrimOrNull(x.ExistingDefects, 1024),
+                    DefectRemarks = TrimOrNull(x.DefectRemarks, 512),
+                    SpecialInstructions = TrimOrNull(x.SpecialInstructions, 512),
+                    PieceDetails = NormalizePieceDetails(x.PieceDetails, x.Quantity > 0 ? x.Quantity : 1)
                 })
                 .ToList();
+        }
+
+        private static List<LaundryGarmentPieceDetailDto> NormalizePieceDetails(IEnumerable<LaundryGarmentPieceDetailDto> pieceDetails, int quantity)
+        {
+            if (pieceDetails == null || quantity < 1)
+            {
+                return new List<LaundryGarmentPieceDetailDto>();
+            }
+
+            return pieceDetails
+                .Where(x => x != null && x.PieceNo > 0 && x.PieceNo <= quantity)
+                .Select(x => new LaundryGarmentPieceDetailDto
+                {
+                    PieceNo = x.PieceNo,
+                    BrandName = TrimOrNull(x.BrandName, 64),
+                    PrimaryColor = TrimOrNull(x.PrimaryColor, 32),
+                    SecondaryColor = TrimOrNull(x.SecondaryColor, 32),
+                    Pattern = NormalizePattern(x.Pattern),
+                    ExistingDefects = TrimOrNull(x.ExistingDefects, 1024),
+                    DefectRemarks = TrimOrNull(x.DefectRemarks, 512),
+                    SpecialInstructions = TrimOrNull(x.SpecialInstructions, 512)
+                })
+                .Where(HasAnyGarmentDetails)
+                .GroupBy(x => x.PieceNo)
+                .Select(g => g.Last())
+                .OrderBy(x => x.PieceNo)
+                .ToList();
+        }
+
+        private static bool HasAnyGarmentDetails(LaundryGarmentPieceDetailDto detail)
+        {
+            if (detail == null)
+            {
+                return false;
+            }
+
+            return !string.IsNullOrWhiteSpace(detail.BrandName)
+                || !string.IsNullOrWhiteSpace(detail.PrimaryColor)
+                || !string.IsNullOrWhiteSpace(detail.SecondaryColor)
+                || !string.IsNullOrWhiteSpace(detail.Pattern)
+                || !string.IsNullOrWhiteSpace(detail.ExistingDefects)
+                || !string.IsNullOrWhiteSpace(detail.DefectRemarks)
+                || !string.IsNullOrWhiteSpace(detail.SpecialInstructions);
+        }
+
+        private static LaundryGarmentPieceDetailDto ResolvePieceDetailForPersistence(LaundryOrderItemDto item, int pieceNo, int quantity)
+        {
+            var normalizedPieceNo = pieceNo < 1 ? 1 : pieceNo;
+            var fromCollection = item?.PieceDetails?.FirstOrDefault(x => x != null && x.PieceNo == normalizedPieceNo);
+            if (HasAnyGarmentDetails(fromCollection))
+            {
+                return fromCollection;
+            }
+
+            if (item == null || quantity != 1)
+            {
+                return null;
+            }
+
+            var fallback = new LaundryGarmentPieceDetailDto
+            {
+                PieceNo = 1,
+                BrandName = TrimOrNull(item.BrandName, 64),
+                PrimaryColor = TrimOrNull(item.PrimaryColor, 32),
+                SecondaryColor = TrimOrNull(item.SecondaryColor, 32),
+                Pattern = NormalizePattern(item.Pattern),
+                ExistingDefects = TrimOrNull(item.ExistingDefects, 1024),
+                DefectRemarks = TrimOrNull(item.DefectRemarks, 512),
+                SpecialInstructions = TrimOrNull(item.SpecialInstructions, 512)
+            };
+
+            return HasAnyGarmentDetails(fallback) ? fallback : null;
+        }
+
+        private static string NormalizePattern(string pattern)
+        {
+            var normalized = TrimOrNull(pattern, 32);
+            if (string.IsNullOrWhiteSpace(normalized))
+            {
+                return null;
+            }
+
+            if (normalized.Equals("solid", StringComparison.OrdinalIgnoreCase)) return "Solid";
+            if (normalized.Equals("striped", StringComparison.OrdinalIgnoreCase)) return "Striped";
+            if (normalized.Equals("checked", StringComparison.OrdinalIgnoreCase)) return "Checked";
+            if (normalized.Equals("printed", StringComparison.OrdinalIgnoreCase)) return "Printed";
+            if (normalized.Equals("other", StringComparison.OrdinalIgnoreCase)) return "Other";
+
+            return normalized;
+        }
+
+        private static string TrimOrNull(string value, int maxLength)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                return null;
+            }
+
+            var trimmed = value.Trim();
+            if (trimmed.Length <= maxLength)
+            {
+                return trimmed;
+            }
+
+            return trimmed.Substring(0, maxLength);
         }
 
         private static List<string> GetEnabledPaymentModes(PaymentSettingsEntity paymentSettings)
@@ -6123,6 +6314,8 @@ SELECT
                 foreach (var order in orders)
                 {
                     order.Items = new List<LaundryOrderItemDto>();
+                    order.TopUps = new List<LaundryOrderTopUpDto>();
+                    order.TopUpAmount = 0m;
                     order.TotalPieces = string.Equals(order.OrderMode, "pieces", StringComparison.OrdinalIgnoreCase)
                         ? ExtractTotalPieces(order.Notes)
                         : 0;
@@ -6148,7 +6341,14 @@ SELECT
                         x.ItemName,
                         x.UnitPrice,
                         x.PieceNo,
-                        x.TagNo
+                        x.TagNo,
+                        x.BrandName,
+                        x.PrimaryColor,
+                        x.SecondaryColor,
+                        x.Pattern,
+                        x.ExistingDefects,
+                        x.DefectRemarks,
+                        x.SpecialInstructions
                     })
                     .ToListAsync();
 
@@ -6161,7 +6361,14 @@ SELECT
                         UnitPrice = x.UnitPrice,
                         Quantity = 1,
                         PieceNo = x.PieceNo,
-                        TagNo = x.TagNo
+                        TagNo = x.TagNo,
+                        BrandName = x.BrandName,
+                        PrimaryColor = x.PrimaryColor,
+                        SecondaryColor = x.SecondaryColor,
+                        Pattern = x.Pattern,
+                        ExistingDefects = x.ExistingDefects,
+                        DefectRemarks = x.DefectRemarks,
+                        SpecialInstructions = x.SpecialInstructions
                     }))
                     .ToList();
             }
@@ -6191,6 +6398,73 @@ SELECT
                         ? ExtractTotalPieces(order.Notes)
                         : 0;
                 }
+
+                order.TopUps = new List<LaundryOrderTopUpDto>();
+                order.TopUpAmount = 0m;
+            }
+
+            try
+            {
+                await EnsureTopUpTablesExistAsync();
+
+                var topUpRows = await _masterDbContext.LaundryOrderTopUps
+                    .AsNoTracking()
+                    .Where(x => x.TenantName == tenantName
+                                && x.StoreCode == storeCode
+                                && orderNos.Contains(x.OrderNo))
+                    .OrderBy(x => x.OrderNo)
+                    .ThenBy(x => x.LineNo)
+                    .Select(x => new
+                    {
+                        x.OrderNo,
+                        Snapshot = new LaundryOrderTopUpDto
+                        {
+                            Id = x.Id,
+                            LaundryOrderId = x.LaundryOrderId,
+                            TenantName = x.TenantName,
+                            StoreCode = x.StoreCode,
+                            OrderNo = x.OrderNo,
+                            LineNo = x.LineNo,
+                            TopUpName = x.TopUpName,
+                            ChargeType = x.ChargeType,
+                            ServiceType = x.ServiceType,
+                            Category = x.Category,
+                            ItemName = x.ItemName,
+                            PieceNo = x.PieceNo,
+                            AppliedQuantity = x.AppliedQuantity,
+                            UnitPriceSnapshot = x.UnitPriceSnapshot,
+                            LineAmountSnapshot = x.LineAmountSnapshot,
+                            CreatedDate = x.CreatedDate
+                        }
+                    })
+                    .ToListAsync();
+
+                var topUpsByOrderNo = topUpRows
+                    .GroupBy(x => x.OrderNo, StringComparer.OrdinalIgnoreCase)
+                    .ToDictionary(
+                        g => g.Key,
+                        g => g.Select(x => x.Snapshot).ToList(),
+                        StringComparer.OrdinalIgnoreCase);
+
+                foreach (var order in orders)
+                {
+                    var orderNo = order?.OrderNo?.Trim();
+                    if (string.IsNullOrWhiteSpace(orderNo)
+                        || !topUpsByOrderNo.TryGetValue(orderNo, out var topUps)
+                        || topUps.Count == 0)
+                    {
+                        continue;
+                    }
+
+                    order.TopUps = topUps;
+                    order.TopUpAmount = Math.Round(
+                        topUps.Sum(x => Math.Max(0m, x.LineAmountSnapshot)),
+                        2,
+                        MidpointRounding.AwayFromZero);
+                }
+            }
+            catch
+            {
             }
         }
 
@@ -6856,6 +7130,321 @@ SELECT
                 : "Service";
         }
 
+        private static bool TryNormalizeTopUpChargeType(string chargeType, out string normalized)
+        {
+            normalized = null;
+            if (string.IsNullOrWhiteSpace(chargeType))
+            {
+                return false;
+            }
+
+            if (string.Equals(chargeType.Trim(), "PerGarment", StringComparison.OrdinalIgnoreCase))
+            {
+                normalized = "PerGarment";
+                return true;
+            }
+
+            if (string.Equals(chargeType.Trim(), "PerOrder", StringComparison.OrdinalIgnoreCase))
+            {
+                normalized = "PerOrder";
+                return true;
+            }
+
+            return false;
+        }
+
+        private static TopUpServiceMasterDto MapTopUpServiceMasterDto(
+            TopUpServiceMasterEntity master,
+            IReadOnlyCollection<TopUpServiceApplicabilityDto> applicability)
+        {
+            if (master == null)
+            {
+                return null;
+            }
+
+            return new TopUpServiceMasterDto
+            {
+                Id = master.Id,
+                TenantName = master.TenantName,
+                StoreCode = master.StoreCode,
+                TopUpName = master.TopUpName,
+                ChargeType = master.ChargeType,
+                UnitPrice = master.UnitPrice,
+                Description = master.Description,
+                IsActive = master.IsActive,
+                IsArchived = master.IsArchived,
+                CreatedDate = master.CreatedDate,
+                ModifiedDate = master.ModifiedDate,
+                Applicability = applicability?.ToList() ?? new List<TopUpServiceApplicabilityDto>()
+            };
+        }
+
+        private sealed class ResolvedOrderTopUp
+        {
+            public TopUpServiceMasterEntity Master { get; set; }
+            public TopUpServiceApplicabilityEntity AppliedRule { get; set; }
+            public decimal AppliedQuantity { get; set; }
+            public decimal UnitPrice { get; set; }
+            public decimal LineAmount { get; set; }
+        }
+
+        private static bool MatchesApplicabilityRule(TopUpServiceApplicabilityEntity rule, LaundryOrderItemDto item)
+        {
+            if (rule == null || item == null)
+            {
+                return false;
+            }
+
+            var itemService = TrimOrNull(item.ServiceType, 64);
+            var itemCategory = TrimOrNull(item.Category, 64);
+            var itemName = TrimOrNull(item.ItemName, 128);
+
+            if (!string.IsNullOrWhiteSpace(rule.ServiceType)
+                && !string.Equals(rule.ServiceType.Trim(), itemService, StringComparison.OrdinalIgnoreCase))
+            {
+                return false;
+            }
+
+            if (!string.IsNullOrWhiteSpace(rule.Category)
+                && !string.Equals(rule.Category.Trim(), itemCategory, StringComparison.OrdinalIgnoreCase))
+            {
+                return false;
+            }
+
+            if (!string.IsNullOrWhiteSpace(rule.ItemName)
+                && !string.Equals(rule.ItemName.Trim(), itemName, StringComparison.OrdinalIgnoreCase))
+            {
+                return false;
+            }
+
+            return true;
+        }
+
+        private static int GetApplicabilityRuleRank(TopUpServiceApplicabilityEntity rule)
+        {
+            var hasService = !string.IsNullOrWhiteSpace(rule?.ServiceType);
+            var hasCategory = !string.IsNullOrWhiteSpace(rule?.Category);
+            var hasItem = !string.IsNullOrWhiteSpace(rule?.ItemName);
+
+            if (hasService && hasCategory && hasItem) return 1;
+            if (hasService && hasCategory && !hasItem) return 2;
+            if (hasService && !hasCategory && !hasItem) return 3;
+            if (!hasService && !hasCategory && !hasItem) return 4;
+            return int.MaxValue;
+        }
+
+        private async Task<(ActionReturnType ValidationResult, List<ResolvedOrderTopUp> ResolvedTopUps, decimal TopUpSubtotal)> TryResolveOrderTopUpsAsync(
+            LaundryOrderDto orderDto,
+            IReadOnlyCollection<LaundryOrderItemDto> submittedItems)
+        {
+            var resolvedTopUps = new List<ResolvedOrderTopUp>();
+            var topUpSubtotal = 0m;
+
+            var selectedTopUps = (orderDto?.TopUps ?? new List<LaundryOrderTopUpDto>())
+                .Where(x => x != null && !string.IsNullOrWhiteSpace(x.TopUpName))
+                .ToList();
+
+            if (selectedTopUps.Count == 0)
+            {
+                return (null, resolvedTopUps, topUpSubtotal);
+            }
+
+            var duplicateName = selectedTopUps
+                .GroupBy(x => x.TopUpName?.Trim(), StringComparer.OrdinalIgnoreCase)
+                .FirstOrDefault(g => g.Count() > 1);
+            if (duplicateName != null)
+            {
+                return (
+                    ActionSet.ActionReturnType(HttpStatusCode.BadRequest, new CustomerIOResponse
+                    {
+                        StatusCode = "400",
+                        Message = "Duplicate top-up selections are not allowed in an order."
+                    }),
+                    resolvedTopUps,
+                    topUpSubtotal);
+            }
+
+            var selectedNames = selectedTopUps
+                .Select(x => x.TopUpName.Trim())
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            var activeMasters = await _masterDbContext.TopUpServiceMasters
+                .AsNoTracking()
+                .Where(x => x.TenantName == orderDto.TenantName
+                            && x.StoreCode == orderDto.StoreCode
+                            && x.IsActive
+                            && !x.IsArchived
+                            && selectedNames.Contains(x.TopUpName))
+                .ToListAsync();
+
+            if (activeMasters.Count != selectedNames.Count)
+            {
+                return (
+                    ActionSet.ActionReturnType(HttpStatusCode.BadRequest, new CustomerIOResponse
+                    {
+                        StatusCode = "400",
+                        Message = "One or more selected top-up services are unavailable for this store."
+                    }),
+                    resolvedTopUps,
+                    topUpSubtotal);
+            }
+
+            var masterIds = activeMasters.Select(x => x.Id).ToList();
+            var activeApplicability = await _masterDbContext.TopUpServiceApplicabilities
+                .AsNoTracking()
+                .Where(x => x.TenantName == orderDto.TenantName
+                            && x.StoreCode == orderDto.StoreCode
+                            && x.IsActive
+                            && masterIds.Contains(x.TopUpServiceMasterId))
+                .ToListAsync();
+
+            foreach (var selected in selectedTopUps)
+            {
+                var master = activeMasters.FirstOrDefault(x =>
+                    string.Equals(x.TopUpName, selected.TopUpName?.Trim(), StringComparison.OrdinalIgnoreCase));
+
+                if (master == null)
+                {
+                    return (
+                        ActionSet.ActionReturnType(HttpStatusCode.BadRequest, new CustomerIOResponse
+                        {
+                            StatusCode = "400",
+                            Message = $"Selected top-up \"{selected.TopUpName}\" is invalid for this store."
+                        }),
+                        resolvedTopUps,
+                        topUpSubtotal);
+                }
+
+                if (!string.IsNullOrWhiteSpace(selected.ChargeType)
+                    && !string.Equals(selected.ChargeType.Trim(), master.ChargeType, StringComparison.OrdinalIgnoreCase))
+                {
+                    return (
+                        ActionSet.ActionReturnType(HttpStatusCode.BadRequest, new CustomerIOResponse
+                        {
+                            StatusCode = "400",
+                            Message = $"Selected top-up \"{master.TopUpName}\" has an invalid charge type."
+                        }),
+                        resolvedTopUps,
+                        topUpSubtotal);
+                }
+
+                if (string.Equals(master.ChargeType, "PerGarment", StringComparison.OrdinalIgnoreCase)
+                    && string.Equals(orderDto.OrderMode, "weight", StringComparison.OrdinalIgnoreCase))
+                {
+                    return (
+                        ActionSet.ActionReturnType(HttpStatusCode.BadRequest, new CustomerIOResponse
+                        {
+                            StatusCode = "400",
+                            Message = $"Per-garment top-up \"{master.TopUpName}\" is not allowed for weight-based orders."
+                        }),
+                        resolvedTopUps,
+                        topUpSubtotal);
+                }
+
+                var rulesForMaster = activeApplicability
+                    .Where(x => x.TopUpServiceMasterId == master.Id)
+                    .ToList();
+                if (rulesForMaster.Count == 0)
+                {
+                    return (
+                        ActionSet.ActionReturnType(HttpStatusCode.BadRequest, new CustomerIOResponse
+                        {
+                            StatusCode = "400",
+                            Message = $"Selected top-up \"{master.TopUpName}\" is not applicable to this order."
+                        }),
+                        resolvedTopUps,
+                        topUpSubtotal);
+                }
+
+                TopUpServiceApplicabilityEntity appliedRule = null;
+                decimal applicableQuantity = 0m;
+
+                if (string.Equals(orderDto.OrderMode, "pieces", StringComparison.OrdinalIgnoreCase))
+                {
+                    var bestMatch = rulesForMaster
+                        .Select(rule => new
+                        {
+                            Rule = rule,
+                            Rank = GetApplicabilityRuleRank(rule),
+                            Quantity = submittedItems
+                                .Where(item => MatchesApplicabilityRule(rule, item))
+                                .Sum(item => item.Quantity > 0 ? item.Quantity : 0)
+                        })
+                        .Where(x => x.Rank < int.MaxValue && x.Quantity > 0)
+                        .OrderBy(x => x.Rank)
+                        .ThenBy(x => x.Rule.Id)
+                        .FirstOrDefault();
+
+                    if (bestMatch == null)
+                    {
+                        return (
+                            ActionSet.ActionReturnType(HttpStatusCode.BadRequest, new CustomerIOResponse
+                            {
+                                StatusCode = "400",
+                                Message = $"Selected top-up \"{master.TopUpName}\" is not applicable to submitted garments."
+                            }),
+                            resolvedTopUps,
+                            topUpSubtotal);
+                    }
+
+                    appliedRule = bestMatch.Rule;
+                    applicableQuantity = bestMatch.Quantity;
+                }
+                else
+                {
+                    var pseudoItem = new LaundryOrderItemDto
+                    {
+                        ServiceType = orderDto.ServiceType,
+                        Category = selected.Category,
+                        ItemName = selected.ItemName
+                    };
+
+                    appliedRule = rulesForMaster
+                        .Select(rule => new { Rule = rule, Rank = GetApplicabilityRuleRank(rule) })
+                        .Where(x => x.Rank < int.MaxValue && MatchesApplicabilityRule(x.Rule, pseudoItem))
+                        .OrderBy(x => x.Rank)
+                        .ThenBy(x => x.Rule.Id)
+                        .Select(x => x.Rule)
+                        .FirstOrDefault();
+
+                    if (appliedRule == null)
+                    {
+                        return (
+                            ActionSet.ActionReturnType(HttpStatusCode.BadRequest, new CustomerIOResponse
+                            {
+                                StatusCode = "400",
+                                Message = $"Selected top-up \"{master.TopUpName}\" is not applicable to this order."
+                            }),
+                            resolvedTopUps,
+                            topUpSubtotal);
+                    }
+
+                    applicableQuantity = 1m;
+                }
+
+                var unitPrice = Math.Round(Math.Max(0m, master.UnitPrice), 2, MidpointRounding.AwayFromZero);
+                var chargeQuantity = string.Equals(master.ChargeType, "PerOrder", StringComparison.OrdinalIgnoreCase)
+                    ? 1m
+                    : applicableQuantity;
+                var lineAmount = Math.Round(chargeQuantity * unitPrice, 2, MidpointRounding.AwayFromZero);
+
+                resolvedTopUps.Add(new ResolvedOrderTopUp
+                {
+                    Master = master,
+                    AppliedRule = appliedRule,
+                    AppliedQuantity = chargeQuantity,
+                    UnitPrice = unitPrice,
+                    LineAmount = lineAmount
+                });
+
+                topUpSubtotal += lineAmount;
+            }
+
+            topUpSubtotal = Math.Round(Math.Max(0m, topUpSubtotal), 2, MidpointRounding.AwayFromZero);
+            return (null, resolvedTopUps, topUpSubtotal);
+        }
+
         public async Task<ActionReturnType> SaveStoreServiceMaster(StoreServiceMasterDto masterDto)
         {
             await EnsureStoreMasterTablesExistAsync();
@@ -7195,6 +7784,475 @@ SELECT
                 .ToListAsync();
 
             return ActionSet.ActionReturnType(HttpStatusCode.OK, items);
+        }
+
+        public async Task<ActionReturnType> SaveTopUpServiceMaster(SaveTopUpServiceMasterRequestDto request)
+        {
+            await EnsureTopUpTablesExistAsync();
+
+            if (request?.TopUpService == null)
+            {
+                return ActionSet.ActionReturnType(HttpStatusCode.BadRequest, new CustomerIOResponse
+                {
+                    StatusCode = "400",
+                    Message = "Invalid top-up service request."
+                });
+            }
+
+            var tenantName = string.IsNullOrWhiteSpace(request.TenantName)
+                ? request.TopUpService.TenantName?.Trim()
+                : request.TenantName.Trim();
+            var storeCode = string.IsNullOrWhiteSpace(request.StoreCode)
+                ? request.TopUpService.StoreCode?.Trim()
+                : request.StoreCode.Trim();
+
+            if (string.IsNullOrWhiteSpace(tenantName) || string.IsNullOrWhiteSpace(storeCode))
+            {
+                return ActionSet.ActionReturnType(HttpStatusCode.BadRequest, new CustomerIOResponse
+                {
+                    StatusCode = "400",
+                    Message = "Tenant and store are required."
+                });
+            }
+
+            var dto = request.TopUpService;
+            var topUpName = dto.TopUpName?.Trim();
+            if (string.IsNullOrWhiteSpace(topUpName))
+            {
+                return ActionSet.ActionReturnType(HttpStatusCode.BadRequest, new CustomerIOResponse
+                {
+                    StatusCode = "400",
+                    Message = "Top-up name is required."
+                });
+            }
+
+            if (!TryNormalizeTopUpChargeType(dto.ChargeType, out var normalizedChargeType))
+            {
+                return ActionSet.ActionReturnType(HttpStatusCode.BadRequest, new CustomerIOResponse
+                {
+                    StatusCode = "400",
+                    Message = "Charge type must be either PerGarment or PerOrder."
+                });
+            }
+
+            if (dto.UnitPrice < 0)
+            {
+                return ActionSet.ActionReturnType(HttpStatusCode.BadRequest, new CustomerIOResponse
+                {
+                    StatusCode = "400",
+                    Message = "Top-up unit price cannot be negative."
+                });
+            }
+
+            var description = string.IsNullOrWhiteSpace(dto.Description) ? null : dto.Description.Trim();
+            var isActive = dto.IsActive;
+            var isArchived = dto.IsArchived;
+
+            var duplicateActive = await _masterDbContext.TopUpServiceMasters
+                .AsNoTracking()
+                .AnyAsync(x => x.TenantName == tenantName
+                               && x.StoreCode == storeCode
+                               && x.TopUpName == topUpName
+                               && x.Id != dto.Id
+                               && x.IsActive
+                               && !x.IsArchived);
+            if (duplicateActive && isActive && !isArchived)
+            {
+                return ActionSet.ActionReturnType(HttpStatusCode.BadRequest, new CustomerIOResponse
+                {
+                    StatusCode = "400",
+                    Message = "An active top-up service with the same name already exists for this store."
+                });
+            }
+
+            TopUpServiceMasterEntity entity;
+            if (dto.Id > 0)
+            {
+                entity = await _masterDbContext.TopUpServiceMasters.FirstOrDefaultAsync(x =>
+                    x.Id == dto.Id && x.TenantName == tenantName && x.StoreCode == storeCode);
+
+                if (entity == null)
+                {
+                    return ActionSet.ActionReturnType(HttpStatusCode.NotFound, new CustomerIOResponse
+                    {
+                        StatusCode = "404",
+                        Message = "Top-up service not found for this tenant/store."
+                    });
+                }
+
+                entity.TopUpName = topUpName;
+                entity.ChargeType = normalizedChargeType;
+                entity.UnitPrice = Math.Round(dto.UnitPrice, 2, MidpointRounding.AwayFromZero);
+                entity.Description = description;
+                entity.IsActive = isActive;
+                entity.IsArchived = isArchived;
+                entity.ModifiedDate = DateTime.UtcNow;
+            }
+            else
+            {
+                entity = new TopUpServiceMasterEntity
+                {
+                    TenantName = tenantName,
+                    StoreCode = storeCode,
+                    TopUpName = topUpName,
+                    ChargeType = normalizedChargeType,
+                    UnitPrice = Math.Round(dto.UnitPrice, 2, MidpointRounding.AwayFromZero),
+                    Description = description,
+                    IsActive = isActive,
+                    IsArchived = isArchived,
+                    CreatedDate = DateTime.UtcNow,
+                    ModifiedDate = DateTime.UtcNow
+                };
+
+                _masterDbContext.TopUpServiceMasters.Add(entity);
+            }
+
+            await _masterDbContext.SaveChangesAsync();
+
+            var incomingApplicability = dto.Applicability ?? new List<TopUpServiceApplicabilityDto>();
+            var normalizedApplicability = incomingApplicability
+                .Where(x => x != null)
+                .Select(x => new
+                {
+                    ServiceType = TrimOrNull(x.ServiceType, 64),
+                    Category = TrimOrNull(x.Category, 64),
+                    ItemName = TrimOrNull(x.ItemName, 128),
+                    IsActive = x.IsActive
+                })
+                .GroupBy(x => new
+                {
+                    x.ServiceType,
+                    x.Category,
+                    x.ItemName
+                })
+                .Select(g => g.Last())
+                .ToList();
+
+            var existingApplicability = await _masterDbContext.TopUpServiceApplicabilities
+                .Where(x => x.TopUpServiceMasterId == entity.Id
+                            && x.TenantName == tenantName
+                            && x.StoreCode == storeCode)
+                .ToListAsync();
+
+            if (existingApplicability.Count > 0)
+            {
+                _masterDbContext.TopUpServiceApplicabilities.RemoveRange(existingApplicability);
+            }
+
+            foreach (var row in normalizedApplicability)
+            {
+                _masterDbContext.TopUpServiceApplicabilities.Add(new TopUpServiceApplicabilityEntity
+                {
+                    TopUpServiceMasterId = entity.Id,
+                    TenantName = tenantName,
+                    StoreCode = storeCode,
+                    ServiceType = row.ServiceType,
+                    Category = row.Category,
+                    ItemName = row.ItemName,
+                    IsActive = row.IsActive,
+                    CreatedDate = DateTime.UtcNow,
+                    ModifiedDate = DateTime.UtcNow
+                });
+            }
+
+            await _masterDbContext.SaveChangesAsync();
+
+            var savedApplicability = await _masterDbContext.TopUpServiceApplicabilities
+                .AsNoTracking()
+                .Where(x => x.TopUpServiceMasterId == entity.Id
+                            && x.TenantName == tenantName
+                            && x.StoreCode == storeCode)
+                .OrderBy(x => x.Id)
+                .Select(x => new TopUpServiceApplicabilityDto
+                {
+                    Id = x.Id,
+                    TopUpServiceMasterId = x.TopUpServiceMasterId,
+                    TenantName = x.TenantName,
+                    StoreCode = x.StoreCode,
+                    ServiceType = x.ServiceType,
+                    Category = x.Category,
+                    ItemName = x.ItemName,
+                    IsActive = x.IsActive,
+                    CreatedDate = x.CreatedDate,
+                    ModifiedDate = x.ModifiedDate
+                })
+                .ToListAsync();
+
+            var response = new SaveTopUpServiceMasterResponseDto
+            {
+                StatusCode = "200",
+                Message = dto.Id > 0 ? "Top-up service updated successfully." : "Top-up service created successfully.",
+                TopUpService = MapTopUpServiceMasterDto(entity, savedApplicability)
+            };
+
+            return ActionSet.ActionReturnType(HttpStatusCode.OK, response);
+        }
+
+        public async Task<ActionReturnType> GetTopUpServiceMasters(string tenantName, string storeCode, bool includeInactive = false)
+        {
+            await EnsureTopUpTablesExistAsync();
+
+            if (string.IsNullOrWhiteSpace(tenantName) || string.IsNullOrWhiteSpace(storeCode))
+            {
+                return ActionSet.ActionReturnType(HttpStatusCode.BadRequest, new CustomerIOResponse
+                {
+                    StatusCode = "400",
+                    Message = "Invalid top-up service request."
+                });
+            }
+
+            tenantName = tenantName.Trim();
+            storeCode = storeCode.Trim();
+
+            var masterQuery = _masterDbContext.TopUpServiceMasters
+                .AsNoTracking()
+                .Where(x => x.TenantName == tenantName && x.StoreCode == storeCode);
+
+            if (!includeInactive)
+            {
+                masterQuery = masterQuery.Where(x => x.IsActive && !x.IsArchived);
+            }
+
+            var masters = await masterQuery
+                .OrderBy(x => x.TopUpName)
+                .ToListAsync();
+
+            var masterIds = masters.Select(x => x.Id).ToList();
+            var applicabilityQuery = _masterDbContext.TopUpServiceApplicabilities
+                .AsNoTracking()
+                .Where(x => masterIds.Contains(x.TopUpServiceMasterId)
+                            && x.TenantName == tenantName
+                            && x.StoreCode == storeCode);
+
+            if (!includeInactive)
+            {
+                applicabilityQuery = applicabilityQuery.Where(x => x.IsActive);
+            }
+
+            var applicability = await applicabilityQuery
+                .OrderBy(x => x.Id)
+                .Select(x => new TopUpServiceApplicabilityDto
+                {
+                    Id = x.Id,
+                    TopUpServiceMasterId = x.TopUpServiceMasterId,
+                    TenantName = x.TenantName,
+                    StoreCode = x.StoreCode,
+                    ServiceType = x.ServiceType,
+                    Category = x.Category,
+                    ItemName = x.ItemName,
+                    IsActive = x.IsActive,
+                    CreatedDate = x.CreatedDate,
+                    ModifiedDate = x.ModifiedDate
+                })
+                .ToListAsync();
+
+            var applicabilityLookup = applicability
+                .GroupBy(x => x.TopUpServiceMasterId)
+                .ToDictionary(x => x.Key, x => (IReadOnlyCollection<TopUpServiceApplicabilityDto>)x.ToList());
+
+            var response = new GetTopUpServiceMastersResponseDto
+            {
+                StatusCode = "200",
+                TopUpServices = masters
+                    .Select(x => MapTopUpServiceMasterDto(
+                        x,
+                        applicabilityLookup.TryGetValue(x.Id, out var rows)
+                            ? rows
+                            : Array.Empty<TopUpServiceApplicabilityDto>()))
+                    .ToList()
+            };
+
+            return ActionSet.ActionReturnType(HttpStatusCode.OK, response);
+        }
+
+        public async Task<ActionReturnType> SetTopUpServiceStatus(SetTopUpServiceStatusRequestDto request)
+        {
+            await EnsureTopUpTablesExistAsync();
+
+            if (request == null
+                || string.IsNullOrWhiteSpace(request.TenantName)
+                || string.IsNullOrWhiteSpace(request.StoreCode)
+                || string.IsNullOrWhiteSpace(request.TopUpName))
+            {
+                return ActionSet.ActionReturnType(HttpStatusCode.BadRequest, new CustomerIOResponse
+                {
+                    StatusCode = "400",
+                    Message = "Invalid top-up status request."
+                });
+            }
+
+            var tenantName = request.TenantName.Trim();
+            var storeCode = request.StoreCode.Trim();
+            var topUpName = request.TopUpName.Trim();
+
+            var existing = await _masterDbContext.TopUpServiceMasters.FirstOrDefaultAsync(x =>
+                x.TenantName == tenantName
+                && x.StoreCode == storeCode
+                && x.TopUpName == topUpName);
+
+            if (existing == null)
+            {
+                return ActionSet.ActionReturnType(HttpStatusCode.NotFound, new CustomerIOResponse
+                {
+                    StatusCode = "404",
+                    Message = "Top-up service not found."
+                });
+            }
+
+            existing.IsActive = request.IsActive;
+            existing.IsArchived = request.IsArchived;
+            existing.ModifiedDate = DateTime.UtcNow;
+            await _masterDbContext.SaveChangesAsync();
+
+            var response = new SetTopUpServiceStatusResponseDto
+            {
+                StatusCode = "200",
+                Message = request.IsArchived
+                    ? "Top-up service archived successfully."
+                    : request.IsActive
+                        ? "Top-up service restored successfully."
+                        : "Top-up service marked inactive successfully.",
+                TopUpService = MapTopUpServiceMasterDto(existing, Array.Empty<TopUpServiceApplicabilityDto>())
+            };
+
+            return ActionSet.ActionReturnType(HttpStatusCode.OK, response);
+        }
+
+        public async Task<ActionReturnType> GetApplicableTopUps(GetApplicableTopUpsRequestDto request)
+        {
+            await EnsureTopUpTablesExistAsync();
+
+            if (request == null
+                || string.IsNullOrWhiteSpace(request.TenantName)
+                || string.IsNullOrWhiteSpace(request.StoreCode))
+            {
+                return ActionSet.ActionReturnType(HttpStatusCode.BadRequest, new CustomerIOResponse
+                {
+                    StatusCode = "400",
+                    Message = "Invalid top-up applicability request."
+                });
+            }
+
+            var tenantName = request.TenantName.Trim();
+            var storeCode = request.StoreCode.Trim();
+            var requestedService = TrimOrNull(request.ServiceType, 64);
+            var requestedCategory = TrimOrNull(request.Category, 64);
+            var requestedItem = TrimOrNull(request.ItemName, 128);
+
+            var masters = await _masterDbContext.TopUpServiceMasters
+                .AsNoTracking()
+                .Where(x => x.TenantName == tenantName
+                            && x.StoreCode == storeCode
+                            && x.IsActive
+                            && !x.IsArchived)
+                .OrderBy(x => x.TopUpName)
+                .ToListAsync();
+
+            var masterIds = masters.Select(x => x.Id).ToList();
+            if (masterIds.Count == 0)
+            {
+                return ActionSet.ActionReturnType(HttpStatusCode.OK, new GetApplicableTopUpsResponseDto
+                {
+                    StatusCode = "200",
+                    TopUpServices = new List<TopUpServiceMasterDto>()
+                });
+            }
+
+            var applicability = await _masterDbContext.TopUpServiceApplicabilities
+                .AsNoTracking()
+                .Where(x => x.TenantName == tenantName
+                            && x.StoreCode == storeCode
+                            && x.IsActive
+                            && masterIds.Contains(x.TopUpServiceMasterId))
+                .ToListAsync();
+
+            static bool EqualsCi(string left, string right)
+                => string.Equals((left ?? string.Empty).Trim(), (right ?? string.Empty).Trim(), StringComparison.OrdinalIgnoreCase);
+
+            static int GetRank(TopUpServiceApplicabilityEntity row, string svc, string cat, string item)
+            {
+                var rowSvc = TrimOrNull(row.ServiceType, 64);
+                var rowCat = TrimOrNull(row.Category, 64);
+                var rowItem = TrimOrNull(row.ItemName, 128);
+
+                if (!string.IsNullOrWhiteSpace(rowItem)
+                    && !string.IsNullOrWhiteSpace(rowCat)
+                    && !string.IsNullOrWhiteSpace(rowSvc)
+                    && EqualsCi(rowSvc, svc)
+                    && EqualsCi(rowCat, cat)
+                    && EqualsCi(rowItem, item))
+                {
+                    return 1; // exact item
+                }
+
+                if (string.IsNullOrWhiteSpace(rowItem)
+                    && !string.IsNullOrWhiteSpace(rowCat)
+                    && !string.IsNullOrWhiteSpace(rowSvc)
+                    && EqualsCi(rowSvc, svc)
+                    && EqualsCi(rowCat, cat))
+                {
+                    return 2; // category
+                }
+
+                if (string.IsNullOrWhiteSpace(rowItem)
+                    && string.IsNullOrWhiteSpace(rowCat)
+                    && !string.IsNullOrWhiteSpace(rowSvc)
+                    && EqualsCi(rowSvc, svc))
+                {
+                    return 3; // service type
+                }
+
+                if (string.IsNullOrWhiteSpace(rowItem)
+                    && string.IsNullOrWhiteSpace(rowCat)
+                    && string.IsNullOrWhiteSpace(rowSvc))
+                {
+                    return 4; // global
+                }
+
+                return int.MaxValue;
+            }
+
+            var matched = new List<TopUpServiceMasterDto>();
+            foreach (var master in masters)
+            {
+                var best = applicability
+                    .Where(x => x.TopUpServiceMasterId == master.Id)
+                    .Select(x => new { Row = x, Rank = GetRank(x, requestedService, requestedCategory, requestedItem) })
+                    .Where(x => x.Rank < int.MaxValue)
+                    .OrderBy(x => x.Rank)
+                    .ThenBy(x => x.Row.Id)
+                    .FirstOrDefault();
+
+                if (best == null)
+                {
+                    continue;
+                }
+
+                matched.Add(MapTopUpServiceMasterDto(master, new[]
+                {
+                    new TopUpServiceApplicabilityDto
+                    {
+                        Id = best.Row.Id,
+                        TopUpServiceMasterId = best.Row.TopUpServiceMasterId,
+                        TenantName = best.Row.TenantName,
+                        StoreCode = best.Row.StoreCode,
+                        ServiceType = best.Row.ServiceType,
+                        Category = best.Row.Category,
+                        ItemName = best.Row.ItemName,
+                        IsActive = best.Row.IsActive,
+                        CreatedDate = best.Row.CreatedDate,
+                        ModifiedDate = best.Row.ModifiedDate
+                    }
+                }));
+            }
+
+            var response = new GetApplicableTopUpsResponseDto
+            {
+                StatusCode = "200",
+                TopUpServices = matched
+            };
+
+            return ActionSet.ActionReturnType(HttpStatusCode.OK, response);
         }
 
         public async Task<ActionReturnType> UploadStoreItemImage(string tenantName, string storeCode, int itemId, IFormFile imageFile)
@@ -8882,6 +9940,47 @@ BEGIN
 END;";
 
             await _masterDbContext.Database.ExecuteSqlRawAsync(createTableSql);
+
+            const string alterExistingColumnsSql = @"
+IF OBJECT_ID(N'[dbo].[LaundryOrderItems]', N'U') IS NOT NULL
+BEGIN
+    IF COL_LENGTH(N'[dbo].[LaundryOrderItems]', N'BrandName') IS NULL
+    BEGIN
+        ALTER TABLE [dbo].[LaundryOrderItems] ADD [BrandName] [nvarchar](64) NULL;
+    END;
+
+    IF COL_LENGTH(N'[dbo].[LaundryOrderItems]', N'PrimaryColor') IS NULL
+    BEGIN
+        ALTER TABLE [dbo].[LaundryOrderItems] ADD [PrimaryColor] [nvarchar](32) NULL;
+    END;
+
+    IF COL_LENGTH(N'[dbo].[LaundryOrderItems]', N'SecondaryColor') IS NULL
+    BEGIN
+        ALTER TABLE [dbo].[LaundryOrderItems] ADD [SecondaryColor] [nvarchar](32) NULL;
+    END;
+
+    IF COL_LENGTH(N'[dbo].[LaundryOrderItems]', N'Pattern') IS NULL
+    BEGIN
+        ALTER TABLE [dbo].[LaundryOrderItems] ADD [Pattern] [nvarchar](32) NULL;
+    END;
+
+    IF COL_LENGTH(N'[dbo].[LaundryOrderItems]', N'ExistingDefects') IS NULL
+    BEGIN
+        ALTER TABLE [dbo].[LaundryOrderItems] ADD [ExistingDefects] [nvarchar](1024) NULL;
+    END;
+
+    IF COL_LENGTH(N'[dbo].[LaundryOrderItems]', N'DefectRemarks') IS NULL
+    BEGIN
+        ALTER TABLE [dbo].[LaundryOrderItems] ADD [DefectRemarks] [nvarchar](512) NULL;
+    END;
+
+    IF COL_LENGTH(N'[dbo].[LaundryOrderItems]', N'SpecialInstructions') IS NULL
+    BEGIN
+        ALTER TABLE [dbo].[LaundryOrderItems] ADD [SpecialInstructions] [nvarchar](512) NULL;
+    END;
+END;";
+
+            await _masterDbContext.Database.ExecuteSqlRawAsync(alterExistingColumnsSql);
         }
 
         private async Task EnsureBarcodeTagSettingsTableExistsAsync()
@@ -9018,6 +10117,147 @@ IF NOT EXISTS (
 BEGIN
     CREATE UNIQUE NONCLUSTERED INDEX [IX_LaundryItemPrices_Tenant_Store_Service_Category_Item]
     ON [dbo].[LaundryItemPrices] ([TenantName], [StoreCode], [ServiceType], [Category], [ItemName]);
+END;";
+
+            await _masterDbContext.Database.ExecuteSqlRawAsync(createTableSql);
+        }
+
+        private async Task EnsureTopUpTablesExistAsync()
+        {
+            const string createTableSql = @"
+IF OBJECT_ID(N'[dbo].[TopUpServiceMaster]', N'U') IS NULL
+BEGIN
+    CREATE TABLE [dbo].[TopUpServiceMaster](
+        [Id] [int] IDENTITY(1,1) NOT NULL,
+        [TenantName] [nvarchar](256) NOT NULL,
+        [StoreCode] [nvarchar](64) NOT NULL,
+        [TopUpName] [nvarchar](128) NOT NULL,
+        [ChargeType] [nvarchar](32) NOT NULL,
+        [UnitPrice] [decimal](18,2) NOT NULL,
+        [Description] [nvarchar](256) NULL,
+        [IsActive] [bit] NOT NULL,
+        [IsArchived] [bit] NOT NULL,
+        [CreatedDate] [datetime2](7) NOT NULL,
+        [ModifiedDate] [datetime2](7) NOT NULL,
+        CONSTRAINT [PK_TopUpServiceMaster] PRIMARY KEY CLUSTERED ([Id] ASC)
+    );
+END;
+
+IF NOT EXISTS (
+    SELECT 1
+    FROM sys.indexes
+    WHERE name IN (N'IX_TopUpServiceMaster_TenantName_StoreCode_TopUpName', N'IX_TopUpServiceMaster_Tenant_Store_TopUpName')
+      AND object_id = OBJECT_ID(N'[dbo].[TopUpServiceMaster]'))
+BEGIN
+    CREATE UNIQUE NONCLUSTERED INDEX [IX_TopUpServiceMaster_TenantName_StoreCode_TopUpName]
+    ON [dbo].[TopUpServiceMaster] ([TenantName], [StoreCode], [TopUpName]);
+END;
+
+IF NOT EXISTS (
+    SELECT 1
+    FROM sys.indexes
+    WHERE name IN (N'IX_TopUpServiceMaster_TenantName_StoreCode_IsActive_IsArchived', N'IX_TopUpServiceMaster_Tenant_Store_IsActive_IsArchived')
+      AND object_id = OBJECT_ID(N'[dbo].[TopUpServiceMaster]'))
+BEGIN
+    CREATE NONCLUSTERED INDEX [IX_TopUpServiceMaster_TenantName_StoreCode_IsActive_IsArchived]
+    ON [dbo].[TopUpServiceMaster] ([TenantName], [StoreCode], [IsActive], [IsArchived]);
+END;
+
+IF OBJECT_ID(N'[dbo].[TopUpServiceApplicability]', N'U') IS NULL
+BEGIN
+    CREATE TABLE [dbo].[TopUpServiceApplicability](
+        [Id] [int] IDENTITY(1,1) NOT NULL,
+        [TopUpServiceMasterId] [int] NOT NULL,
+        [TenantName] [nvarchar](256) NOT NULL,
+        [StoreCode] [nvarchar](64) NOT NULL,
+        [ServiceType] [nvarchar](64) NULL,
+        [Category] [nvarchar](64) NULL,
+        [ItemName] [nvarchar](128) NULL,
+        [IsActive] [bit] NOT NULL,
+        [CreatedDate] [datetime2](7) NOT NULL,
+        [ModifiedDate] [datetime2](7) NOT NULL,
+        CONSTRAINT [PK_TopUpServiceApplicability] PRIMARY KEY CLUSTERED ([Id] ASC),
+        CONSTRAINT [FK_TopUpServiceApplicability_TopUpServiceMaster_TopUpServiceMasterId]
+            FOREIGN KEY([TopUpServiceMasterId]) REFERENCES [dbo].[TopUpServiceMaster] ([Id])
+    );
+END;
+
+IF NOT EXISTS (
+    SELECT 1
+    FROM sys.indexes
+    WHERE name IN (
+        N'IX_TopUpServiceApplicability_TenantName_StoreCode_TopUpServiceMasterId_ServiceType_Category_ItemName',
+        N'IX_TopUpServiceApplicability_Tenant_Store_Master_Service_Category_Item')
+      AND object_id = OBJECT_ID(N'[dbo].[TopUpServiceApplicability]'))
+BEGIN
+    CREATE UNIQUE NONCLUSTERED INDEX [IX_TopUpServiceApplicability_TenantName_StoreCode_TopUpServiceMasterId_ServiceType_Category_ItemName]
+    ON [dbo].[TopUpServiceApplicability] ([TenantName], [StoreCode], [TopUpServiceMasterId], [ServiceType], [Category], [ItemName])
+    WHERE [ServiceType] IS NOT NULL AND [Category] IS NOT NULL AND [ItemName] IS NOT NULL;
+END;
+
+IF NOT EXISTS (
+    SELECT 1
+    FROM sys.indexes
+    WHERE name IN (N'IX_TopUpServiceApplicability_TenantName_StoreCode_IsActive', N'IX_TopUpServiceApplicability_Tenant_Store_IsActive')
+      AND object_id = OBJECT_ID(N'[dbo].[TopUpServiceApplicability]'))
+BEGIN
+    CREATE NONCLUSTERED INDEX [IX_TopUpServiceApplicability_TenantName_StoreCode_IsActive]
+    ON [dbo].[TopUpServiceApplicability] ([TenantName], [StoreCode], [IsActive]);
+END;
+
+IF NOT EXISTS (
+    SELECT 1
+    FROM sys.indexes
+    WHERE name = N'IX_TopUpServiceApplicability_TopUpServiceMasterId'
+      AND object_id = OBJECT_ID(N'[dbo].[TopUpServiceApplicability]'))
+BEGIN
+    CREATE NONCLUSTERED INDEX [IX_TopUpServiceApplicability_TopUpServiceMasterId]
+    ON [dbo].[TopUpServiceApplicability] ([TopUpServiceMasterId]);
+END;
+
+IF OBJECT_ID(N'[dbo].[LaundryOrderTopUps]', N'U') IS NULL
+BEGIN
+    CREATE TABLE [dbo].[LaundryOrderTopUps](
+        [Id] [int] IDENTITY(1,1) NOT NULL,
+        [LaundryOrderId] [int] NOT NULL,
+        [TenantName] [nvarchar](256) NOT NULL,
+        [StoreCode] [nvarchar](64) NOT NULL,
+        [OrderNo] [nvarchar](64) NOT NULL,
+        [LineNo] [int] NOT NULL,
+        [TopUpName] [nvarchar](128) NOT NULL,
+        [ChargeType] [nvarchar](32) NOT NULL,
+        [ServiceType] [nvarchar](64) NULL,
+        [Category] [nvarchar](64) NULL,
+        [ItemName] [nvarchar](128) NULL,
+        [PieceNo] [int] NOT NULL,
+        [AppliedQuantity] [decimal](18,3) NOT NULL,
+        [UnitPriceSnapshot] [decimal](18,2) NOT NULL,
+        [LineAmountSnapshot] [decimal](18,2) NOT NULL,
+        [CreatedDate] [datetime2](7) NOT NULL,
+        CONSTRAINT [PK_LaundryOrderTopUps] PRIMARY KEY CLUSTERED ([Id] ASC),
+        CONSTRAINT [FK_LaundryOrderTopUps_LaundryOrders_LaundryOrderId]
+            FOREIGN KEY([LaundryOrderId]) REFERENCES [dbo].[LaundryOrders] ([Id])
+    );
+END;
+
+IF NOT EXISTS (
+    SELECT 1
+    FROM sys.indexes
+    WHERE name = N'IX_LaundryOrderTopUps_LaundryOrderId_LineNo'
+      AND object_id = OBJECT_ID(N'[dbo].[LaundryOrderTopUps]'))
+BEGIN
+    CREATE NONCLUSTERED INDEX [IX_LaundryOrderTopUps_LaundryOrderId_LineNo]
+    ON [dbo].[LaundryOrderTopUps] ([LaundryOrderId], [LineNo]);
+END;
+
+IF NOT EXISTS (
+    SELECT 1
+    FROM sys.indexes
+    WHERE name IN (N'IX_LaundryOrderTopUps_TenantName_StoreCode_OrderNo_LineNo', N'IX_LaundryOrderTopUps_Tenant_Store_OrderNo_LineNo')
+      AND object_id = OBJECT_ID(N'[dbo].[LaundryOrderTopUps]'))
+BEGIN
+    CREATE NONCLUSTERED INDEX [IX_LaundryOrderTopUps_TenantName_StoreCode_OrderNo_LineNo]
+    ON [dbo].[LaundryOrderTopUps] ([TenantName], [StoreCode], [OrderNo], [LineNo]);
 END;";
 
             await _masterDbContext.Database.ExecuteSqlRawAsync(createTableSql);

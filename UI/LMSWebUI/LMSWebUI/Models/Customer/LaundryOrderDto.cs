@@ -3,6 +3,25 @@ using System.Collections.Generic;
 
 namespace LMSWebUI.Models.Customer
 {
+    public class LaundryGarmentPieceDetailDto
+    {
+        public int PieceNo { get; set; }
+
+        public string BrandName { get; set; }
+
+        public string PrimaryColor { get; set; }
+
+        public string SecondaryColor { get; set; }
+
+        public string Pattern { get; set; }
+
+        public string ExistingDefects { get; set; }
+
+        public string DefectRemarks { get; set; }
+
+        public string SpecialInstructions { get; set; }
+    }
+
     public class LaundryOrderItemDto
     {
         public string ServiceType { get; set; }
@@ -18,6 +37,57 @@ namespace LMSWebUI.Models.Customer
         public int PieceNo { get; set; }
 
         public string TagNo { get; set; }
+
+        public string BrandName { get; set; }
+
+        public string PrimaryColor { get; set; }
+
+        public string SecondaryColor { get; set; }
+
+        public string Pattern { get; set; }
+
+        public string ExistingDefects { get; set; }
+
+        public string DefectRemarks { get; set; }
+
+        public string SpecialInstructions { get; set; }
+
+        public List<LaundryGarmentPieceDetailDto> PieceDetails { get; set; } = new List<LaundryGarmentPieceDetailDto>();
+    }
+
+    public class LaundryOrderTopUpDto
+    {
+        public int Id { get; set; }
+
+        public int LaundryOrderId { get; set; }
+
+        public string TenantName { get; set; }
+
+        public string StoreCode { get; set; }
+
+        public string OrderNo { get; set; }
+
+        public int LineNo { get; set; }
+
+        public string TopUpName { get; set; }
+
+        public string ChargeType { get; set; }
+
+        public string ServiceType { get; set; }
+
+        public string Category { get; set; }
+
+        public string ItemName { get; set; }
+
+        public int PieceNo { get; set; }
+
+        public decimal AppliedQuantity { get; set; }
+
+        public decimal UnitPriceSnapshot { get; set; }
+
+        public decimal LineAmountSnapshot { get; set; }
+
+        public DateTime CreatedDate { get; set; }
     }
 
     public class LaundryOrderDto
@@ -68,6 +138,8 @@ namespace LMSWebUI.Models.Customer
 
         public decimal NetPayable { get; set; }
 
+        public decimal TopUpAmount { get; set; }
+
         public string PaymentMode { get; set; } = "Cash";
 
         public string PaymentId { get; set; }
@@ -84,6 +156,8 @@ namespace LMSWebUI.Models.Customer
 
         public string OrderItemsJson { get; set; }
 
+        public string TopUpsJson { get; set; }
+
         public DateTime CreatedDate { get; set; }
 
         public int TotalPieces { get; set; }
@@ -91,5 +165,7 @@ namespace LMSWebUI.Models.Customer
         public List<LaundryOrderDto> Orders { get; set; } = new List<LaundryOrderDto>();
 
         public List<LaundryOrderItemDto> Items { get; set; } = new List<LaundryOrderItemDto>();
+
+        public List<LaundryOrderTopUpDto> TopUps { get; set; } = new List<LaundryOrderTopUpDto>();
     }
 }

@@ -424,12 +424,24 @@ namespace LMS.Master.BusinessSerive.Data.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
+                    b.Property<string>("BrandName")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
                     b.Property<string>("Category")
                         .HasMaxLength(64)
                         .HasColumnType("nvarchar(64)");
 
                     b.Property<DateTime>("CreatedDate")
                         .HasColumnType("datetime2");
+
+                    b.Property<string>("DefectRemarks")
+                        .HasMaxLength(512)
+                        .HasColumnType("nvarchar(512)");
+
+                    b.Property<string>("ExistingDefects")
+                        .HasMaxLength(1024)
+                        .HasColumnType("nvarchar(1024)");
 
                     b.Property<string>("ItemName")
                         .HasMaxLength(128)
@@ -440,12 +452,28 @@ namespace LMS.Master.BusinessSerive.Data.Migrations
                         .HasMaxLength(64)
                         .HasColumnType("nvarchar(64)");
 
+                    b.Property<string>("Pattern")
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
                     b.Property<int>("PieceNo")
                         .HasColumnType("int");
+
+                    b.Property<string>("PrimaryColor")
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<string>("SecondaryColor")
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
 
                     b.Property<string>("ServiceType")
                         .HasMaxLength(64)
                         .HasColumnType("nvarchar(64)");
+
+                    b.Property<string>("SpecialInstructions")
+                        .HasMaxLength(512)
+                        .HasColumnType("nvarchar(512)");
 
                     b.Property<string>("StoreCode")
                         .IsRequired()
@@ -548,6 +576,81 @@ namespace LMS.Master.BusinessSerive.Data.Migrations
                     b.HasIndex("TenantName", "StoreCode", "OrderNo", "LineNo");
 
                     b.ToTable("LaundryOrderTaxLines", (string)null);
+                });
+
+            modelBuilder.Entity("LMS.Master.DTO.Entity.LaundryOrderTopUpEntity", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<decimal>("AppliedQuantity")
+                        .HasColumnType("decimal(18,3)");
+
+                    b.Property<string>("Category")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<string>("ChargeType")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<DateTime>("CreatedDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("ItemName")
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<int>("LaundryOrderId")
+                        .HasColumnType("int");
+
+                    b.Property<decimal>("LineAmountSnapshot")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<int>("LineNo")
+                        .HasColumnType("int");
+
+                    b.Property<string>("OrderNo")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<int>("PieceNo")
+                        .HasColumnType("int");
+
+                    b.Property<string>("ServiceType")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<string>("StoreCode")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<string>("TenantName")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
+
+                    b.Property<string>("TopUpName")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<decimal>("UnitPriceSnapshot")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("LaundryOrderId", "LineNo");
+
+                    b.HasIndex("TenantName", "StoreCode", "OrderNo", "LineNo");
+
+                    b.ToTable("LaundryOrderTopUps", (string)null);
                 });
 
             modelBuilder.Entity("LMS.Master.DTO.Entity.PaymentSettingsEntity", b =>
@@ -732,6 +835,9 @@ namespace LMS.Master.BusinessSerive.Data.Migrations
                         .HasColumnType("int");
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<bool>("AllowZeroPriceItems")
+                        .HasColumnType("bit");
 
                     b.Property<DateTime>("CreatedDate")
                         .HasColumnType("datetime2");
@@ -1119,6 +1225,118 @@ namespace LMS.Master.BusinessSerive.Data.Migrations
                     b.ToTable("TenantIntegrationSettings", (string)null);
                 });
 
+            modelBuilder.Entity("LMS.Master.DTO.Entity.TopUpServiceApplicabilityEntity", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Category")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<DateTime>("CreatedDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("ItemName")
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<DateTime>("ModifiedDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("ServiceType")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<string>("StoreCode")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<string>("TenantName")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
+
+                    b.Property<int>("TopUpServiceMasterId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TopUpServiceMasterId");
+
+                    b.HasIndex("TenantName", "StoreCode", "IsActive");
+
+                    b.HasIndex("TenantName", "StoreCode", "TopUpServiceMasterId", "ServiceType", "Category", "ItemName")
+                        .IsUnique()
+                        .HasFilter("[ServiceType] IS NOT NULL AND [Category] IS NOT NULL AND [ItemName] IS NOT NULL");
+
+                    b.ToTable("TopUpServiceApplicability", (string)null);
+                });
+
+            modelBuilder.Entity("LMS.Master.DTO.Entity.TopUpServiceMasterEntity", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("ChargeType")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<DateTime>("CreatedDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsArchived")
+                        .HasColumnType("bit");
+
+                    b.Property<DateTime>("ModifiedDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("StoreCode")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<string>("TenantName")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
+
+                    b.Property<string>("TopUpName")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<decimal>("UnitPrice")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantName", "StoreCode", "TopUpName")
+                        .IsUnique();
+
+                    b.HasIndex("TenantName", "StoreCode", "IsActive", "IsArchived");
+
+                    b.ToTable("TopUpServiceMaster", (string)null);
+                });
+
             modelBuilder.Entity("LMS.Master.DTO.Entity.WorkflowStatusEntity", b =>
                 {
                     b.Property<int>("Id")
@@ -1181,6 +1399,15 @@ namespace LMS.Master.BusinessSerive.Data.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("LMS.Master.DTO.Entity.LaundryOrderTopUpEntity", b =>
+                {
+                    b.HasOne("LMS.Master.DTO.Entity.LaundryOrderEntity", null)
+                        .WithMany()
+                        .HasForeignKey("LaundryOrderId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("LMS.Master.DTO.Entity.TaxInvoiceComponentEntity", b =>
                 {
                     b.HasOne("LMS.Master.DTO.Entity.TaxInvoiceSettingsEntity", "TaxInvoiceSettings")
@@ -1190,6 +1417,15 @@ namespace LMS.Master.BusinessSerive.Data.Migrations
                         .IsRequired();
 
                     b.Navigation("TaxInvoiceSettings");
+                });
+
+            modelBuilder.Entity("LMS.Master.DTO.Entity.TopUpServiceApplicabilityEntity", b =>
+                {
+                    b.HasOne("LMS.Master.DTO.Entity.TopUpServiceMasterEntity", null)
+                        .WithMany()
+                        .HasForeignKey("TopUpServiceMasterId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("LMS.Master.DTO.Entity.TaxInvoiceSettingsEntity", b =>

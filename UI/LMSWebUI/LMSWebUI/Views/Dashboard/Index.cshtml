@@ -3418,6 +3418,12 @@
                                 <button type="button" class="admin-menu-btn" onclick="location.href='@Url.Action("PricingRules", "Customer")'">Open</button>
                             </div>
 
+                            <div class="admin-menu-card @(IsActiveAdminMenu("TopUpServicesManagement") ? "active" : string.Empty)">
+                                <p class="admin-menu-card-title">Top-up Services Management</p>
+                                <p class="admin-menu-card-desc">Create and manage add-on services, archive/restore top-ups, and configure applicability.</p>
+                                <button type="button" class="admin-menu-btn" onclick="location.href='@Url.Action("TopUpServicesManagement", "Customer")'">Open</button>
+                            </div>
+
                             <div class="admin-menu-card @(IsActiveAdminMenu("ImportExportPricesCsv") ? "active" : string.Empty)">
                                 <p class="admin-menu-card-title">Import/Export Prices (CSV)</p>
                                 <p class="admin-menu-card-desc">Download pricing CSV template and import updated item prices for this store.</p>

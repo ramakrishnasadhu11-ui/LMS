@@ -13,6 +13,11 @@
     var paidNow = (Model?.PaidNow ?? 0);
     var pendingAmount = (Model?.PendingAmount ?? Model?.NetPayable ?? 0);
     var totalDue = (Model?.NetPayable ?? 0);
+    var topUpAmount = (Model?.TopUpAmount ?? 0);
+    var topUps = (Model?.TopUps ?? new List<LMSWebUI.Models.Customer.LaundryOrderTopUpDto>())
+        .Where(x => x != null)
+        .OrderBy(x => x.LineNo)
+        .ToList();
     var taxLines = (Model?.TaxLines ?? new List<LMSWebUI.Models.Customer.LaundryOrderTaxLineDto>())
         .Where(x => x != null)
         .OrderBy(x => x.LineNo)
@@ -365,10 +370,51 @@
                             <td class="num">@await ((IHtmlHelper)Html).FormatCurrencyAsync(lineTotal)</td>
                         </tr>
                     }
+
+                    if (topUps.Count > 0)
+                    {
+                        foreach (var topUp in topUps)
+                        {
+                            rowNo++;
+                            <tr>
+                                <td class="center">@rowNo</td>
+                                <td>
+                                    @topUp.TopUpName
+                                    <div style="font-size:11px; color:#6b7280;">Top-up (@topUp.ChargeType)</div>
+                                </td>
+                                <td class="tag-col">-</td>
+                                <td class="num">@await ((IHtmlHelper)Html).FormatCurrencyAsync(topUp.UnitPriceSnapshot)</td>
+                                <td class="num">@topUp.AppliedQuantity.ToString("0.###")</td>
+                                <td class="num">@await ((IHtmlHelper)Html).FormatCurrencyAsync(topUp.LineAmountSnapshot)</td>
+                            </tr>
+                        }
+                    }
                 }
                 else
                 {
-                    <tr><td colspan="6">No line items available.</td></tr>
+                    if (topUps.Count == 0)
+                    {
+                        <tr><td colspan="6">No line items available.</td></tr>
+                    }
+                    else
+                    {
+                        var rowNo = 0;
+                        foreach (var topUp in topUps)
+                        {
+                            rowNo++;
+                            <tr>
+                                <td class="center">@rowNo</td>
+                                <td>
+                                    @topUp.TopUpName
+                                    <div style="font-size:11px; color:#6b7280;">Top-up (@topUp.ChargeType)</div>
+                                </td>
+                                <td class="tag-col">-</td>
+                                <td class="num">@await ((IHtmlHelper)Html).FormatCurrencyAsync(topUp.UnitPriceSnapshot)</td>
+                                <td class="num">@topUp.AppliedQuantity.ToString("0.###")</td>
+                                <td class="num">@await ((IHtmlHelper)Html).FormatCurrencyAsync(topUp.LineAmountSnapshot)</td>
+                            </tr>
+                        }
+                    }
                 }
             </tbody>
         </table>
@@ -379,6 +425,13 @@
                     <span>Subtotal</span>
                     <span>@await ((IHtmlHelper)Html).FormatCurrencyAsync(subTotal)</span>
                 </div>
+                @if (topUpAmount > 0 || topUps.Count > 0)
+                {
+                    <div class="summary-row">
+                        <span>Top-ups</span>
+                        <span>@await ((IHtmlHelper)Html).FormatCurrencyAsync(topUpAmount > 0 ? topUpAmount : topUps.Sum(x => x.LineAmountSnapshot))</span>
+                    </div>
+                }
                 @if (taxLines.Count > 0)
                 {
                     foreach (var taxLine in taxLines)

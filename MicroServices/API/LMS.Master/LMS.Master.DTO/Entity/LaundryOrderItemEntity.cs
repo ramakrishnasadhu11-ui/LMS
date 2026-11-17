@@ -33,6 +33,20 @@ namespace LMS.Master.DTO.Entity
 
         public string TagNo { get; set; }
 
+        public string BrandName { get; set; }
+
+        public string PrimaryColor { get; set; }
+
+        public string SecondaryColor { get; set; }
+
+        public string Pattern { get; set; }
+
+        public string ExistingDefects { get; set; }
+
+        public string DefectRemarks { get; set; }
+
+        public string SpecialInstructions { get; set; }
+
         public DateTime CreatedDate { get; set; }
     }
 }

@@ -108,6 +108,379 @@ namespace LMSWebUI.Controllers
             }
         }
 
+        [HttpGet]
+        public async Task<IActionResult> TopUpServicesManagement(bool includeInactive = true)
+        {
+            if (!CanManageStoreConfiguration())
+            {
+                TempData["UserMessage"] = JsonConvert.SerializeObject(new MessageDto
+                {
+                    CssClassName = "alert alert-danger",
+                    Title = "Access Denied!",
+                    DisplayMessage = "You do not have permission to manage top-up services."
+                });
+                return RedirectToAction("Index", "Dashboard");
+            }
+
+            var tenantName = HttpContext.Session.GetString("TenantName");
+            var storeCode = HttpContext.Session.GetString("TenantStore");
+
+            if (string.IsNullOrWhiteSpace(tenantName) || string.IsNullOrWhiteSpace(storeCode))
+            {
+                TempData["UserMessage"] = JsonConvert.SerializeObject(new MessageDto
+                {
+                    CssClassName = "alert alert-danger",
+                    Title = "Failed.",
+                    DisplayMessage = "Session expired. Please log in again."
+                });
+                return RedirectToAction("Login", "Login");
+            }
+
+            var scopeValidation = await ValidateCurrentStoreAccessAsync(tenantName, storeCode);
+            if (!scopeValidation.IsValid)
+            {
+                TempData["UserMessage"] = JsonConvert.SerializeObject(new MessageDto
+                {
+                    CssClassName = "alert alert-danger",
+                    Title = "Failed.",
+                    DisplayMessage = scopeValidation.Message
+                });
+                return RedirectToAction("Index", "Dashboard");
+            }
+
+            var model = new TopUpServicesManagementViewModel
+            {
+                TenantName = tenantName,
+                StoreCode = storeCode,
+                IncludeInactive = includeInactive,
+                TopUpServices = await LoadTopUpServiceMastersAsync(tenantName, storeCode, includeInactive)
+            };
+
+            return View(model);
+        }
+
+        [HttpGet]
+        public async Task<JsonResult> GetTopUpServiceMasters(bool includeInactive = true)
+        {
+            if (!CanManageStoreConfiguration())
+            {
+                return Json(new
+                {
+                    success = false,
+                    message = "You do not have permission to manage top-up services.",
+                    items = new List<TopUpServiceMasterDto>()
+                });
+            }
+
+            var tenantName = HttpContext.Session.GetString("TenantName");
+            var storeCode = HttpContext.Session.GetString("TenantStore");
+
+            if (string.IsNullOrWhiteSpace(tenantName) || string.IsNullOrWhiteSpace(storeCode))
+            {
+                return Json(new
+                {
+                    success = false,
+                    message = "Session expired. Please log in again.",
+                    items = new List<TopUpServiceMasterDto>()
+                });
+            }
+
+            var scopeValidation = await ValidateCurrentStoreAccessAsync(tenantName, storeCode);
+            if (!scopeValidation.IsValid)
+            {
+                return Json(new
+                {
+                    success = false,
+                    message = scopeValidation.Message,
+                    items = new List<TopUpServiceMasterDto>()
+                });
+            }
+
+            try
+            {
+                var topUps = await LoadTopUpServiceMastersAsync(tenantName, storeCode, includeInactive);
+                return Json(new
+                {
+                    success = true,
+                    message = string.Empty,
+                    tenantName,
+                    storeCode,
+                    includeInactive,
+                    totalCount = topUps.Count,
+                    activeCount = topUps.Count(x => x != null && x.IsActive && !x.IsArchived),
+                    archivedCount = topUps.Count(x => x != null && x.IsArchived),
+                    items = topUps
+                });
+            }
+            catch (Exception ex)
+            {
+                return Json(new
+                {
+                    success = false,
+                    message = BuildApiErrorMessage(ex, "Unable to load top-up services."),
+                    items = new List<TopUpServiceMasterDto>()
+                });
+            }
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<JsonResult> SaveTopUpServiceMaster([FromBody] SaveTopUpServiceMasterRequestDto request)
+        {
+            if (!CanManageStoreConfiguration())
+            {
+                return Json(new { success = false, message = "You do not have permission to manage top-up services." });
+            }
+
+            var tenantName = HttpContext.Session.GetString("TenantName");
+            var storeCode = HttpContext.Session.GetString("TenantStore");
+
+            if (string.IsNullOrWhiteSpace(tenantName) || string.IsNullOrWhiteSpace(storeCode))
+            {
+                return Json(new { success = false, message = "Session expired. Please log in again." });
+            }
+
+            var scopeValidation = await ValidateCurrentStoreAccessAsync(tenantName, storeCode);
+            if (!scopeValidation.IsValid)
+            {
+                return Json(new { success = false, message = scopeValidation.Message });
+            }
+
+            if (request?.TopUpService == null)
+            {
+                return Json(new { success = false, message = "Invalid top-up payload." });
+            }
+
+            var topUpName = request.TopUpService.TopUpName?.Trim();
+            if (string.IsNullOrWhiteSpace(topUpName))
+            {
+                return Json(new { success = false, message = "Top-up name is required." });
+            }
+
+            var normalizedChargeType = request.TopUpService.ChargeType?.Trim();
+            if (!string.Equals(normalizedChargeType, "PerGarment", StringComparison.OrdinalIgnoreCase)
+                && !string.Equals(normalizedChargeType, "PerOrder", StringComparison.OrdinalIgnoreCase))
+            {
+                return Json(new { success = false, message = "Charge type must be PerGarment or PerOrder." });
+            }
+
+            if (request.TopUpService.UnitPrice < 0)
+            {
+                return Json(new { success = false, message = "Top-up price cannot be negative." });
+            }
+
+            request.TenantName = tenantName;
+            request.StoreCode = storeCode;
+            request.TopUpService.TenantName = tenantName;
+            request.TopUpService.StoreCode = storeCode;
+            request.TopUpService.TopUpName = topUpName;
+            request.TopUpService.ChargeType = string.Equals(normalizedChargeType, "PerOrder", StringComparison.OrdinalIgnoreCase)
+                ? "PerOrder"
+                : "PerGarment";
+            request.TopUpService.Description = request.TopUpService.Description?.Trim();
+
+            if (request.TopUpService.Applicability == null)
+            {
+                request.TopUpService.Applicability = new List<TopUpServiceApplicabilityDto>();
+            }
+
+            foreach (var applicability in request.TopUpService.Applicability)
+            {
+                if (applicability == null)
+                {
+                    continue;
+                }
+
+                applicability.TenantName = tenantName;
+                applicability.StoreCode = storeCode;
+                applicability.ServiceType = applicability.ServiceType?.Trim();
+                applicability.Category = applicability.Category?.Trim();
+                applicability.ItemName = applicability.ItemName?.Trim();
+            }
+
+            try
+            {
+                var response = await _clientApi.SendRequestAsync<SaveTopUpServiceMasterResponseDto>("/SaveTopUpServiceMaster", request, Method.POST);
+
+                var isSuccess = IsSuccessfulApiStatusCode(response?.StatusCode);
+                return Json(new
+                {
+                    success = isSuccess,
+                    message = string.IsNullOrWhiteSpace(response?.Message)
+                        ? (isSuccess ? "Top-up service saved successfully." : "Unable to save top-up service.")
+                        : response.Message,
+                    item = response?.TopUpService
+                });
+            }
+            catch (Exception ex)
+            {
+                return Json(new { success = false, message = BuildApiErrorMessage(ex, "Unable to save top-up service.") });
+            }
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<JsonResult> SetTopUpServiceStatus([FromBody] SetTopUpServiceStatusRequestDto request)
+        {
+            if (!CanManageStoreConfiguration())
+            {
+                return Json(new { success = false, message = "You do not have permission to manage top-up services." });
+            }
+
+            var tenantName = HttpContext.Session.GetString("TenantName");
+            var storeCode = HttpContext.Session.GetString("TenantStore");
+
+            if (string.IsNullOrWhiteSpace(tenantName) || string.IsNullOrWhiteSpace(storeCode))
+            {
+                return Json(new { success = false, message = "Session expired. Please log in again." });
+            }
+
+            var scopeValidation = await ValidateCurrentStoreAccessAsync(tenantName, storeCode);
+            if (!scopeValidation.IsValid)
+            {
+                return Json(new { success = false, message = scopeValidation.Message });
+            }
+
+            if (request == null || string.IsNullOrWhiteSpace(request.TopUpName))
+            {
+                return Json(new { success = false, message = "Top-up name is required." });
+            }
+
+            request.TenantName = tenantName;
+            request.StoreCode = storeCode;
+            request.TopUpName = request.TopUpName.Trim();
+
+            try
+            {
+                var response = await _clientApi.SendRequestAsync<SetTopUpServiceStatusResponseDto>("/SetTopUpServiceStatus", request, Method.POST);
+                var isSuccess = IsSuccessfulApiStatusCode(response?.StatusCode);
+                return Json(new
+                {
+                    success = isSuccess,
+                    message = string.IsNullOrWhiteSpace(response?.Message)
+                        ? (isSuccess ? "Top-up service status updated successfully." : "Unable to update top-up service status.")
+                        : response.Message,
+                    item = response?.TopUpService
+                });
+            }
+            catch (Exception ex)
+            {
+                return Json(new { success = false, message = BuildApiErrorMessage(ex, "Unable to update top-up service status.") });
+            }
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<JsonResult> GetApplicableTopUps([FromBody] GetApplicableTopUpsRequestDto request)
+        {
+            if (!CanManageStoreConfiguration() && !CanManageStoreOrderWorkflow())
+            {
+                return Json(new
+                {
+                    success = false,
+                    message = "You do not have permission to manage top-up services.",
+                    items = new List<TopUpServiceMasterDto>()
+                });
+            }
+
+            var tenantName = HttpContext.Session.GetString("TenantName");
+            var storeCode = HttpContext.Session.GetString("TenantStore");
+
+            if (string.IsNullOrWhiteSpace(tenantName) || string.IsNullOrWhiteSpace(storeCode))
+            {
+                return Json(new
+                {
+                    success = false,
+                    message = "Session expired. Please log in again.",
+                    items = new List<TopUpServiceMasterDto>()
+                });
+            }
+
+            var scopeValidation = await ValidateCurrentStoreAccessAsync(tenantName, storeCode);
+            if (!scopeValidation.IsValid)
+            {
+                return Json(new
+                {
+                    success = false,
+                    message = scopeValidation.Message,
+                    items = new List<TopUpServiceMasterDto>()
+                });
+            }
+
+            request ??= new GetApplicableTopUpsRequestDto();
+            request.TenantName = tenantName;
+            request.StoreCode = storeCode;
+            request.ServiceType = request.ServiceType?.Trim();
+            request.Category = request.Category?.Trim();
+            request.ItemName = request.ItemName?.Trim();
+            request.OrderMode = request.OrderMode?.Trim();
+
+            try
+            {
+                var response = await _clientApi.SendRequestAsync<GetApplicableTopUpsResponseDto>("/GetApplicableTopUps", request, Method.POST);
+                var topUps = response?.TopUpServices ?? new List<TopUpServiceMasterDto>();
+                return Json(new
+                {
+                    success = true,
+                    message = string.Empty,
+                    items = topUps
+                });
+            }
+            catch (Exception ex)
+            {
+                return Json(new
+                {
+                    success = false,
+                    message = BuildApiErrorMessage(ex, "Unable to load applicable top-ups."),
+                    items = new List<TopUpServiceMasterDto>()
+                });
+            }
+        }
+
+        private async Task<List<TopUpServiceMasterDto>> LoadTopUpServiceMastersAsync(string tenantName, string storeCode, bool includeInactive)
+        {
+            var query = new Dictionary<string, string>
+            {
+                { "tenantName", tenantName },
+                { "storeCode", storeCode },
+                { "includeInactive", includeInactive ? "true" : "false" }
+            };
+
+            try
+            {
+                var response = await _clientApi.SendRequestAsync<GetTopUpServiceMastersResponseDto>("/GetTopUpServiceMasters", query, Method.GET);
+                if (response?.TopUpServices != null)
+                {
+                    return response.TopUpServices;
+                }
+            }
+            catch
+            {
+            }
+
+            try
+            {
+                var token = await _clientApi.SendRequestAsync<JObject>("/GetTopUpServiceMasters", query, Method.GET);
+                if (token == null)
+                {
+                    return new List<TopUpServiceMasterDto>();
+                }
+
+                var listToken = token["TopUpServices"]
+                    ?? token["topUpServices"]
+                    ?? token["ResultSet"]?["TopUpServices"]
+                    ?? token["ResultSet"]?["topUpServices"]
+                    ?? token["resultSet"]?["TopUpServices"]
+                    ?? token["resultSet"]?["topUpServices"];
+
+                return listToken?.ToObject<List<TopUpServiceMasterDto>>() ?? new List<TopUpServiceMasterDto>();
+            }
+            catch
+            {
+                return new List<TopUpServiceMasterDto>();
+            }
+        }
+
         /// <summary>
         /// Reads the logged-in store scope from the session. Customer lookups are restricted
         /// to this scope so customers belonging to other stores are never returned.
@@ -147,6 +520,24 @@ namespace LMSWebUI.Controllers
             return string.Equals(userRole, "Admin", StringComparison.OrdinalIgnoreCase)
                    || string.Equals(userRole, "SuperAdmin", StringComparison.OrdinalIgnoreCase);
         }
+
+        private bool IsStoreOwnerOrTenantOwnerUser()
+        {
+            var userRole = HttpContext.Session.GetString("UserRole")?.Trim();
+            if (string.IsNullOrWhiteSpace(userRole))
+            {
+                return false;
+            }
+
+            return string.Equals(userRole, "Owner", StringComparison.OrdinalIgnoreCase)
+                   || string.Equals(userRole, "StoreOwner", StringComparison.OrdinalIgnoreCase)
+                   || string.Equals(userRole, "TenantOwner", StringComparison.OrdinalIgnoreCase)
+                   || string.Equals(userRole, "TenantAdmin", StringComparison.OrdinalIgnoreCase)
+                   || string.Equals(userRole, "StoreAdmin", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private bool CanManageStoreConfiguration()
+            => IsAdminUser() || IsStoreOwnerOrTenantOwnerUser();
 
         private string GetAuthenticatedTenantId()
         {
@@ -825,7 +1216,7 @@ namespace LMSWebUI.Controllers
 
         private IActionResult AdminOnlyView(string featureTitle, string description)
         {
-            if (!IsAdminUser())
+            if (!CanManageStoreConfiguration())
             {
                 TempData["UserMessage"] = JsonConvert.SerializeObject(new MessageDto
                 {
@@ -1129,7 +1520,7 @@ namespace LMSWebUI.Controllers
         [HttpGet]
         public async Task<IActionResult> StoreTimings()
         {
-            if (!IsAdminUser())
+            if (!CanManageStoreConfiguration())
             {
                 TempData["UserMessage"] = JsonConvert.SerializeObject(new MessageDto
                 {
@@ -1207,7 +1598,7 @@ namespace LMSWebUI.Controllers
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> StoreTimings(StoreConfigurationViewModel model)
         {
-            if (!IsAdminUser())
+            if (!CanManageStoreConfiguration())
             {
                 TempData["UserMessage"] = JsonConvert.SerializeObject(new MessageDto
                 {
@@ -1350,7 +1741,7 @@ namespace LMSWebUI.Controllers
         [HttpGet]
         public async Task<IActionResult> PricingRules()
         {
-            if (!IsAdminUser())
+            if (!CanManageStoreConfiguration())
             {
                 TempData["UserMessage"] = JsonConvert.SerializeObject(new MessageDto
                 {
@@ -1430,7 +1821,7 @@ namespace LMSWebUI.Controllers
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> PricingRules(PricingRulesViewModel model)
         {
-            if (!IsAdminUser())
+            if (!CanManageStoreConfiguration())
             {
                 TempData["UserMessage"] = JsonConvert.SerializeObject(new MessageDto
                 {
@@ -1543,7 +1934,7 @@ namespace LMSWebUI.Controllers
         [HttpGet]
         public IActionResult ServiceItemMaster()
         {
-            if (!IsAdminUser())
+            if (!CanManageStoreConfiguration())
             {
                 TempData["UserMessage"] = JsonConvert.SerializeObject(new MessageDto
                 {
@@ -1578,7 +1969,7 @@ namespace LMSWebUI.Controllers
         [HttpGet]
         public async Task<IActionResult> TaxInvoiceSettings()
         {
-            if (!IsAdminUser())
+            if (!CanManageStoreConfiguration())
             {
                 TempData["UserMessage"] = JsonConvert.SerializeObject(new MessageDto
                 {
@@ -1615,7 +2006,7 @@ namespace LMSWebUI.Controllers
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> TaxInvoiceSettings(TaxConfigurationViewModel model)
         {
-            if (!IsAdminUser())
+            if (!CanManageStoreConfiguration())
             {
                 TempData["UserMessage"] = JsonConvert.SerializeObject(new MessageDto
                 {
@@ -1900,7 +2291,7 @@ namespace LMSWebUI.Controllers
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> SaveTaxComponent(TaxConfigurationViewModel model)
         {
-            if (!IsAdminUser())
+            if (!CanManageStoreConfiguration())
             {
                 TempData["UserMessage"] = JsonConvert.SerializeObject(new MessageDto
                 {
@@ -1989,7 +2380,7 @@ namespace LMSWebUI.Controllers
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> DeactivateTaxComponent(int componentId, string concurrencyToken)
         {
-            if (!IsAdminUser())
+            if (!CanManageStoreConfiguration())
             {
                 TempData["UserMessage"] = JsonConvert.SerializeObject(new MessageDto
                 {
@@ -3152,7 +3543,7 @@ namespace LMSWebUI.Controllers
         [HttpGet]
         public async Task<IActionResult> BarcodeTagSettings()
         {
-            if (!IsAdminUser())
+            if (!CanManageStoreConfiguration())
             {
                 TempData["UserMessage"] = JsonConvert.SerializeObject(new MessageDto
                 {
@@ -3185,7 +3576,7 @@ namespace LMSWebUI.Controllers
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> BarcodeTagSettings(BarcodeTagSettingsViewModel model)
         {
-            if (!IsAdminUser())
+            if (!CanManageStoreConfiguration())
             {
                 TempData["UserMessage"] = JsonConvert.SerializeObject(new MessageDto
                 {
@@ -3432,7 +3823,7 @@ namespace LMSWebUI.Controllers
         [HttpGet]
         public async Task<IActionResult> WorkflowStatusSettings()
         {
-            if (!IsAdminUser())
+            if (!CanManageStoreConfiguration())
             {
                 TempData["UserMessage"] = JsonConvert.SerializeObject(new MessageDto
                 {
@@ -3465,7 +3856,7 @@ namespace LMSWebUI.Controllers
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> WorkflowStatusSettings(WorkflowStatusSettingsViewModel model)
         {
-            if (!IsAdminUser())
+            if (!CanManageStoreConfiguration())
             {
                 TempData["UserMessage"] = JsonConvert.SerializeObject(new MessageDto
                 {
@@ -3655,7 +4046,7 @@ namespace LMSWebUI.Controllers
         [HttpGet]
         public async Task<IActionResult> PaymentSettings()
         {
-            if (!IsAdminUser())
+            if (!CanManageStoreConfiguration())
             {
                 TempData["UserMessage"] = JsonConvert.SerializeObject(new MessageDto
                 {
@@ -3790,7 +4181,7 @@ namespace LMSWebUI.Controllers
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> PaymentSettings(PaymentSettingsViewModel model)
         {
-            if (!IsAdminUser())
+            if (!CanManageStoreConfiguration())
             {
                 TempData["UserMessage"] = JsonConvert.SerializeObject(new MessageDto
                 {
@@ -4571,7 +4962,7 @@ namespace LMSWebUI.Controllers
         [HttpGet]
         public async Task<IActionResult> NewStoreCreation()
         {
-            if (!IsAdminUser())
+            if (!CanManageStoreConfiguration())
             {
                 TempData["UserMessage"] = JsonConvert.SerializeObject(new MessageDto
                 {
@@ -4609,7 +5000,7 @@ namespace LMSWebUI.Controllers
         [HttpPost]
         public async Task<JsonResult> CreateNewStore(string newStoreCode)
         {
-            if (!IsAdminUser())
+            if (!CanManageStoreConfiguration())
             {
                 return Json(new { success = false, message = "Only admin users can create stores." });
             }
@@ -4706,7 +5097,7 @@ namespace LMSWebUI.Controllers
         [HttpPost]
         public async Task<JsonResult> SetNewStoreCreationStoreActiveStatus(string storeCode, bool isActive)
         {
-            if (!IsAdminUser())
+            if (!CanManageStoreConfiguration())
             {
                 return Json(new { success = false, message = "Only admin users can change store status." });
             }
@@ -4795,7 +5186,7 @@ namespace LMSWebUI.Controllers
         [HttpGet]
         public async Task<JsonResult> GetNewStoreCreationStoreStatuses()
         {
-            if (!IsAdminUser())
+            if (!CanManageStoreConfiguration())
             {
                 return Json(new { success = false, message = "Only admin users can view store status.", stores = new List<object>() });
             }
@@ -4983,6 +5374,82 @@ namespace LMSWebUI.Controllers
                                 statusLookup[itemStoreCode] = isActive;
                             }
                         }
+
+                        if (statusesArray == null || statusesArray.Count == 0)
+                        {
+                            JObject allStatuses = null;
+                            try
+                            {
+                                allStatuses = await _loginApi.SendRequestAsync<JObject>("/GetAllStoreStatuses", new Dictionary<string, string>(), Method.GET);
+                            }
+                            catch (Exception ex)
+                            {
+                                lastException = ex;
+                                var message = ex?.InnerException?.Message ?? ex?.Message ?? string.Empty;
+                                var shouldFallbackToMaster = ex is ApiUnavailableException
+                                    || message.Contains("NotFound", StringComparison.OrdinalIgnoreCase)
+                                    || message.Contains("404", StringComparison.OrdinalIgnoreCase)
+                                    || message.Contains("actively refused", StringComparison.OrdinalIgnoreCase)
+                                    || message.Contains("No connection could be made", StringComparison.OrdinalIgnoreCase);
+
+                                if (shouldFallbackToMaster)
+                                {
+                                    allStatuses = await _clientApi.SendRequestAsync<JObject>("/GetAllStoreStatuses", new Dictionary<string, string>(), Method.GET);
+                                }
+                                else
+                                {
+                                    throw;
+                                }
+                            }
+
+                            var fallbackStatusesToken = allStatuses?["StoreStatuses"] ?? allStatuses?["storeStatuses"] ?? new JArray();
+                            var fallbackStatusesArray = fallbackStatusesToken as JArray ?? fallbackStatusesToken?["$values"] as JArray ?? new JArray();
+
+                            foreach (var item in fallbackStatusesArray)
+                            {
+                                var itemStoreCode = (item?["StoreCode"] ?? item?["storeCode"])?.ToString()?.Trim();
+                                if (string.IsNullOrWhiteSpace(itemStoreCode)) continue;
+
+                                var itemTenantName = (item?["TenantName"] ?? item?["tenantName"])?.ToString()?.Trim();
+                                var itemTenantEmail = (item?["TenantEmail"] ?? item?["tenantEmail"])?.ToString()?.Trim();
+                                var belongsToTenant = string.Equals(itemTenantName, tenantName, StringComparison.OrdinalIgnoreCase)
+                                    || string.Equals(itemTenantEmail, tenantName, StringComparison.OrdinalIgnoreCase);
+
+                                if (!belongsToTenant) continue;
+
+                                bool isActive = false;
+                                var activeToken = item?["IsActive"] ?? item?["isActive"];
+                                if (activeToken != null)
+                                {
+                                    try
+                                    {
+                                        if (activeToken.Type == Newtonsoft.Json.Linq.JTokenType.Boolean)
+                                            isActive = activeToken.Value<bool>();
+                                        else
+                                        {
+                                            var sval = activeToken.ToString()?.Trim();
+                                            isActive = !string.IsNullOrWhiteSpace(sval) && (
+                                                string.Equals(sval, "1", StringComparison.OrdinalIgnoreCase)
+                                                || string.Equals(sval, "true", StringComparison.OrdinalIgnoreCase)
+                                                || string.Equals(sval, "yes", StringComparison.OrdinalIgnoreCase)
+                                                || string.Equals(sval, "active", StringComparison.OrdinalIgnoreCase));
+                                        }
+                                    }
+                                    catch
+                                    {
+                                        isActive = false;
+                                    }
+                                }
+                                else
+                                {
+                                    var statusToken = item?["Status"] ?? item?["status"];
+                                    var s = statusToken?.ToString()?.Trim();
+                                    isActive = !string.IsNullOrWhiteSpace(s) && string.Equals(s, "Active", StringComparison.OrdinalIgnoreCase);
+                                }
+
+                                statusLookup[itemStoreCode] = isActive;
+                            }
+                        }
                     }
                     else
                     {
@@ -5123,7 +5590,7 @@ namespace LMSWebUI.Controllers
         [HttpGet]
         public async Task<IActionResult> ImportExportPricesCsv()
         {
-            if (!IsAdminUser())
+            if (!CanManageStoreConfiguration())
             {
                 TempData["UserMessage"] = JsonConvert.SerializeObject(new MessageDto
                 {
@@ -5169,7 +5636,7 @@ namespace LMSWebUI.Controllers
         [HttpGet]
         public async Task<IActionResult> Integrations()
         {
-            if (!IsAdminUser())
+            if (!CanManageStoreConfiguration())
             {
                 TempData["UserMessage"] = JsonConvert.SerializeObject(new MessageDto
                 {
@@ -5216,7 +5683,7 @@ namespace LMSWebUI.Controllers
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> SaveIntegration(Models.Admin.IntegrationProviderViewModel model)
         {
-            if (!IsAdminUser())
+            if (!CanManageStoreConfiguration())
             {
                 return RedirectToAction(nameof(Integrations));
             }
@@ -5277,7 +5744,7 @@ namespace LMSWebUI.Controllers
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> ToggleIntegration(string category, string providerKey, bool isEnabled)
         {
-            if (!IsAdminUser())
+            if (!CanManageStoreConfiguration())
             {
                 return RedirectToAction(nameof(Integrations));
             }
@@ -5329,7 +5796,7 @@ namespace LMSWebUI.Controllers
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> TestIntegration(string category, string providerKey)
         {
-            if (!IsAdminUser())
+            if (!CanManageStoreConfiguration())
             {
                 return RedirectToAction(nameof(Integrations));
             }
@@ -5359,7 +5826,7 @@ namespace LMSWebUI.Controllers
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> SendTestEmail(string category, string providerKey, string recipientEmail)
         {
-            if (!IsAdminUser())
+            if (!CanManageStoreConfiguration())
             {
                 return RedirectToAction(nameof(Integrations));
             }
@@ -5495,7 +5962,7 @@ namespace LMSWebUI.Controllers
                 }
             }
 
-            if (!IsAdminUser())
+            if (!CanManageStoreConfiguration())
             {
                 return Json(new { success = false, message = "Only admin users can reveal webhook secrets." });
             }
@@ -5598,7 +6065,7 @@ namespace LMSWebUI.Controllers
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> RotateWebhookSecret(string category, string providerKey)
         {
-            if (!IsAdminUser())
+            if (!CanManageStoreConfiguration())
             {
                 return Json(new { success = false, message = "Only admin users can rotate webhook secrets." });
             }
@@ -5728,7 +6195,7 @@ namespace LMSWebUI.Controllers
         [HttpPost]
         public async Task<JsonResult> CreateStoreUser(string email, string password, string role = "StoreUser", string storeCode = null, List<string> storeCodes = null)
         {
-            if (!IsAdminUser())
+            if (!CanManageStoreConfiguration())
             {
                 return Json(new { success = false, message = "Only admin users can create store users." });
             }
@@ -6147,7 +6614,7 @@ namespace LMSWebUI.Controllers
         [HttpGet]
         public async Task<JsonResult> GetStoreUsers(string storeCode = null)
         {
-            if (!IsAdminUser())
+            if (!CanManageStoreConfiguration())
             {
                 return Json(new { success = false, message = "Only admin users can view store users.", users = new List<object>() });
             }
@@ -6294,7 +6761,7 @@ namespace LMSWebUI.Controllers
         [HttpGet]
         public async Task<IActionResult> StoreUsersSetup()
         {
-            if (!IsAdminUser())
+            if (!CanManageStoreConfiguration())
             {
                 TempData["UserMessage"] = JsonConvert.SerializeObject(new MessageDto
                 {
@@ -7613,6 +8080,61 @@ namespace LMSWebUI.Controllers
             }
 
             List<LaundryOrderItemDto> submittedItems = new List<LaundryOrderItemDto>();
+            List<LaundryOrderTopUpDto> submittedTopUps = new List<LaundryOrderTopUpDto>();
+
+            static string TrimOptional(string value, int maxLength)
+            {
+                if (string.IsNullOrWhiteSpace(value))
+                {
+                    return null;
+                }
+
+                var trimmed = value.Trim();
+                return trimmed.Length <= maxLength ? trimmed : trimmed.Substring(0, maxLength);
+            }
+
+            static string NormalizePattern(string value)
+            {
+                var normalized = TrimOptional(value, 32);
+                if (string.IsNullOrWhiteSpace(normalized))
+                {
+                    return null;
+                }
+
+                if (string.Equals(normalized, "solid", StringComparison.OrdinalIgnoreCase)) return "Solid";
+                if (string.Equals(normalized, "striped", StringComparison.OrdinalIgnoreCase)) return "Striped";
+                if (string.Equals(normalized, "checked", StringComparison.OrdinalIgnoreCase)) return "Checked";
+                if (string.Equals(normalized, "printed", StringComparison.OrdinalIgnoreCase)) return "Printed";
+                if (string.Equals(normalized, "other", StringComparison.OrdinalIgnoreCase)) return "Other";
+
+                return normalized;
+            }
+
+            static bool HasGarmentDetails(LaundryGarmentPieceDetailDto detail)
+            {
+                if (detail == null)
+                {
+                    return false;
+                }
+
+                return !string.IsNullOrWhiteSpace(detail.BrandName)
+                    || !string.IsNullOrWhiteSpace(detail.PrimaryColor)
+                    || !string.IsNullOrWhiteSpace(detail.SecondaryColor)
+                    || !string.IsNullOrWhiteSpace(detail.Pattern)
+                    || !string.IsNullOrWhiteSpace(detail.ExistingDefects)
+                    || !string.IsNullOrWhiteSpace(detail.DefectRemarks)
+                    || !string.IsNullOrWhiteSpace(detail.SpecialInstructions);
+            }
+
+            static string NormalizeChargeType(string value)
+            {
+                if (string.Equals(value?.Trim(), "PerOrder", StringComparison.OrdinalIgnoreCase))
+                {
+                    return "PerOrder";
+                }
+
+                return "PerGarment";
+            }
 
             if (!string.IsNullOrWhiteSpace(model.OrderItemsJson))
             {
@@ -7630,7 +8152,32 @@ namespace LMSWebUI.Controllers
                                 ItemName = x.ItemName?.Trim(),
                                 UnitPrice = x.UnitPrice,
                                 Quantity = x.Quantity > 0 ? x.Quantity : 1,
-                                TagNo = x.TagNo?.Trim()
+                                TagNo = x.TagNo?.Trim(),
+                                BrandName = TrimOptional(x.BrandName, 64),
+                                PrimaryColor = TrimOptional(x.PrimaryColor, 32),
+                                SecondaryColor = TrimOptional(x.SecondaryColor, 32),
+                                Pattern = NormalizePattern(x.Pattern),
+                                ExistingDefects = TrimOptional(x.ExistingDefects, 1024),
+                                DefectRemarks = TrimOptional(x.DefectRemarks, 512),
+                                SpecialInstructions = TrimOptional(x.SpecialInstructions, 512),
+                                PieceDetails = (x.PieceDetails ?? new List<LaundryGarmentPieceDetailDto>())
+                                    .Where(d => d != null && d.PieceNo > 0 && d.PieceNo <= (x.Quantity > 0 ? x.Quantity : 1))
+                                    .Select(d => new LaundryGarmentPieceDetailDto
+                                    {
+                                        PieceNo = d.PieceNo,
+                                        BrandName = TrimOptional(d.BrandName, 64),
+                                        PrimaryColor = TrimOptional(d.PrimaryColor, 32),
+                                        SecondaryColor = TrimOptional(d.SecondaryColor, 32),
+                                        Pattern = NormalizePattern(d.Pattern),
+                                        ExistingDefects = TrimOptional(d.ExistingDefects, 1024),
+                                        DefectRemarks = TrimOptional(d.DefectRemarks, 512),
+                                        SpecialInstructions = TrimOptional(d.SpecialInstructions, 512)
+                                    })
+                                    .Where(HasGarmentDetails)
+                                    .GroupBy(d => d.PieceNo)
+                                    .Select(g => g.Last())
+                                    .OrderBy(d => d.PieceNo)
+                                    .ToList()
                             })
                             .ToList();
                     }
@@ -7640,6 +8187,38 @@ namespace LMSWebUI.Controllers
                     submittedItems = new List<LaundryOrderItemDto>();
                 }
             }
+
+            if (!string.IsNullOrWhiteSpace(model.TopUpsJson))
+            {
+                try
+                {
+                    var parsedTopUps = JsonConvert.DeserializeObject<List<LaundryOrderTopUpDto>>(model.TopUpsJson);
+                    if (parsedTopUps != null)
+                    {
+                        submittedTopUps = parsedTopUps
+                            .Where(x => x != null && !string.IsNullOrWhiteSpace(x.TopUpName))
+                            .Select(x => new LaundryOrderTopUpDto
+                            {
+                                TopUpName = x.TopUpName?.Trim(),
+                                ChargeType = NormalizeChargeType(x.ChargeType),
+                                ServiceType = x.ServiceType?.Trim(),
+                                Category = x.Category?.Trim(),
+                                ItemName = x.ItemName?.Trim(),
+                                AppliedQuantity = Math.Round(Math.Max(0m, x.AppliedQuantity), 3, MidpointRounding.AwayFromZero),
+                                UnitPriceSnapshot = Math.Round(Math.Max(0m, x.UnitPriceSnapshot), 2, MidpointRounding.AwayFromZero),
+                                LineAmountSnapshot = Math.Round(Math.Max(0m, x.LineAmountSnapshot), 2, MidpointRounding.AwayFromZero)
+                            })
+                            .Where(x => x.AppliedQuantity > 0)
+                            .ToList();
+                    }
+                }
+                catch
+                {
+                    submittedTopUps = new List<LaundryOrderTopUpDto>();
+                }
+            }
+
+            model.TopUpAmount = Math.Round(submittedTopUps.Sum(x => x?.LineAmountSnapshot ?? 0m), 2, MidpointRounding.AwayFromZero);
 
             var orderCreated = false;
 
@@ -7665,7 +8244,9 @@ namespace LMSWebUI.Controllers
                     TotalPieces = model.OrderMode == "pieces"
                         ? submittedItems.Sum(x => x?.Quantity > 0 ? x.Quantity : 1)
                         : 0,
-                    Items = model.OrderMode == "pieces" ? submittedItems : new List<LaundryOrderItemDto>()
+                    Items = model.OrderMode == "pieces" ? submittedItems : new List<LaundryOrderItemDto>(),
+                    TopUpAmount = model.TopUpAmount,
+                    TopUps = model.OrderMode == "pieces" ? submittedTopUps : new List<LaundryOrderTopUpDto>()
                 };
 
                 var saveResponse = await _clientApi.SendRequestAsync<JObject>("/CreateLaundryOrder", saveRequest, Method.POST);
@@ -7819,11 +8400,31 @@ namespace LMSWebUI.Controllers
                         PaidNow = summary.PaidNow,
                         PendingAmount = summary.PendingAmount,
                         NetPayable = summary.NetPayable,
+                        TopUpAmount = ReadResponseAmount("TopUpAmount") is var createdTopUpAmount && createdTopUpAmount != decimal.MinValue ? createdTopUpAmount : 0m,
                         PaymentMode = model.PaymentMode,
                         CreatedDate = DateTime.UtcNow,
                         TotalPieces = createdTotalPieces,
-                        Items = responseItems
+                        Items = responseItems,
+                        TopUps = new List<LaundryOrderTopUpDto>()
                     };
+
+                    var topUpsToken = saveResponse?["TopUps"]
+                                   ?? saveResponse?["topUps"]
+                                   ?? saveResponse?["ResultSet"]?["TopUps"]
+                                   ?? saveResponse?["ResultSet"]?["topUps"]
+                                   ?? saveResponse?["resultSet"]?["TopUps"]
+                                   ?? saveResponse?["resultSet"]?["topUps"];
+                    if (topUpsToken != null)
+                    {
+                        try
+                        {
+                            completionContext.TopUps = topUpsToken.ToObject<List<LaundryOrderTopUpDto>>() ?? new List<LaundryOrderTopUpDto>();
+                        }
+                        catch
+                        {
+                            completionContext.TopUps = new List<LaundryOrderTopUpDto>();
+                        }
+                    }
 
                     var snapshotTaxLines = await TryGetOrderTaxLinesAsync(model.TenantName, model.StoreCode, orderNo);
                     completionContext.TaxLines = snapshotTaxLines.Count > 0
@@ -8046,6 +8647,50 @@ namespace LMSWebUI.Controllers
 
         private static List<LaundryOrderItemDto> NormalizeOrderItems(IEnumerable<LaundryOrderItemDto> items)
         {
+            static string TrimOptional(string value, int maxLength)
+            {
+                if (string.IsNullOrWhiteSpace(value))
+                {
+                    return null;
+                }
+
+                var trimmed = value.Trim();
+                return trimmed.Length <= maxLength ? trimmed : trimmed.Substring(0, maxLength);
+            }
+
+            static string NormalizePattern(string value)
+            {
+                var normalized = TrimOptional(value, 32);
+                if (string.IsNullOrWhiteSpace(normalized))
+                {
+                    return null;
+                }
+
+                if (string.Equals(normalized, "solid", StringComparison.OrdinalIgnoreCase)) return "Solid";
+                if (string.Equals(normalized, "striped", StringComparison.OrdinalIgnoreCase)) return "Striped";
+                if (string.Equals(normalized, "checked", StringComparison.OrdinalIgnoreCase)) return "Checked";
+                if (string.Equals(normalized, "printed", StringComparison.OrdinalIgnoreCase)) return "Printed";
+                if (string.Equals(normalized, "other", StringComparison.OrdinalIgnoreCase)) return "Other";
+
+                return normalized;
+            }
+
+            static bool HasGarmentDetails(LaundryGarmentPieceDetailDto detail)
+            {
+                if (detail == null)
+                {
+                    return false;
+                }
+
+                return !string.IsNullOrWhiteSpace(detail.BrandName)
+                    || !string.IsNullOrWhiteSpace(detail.PrimaryColor)
+                    || !string.IsNullOrWhiteSpace(detail.SecondaryColor)
+                    || !string.IsNullOrWhiteSpace(detail.Pattern)
+                    || !string.IsNullOrWhiteSpace(detail.ExistingDefects)
+                    || !string.IsNullOrWhiteSpace(detail.DefectRemarks)
+                    || !string.IsNullOrWhiteSpace(detail.SpecialInstructions);
+            }
+
             return (items ?? Enumerable.Empty<LaundryOrderItemDto>())
                 .Where(x => x != null)
                 .Select(x => new LaundryOrderItemDto
@@ -8056,7 +8701,32 @@ namespace LMSWebUI.Controllers
                     UnitPrice = x.UnitPrice,
                     Quantity = x.Quantity > 0 ? x.Quantity : 1,
                     PieceNo = x.PieceNo,
-                    TagNo = x.TagNo?.Trim()
+                    TagNo = x.TagNo?.Trim(),
+                    BrandName = TrimOptional(x.BrandName, 64),
+                    PrimaryColor = TrimOptional(x.PrimaryColor, 32),
+                    SecondaryColor = TrimOptional(x.SecondaryColor, 32),
+                    Pattern = NormalizePattern(x.Pattern),
+                    ExistingDefects = TrimOptional(x.ExistingDefects, 1024),
+                    DefectRemarks = TrimOptional(x.DefectRemarks, 512),
+                    SpecialInstructions = TrimOptional(x.SpecialInstructions, 512),
+                    PieceDetails = (x.PieceDetails ?? new List<LaundryGarmentPieceDetailDto>())
+                        .Where(d => d != null && d.PieceNo > 0)
+                        .Select(d => new LaundryGarmentPieceDetailDto
+                        {
+                            PieceNo = d.PieceNo,
+                            BrandName = TrimOptional(d.BrandName, 64),
+                            PrimaryColor = TrimOptional(d.PrimaryColor, 32),
+                            SecondaryColor = TrimOptional(d.SecondaryColor, 32),
+                            Pattern = NormalizePattern(d.Pattern),
+                            ExistingDefects = TrimOptional(d.ExistingDefects, 1024),
+                            DefectRemarks = TrimOptional(d.DefectRemarks, 512),
+                            SpecialInstructions = TrimOptional(d.SpecialInstructions, 512)
+                        })
+                        .Where(HasGarmentDetails)
+                        .GroupBy(d => d.PieceNo)
+                        .Select(g => g.Last())
+                        .OrderBy(d => d.PieceNo)
+                        .ToList()
                 })
                 .ToList();
         }
@@ -8128,7 +8798,16 @@ namespace LMSWebUI.Controllers
                             UnitPrice = decimal.TryParse(itemToken["UnitPrice"]?.ToString() ?? itemToken["unitPrice"]?.ToString(), out var unitPrice) ? unitPrice : 0,
                             Quantity = qtyParsed > 0 ? qtyParsed : 1,
                             PieceNo = int.TryParse(itemToken["PieceNo"]?.ToString() ?? itemToken["pieceNo"]?.ToString(), out var pieceNo) ? pieceNo : 0,
-                            TagNo = (itemToken["TagNo"]?.ToString() ?? itemToken["tagNo"]?.ToString())?.Trim()
+                            TagNo = (itemToken["TagNo"]?.ToString() ?? itemToken["tagNo"]?.ToString())?.Trim(),
+                            BrandName = itemToken["BrandName"]?.ToString() ?? itemToken["brandName"]?.ToString(),
+                            PrimaryColor = itemToken["PrimaryColor"]?.ToString() ?? itemToken["primaryColor"]?.ToString(),
+                            SecondaryColor = itemToken["SecondaryColor"]?.ToString() ?? itemToken["secondaryColor"]?.ToString(),
+                            Pattern = itemToken["Pattern"]?.ToString() ?? itemToken["pattern"]?.ToString(),
+                            ExistingDefects = itemToken["ExistingDefects"]?.ToString() ?? itemToken["existingDefects"]?.ToString(),
+                            DefectRemarks = itemToken["DefectRemarks"]?.ToString() ?? itemToken["defectRemarks"]?.ToString(),
+                            SpecialInstructions = itemToken["SpecialInstructions"]?.ToString() ?? itemToken["specialInstructions"]?.ToString(),
+                            PieceDetails = (itemToken["PieceDetails"] ?? itemToken["pieceDetails"])?.ToObject<List<LaundryGarmentPieceDetailDto>>()
+                                          ?? new List<LaundryGarmentPieceDetailDto>()
                         };
 
                         normalized.Add(item);
@@ -8233,10 +8912,12 @@ namespace LMSWebUI.Controllers
                     PaidNow = order.PaidNow,
                     PendingAmount = order.PendingAmount,
                     NetPayable = order.NetPayable,
+                    TopUpAmount = order.TopUpAmount,
                     PaymentMode = order.PaymentMode,
                     CreatedDate = order.CreatedDate == default ? DateTime.UtcNow : order.CreatedDate,
                     TotalPieces = resolvedTotalPieces,
-                    Items = items
+                    Items = items,
+                    TopUps = order.TopUps ?? new List<LaundryOrderTopUpDto>()
                 };
             }
             catch
@@ -8673,10 +9354,50 @@ namespace LMSWebUI.Controllers
                         lines.Add($"{idx}. {item.ItemName}  Qty:{item.Quantity}  Unit:{unitPriceText}  Tag:{item.TagNo}");
                     idx++;
                 }
+
+                var topUps = (context.TopUps ?? new List<LaundryOrderTopUpDto>())
+                    .Where(x => x != null)
+                    .OrderBy(x => x.LineNo)
+                    .ToList();
+
+                foreach (var topUp in topUps)
+                {
+                    var unitPriceText = currencyService != null && currencyCfg != null
+                        ? currencyService.Format(topUp.UnitPriceSnapshot, currencyCfg)
+                        : topUp.UnitPriceSnapshot.ToString("0.00", CultureInfo.InvariantCulture);
+                    var lineAmountText = currencyService != null && currencyCfg != null
+                        ? currencyService.Format(topUp.LineAmountSnapshot, currencyCfg)
+                        : topUp.LineAmountSnapshot.ToString("0.00", CultureInfo.InvariantCulture);
+                    lines.Add($"{idx}. Top-up: {topUp.TopUpName} ({topUp.ChargeType})  Qty:{topUp.AppliedQuantity:0.###}  Unit:{unitPriceText}  Total:{lineAmountText}");
+                    idx++;
+                }
             }
             else
             {
-                lines.Add("No item lines available.");
+                var topUps = (context.TopUps ?? new List<LaundryOrderTopUpDto>())
+                    .Where(x => x != null)
+                    .OrderBy(x => x.LineNo)
+                    .ToList();
+
+                if (topUps.Count == 0)
+                {
+                    lines.Add("No item lines available.");
+                }
+                else
+                {
+                    var idx = 1;
+                    foreach (var topUp in topUps)
+                    {
+                        var unitPriceText = currencyService != null && currencyCfg != null
+                            ? currencyService.Format(topUp.UnitPriceSnapshot, currencyCfg)
+                            : topUp.UnitPriceSnapshot.ToString("0.00", CultureInfo.InvariantCulture);
+                        var lineAmountText = currencyService != null && currencyCfg != null
+                            ? currencyService.Format(topUp.LineAmountSnapshot, currencyCfg)
+                            : topUp.LineAmountSnapshot.ToString("0.00", CultureInfo.InvariantCulture);
+                        lines.Add($"{idx}. Top-up: {topUp.TopUpName} ({topUp.ChargeType})  Qty:{topUp.AppliedQuantity:0.###}  Unit:{unitPriceText}  Total:{lineAmountText}");
+                        idx++;
+                    }
+                }
             }
 
             lines.Add("");
@@ -8685,6 +9406,13 @@ namespace LMSWebUI.Controllers
             if (currencyService != null && currencyCfg != null)
             {
                 lines.Add($"Subtotal: {currencyService.Format(summary.SubTotal, currencyCfg)}");
+                if (context.TopUpAmount > 0m || (context.TopUps?.Count ?? 0) > 0)
+                {
+                    var topUpTotal = context.TopUpAmount > 0m
+                        ? context.TopUpAmount
+                        : (context.TopUps ?? new List<LaundryOrderTopUpDto>()).Sum(x => Math.Max(0m, x?.LineAmountSnapshot ?? 0m));
+                    lines.Add($"Top-ups: {currencyService.Format(topUpTotal, currencyCfg)}");
+                }
                 if (taxLines.Count > 0)
                 {
                     foreach (var taxLine in taxLines)
@@ -8703,6 +9431,13 @@ namespace LMSWebUI.Controllers
             else
             {
                 lines.Add($"Subtotal: {summary.SubTotal:0.00}");
+                if (context.TopUpAmount > 0m || (context.TopUps?.Count ?? 0) > 0)
+                {
+                    var topUpTotal = context.TopUpAmount > 0m
+                        ? context.TopUpAmount
+                        : (context.TopUps ?? new List<LaundryOrderTopUpDto>()).Sum(x => Math.Max(0m, x?.LineAmountSnapshot ?? 0m));
+                    lines.Add($"Top-ups: {topUpTotal:0.00}");
+                }
                 if (taxLines.Count > 0)
                 {
                     foreach (var taxLine in taxLines)
@@ -8726,6 +9461,7 @@ namespace LMSWebUI.Controllers
         {
             context ??= new OrderCompletionContextDto();
             context.Items ??= new List<LaundryOrderItemDto>();
+            context.TopUps ??= new List<LaundryOrderTopUpDto>();
 
             var invoiceNo = string.IsNullOrWhiteSpace(context.InvoiceNo) ? context.OrderNo : context.InvoiceNo;
             var issueDate = context.CreatedDate == default ? DateTime.UtcNow : context.CreatedDate;
@@ -8733,6 +9469,13 @@ namespace LMSWebUI.Controllers
             var summary = ResolveOrderFinancialSummary(context.OrderAmount, context.SubTotal, context.TaxAmount, context.TotalAmount, context.AdvanceUsed, context.PaidNow, context.PendingAmount, context.NetPayable);
             var taxLines = ResolveInvoiceTaxLines(context);
             var resolvedTaxTotal = ResolveInvoiceTaxTotal(context, taxLines);
+            var topUps = context.TopUps
+                .Where(x => x != null)
+                .OrderBy(x => x.LineNo)
+                .ToList();
+            var resolvedTopUpAmount = context.TopUpAmount > 0m
+                ? Math.Round(context.TopUpAmount, 2, MidpointRounding.AwayFromZero)
+                : Math.Round(topUps.Sum(x => Math.Max(0m, x.LineAmountSnapshot)), 2, MidpointRounding.AwayFromZero);
 
             var pendingAmount = summary.PendingAmount;
             var isPaid = pendingAmount <= 0;
@@ -8767,10 +9510,44 @@ namespace LMSWebUI.Controllers
                         .Append($"<td style='padding:8px;border-bottom:1px solid #e5e7eb;text-align:right;'>{F(lineTotal)}</td>")
                         .Append("</tr>");
                 }
+
+                foreach (var topUp in topUps)
+                {
+                    var topUpName = E(topUp.TopUpName);
+                    var chargeType = E(topUp.ChargeType);
+                    var qty = topUp.AppliedQuantity > 0 ? topUp.AppliedQuantity : 0m;
+                    var unitPrice = Math.Max(0m, topUp.UnitPriceSnapshot);
+                    var lineAmount = Math.Max(0m, topUp.LineAmountSnapshot);
+
+                    rows.Append("<tr>")
+                        .Append($"<td style='padding:8px;border-bottom:1px solid #e5e7eb;'>{topUpName} <span style='color:#6b7280;'>(Top-up: {chargeType})</span></td>")
+                        .Append($"<td style='padding:8px;border-bottom:1px solid #e5e7eb;text-align:center;'>{qty:0.###}</td>")
+                        .Append($"<td style='padding:8px;border-bottom:1px solid #e5e7eb;text-align:right;'>{F(lineAmount)}</td>")
+                        .Append("</tr>");
+                }
             }
             else
             {
-                rows.Append("<tr><td colspan='3' style='padding:10px;color:#6b7280;'>No item lines available.</td></tr>");
+                if (topUps.Count == 0)
+                {
+                    rows.Append("<tr><td colspan='3' style='padding:10px;color:#6b7280;'>No item lines available.</td></tr>");
+                }
+                else
+                {
+                    foreach (var topUp in topUps)
+                    {
+                        var topUpName = E(topUp.TopUpName);
+                        var chargeType = E(topUp.ChargeType);
+                        var qty = topUp.AppliedQuantity > 0 ? topUp.AppliedQuantity : 0m;
+                        var lineAmount = Math.Max(0m, topUp.LineAmountSnapshot);
+
+                        rows.Append("<tr>")
+                            .Append($"<td style='padding:8px;border-bottom:1px solid #e5e7eb;'>{topUpName} <span style='color:#6b7280;'>(Top-up: {chargeType})</span></td>")
+                            .Append($"<td style='padding:8px;border-bottom:1px solid #e5e7eb;text-align:center;'>{qty:0.###}</td>")
+                            .Append($"<td style='padding:8px;border-bottom:1px solid #e5e7eb;text-align:right;'>{F(lineAmount)}</td>")
+                            .Append("</tr>");
+                    }
+                }
             }
 
             var taxRows = new StringBuilder();
@@ -8844,6 +9621,7 @@ namespace LMSWebUI.Controllers
 
       <table role='presentation' style='width:100%;border-collapse:collapse;font-size:13px;margin-top:12px;'>
         <tr><td style='padding:5px 0;color:#6b7280;'>Subtotal</td><td style='padding:5px 0;text-align:right;font-weight:700;'>{F(summary.SubTotal)}</td></tr>
+        {(resolvedTopUpAmount > 0m || topUps.Count > 0 ? $"<tr><td style='padding:5px 0;color:#6b7280;'>Top-ups</td><td style='padding:5px 0;text-align:right;font-weight:700;'>{F(resolvedTopUpAmount)}</td></tr>" : string.Empty)}
         {taxRows}
         <tr><td style='padding:5px 0;color:#6b7280;'>Total</td><td style='padding:5px 0;text-align:right;font-weight:700;'>{F(summary.TotalAmount)}</td></tr>
         <tr><td style='padding:5px 0;color:#6b7280;'>Advance utilized</td><td style='padding:5px 0;text-align:right;font-weight:700;'>{F(summary.AdvanceUsed)}</td></tr>
@@ -8867,6 +9645,7 @@ namespace LMSWebUI.Controllers
         {
             context ??= new OrderCompletionContextDto();
             context.Items ??= new List<LaundryOrderItemDto>();
+            context.TopUps ??= new List<LaundryOrderTopUpDto>();
 
             var invoiceNo = string.IsNullOrWhiteSpace(context.InvoiceNo) ? context.OrderNo : context.InvoiceNo;
             var issueDate = context.CreatedDate == default ? DateTime.UtcNow : context.CreatedDate;
@@ -8877,6 +9656,13 @@ namespace LMSWebUI.Controllers
             var tax = ResolveInvoiceTaxTotal(context, taxLines);
             var advanceUsed = summary.AdvanceUsed;
             var totalDue = summary.NetPayable;
+            var topUps = context.TopUps
+                .Where(x => x != null)
+                .OrderBy(x => x.LineNo)
+                .ToList();
+            var resolvedTopUpAmount = context.TopUpAmount > 0m
+                ? Math.Round(context.TopUpAmount, 2, MidpointRounding.AwayFromZero)
+                : Math.Round(topUps.Sum(x => Math.Max(0m, x.LineAmountSnapshot)), 2, MidpointRounding.AwayFromZero);
 
             var companyName = string.IsNullOrWhiteSpace(billFromCompanyName)
                 ? "Laundry Service"
@@ -8988,10 +9774,39 @@ namespace LMSWebUI.Controllers
                                     table.Cell().BorderBottom(1).BorderColor("#edf1f6").Padding(6).AlignRight().Text(item.Quantity.ToString());
                                     table.Cell().BorderBottom(1).BorderColor("#edf1f6").Padding(6).AlignRight().Text(FormatAmount(lineTotal, currencyCfg));
                                 }
+
+                                foreach (var topUp in topUps)
+                                {
+                                    var desc = string.IsNullOrWhiteSpace(topUp.ChargeType)
+                                        ? $"Top-up: {topUp.TopUpName}"
+                                        : $"Top-up: {topUp.TopUpName} ({topUp.ChargeType})";
+
+                                    table.Cell().BorderBottom(1).BorderColor("#edf1f6").Padding(6).Text(desc);
+                                    table.Cell().BorderBottom(1).BorderColor("#edf1f6").Padding(6).AlignRight().Text(FormatAmount(topUp.UnitPriceSnapshot, currencyCfg));
+                                    table.Cell().BorderBottom(1).BorderColor("#edf1f6").Padding(6).AlignRight().Text(topUp.AppliedQuantity.ToString("0.###", CultureInfo.InvariantCulture));
+                                    table.Cell().BorderBottom(1).BorderColor("#edf1f6").Padding(6).AlignRight().Text(FormatAmount(topUp.LineAmountSnapshot, currencyCfg));
+                                }
                             }
                             else
                             {
-                                table.Cell().ColumnSpan(4).BorderBottom(1).BorderColor("#edf1f6").Padding(6).Text("No item lines available.");
+                                if (topUps.Count == 0)
+                                {
+                                    table.Cell().ColumnSpan(4).BorderBottom(1).BorderColor("#edf1f6").Padding(6).Text("No item lines available.");
+                                }
+                                else
+                                {
+                                    foreach (var topUp in topUps)
+                                    {
+                                        var desc = string.IsNullOrWhiteSpace(topUp.ChargeType)
+                                            ? $"Top-up: {topUp.TopUpName}"
+                                            : $"Top-up: {topUp.TopUpName} ({topUp.ChargeType})";
+
+                                        table.Cell().BorderBottom(1).BorderColor("#edf1f6").Padding(6).Text(desc);
+                                        table.Cell().BorderBottom(1).BorderColor("#edf1f6").Padding(6).AlignRight().Text(FormatAmount(topUp.UnitPriceSnapshot, currencyCfg));
+                                        table.Cell().BorderBottom(1).BorderColor("#edf1f6").Padding(6).AlignRight().Text(topUp.AppliedQuantity.ToString("0.###", CultureInfo.InvariantCulture));
+                                        table.Cell().BorderBottom(1).BorderColor("#edf1f6").Padding(6).AlignRight().Text(FormatAmount(topUp.LineAmountSnapshot, currencyCfg));
+                                    }
+                                }
                             }
                         });
 
@@ -9018,6 +9833,10 @@ namespace LMSWebUI.Controllers
                             }
 
                             sumRow("Subtotal", FormatAmount(subTotal, currencyCfg));
+                            if (resolvedTopUpAmount > 0m || topUps.Count > 0)
+                            {
+                                sumRow("Top-ups", FormatAmount(resolvedTopUpAmount, currencyCfg));
+                            }
                             if (taxLines.Count > 0)
                             {
                                 foreach (var taxLine in taxLines)
@@ -9824,7 +10643,7 @@ namespace LMSWebUI.Controllers
         [HttpPost]
         public async Task<JsonResult> SaveLaundryItemPrice(LaundryItemPriceDto model)
         {
-            if (!IsAdminUser())
+            if (!CanManageStoreConfiguration())
             {
                 return Json(new { success = false, message = "Only admin users can modify store prices." });
             }
@@ -9885,7 +10704,7 @@ namespace LMSWebUI.Controllers
         [HttpPost]
         public async Task<JsonResult> DeactivateLaundryItemPrice(string serviceType, string category, string itemName)
         {
-            if (!IsAdminUser())
+            if (!CanManageStoreConfiguration())
             {
                 return Json(new { success = false, message = "Only admin users can modify store prices." });
             }
@@ -9937,7 +10756,7 @@ namespace LMSWebUI.Controllers
         [HttpPost]
         public async Task<JsonResult> ReactivateLaundryItemPrice(string serviceType, string category, string itemName)
         {
-            if (!IsAdminUser())
+            if (!CanManageStoreConfiguration())
             {
                 return Json(new { success = false, message = "Only admin users can modify store prices." });
             }
@@ -10051,7 +10870,7 @@ namespace LMSWebUI.Controllers
         [HttpPost]
         public async Task<JsonResult> ImportDefaultLaundryItemPrices(bool overwriteExisting = false)
         {
-            if (!IsAdminUser())
+            if (!CanManageStoreConfiguration())
             {
                 return Json(new { success = false, message = "Only admin users can import default item prices." });
             }
@@ -10093,7 +10912,7 @@ namespace LMSWebUI.Controllers
         [HttpPost]
         public async Task<JsonResult> ImportLaundryItemPricesCsv(IFormFile csvFile, bool overwriteExisting = false)
         {
-            if (!IsAdminUser())
+            if (!CanManageStoreConfiguration())
             {
                 return Json(new { success = false, message = "Only admin users can import prices." });
             }
