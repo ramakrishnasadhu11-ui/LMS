@@ -140,8 +140,326 @@
 .stat-chip { display: flex; justify-content: space-between; align-items: center; font-size: 12px; border: 1px solid var(--els-border); border-radius: 4px; padding: 6px 8px; margin-bottom: 6px; }
 .stat-chip b { font-size: 13px; }
 .order-lines { max-height: 170px; overflow-y: auto; border: 1px solid var(--els-border); border-radius: 6px; }
-.order-line { display: grid; grid-template-columns: 1.4fr 0.5fr 0.7fr 24px; gap: 6px; align-items: center; padding: 6px 8px; border-bottom: 1px solid var(--els-border); font-size: 12px; }
+.order-line { display: grid; grid-template-columns: 1.2fr 0.45fr 0.7fr auto; gap: 6px; align-items: center; padding: 6px 8px; border-bottom: 1px solid var(--els-border); font-size: 12px; }
 .remove-line { border: none; background: transparent; color: #b63838; cursor: pointer; font-weight: 700; }
+.order-line-actions { display:flex; align-items:center; justify-content:flex-end; gap:6px; }
+.order-line-meta-btn { border:1px solid var(--els-border); border-radius:6px; background:#f5f8fb; color:var(--els-text); font-size:11px; font-weight:600; padding:4px 8px; cursor:pointer; }
+.order-line-meta-btn:hover { background:#edf4fd; }
+.order-line-details-badge { border:1px solid #2b6f5e; background:#e9f8f1; color:#1f5a4a; border-radius:999px; padding:2px 7px; font-size:10px; font-weight:700; white-space:nowrap; }
+.order-lines-guidance { margin:6px 0 8px; font-size:11px; color:#4b6175; }
+.garment-editor-drawer {
+    position: fixed;
+    top: 0;
+    right: 0;
+    width: min(760px, 100vw);
+    height: 100vh;
+    background: #fff;
+    border-left: 1px solid #dbe7f3;
+    box-shadow: -24px 0 52px rgba(17, 32, 52, 0.22);
+    z-index: 1060;
+    display: flex;
+    flex-direction: column;
+}
+.garment-editor-drawer[aria-hidden='true'] { display: none; }
+.garment-editor-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(16, 24, 40, 0.42);
+    z-index: 1050;
+}
+.garment-editor-backdrop[aria-hidden='true'] { display: none; }
+.garment-editor-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 16px 18px;
+    border-bottom: 1px solid #e4edf6;
+    background: linear-gradient(180deg, #f8fbff 0%, #f0f6ff 100%);
+}
+.garment-editor-heading-wrap { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.garment-editor-title { font-size: 16px; font-weight: 800; color: #173b61; line-height: 1.3; }
+.garment-editor-subtitle { color: #5f7088; font-size: 12px; }
+.garment-editor-status {
+    border: 1px solid #cfe2f7;
+    border-radius: 999px;
+    padding: 4px 10px;
+    font-size: 11px;
+    font-weight: 700;
+    color: #1f5b96;
+    background: #eef6ff;
+    white-space: nowrap;
+}
+.garment-editor-close {
+    border: 1px solid #cadcf0;
+    background: #fff;
+    color: #36587b;
+    border-radius: 10px;
+    width: 34px;
+    min-width: 34px;
+    height: 34px;
+    cursor: pointer;
+    font-size: 15px;
+    line-height: 1;
+}
+.garment-editor-close:hover { background: #f4f8fd; }
+.garment-editor-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 14px 18px 16px;
+    background: #f7fafd;
+}
+.garment-editor-piece-tabs {
+    display: flex;
+    gap: 7px;
+    flex-wrap: wrap;
+    margin-bottom: 10px;
+}
+.garment-piece-tab {
+    border: 1px solid #cadaeb;
+    border-radius: 999px;
+    background: #fff;
+    color: #24496d;
+    padding: 6px 12px;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+}
+.garment-piece-tab.active {
+    border-color: var(--els-primary);
+    color: #fff;
+    background: linear-gradient(180deg, var(--els-primary-light) 0%, var(--els-primary) 100%);
+    box-shadow: 0 6px 16px rgba(23, 74, 121, 0.24);
+}
+.garment-editor-guidance {
+    border: 1px dashed #c8d9ec;
+    border-radius: 12px;
+    background: #fff;
+    color: #5b6f88;
+    font-size: 12px;
+    padding: 10px 12px;
+    margin-bottom: 12px;
+}
+.garment-editor-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.garment-editor-section {
+    border: 1px solid #dbe7f2;
+    border-radius: 12px;
+    background: #fff;
+    padding: 10px;
+}
+.garment-editor-section.full { grid-column: 1 / -1; }
+.garment-section-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 8px;
+}
+.garment-section-title {
+    margin: 0;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    color: #334e6d;
+    font-weight: 800;
+}
+.garment-section-toggle {
+    border: 1px solid #cfe0f1;
+    border-radius: 999px;
+    background: #f8fbff;
+    color: #2b5f95;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 4px 9px;
+    cursor: pointer;
+}
+.garment-section-body[aria-hidden='true'] { display: none; }
+.garment-editor-grid .setup-field label {
+    text-transform: none;
+    letter-spacing: 0;
+    font-size: 12px;
+    color: #435a73;
+    margin-bottom: 5px;
+}
+.garment-editor-grid .setup-field input,
+.garment-editor-grid .setup-field select,
+.garment-editor-grid .setup-field textarea {
+    font-size: 12px;
+    min-height: 38px;
+}
+.garment-brand-search-wrap {
+    position: relative;
+    margin-bottom: 8px;
+}
+.garment-brand-search-wrap i {
+    position: absolute;
+    top: 50%;
+    left: 10px;
+    transform: translateY(-50%);
+    color: #7a8fa8;
+    font-size: 12px;
+}
+.garment-brand-search { padding-left: 28px !important; }
+.garment-brand-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(124px, 1fr));
+    gap: 6px;
+    max-height: 150px;
+    overflow-y: auto;
+}
+.garment-brand-chip {
+    border: 1px solid #d5e2f0;
+    border-radius: 999px;
+    background: #fff;
+    color: #2f4966;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 6px 9px;
+    cursor: pointer;
+    text-align: left;
+}
+.garment-brand-chip.active {
+    border-color: #2e6db2;
+    background: #edf5ff;
+    color: #144c8f;
+}
+.garment-swatch-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(104px, 1fr));
+    gap: 6px;
+    margin-top: 6px;
+}
+.garment-swatch-chip {
+    border: 1px solid #d8e3ef;
+    border-radius: 10px;
+    background: #fff;
+    color: #2f4d6d;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 6px 8px;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+.garment-swatch-dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    border: 1px solid rgba(15,23,42,0.22);
+    flex: 0 0 auto;
+}
+.garment-swatch-chip.active {
+    border-color: #2f6cb6;
+    box-shadow: inset 0 0 0 1px rgba(47,108,182,0.2);
+    background: #eef5ff;
+}
+.garment-pattern-options { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
+.garment-pattern-chip {
+    border: 1px solid #d5e2f0;
+    border-radius: 999px;
+    background: #fff;
+    color: #355575;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 5px 10px;
+    cursor: pointer;
+}
+.garment-pattern-chip.active {
+    border-color: #2f6cb6;
+    background: #edf5ff;
+    color: #144c8f;
+}
+.garment-instruction-guidance {
+    margin: 0 0 8px;
+    font-size: 11px;
+    color: #5f7188;
+}
+.garment-instruction-chip-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+    gap: 6px;
+    margin-bottom: 10px;
+}
+.garment-instruction-chip {
+    border: 1px solid #d7e3ef;
+    border-radius: 999px;
+    background: #fff;
+    color: #35506f;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 6px 10px;
+    cursor: pointer;
+    text-align: left;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+.garment-instruction-chip i {
+    color: #4c76a3;
+    font-size: 10px;
+}
+.garment-instruction-chip.active {
+    border-color: #2f6cb6;
+    background: #edf5ff;
+    color: #144c8f;
+}
+.garment-instruction-chip.active i { color: #144c8f; }
+.garment-defect-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: 6px;
+    margin-top: 6px;
+}
+.garment-defect-list label {
+    display: inline-flex;
+    gap: 6px;
+    align-items: center;
+    border: 1px solid #d7e3ef;
+    border-radius: 999px;
+    padding: 6px 9px;
+    background: #fff;
+    font-size: 11px;
+    color: #35506f;
+    cursor: pointer;
+}
+.garment-defect-list input[type='checkbox'] {
+    accent-color: #236ab0;
+}
+.garment-defect-list label.active {
+    border-color: #2f6cb6;
+    background: #edf5ff;
+    color: #154d8f;
+}
+.garment-editor-footer {
+    border-top: 1px solid #e1ebf6;
+    background: #fff;
+    padding: 12px 16px;
+}
+.garment-editor-actions {
+    display: grid;
+    grid-template-columns: 1fr auto auto;
+    gap: 8px;
+    align-items: center;
+}
+.garment-editor-feedback {
+    font-size: 12px;
+    color: #2e5f92;
+    font-weight: 700;
+    min-height: 18px;
+}
+
+@@media (max-width: 880px) {
+    .garment-editor-drawer { width: 100vw; }
+    .garment-editor-grid { grid-template-columns: 1fr; }
+}
+
+@@media (max-width: 560px) {
+    .garment-editor-header { padding: 12px; }
+    .garment-editor-body { padding: 10px 12px 14px; }
+    .garment-editor-footer { padding: 10px 12px; }
+    .garment-editor-actions { grid-template-columns: 1fr; }
+}
 .setup-btn { width: 100%; min-height: 40px; border: 1px solid transparent; border-radius: 6px; background: linear-gradient(180deg, var(--els-primary-light) 0%, var(--els-primary) 100%); color: #fff; font-weight: 600; cursor: pointer; margin-bottom: 8px; }
 .setup-btn.secondary { background: linear-gradient(180deg, #8f99a4 0%, #6f7a86 100%); }
 .setup-btn.tertiary { background: linear-gradient(180deg, #3f8f7b 0%, #2b6f5e 100%); }
@@ -336,7 +654,7 @@
 
 .order-actions {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 8px;
 }
 .order-actions .setup-btn { margin-bottom: 0; }
@@ -507,6 +825,36 @@
     border-radius: 14px;
     background: #f8fbfd;
 }
+.catalog-search-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 8px;
+    margin: 0 0 10px;
+}
+.catalog-search-input-wrap {
+    position: relative;
+}
+.catalog-search-input-wrap i {
+    position: absolute;
+    left: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #6b7d90;
+    pointer-events: none;
+}
+#catalogSearchInput {
+    padding-left: 34px;
+}
+.catalog-search-clear {
+    min-height: 41px;
+    margin: 0;
+    max-width: 140px;
+}
+.catalog-guidance {
+    margin: 0 0 10px;
+    font-size: 11px;
+    color: #5d6f83;
+}
 .item-card {
     position: relative;
     overflow: hidden;
@@ -573,13 +921,178 @@
 .qty-row input#selectedQty { min-height: 38px; }
 .order-lines { border-color: #e0e8f0; border-radius: 10px; background: #fbfdff; }
 .order-line { padding: 9px 10px; border-bottom-color: #e8eef4; color: #4b6175; }
+.order-line { grid-template-columns: 1.1fr 0.75fr 0.6fr auto; }
+.topup-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 8px;
+    align-items: center;
+    padding: 9px 10px;
+    border-bottom: 1px solid #e8eef4;
+    font-size: 12px;
+}
+.topup-row:last-child {
+    border-bottom: none;
+}
+.topup-row-title {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-weight: 700;
+    color: #334e68;
+}
+.topup-row-meta {
+    margin-top: 2px;
+    color: #64748b;
+    font-size: 11px;
+}
+.topup-row.selected {
+    background: #eef6ff;
+}
+.topup-charge-chip {
+    border: 1px solid #d4e4f4;
+    border-radius: 999px;
+    background: #f1f7fd;
+    color: #1f5d8e;
+    padding: 2px 7px;
+    font-size: 10px;
+    font-weight: 700;
+}
+.order-review-modal-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.45);
+    z-index: 1090;
+    display: none;
+}
+.order-review-modal {
+    position: fixed;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    width: min(920px, calc(100% - 26px));
+    max-height: calc(100vh - 40px);
+    overflow: auto;
+    background: #fff;
+    border: 1px solid #d8e4f3;
+    border-radius: 14px;
+    box-shadow: 0 20px 44px rgba(15, 23, 42, 0.24);
+    z-index: 1100;
+    padding: 14px;
+    display: none;
+}
+.order-review-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    border-bottom: 1px solid #e6eef8;
+    padding-bottom: 10px;
+    margin-bottom: 10px;
+}
+.order-review-title {
+    margin: 0;
+    color: #183b5b;
+    font-size: 16px;
+    font-weight: 700;
+}
+.order-review-grid {
+    display: grid;
+    grid-template-columns: 1.2fr .8fr;
+    gap: 12px;
+}
+.order-review-panel {
+    border: 1px solid #dfe8f2;
+    border-radius: 10px;
+    padding: 10px;
+    background: #fbfdff;
+}
+.order-review-panel h4 {
+    margin: 0 0 8px;
+    font-size: 13px;
+    color: #1f3f66;
+}
+.order-review-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+}
+.order-review-table th,
+.order-review-table td {
+    border-bottom: 1px solid #e5edf3;
+    padding: 6px 4px;
+    text-align: left;
+}
+.order-review-table th:last-child,
+.order-review-table td:last-child {
+    text-align: right;
+}
+.order-review-summary-line {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 6px;
+    font-size: 12px;
+}
+.order-review-summary-line.total {
+    border-top: 1px dashed #c9d7e8;
+    padding-top: 8px;
+    margin-top: 8px;
+    font-size: 14px;
+    font-weight: 700;
+    color: #174b7a;
+}
+.order-review-actions {
+    margin-top: 10px;
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+@@media (max-width: 900px) {
+    .order-review-grid {
+        grid-template-columns: 1fr;
+    }
+}
+.order-line-qty-controls { display: inline-flex; align-items: center; gap: 4px; }
+.order-line-qty-btn {
+    border: 1px solid #cbd9e6;
+    border-radius: 7px;
+    background: #f6f9fc;
+    color: #315a79;
+    min-width: 24px;
+    min-height: 24px;
+    font-weight: 700;
+    line-height: 1;
+    cursor: pointer;
+}
+.order-line-qty-input {
+    width: 52px;
+    min-height: 26px;
+    border: 1px solid #d5e0eb;
+    border-radius: 7px;
+    text-align: center;
+    padding: 2px 4px;
+    font-size: 12px;
+}
 .remove-line { color: #bd5b5b; transition: color .18s ease, transform .18s ease; }
 .remove-line:hover { color: #a33e3e; transform: scale(1.1); }
+.order-summary-zone {
+    position: sticky;
+    top: 16px;
+    z-index: 2;
+}
 .setup-btn {
     border-radius: 10px;
     background: #24658f;
     box-shadow: 0 6px 14px rgba(36, 101, 143, 0.2);
     transition: background-color .18s ease, box-shadow .18s ease, transform .18s ease;
+}
+
+@@media (max-width: 1000px) {
+    .order-summary-zone {
+        position: static;
+    }
 }
 .setup-btn:hover:not(:disabled) { background: #1d567c; box-shadow: 0 9px 18px rgba(36, 101, 143, 0.25); transform: translateY(-1px); }
 .setup-btn.secondary { background: #6f7d8c; box-shadow: 0 5px 12px rgba(71, 85, 105, 0.16); }
@@ -670,6 +1183,8 @@
                 @Html.HiddenFor(m => m.PendingAmount, new { id = "pendingAmountInput" })
                 @Html.HiddenFor(m => m.OrderMode, new { id = "orderMode" })
                 @Html.HiddenFor(m => m.OrderItemsJson, new { id = "orderItemsJson" })
+                <input type="hidden" id="topUpsJson" name="TopUpsJson" value="[]" />
+                @Html.HiddenFor(m => m.TopUpAmount, new { id = "topUpAmountInput" })
 
                 @if (setupOnly)
                 {
@@ -863,6 +1378,14 @@
                             <div id="catalogImageDiagnostics" style="font-size:11px; margin-bottom:8px; color:#8a5b00;" role="status" aria-live="polite"></div>
                             <div class="tab-row" id="serviceTabs"></div>
                             <div class="tab-row" id="categoryTabs"></div>
+                            <div class="catalog-search-row">
+                                <div class="catalog-search-input-wrap">
+                                    <i class="fa fa-search" aria-hidden="true"></i>
+                                    <input type="text" id="catalogSearchInput" placeholder="Search garments in selected service/category" autocomplete="off" />
+                                </div>
+                                <button type="button" class="setup-btn secondary catalog-search-clear" id="catalogSearchClearBtn">Clear</button>
+                            </div>
+                            <div class="catalog-guidance">Tip: use search and quick tabs to find garments faster. Selected lines stay preserved while you navigate categories.</div>
                             <div class="catalog-grid" id="catalogGrid"></div>
                         </div>
 
@@ -906,69 +1429,107 @@
 
                             <div class="side-block" id="orderLinesBlock">
                                 <div class="side-title">Order Lines</div>
+                                <div class="order-lines-guidance">Optional: record existing defects before cleaning to document garment condition at drop-off.</div>
                                 <div class="order-lines" id="orderLinesContainer">
                                     <div class="order-line"><span>No items added.</span></div>
                                 </div>
                             </div>
 
-                            <div class="side-block">
-                                <div class="stat-chip"><span>Advance Balance</span><b id="advBalance">@await ((IHtmlHelper)Html).FormatCurrencyAsync(0m)</b></div>
-                                <div class="stat-chip"><span>Advance Utilized</span><b id="advUsedDisplay">@await ((IHtmlHelper)Html).FormatCurrencyAsync(0m)</b></div>
-                                <div class="stat-chip"><span>Advance Remaining</span><b id="advRemainingDisplay">@await ((IHtmlHelper)Html).FormatCurrencyAsync(0m)</b></div>
-                                <div class="stat-chip"><span>Order Amount</span><b id="orderAmountDisplay">@await ((IHtmlHelper)Html).FormatCurrencyAsync(0m)</b></div>
-                                <div class="stat-chip"><span>Discount</span><b>0.00</b></div>
-                                @if (taxEnabled)
-                                {
-                                    <div class="stat-chip"><span>Sub Total</span><b id="subTotalDisplay">@await ((IHtmlHelper)Html).FormatCurrencyAsync(0m)</b></div>
-                                    <div id="taxComponentHost">
-                                        @if (taxComponents.Count > 0)
-                                        {
-                                            foreach (var component in taxComponents)
-                                            {
-                                                var displayName = string.IsNullOrWhiteSpace(component.DisplayName)
-                                                    ? (string.IsNullOrWhiteSpace(component.Code) ? "Tax" : component.Code)
-                                                    : component.DisplayName;
-                                                var componentKey = string.IsNullOrWhiteSpace(component.Code)
-                                                    ? displayName
-                                                    : component.Code;
-                                                var safeKey = new string(componentKey.Where(ch => char.IsLetterOrDigit(ch) || ch == '_' || ch == '-').ToArray());
-                                                if (string.IsNullOrWhiteSpace(safeKey))
-                                                {
-                                                    safeKey = "tax" + component.Priority;
-                                                }
+                            <div class="side-block" id="topUpSelectionBlock">
+                                <div class="side-title">Optional Top-up Services</div>
+                                <div class="order-lines-guidance">Select applicable add-ons. PerGarment charges apply by pieces and PerOrder charges apply once.</div>
+                                <div id="topUpSelectionHost" class="order-lines">
+                                    <div class="order-line"><span>Add garments to view applicable top-up services.</span></div>
+                                </div>
+                                <div class="stat-chip total-chip" style="margin-top:8px;"><span>Top-up Charges (Preview)</span><b id="topUpAmountDisplay">@await ((IHtmlHelper)Html).FormatCurrencyAsync(0m)</b></div>
+                            </div>
 
-                                                <div class="stat-chip tax-component-chip" data-tax-code="@componentKey" data-tax-rate="@component.RatePercent.ToString(System.Globalization.CultureInfo.InvariantCulture)" data-tax-priority="@component.Priority" data-tax-compound="@(component.IsCompound ? "true" : "false")">
-                                                    <span>@displayName @(component.RatePercent.ToString("0.##"))%</span>
-                                                    <b id="taxDisplay_@safeKey">@await ((IHtmlHelper)Html).FormatCurrencyAsync(0m)</b>
+                            <div class="order-summary-zone">
+                                <div class="side-block" id="orderSummaryBlock">
+                                    <div class="side-title"><i class="fa fa-calculator" aria-hidden="true"></i> Order Summary</div>
+                                    <div class="stat-chip"><span>Advance Balance</span><b id="advBalance">@await ((IHtmlHelper)Html).FormatCurrencyAsync(0m)</b></div>
+                                    <div class="stat-chip"><span>Advance Utilized</span><b id="advUsedDisplay">@await ((IHtmlHelper)Html).FormatCurrencyAsync(0m)</b></div>
+                                    <div class="stat-chip"><span>Advance Remaining</span><b id="advRemainingDisplay">@await ((IHtmlHelper)Html).FormatCurrencyAsync(0m)</b></div>
+                                    <div class="stat-chip"><span>Order Amount</span><b id="orderAmountDisplay">@await ((IHtmlHelper)Html).FormatCurrencyAsync(0m)</b></div>
+                                    <div class="stat-chip"><span>Discount</span><b>0.00</b></div>
+                                    @if (taxEnabled)
+                                    {
+                                        <div class="stat-chip"><span>Sub Total</span><b id="subTotalDisplay">@await ((IHtmlHelper)Html).FormatCurrencyAsync(0m)</b></div>
+                                        <div id="taxComponentHost">
+                                            @if (taxComponents.Count > 0)
+                                            {
+                                                foreach (var component in taxComponents)
+                                                {
+                                                    var displayName = string.IsNullOrWhiteSpace(component.DisplayName)
+                                                        ? (string.IsNullOrWhiteSpace(component.Code) ? "Tax" : component.Code)
+                                                        : component.DisplayName;
+                                                    var componentKey = string.IsNullOrWhiteSpace(component.Code)
+                                                        ? displayName
+                                                        : component.Code;
+                                                    var safeKey = new string(componentKey.Where(ch => char.IsLetterOrDigit(ch) || ch == '_' || ch == '-').ToArray());
+                                                    if (string.IsNullOrWhiteSpace(safeKey))
+                                                    {
+                                                        safeKey = "tax" + component.Priority;
+                                                    }
+
+                                                    <div class="stat-chip tax-component-chip" data-tax-code="@componentKey" data-tax-rate="@component.RatePercent.ToString(System.Globalization.CultureInfo.InvariantCulture)" data-tax-priority="@component.Priority" data-tax-compound="@(component.IsCompound ? "true" : "false")">
+                                                        <span>@displayName @(component.RatePercent.ToString("0.##"))%</span>
+                                                        <b id="taxDisplay_@safeKey">@await ((IHtmlHelper)Html).FormatCurrencyAsync(0m)</b>
+                                                    </div>
+                                                }
+                                            }
+
+                                            else
+                                            {
+                                                var taxLabel = string.Equals(taxMode, "VAT", StringComparison.OrdinalIgnoreCase)
+                                                    ? "VAT"
+                                                    : string.Equals(taxMode, "SalesTax", StringComparison.OrdinalIgnoreCase)
+                                                        ? "Sales Tax"
+                                                        : "Tax";
+                                                <div class="stat-chip tax-component-chip" data-tax-code="TAX" data-tax-rate="@gstPercent.ToString(System.Globalization.CultureInfo.InvariantCulture)" data-tax-priority="1" data-tax-compound="false">
+                                                    <span>@taxLabel @gstPercent.ToString("0.##")%</span>
+                                                    <b id="taxDisplay_TAX">@await ((IHtmlHelper)Html).FormatCurrencyAsync(0m)</b>
                                                 </div>
                                             }
-                                        }
+                                        </div>
+                                        <div class="stat-chip total-chip"><span>Total (incl. Tax)</span><b id="totalAmountDisplay">@await ((IHtmlHelper)Html).FormatCurrencyAsync(0m)</b></div>
+                                    }
+                                    <div class="stat-chip total-chip"><span>Net Before Payment</span><b id="netPayableDisplay">@await ((IHtmlHelper)Html).FormatCurrencyAsync(0m)</b></div>
+                                    <div class="stat-chip"><span>Paid Now</span><b id="paidNowDisplay">0.00</b></div>
+                                    <div class="stat-chip total-chip"><span>Pending Amount</span><b id="pendingAmountDisplay">0.00</b></div>
+                                </div>
 
-                                        else
-                                        {
-                                            var taxLabel = string.Equals(taxMode, "VAT", StringComparison.OrdinalIgnoreCase)
-                                                ? "VAT"
-                                                : string.Equals(taxMode, "SalesTax", StringComparison.OrdinalIgnoreCase)
-                                                    ? "Sales Tax"
-                                                    : "Tax";
-                                            <div class="stat-chip tax-component-chip" data-tax-code="TAX" data-tax-rate="@gstPercent.ToString(System.Globalization.CultureInfo.InvariantCulture)" data-tax-priority="1" data-tax-compound="false">
-                                                <span>@taxLabel @gstPercent.ToString("0.##")%</span>
-                                                <b id="taxDisplay_TAX">@await ((IHtmlHelper)Html).FormatCurrencyAsync(0m)</b>
-                                            </div>
-                                        }
-                                    </div>
-                                    <div class="stat-chip total-chip"><span>Total (incl. Tax)</span><b id="totalAmountDisplay">@await ((IHtmlHelper)Html).FormatCurrencyAsync(0m)</b></div>
-                                }
-                                <div class="stat-chip total-chip"><span>Net Before Payment</span><b id="netPayableDisplay">@await ((IHtmlHelper)Html).FormatCurrencyAsync(0m)</b></div>
-                                <div class="stat-chip"><span>Paid Now</span><b id="paidNowDisplay">0.00</b></div>
-                                <div class="stat-chip total-chip"><span>Pending Amount</span><b id="pendingAmountDisplay">0.00</b></div>
-                            </div>
-
-                            <div class="order-actions">
-                                <button type="button" class="setup-btn secondary" onclick="window.location.href='@Url.Action("Index", "Customer")'">Cancel</button>
-                                <button type="submit" class="setup-btn" id="createOrderBtn">Save Order</button>
+                                <div class="order-actions">
+                                    <button type="button" class="setup-btn secondary" onclick="window.location.href='@Url.Action("Index", "Customer")'">Cancel</button>
+                                    <button type="button" class="setup-btn tertiary" id="reviewOrderBtn">Review Order</button>
+                                    <button type="submit" class="setup-btn" id="createOrderBtn">Save Order</button>
+                                </div>
                             </div>
                         </div>
+
+<div id="orderReviewModalBackdrop" class="order-review-modal-backdrop" aria-hidden="true"></div>
+<div id="orderReviewModal" class="order-review-modal" role="dialog" aria-modal="true" aria-labelledby="orderReviewTitle" aria-hidden="true">
+    <div class="order-review-head">
+        <h3 id="orderReviewTitle" class="order-review-title">Review &amp; Confirm Order</h3>
+        <button type="button" class="zero-price-modal-close" id="orderReviewCloseBtn" aria-label="Close">&times;</button>
+    </div>
+    <div class="order-review-grid">
+        <div class="order-review-panel">
+            <h4>Garments</h4>
+            <div id="orderReviewGarmentsHost"></div>
+            <h4 style="margin-top:10px;">Top-ups</h4>
+            <div id="orderReviewTopUpsHost"></div>
+        </div>
+        <div class="order-review-panel">
+            <h4>Charges Summary</h4>
+            <div id="orderReviewSummaryHost"></div>
+            <div class="order-review-actions">
+                <button type="button" class="setup-btn secondary" id="orderReviewBackBtn">Back</button>
+                <button type="button" class="setup-btn" id="orderReviewConfirmBtn">Confirm &amp; Save</button>
+            </div>
+        </div>
+    </div>
+</div>
                     </div>
 
                     <div class="setup-field" style="margin-top:10px;">
@@ -1102,10 +1663,18 @@
     var customerSuggestRequestId = 0;
     var customerSuggestTimer = 0;
     var knownCustomerSuggestions = [];
+    var catalogSearchText = "";
+    var applicableTopUps = [];
+    var selectedTopUps = [];
+    var topUpRefreshRequestId = 0;
     var antiForgeryTokenInput = document.querySelector('#setupOrderForm input[name="__RequestVerificationToken"]');
     var zeroPriceWarningAcknowledged = false;
     var isCreateOrderSubmitInProgress = false;
     var zeroPriceModalDismissTarget = null;
+    var reviewConfirmationAcknowledged = false;
+    var reviewedOrderSignature = "";
+    var orderReviewModalDismissTarget = null;
+    var topUpRefreshTimer = 0;
 
     var storeCodeInput = document.getElementById("storeCode");
     if (storeCodeInput) {
@@ -1247,6 +1816,461 @@
         return "";
     }
 
+    function normalizeChargeType(value) {
+        var text = normalizeText(value).toLowerCase();
+        if (text === "perorder" || text === "order" || text === "per_order") {
+            return "PerOrder";
+        }
+
+        return "PerGarment";
+    }
+
+    function buildTopUpKey(topUpName, chargeType) {
+        return normalizeText(topUpName).toLowerCase() + "|" + normalizeText(chargeType).toLowerCase();
+    }
+
+    function normalizeApplicableTopUp(raw) {
+        var topUpName = normalizeText(raw && (raw.TopUpName || raw.topUpName || ""));
+        if (!topUpName) {
+            return null;
+        }
+
+        var chargeType = normalizeChargeType(raw && (raw.ChargeType || raw.chargeType || "PerGarment"));
+        var unitPrice = parseAmount(raw && (raw.UnitPrice || raw.unitPrice || 0));
+        return {
+            key: buildTopUpKey(topUpName, chargeType),
+            topUpName: topUpName,
+            chargeType: chargeType,
+            unitPrice: unitPrice,
+            serviceType: normalizeText(raw && (raw.ServiceType || raw.serviceType || "")),
+            category: normalizeText(raw && (raw.Category || raw.category || "")),
+            itemName: normalizeText(raw && (raw.ItemName || raw.itemName || "")),
+            description: normalizeText(raw && (raw.Description || raw.description || ""))
+        };
+    }
+
+    function doesTopUpApplyToLine(topUp, line) {
+        if (!topUp || !line) {
+            return false;
+        }
+
+        var serviceMatches = !normalizeText(topUp.serviceType)
+            || equalsNormalized(topUp.serviceType, line.service);
+        var categoryMatches = !normalizeText(topUp.category)
+            || equalsNormalized(topUp.category, line.category);
+        var itemMatches = !normalizeText(topUp.itemName)
+            || equalsNormalized(topUp.itemName, line.name);
+
+        return serviceMatches && categoryMatches && itemMatches;
+    }
+
+    function resolveTopUpAppliedQuantity(topUp) {
+        if (!topUp) {
+            return 0;
+        }
+
+        if (normalizeChargeType(topUp.chargeType) === "PerOrder") {
+            return 1;
+        }
+
+        return (orderLines || []).reduce(function (sum, line) {
+            if (!doesTopUpApplyToLine(topUp, line)) {
+                return sum;
+            }
+
+            var qty = parseInt(line && line.qty || 0, 10);
+            return sum + (Number.isFinite(qty) && qty > 0 ? qty : 0);
+        }, 0);
+    }
+
+    function buildSelectedTopUpsSnapshot() {
+        return (selectedTopUps || []).map(function (entry) {
+            var appliedQuantity = resolveTopUpAppliedQuantity(entry);
+            var unitPrice = parseAmount(entry.unitPrice);
+            var lineAmount = Math.round((appliedQuantity * unitPrice) * 100) / 100;
+            return {
+                key: entry.key,
+                topUpName: entry.topUpName,
+                chargeType: normalizeChargeType(entry.chargeType),
+                serviceType: entry.serviceType || "",
+                category: entry.category || "",
+                itemName: entry.itemName || "",
+                appliedQuantity: appliedQuantity,
+                unitPriceSnapshot: unitPrice,
+                lineAmountSnapshot: lineAmount,
+                description: entry.description || ""
+            };
+        }).filter(function (entry) {
+            return entry.appliedQuantity > 0;
+        });
+    }
+
+    function syncTopUpFieldsAndDisplay() {
+        var snapshot = buildSelectedTopUpsSnapshot();
+        var total = snapshot.reduce(function (sum, x) {
+            return sum + parseAmount(x.lineAmountSnapshot);
+        }, 0);
+
+        var display = document.getElementById("topUpAmountDisplay");
+        if (display) {
+            display.textContent = formatCurrency(total);
+        }
+
+        var hiddenAmount = document.getElementById("topUpAmountInput");
+        if (hiddenAmount) {
+            hiddenAmount.value = total.toFixed(2);
+        }
+
+        var hiddenJson = document.getElementById("topUpsJson");
+        if (hiddenJson) {
+            hiddenJson.value = JSON.stringify(snapshot.map(function (x) {
+                return {
+                    topUpName: x.topUpName,
+                    chargeType: x.chargeType,
+                    serviceType: x.serviceType,
+                    category: x.category,
+                    itemName: x.itemName,
+                    appliedQuantity: x.appliedQuantity,
+                    unitPriceSnapshot: x.unitPriceSnapshot,
+                    lineAmountSnapshot: x.lineAmountSnapshot
+                };
+            }));
+        }
+
+        return { snapshot: snapshot, total: total };
+    }
+
+    function renderTopUpSelection() {
+        if (setupOnly) {
+            return;
+        }
+
+        var host = document.getElementById("topUpSelectionHost");
+        if (!host) {
+            return;
+        }
+
+        host.innerHTML = "";
+
+        if (currentOrderMode !== "pieces") {
+            host.innerHTML = "<div class='order-line'><span>Top-up services are available in pieces mode.</span></div>";
+            selectedTopUps = [];
+            syncTopUpFieldsAndDisplay();
+            return;
+        }
+
+        if (!(orderLines || []).length) {
+            host.innerHTML = "<div class='order-line'><span>Add garments to view applicable top-up services.</span></div>";
+            selectedTopUps = [];
+            syncTopUpFieldsAndDisplay();
+            return;
+        }
+
+        if (!(applicableTopUps || []).length) {
+            host.innerHTML = "<div class='order-line'><span>No applicable top-up services for current garments.</span></div>";
+            selectedTopUps = [];
+            syncTopUpFieldsAndDisplay();
+            return;
+        }
+
+        var selectedLookup = {};
+        (selectedTopUps || []).forEach(function (x) {
+            selectedLookup[x.key] = x;
+        });
+
+        applicableTopUps.forEach(function (topUp, index) {
+            var isSelected = !!selectedLookup[topUp.key];
+            var qty = resolveTopUpAppliedQuantity(topUp);
+            var lineAmount = Math.round((qty * parseAmount(topUp.unitPrice)) * 100) / 100;
+            var row = document.createElement("div");
+            row.className = "topup-row" + (isSelected ? " selected" : "");
+
+            var title = ""
+                + "<label class='topup-row-title' for='topupSel_" + index + "'>"
+                + "<input type='checkbox' id='topupSel_" + index + "' data-topup-key='" + topUp.key + "' " + (isSelected ? "checked='checked'" : "") + " />"
+                + "<span>" + topUp.topUpName + "</span>"
+                + "<span class='topup-charge-chip'>" + topUp.chargeType + "</span>"
+                + "</label>"
+                + "<div class='topup-row-meta'>"
+                + (topUp.description ? topUp.description + " • " : "")
+                + "Rate: " + formatCurrency(topUp.unitPrice)
+                + " • Applies: " + (topUp.chargeType === "PerOrder" ? "1 order" : (qty + " garment(s)"))
+                + "</div>";
+
+            row.innerHTML = "<div>" + title + "</div><div><b>" + formatCurrency(lineAmount) + "</b></div>";
+            host.appendChild(row);
+        });
+
+        Array.prototype.slice.call(host.querySelectorAll("[data-topup-key]")).forEach(function (checkbox) {
+            checkbox.addEventListener("change", function () {
+                var key = checkbox.getAttribute("data-topup-key") || "";
+                var topUp = (applicableTopUps || []).find(function (x) { return x.key === key; });
+                if (!topUp) {
+                    return;
+                }
+
+                if (checkbox.checked) {
+                    if (!(selectedTopUps || []).some(function (x) { return x.key === key; })) {
+                        selectedTopUps.push(Object.assign({}, topUp));
+                    }
+                } else {
+                    selectedTopUps = (selectedTopUps || []).filter(function (x) { return x.key !== key; });
+                }
+
+                renderTopUpSelection();
+            });
+        });
+
+        syncTopUpFieldsAndDisplay();
+    }
+
+    function scheduleTopUpRefresh(delayMs) {
+        if (topUpRefreshTimer) {
+            clearTimeout(topUpRefreshTimer);
+        }
+
+        topUpRefreshTimer = setTimeout(function () {
+            refreshApplicableTopUps();
+        }, delayMs || 120);
+    }
+
+    function refreshApplicableTopUps() {
+        if (setupOnly) {
+            return Promise.resolve();
+        }
+
+        if (currentOrderMode !== "pieces" || !(orderLines || []).length) {
+            applicableTopUps = [];
+            selectedTopUps = [];
+            renderTopUpSelection();
+            return Promise.resolve();
+        }
+
+        var host = document.getElementById("topUpSelectionHost");
+        if (host) {
+            host.innerHTML = "<div class='order-line'><span>Loading applicable top-up services...</span></div>";
+        }
+
+        var contextByKey = {};
+        (orderLines || []).forEach(function (line) {
+            var key = buildServiceCategoryItemKey(line.service, line.category, line.name);
+            if (!key || contextByKey[key]) {
+                return;
+            }
+
+            contextByKey[key] = {
+                serviceType: normalizeText(line.service),
+                category: normalizeText(line.category),
+                itemName: normalizeText(line.name),
+                orderMode: currentOrderMode
+            };
+        });
+
+        var contexts = Object.keys(contextByKey).map(function (key) { return contextByKey[key]; });
+        if (!contexts.length) {
+            applicableTopUps = [];
+            selectedTopUps = [];
+            renderTopUpSelection();
+            return Promise.resolve();
+        }
+
+        var requestId = ++topUpRefreshRequestId;
+        return Promise.all(contexts.map(function (payload) {
+            return fetch('@Url.Action("GetApplicableTopUps", "Customer")', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'RequestVerificationToken': antiForgeryToken
+                },
+                body: JSON.stringify(payload)
+            })
+            .then(function (response) { return response.json(); })
+            .catch(function () { return { success: false, items: [] }; });
+        }))
+        .then(function (responses) {
+            if (requestId !== topUpRefreshRequestId) {
+                return;
+            }
+
+            var merged = {};
+            (responses || []).forEach(function (data) {
+                var items = (data && data.success && Array.isArray(data.items)) ? data.items : [];
+                items.forEach(function (raw) {
+                    var parsed = normalizeApplicableTopUp(raw);
+                    if (!parsed || !parsed.key) {
+                        return;
+                    }
+
+                    if (!merged[parsed.key]) {
+                        merged[parsed.key] = parsed;
+                    }
+                });
+            });
+
+            applicableTopUps = Object.keys(merged).map(function (key) { return merged[key]; });
+            selectedTopUps = (selectedTopUps || []).filter(function (selected) {
+                return !!merged[selected.key];
+            }).map(function (selected) {
+                return Object.assign({}, merged[selected.key], selected);
+            });
+
+            renderTopUpSelection();
+        })
+        .catch(function () {
+            if (requestId !== topUpRefreshRequestId) {
+                return;
+            }
+
+            applicableTopUps = [];
+            selectedTopUps = [];
+            renderTopUpSelection();
+        });
+    }
+
+    function isOrderReviewModalOpen() {
+        var modal = document.getElementById("orderReviewModal");
+        return !!modal && modal.style.display === "block";
+    }
+
+    function closeOrderReviewModal() {
+        var modal = document.getElementById("orderReviewModal");
+        var backdrop = document.getElementById("orderReviewModalBackdrop");
+        if (modal) {
+            modal.style.display = "none";
+            modal.setAttribute("aria-hidden", "true");
+        }
+        if (backdrop) {
+            backdrop.style.display = "none";
+            backdrop.setAttribute("aria-hidden", "true");
+        }
+
+        if (orderReviewModalDismissTarget && typeof orderReviewModalDismissTarget.focus === "function") {
+            orderReviewModalDismissTarget.focus();
+        }
+        orderReviewModalDismissTarget = null;
+    }
+
+    function showOrderReviewModal() {
+        var modal = document.getElementById("orderReviewModal");
+        var backdrop = document.getElementById("orderReviewModalBackdrop");
+        var garmentsHost = document.getElementById("orderReviewGarmentsHost");
+        var topUpsHost = document.getElementById("orderReviewTopUpsHost");
+        var summaryHost = document.getElementById("orderReviewSummaryHost");
+        if (!modal || !backdrop || !garmentsHost || !topUpsHost || !summaryHost) {
+            return;
+        }
+
+        var garmentsAmount = computeOrderAmount();
+        var breakup = computeTaxBreakup(garmentsAmount);
+        var topUpState = syncTopUpFieldsAndDisplay();
+        var topUpsSnapshot = topUpState.snapshot || [];
+        var topUpTotal = parseAmount(topUpState.total || 0);
+
+        if (currentOrderMode === "pieces") {
+            if ((orderLines || []).length) {
+                var rows = orderLines.map(function (line) {
+                    var lineQty = parseAmount(line.qty || 0);
+                    var lineAmount = Math.round(lineQty * parseAmount(line.price || 0) * 100) / 100;
+                    return "<tr><td>" + (line.name || "Item") + "</td><td>" + lineQty + "</td><td>" + formatCurrency(lineAmount) + "</td></tr>";
+                }).join("");
+                garmentsHost.innerHTML = "<table class='order-review-table'><thead><tr><th>Garment</th><th>Qty</th><th>Charge</th></tr></thead><tbody>" + rows + "</tbody></table>";
+            } else {
+                garmentsHost.innerHTML = "<div class='field-hint'>No garments added.</div>";
+            }
+        } else {
+            var weight = parseAmount(document.getElementById("weightInKg") && document.getElementById("weightInKg").value);
+            var rate = parseAmount(document.getElementById("ratePerKg") && document.getElementById("ratePerKg").value);
+            var service = normalizeText(document.getElementById("weightServiceType") && document.getElementById("weightServiceType").value) || "Weight Service";
+            garmentsHost.innerHTML = "<table class='order-review-table'><thead><tr><th>Service</th><th>Qty</th><th>Charge</th></tr></thead><tbody>"
+                + "<tr><td>" + service + "</td><td>" + weight.toFixed(3) + " kg × " + formatCurrency(rate) + "</td><td>" + formatCurrency(garmentsAmount) + "</td></tr>"
+                + "</tbody></table>";
+        }
+
+        if (topUpsSnapshot.length) {
+            var topUpRows = topUpsSnapshot.map(function (x) {
+                return "<tr><td>" + x.topUpName + " <span class='topup-charge-chip'>" + x.chargeType + "</span></td><td>" + x.appliedQuantity + " × " + formatCurrency(x.unitPriceSnapshot) + "</td><td>" + formatCurrency(x.lineAmountSnapshot) + "</td></tr>";
+            }).join("");
+            topUpsHost.innerHTML = "<table class='order-review-table'><thead><tr><th>Top-up</th><th>Applied</th><th>Charge</th></tr></thead><tbody>" + topUpRows + "</tbody></table>";
+        } else {
+            topUpsHost.innerHTML = "<div class='field-hint'>No top-ups selected.</div>";
+        }
+
+        var advanceUsed = parseAmount(document.getElementById("advanceUsed") && document.getElementById("advanceUsed").value);
+        var paidNow = parseAmount(document.getElementById("paidNow") && document.getElementById("paidNow").value);
+        var netBeforePayment = Math.max(0, breakup.total - advanceUsed);
+        var projectedNet = Math.max(0, netBeforePayment + topUpTotal);
+        var projectedPending = Math.max(0, projectedNet - paidNow);
+
+        summaryHost.innerHTML = ""
+            + "<div class='order-review-summary-line'><span>Garment Charges</span><b>" + formatCurrency(garmentsAmount) + "</b></div>"
+            + "<div class='order-review-summary-line'><span>Top-up Charges</span><b>" + formatCurrency(topUpTotal) + "</b></div>"
+            + "<div class='order-review-summary-line'><span>Discount</span><b>" + formatCurrency(0) + "</b></div>"
+            + "<div class='order-review-summary-line'><span>Sub Total</span><b>" + formatCurrency(breakup.subTotal) + "</b></div>"
+            + "<div class='order-review-summary-line'><span>Tax</span><b>" + formatCurrency(breakup.tax) + "</b></div>"
+            + "<div class='order-review-summary-line'><span>Total (incl. Tax)</span><b>" + formatCurrency(breakup.total) + "</b></div>"
+            + "<div class='order-review-summary-line'><span>Advance Used</span><b>" + formatCurrency(advanceUsed) + "</b></div>"
+            + "<div class='order-review-summary-line'><span>Paid Now</span><b>" + formatCurrency(paidNow) + "</b></div>"
+            + "<div class='order-review-summary-line total'><span>Projected Final Amount</span><b>" + formatCurrency(projectedNet) + "</b></div>"
+            + "<div class='order-review-summary-line'><span>Projected Pending</span><b>" + formatCurrency(projectedPending) + "</b></div>";
+
+        orderReviewModalDismissTarget = document.activeElement;
+        modal.style.display = "block";
+        modal.setAttribute("aria-hidden", "false");
+        backdrop.style.display = "block";
+        backdrop.setAttribute("aria-hidden", "false");
+        var confirmBtn = document.getElementById("orderReviewConfirmBtn");
+        if (confirmBtn) {
+            confirmBtn.focus();
+        }
+    }
+
+    function buildCurrentReviewSignature() {
+        var topUps = buildSelectedTopUpsSnapshot().map(function (x) {
+            return {
+                topUpName: x.topUpName,
+                chargeType: x.chargeType,
+                serviceType: x.serviceType,
+                category: x.category,
+                itemName: x.itemName,
+                appliedQuantity: Number(x.appliedQuantity || 0),
+                unitPriceSnapshot: Number(x.unitPriceSnapshot || 0)
+            };
+        });
+
+        var lines = (orderLines || []).map(function (line) {
+            return {
+                service: normalizeText(line && line.service),
+                category: normalizeText(line && line.category),
+                name: normalizeText(line && line.name),
+                qty: Number(line && line.qty || 0),
+                price: Number(line && line.price || 0)
+            };
+        });
+
+        var advanceUsed = parseAmount(document.getElementById("advanceUsed") && document.getElementById("advanceUsed").value);
+        var paidNow = parseAmount(document.getElementById("paidNow") && document.getElementById("paidNow").value);
+        var weight = parseAmount(document.getElementById("weightInKg") && document.getElementById("weightInKg").value);
+        var rate = parseAmount(document.getElementById("ratePerKg") && document.getElementById("ratePerKg").value);
+        var weightServiceType = normalizeText(document.getElementById("weightServiceType") && document.getElementById("weightServiceType").value);
+
+        return JSON.stringify({
+            mode: currentOrderMode,
+            lines: lines,
+            topUps: topUps,
+            advanceUsed: advanceUsed,
+            paidNow: paidNow,
+            weight: weight,
+            rate: rate,
+            weightServiceType: weightServiceType
+        });
+    }
+
+    function markOrderReviewDirty() {
+        reviewConfirmationAcknowledged = false;
+        reviewedOrderSignature = "";
+    }
+
     function getExplicitZeroPriceOrderLines() {
         if (currentOrderMode !== "pieces") {
             return [];
@@ -1343,6 +2367,10 @@
 
     function normalizeText(value) {
         return (value == null ? "" : String(value)).trim();
+    }
+
+    function normalizeSearchText(value) {
+        return normalizeText(value).toLowerCase();
     }
 
     function equalsNormalized(left, right) {
@@ -1944,6 +2972,7 @@
             weightServiceType.disabled = !isWeightMode;
         }
 
+        scheduleTopUpRefresh(30);
         syncTotals();
     }
 
@@ -2147,6 +3176,19 @@
             var filtered = (groups[selectedServiceKey] && groups[selectedServiceKey][selectedCategoryKey]) ? groups[selectedServiceKey][selectedCategoryKey].length : 0;
             stats.textContent = "Loaded from DB: " + totalItems + " items" + inactiveText + modeText + " | " + selectedService + " / " + selectedCategory + ": " + filtered + " items";
         }
+
+        if (catalogSearchText) {
+            var searchTerm = normalizeSearchText(catalogSearchText);
+            var filteredCount = (configuredItems || []).filter(function (x) {
+                var itemName = normalizeSearchText(x.ItemName || x.itemName || "");
+                var categoryName = normalizeSearchText(x.Category || x.category || "");
+                var serviceName = normalizeSearchText(x.ServiceType || x.serviceType || "");
+                return itemName.indexOf(searchTerm) >= 0
+                    || categoryName.indexOf(searchTerm) >= 0
+                    || serviceName.indexOf(searchTerm) >= 0;
+            }).length;
+            stats.textContent += " | Search: \"" + catalogSearchText + "\" (" + filteredCount + " matches)";
+        }
     }
 
     function renderCatalogGrid() {
@@ -2298,8 +3340,21 @@
             return entry;
         });
 
+        if (catalogSearchText) {
+            var normalizedSearch = normalizeSearchText(catalogSearchText);
+            items = items.filter(function (entry) {
+                return normalizeSearchText(entry.name).indexOf(normalizedSearch) >= 0
+                    || normalizeSearchText(entry.category).indexOf(normalizedSearch) >= 0
+                    || normalizeSearchText(entry.service).indexOf(normalizedSearch) >= 0;
+            });
+        }
+
         if (!items.length) {
-            grid.innerHTML = "<div class='empty-state'>No items configured for selected service/category.</div>";
+            if (catalogSearchText) {
+                grid.innerHTML = "<div class='empty-state'>No garments match your search. Try a different keyword or clear search.</div>";
+            } else {
+                grid.innerHTML = "<div class='empty-state'>No items configured for selected service/category.</div>";
+            }
             return;
         }
 
@@ -2324,7 +3379,11 @@
 
         items.forEach(function (item) {
             var card = document.createElement("div");
-            card.className = "item-card" + (selectedItem && selectedItem.name === item.name ? " active" : "");
+            var isSelectedCard = selectedItem
+                && equalsNormalized(selectedItem.name, item.name)
+                && equalsNormalized(selectedItem.service, item.service)
+                && equalsNormalized(selectedItem.category, item.category);
+            card.className = "item-card" + (isSelectedCard ? " active" : "");
             var image = document.createElement("img");
             image.className = "item-image";
             image.loading = "lazy";
@@ -2403,20 +3462,662 @@
         var container = document.getElementById("orderLinesContainer");
         container.innerHTML = "";
 
+        function trimOptionalText(value, maxLength) {
+            var raw = (value == null ? "" : String(value)).trim();
+            if (!raw) return "";
+            if (!maxLength || raw.length <= maxLength) return raw;
+            return raw.substring(0, maxLength);
+        }
+
+        function normalizePatternValue(value) {
+            var normalized = trimOptionalText(value, 32);
+            if (!normalized) return "";
+            var lower = normalized.toLowerCase();
+            if (lower === "solid") return "Solid";
+            if (lower === "striped") return "Striped";
+            if (lower === "checked") return "Checked";
+            if (lower === "printed") return "Printed";
+            if (lower === "other") return "Other";
+            return normalized;
+        }
+
+        function hasPieceDetails(details) {
+            if (!details) return false;
+            return !!(
+                trimOptionalText(details.brandName || details.BrandName, 64)
+                || trimOptionalText(details.primaryColor || details.PrimaryColor, 32)
+                || trimOptionalText(details.secondaryColor || details.SecondaryColor, 32)
+                || normalizePatternValue(details.pattern || details.Pattern)
+                || trimOptionalText(details.existingDefects || details.ExistingDefects, 1024)
+                || trimOptionalText(details.defectRemarks || details.DefectRemarks, 512)
+                || trimOptionalText(details.specialInstructions || details.SpecialInstructions, 512)
+            );
+        }
+
+        function createEmptyPieceDetails(pieceNo) {
+            return {
+                pieceNo: pieceNo,
+                brandName: "",
+                primaryColor: "",
+                secondaryColor: "",
+                pattern: "",
+                existingDefects: "",
+                defectRemarks: "",
+                specialInstructions: ""
+            };
+        }
+
+        function normalizePieceDetails(details, pieceNo) {
+            var normalized = details || {};
+            return {
+                pieceNo: pieceNo,
+                brandName: trimOptionalText(normalized.brandName || normalized.BrandName, 64),
+                primaryColor: trimOptionalText(normalized.primaryColor || normalized.PrimaryColor, 32),
+                secondaryColor: trimOptionalText(normalized.secondaryColor || normalized.SecondaryColor, 32),
+                pattern: normalizePatternValue(normalized.pattern || normalized.Pattern),
+                existingDefects: trimOptionalText(normalized.existingDefects || normalized.ExistingDefects, 1024),
+                defectRemarks: trimOptionalText(normalized.defectRemarks || normalized.DefectRemarks, 512),
+                specialInstructions: trimOptionalText(normalized.specialInstructions || normalized.SpecialInstructions, 512)
+            };
+        }
+
+        function ensureGarmentPieceDetails(line) {
+            if (!line) return [];
+            var qty = Math.max(1, parseInt(line.qty || 1, 10) || 1);
+            if (!Array.isArray(line.garmentPieceDetails)) {
+                line.garmentPieceDetails = [];
+            }
+
+            var map = {};
+            line.garmentPieceDetails.forEach(function (piece) {
+                var p = parseInt(piece && (piece.pieceNo ?? piece.PieceNo), 10);
+                if (!Number.isNaN(p) && p > 0 && p <= qty) {
+                    map[p] = normalizePieceDetails(piece, p);
+                }
+            });
+
+            var normalizedPieces = [];
+            for (var i = 1; i <= qty; i++) {
+                normalizedPieces.push(map[i] || createEmptyPieceDetails(i));
+            }
+
+            line.garmentPieceDetails = normalizedPieces;
+            return normalizedPieces;
+        }
+
+        function lineHasAnyGarmentDetails(line) {
+            var pieces = ensureGarmentPieceDetails(line);
+            return pieces.some(function (x) { return hasPieceDetails(x); });
+        }
+
+        function escapeHtml(value) {
+            return String(value == null ? "" : value)
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#39;");
+        }
+
+        function collectSelectedDefects(root) {
+            return Array.prototype.slice.call(root.querySelectorAll("input[data-defect='1']:checked"))
+                .map(function (x) { return trimOptionalText(x.value, 64); })
+                .filter(Boolean)
+                .join(", ");
+        }
+
+        function setSelectedDefects(root, defectsCsv) {
+            var selected = (defectsCsv || "")
+                .split(',')
+                .map(function (x) { return x.trim().toLowerCase(); })
+                .filter(Boolean);
+
+            Array.prototype.slice.call(root.querySelectorAll("input[data-defect='1']")).forEach(function (cb) {
+                cb.checked = selected.indexOf((cb.value || "").trim().toLowerCase()) >= 0;
+                if (cb.parentElement) {
+                    cb.parentElement.classList.toggle("active", cb.checked);
+                }
+            });
+        }
+
+        var garmentBrandCatalog = [
+            "Arrow", "Blackberrys", "Calvin Klein", "ColorPlus", "Gap", "H&M", "Indian Terrain", "Jockey", "Levi's", "Louis Philippe",
+            "Marks & Spencer", "Mufti", "Nike", "Peter England", "Puma", "Raymond", "Roadster", "U.S. Polo Assn.", "Van Heusen", "Zara"
+        ];
+
+        var garmentColourPalette = [
+            { name: "Black", hex: "#111827" },
+            { name: "White", hex: "#F8FAFC" },
+            { name: "Blue", hex: "#1D4ED8" },
+            { name: "Navy", hex: "#1E3A8A" },
+            { name: "Grey", hex: "#6B7280" },
+            { name: "Red", hex: "#DC2626" },
+            { name: "Green", hex: "#15803D" },
+            { name: "Yellow", hex: "#EAB308" },
+            { name: "Pink", hex: "#EC4899" },
+            { name: "Brown", hex: "#92400E" },
+            { name: "Beige", hex: "#D6C4A5" },
+            { name: "Purple", hex: "#7C3AED" }
+        ];
+
+        var garmentPatternCatalog = ["Solid", "Striped", "Checked", "Printed", "Other"];
+        var garmentSpecialInstructionSuggestions = [
+            "Handle with care",
+            "Gentle wash",
+            "Do not bleach",
+            "Low heat ironing",
+            "Do not tumble dry",
+            "Separate wash",
+            "Colour protection",
+            "Extra stain care"
+        ];
+
+        function buildPieceEditorHtml(piece) {
+            var pattern = piece.pattern || "";
+            var brandValue = piece.brandName || "";
+            var showConditionNotes = !!(piece.defectRemarks || "").trim();
+            var showSpecialInstructions = !!(piece.specialInstructions || "").trim();
+
+            function splitSpecialInstructions(rawValue) {
+                var original = trimOptionalText(rawValue, 512);
+                if (!original) {
+                    return { selected: [], custom: "" };
+                }
+
+                var working = " " + original + " ";
+                var selectedLookup = {};
+                garmentSpecialInstructionSuggestions.forEach(function (suggestion) {
+                    var escaped = suggestion.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+                    var regex = new RegExp("(^|[\\s,;|])" + escaped + "([\\s,;|]|$)", "ig");
+                    if (regex.test(working)) {
+                        selectedLookup[suggestion] = true;
+                    }
+                    working = working.replace(regex, " ");
+                });
+
+                var custom = working
+                    .replace(/[|,;]+/g, " ")
+                    .replace(/\s{2,}/g, " ")
+                    .trim();
+
+                return {
+                    selected: garmentSpecialInstructionSuggestions.filter(function (x) { return !!selectedLookup[x]; }),
+                    custom: trimOptionalText(custom, 512)
+                };
+            }
+
+            function buildInstructionSuggestionChips(selectedSuggestions) {
+                var lookup = {};
+                (selectedSuggestions || []).forEach(function (x) { lookup[x] = true; });
+                return garmentSpecialInstructionSuggestions.map(function (x) {
+                    return ""
+                        + "<button type='button' class='garment-instruction-chip" + (lookup[x] ? " active" : "") + "' data-si-suggestion='" + escapeHtml(x) + "'>"
+                        + "<i class='fa fa-lightbulb-o' aria-hidden='true'></i>"
+                        + "<span>" + x + "</span>"
+                        + "</button>";
+                }).join("");
+            }
+
+            var specialInstructionState = splitSpecialInstructions(piece.specialInstructions || "");
+
+            function buildColourSwatches(targetField, selectedValue) {
+                return garmentColourPalette.map(function (x) {
+                    var active = equalsNormalized(selectedValue, x.name) ? " active" : "";
+                    return ""
+                        + "<button type='button' class='garment-swatch-chip" + active + "' data-swatch-target='" + targetField + "' data-swatch-value='" + escapeHtml(x.name) + "'>"
+                        + "<span class='garment-swatch-dot' style='background:" + x.hex + ";'></span>"
+                        + "<span>" + x.name + "</span>"
+                        + "</button>";
+                }).join("");
+            }
+
+            function buildPatternChips(selectedPattern) {
+                return garmentPatternCatalog.map(function (x) {
+                    return "<button type='button' class='garment-pattern-chip" + (x === selectedPattern ? " active" : "") + "' data-pattern-value='" + x + "'>" + x + "</button>";
+                }).join("");
+            }
+
+            return ""
+                + "<div class='garment-editor-guidance'><b>Tip:</b> Start with brand and colour, then add defects/instructions only when needed. Example: \"Ink mark near left cuff\".</div>"
+                + "<div class='garment-editor-grid'>"
+                + "<section class='garment-editor-section full'>"
+                + "<div class='garment-section-head'><h4 class='garment-section-title'>Brand & Garment identity</h4></div>"
+                + "<div class='garment-section-body'>"
+                + "<div class='setup-field'><label>Brand</label><input type='text' class='garment-brand-search' data-gf='brandName' maxlength='64' placeholder='Type or pick from suggestions' value='" + escapeHtml(brandValue) + "' /></div>"
+                + "<div class='garment-brand-search-wrap'><i class='fa fa-search' aria-hidden='true'></i><input type='text' class='garment-brand-search' data-gf-brand-search='1' maxlength='64' placeholder='Search common brands' value='' /></div>"
+                + "<div class='garment-brand-list' data-brand-list='1'></div>"
+                + "</div></section>"
+                + "<section class='garment-editor-section'>"
+                + "<div class='garment-section-head'><h4 class='garment-section-title'>Primary colour</h4></div>"
+                + "<div class='garment-section-body'>"
+                + "<div class='setup-field'><label>Main colour</label><input type='text' data-gf='primaryColor' maxlength='32' placeholder='Ex: Navy' value='" + escapeHtml(piece.primaryColor || "") + "' /></div>"
+                + "<div class='garment-swatch-grid' data-swatch-group='primaryColor'>" + buildColourSwatches("primaryColor", piece.primaryColor || "") + "</div>"
+                + "</div></section>"
+                + "<section class='garment-editor-section'>"
+                + "<div class='garment-section-head'><h4 class='garment-section-title'>Secondary colour</h4></div>"
+                + "<div class='garment-section-body'>"
+                + "<div class='setup-field'><label>Accent colour</label><input type='text' data-gf='secondaryColor' maxlength='32' placeholder='Ex: White (optional)' value='" + escapeHtml(piece.secondaryColor || "") + "' /></div>"
+                + "<div class='garment-swatch-grid' data-swatch-group='secondaryColor'>" + buildColourSwatches("secondaryColor", piece.secondaryColor || "") + "</div>"
+                + "</div></section>"
+                + "<section class='garment-editor-section full'>"
+                + "<div class='garment-section-head'><h4 class='garment-section-title'>Pattern</h4></div>"
+                + "<div class='garment-section-body'>"
+                + "<div class='setup-field'><label>Pattern type</label><select data-gf='pattern'>"
+                + "<option value=''>Select pattern</option>"
+                + "<option" + (pattern === "Solid" ? " selected" : "") + ">Solid</option>"
+                + "<option" + (pattern === "Striped" ? " selected" : "") + ">Striped</option>"
+                + "<option" + (pattern === "Checked" ? " selected" : "") + ">Checked</option>"
+                + "<option" + (pattern === "Printed" ? " selected" : "") + ">Printed</option>"
+                + "<option" + (pattern === "Other" ? " selected" : "") + ">Other</option>"
+                + "</select></div>"
+                + "<div class='garment-pattern-options'>" + buildPatternChips(pattern) + "</div>"
+                + "</div></section>"
+                + "<section class='garment-editor-section full'>"
+                + "<div class='garment-section-head'><h4 class='garment-section-title'>Condition checklist</h4>"
+                + "<button type='button' class='garment-section-toggle' data-section-toggle='conditionNotes'>" + (showConditionNotes ? "Hide notes" : "Add notes") + "</button></div>"
+                + "<div class='garment-section-body'>"
+                + "<div class='setup-field'><label>Existing defects (select all that apply)</label>"
+                + "<div class='garment-defect-list'>"
+                + "<label><input type='checkbox' data-defect='1' value='Stains' />Stains</label>"
+                + "<label><input type='checkbox' data-defect='1' value='Ink Marks' />Ink Marks</label>"
+                + "<label><input type='checkbox' data-defect='1' value='Oil Marks' />Oil Marks</label>"
+                + "<label><input type='checkbox' data-defect='1' value='Tears' />Tears</label>"
+                + "<label><input type='checkbox' data-defect='1' value='Holes' />Holes</label>"
+                + "<label><input type='checkbox' data-defect='1' value='Missing Buttons' />Missing Buttons</label>"
+                + "<label><input type='checkbox' data-defect='1' value='Broken Zip' />Broken Zip</label>"
+                + "<label><input type='checkbox' data-defect='1' value='Colour Fading' />Colour Fading</label>"
+                + "<label><input type='checkbox' data-defect='1' value='Fabric Damage' />Fabric Damage</label>"
+                + "<label><input type='checkbox' data-defect='1' value='Embroidery Damage' />Embroidery Damage</label>"
+                + "<label><input type='checkbox' data-defect='1' value='Other' />Other</label>"
+                + "</div></div>"
+                + "<div class='garment-section-body' data-section='conditionNotes' aria-hidden='" + (showConditionNotes ? "false" : "true") + "'>"
+                + "<div class='setup-field'><label>Defect remarks/location</label><textarea rows='2' maxlength='512' data-gf='defectRemarks' placeholder='Ex: Small tear near right pocket'>" + escapeHtml(piece.defectRemarks || "") + "</textarea></div>"
+                + "</div></section>"
+                + "<section class='garment-editor-section full'>"
+                + "<div class='garment-section-head'><h4 class='garment-section-title'>Special instructions</h4>"
+                + "<button type='button' class='garment-section-toggle' data-section-toggle='specialNotes'>" + (showSpecialInstructions ? "Hide instructions" : "Add instructions") + "</button></div>"
+                + "<div class='garment-section-body' data-section='specialNotes' aria-hidden='" + (showSpecialInstructions ? "false" : "true") + "'>"
+                + "<div class='garment-instruction-guidance'>Pick one or more suggestions, then add custom notes if needed.</div>"
+                + "<div class='garment-instruction-chip-grid'>" + buildInstructionSuggestionChips(specialInstructionState.selected) + "</div>"
+                + "<div class='setup-field'><label>Custom handling notes</label><textarea rows='3' maxlength='512' data-gf='specialInstructions' placeholder='Ex: Delicate fabric, avoid high heat. Iron inside-out only.'>" + escapeHtml(specialInstructionState.custom || "") + "</textarea></div>"
+                + "</div></section>"
+                + "</div>";
+        }
+
+        function openGarmentEditor(lineIndex) {
+            var line = orderLines[lineIndex];
+            if (!line) return;
+
+            ensureGarmentPieceDetails(line);
+
+            var host = document.getElementById("garmentEditorHost_" + lineIndex);
+            if (!host) return;
+
+            var editorState = {
+                lineIndex: lineIndex,
+                currentPieceNo: 1,
+                draftPieces: line.garmentPieceDetails.map(function (x) { return Object.assign({}, x); })
+            };
+
+            var previousBodyOverflow = document.body.style.overflow;
+            var escHandlerBound = false;
+            var escHandler = function (event) {
+                if (event.key === "Escape") {
+                    closeEditor();
+                }
+            };
+
+            function bindEscHandler() {
+                if (escHandlerBound) {
+                    return;
+                }
+
+                escHandlerBound = true;
+                document.addEventListener("keydown", escHandler);
+            }
+
+            function unbindEscHandler() {
+                if (!escHandlerBound) {
+                    return;
+                }
+
+                escHandlerBound = false;
+                document.removeEventListener("keydown", escHandler);
+            }
+
+            function setFeedback(message) {
+                var feedback = host.querySelector("[data-ge-feedback='1']");
+                if (feedback) {
+                    feedback.textContent = message || "";
+                }
+            }
+
+            function collectSelectedInstructionSuggestions() {
+                return Array.prototype.slice.call(host.querySelectorAll("[data-si-suggestion].active"))
+                    .map(function (btn) { return trimOptionalText(btn.getAttribute("data-si-suggestion"), 64); })
+                    .filter(Boolean);
+            }
+
+            function mergeSpecialInstructions(selectedSuggestions, customText) {
+                var selectedLookup = {};
+                var orderedSelected = [];
+                (selectedSuggestions || []).forEach(function (item) {
+                    var normalized = trimOptionalText(item, 64);
+                    if (!normalized || selectedLookup[normalized.toLowerCase()]) {
+                        return;
+                    }
+
+                    selectedLookup[normalized.toLowerCase()] = true;
+                    orderedSelected.push(normalized);
+                });
+
+                var custom = trimOptionalText(customText, 512);
+                var parts = [];
+                if (orderedSelected.length) {
+                    parts.push(orderedSelected.join(", "));
+                }
+                if (custom) {
+                    parts.push(custom);
+                }
+
+                return trimOptionalText(parts.join(" | "), 512);
+            }
+
+            function renderBrandChips(searchValue) {
+                var list = host.querySelector("[data-brand-list='1']");
+                var brandInput = host.querySelector("[data-gf='brandName']");
+                if (!list || !brandInput) {
+                    return;
+                }
+
+                var term = normalizeSearchText(searchValue || "");
+                var currentBrand = normalizeText(brandInput.value || "");
+                var matching = garmentBrandCatalog.filter(function (name) {
+                    return !term || normalizeSearchText(name).indexOf(term) >= 0;
+                });
+
+                list.innerHTML = matching.map(function (name) {
+                    var active = equalsNormalized(currentBrand, name) ? " active" : "";
+                    return "<button type='button' class='garment-brand-chip" + active + "' data-brand-value='" + escapeHtml(name) + "'>" + escapeHtml(name) + "</button>";
+                }).join("");
+
+                Array.prototype.slice.call(list.querySelectorAll("[data-brand-value]")).forEach(function (btn) {
+                    btn.addEventListener("click", function () {
+                        brandInput.value = btn.getAttribute("data-brand-value") || "";
+                        renderBrandChips(searchValue || "");
+                        setFeedback("Unsaved changes");
+                    });
+                });
+
+                Array.prototype.slice.call(host.querySelectorAll("[data-si-suggestion]")).forEach(function (btn) {
+                    btn.addEventListener("click", function () {
+                        btn.classList.toggle("active");
+                        setFeedback("Unsaved changes");
+                    });
+                });
+            }
+
+            function bindInteractiveVisuals() {
+                Array.prototype.slice.call(host.querySelectorAll("input[data-defect='1']")).forEach(function (cb) {
+                    cb.addEventListener("change", function () {
+                        if (cb.parentElement) {
+                            cb.parentElement.classList.toggle("active", cb.checked);
+                        }
+                        setFeedback("Unsaved changes");
+                    });
+                });
+
+                Array.prototype.slice.call(host.querySelectorAll("[data-swatch-target]")).forEach(function (btn) {
+                    btn.addEventListener("click", function () {
+                        var target = btn.getAttribute("data-swatch-target") || "";
+                        var value = btn.getAttribute("data-swatch-value") || "";
+                        var input = host.querySelector("[data-gf='" + target + "']");
+                        if (input) {
+                            input.value = value;
+                        }
+
+                        Array.prototype.slice.call(host.querySelectorAll("[data-swatch-target='" + target + "']")).forEach(function (x) {
+                            x.classList.toggle("active", x === btn);
+                        });
+                        setFeedback("Unsaved changes");
+                    });
+                });
+
+                Array.prototype.slice.call(host.querySelectorAll("[data-pattern-value]")).forEach(function (btn) {
+                    btn.addEventListener("click", function () {
+                        var patternInput = host.querySelector("[data-gf='pattern']");
+                        if (patternInput) {
+                            patternInput.value = btn.getAttribute("data-pattern-value") || "";
+                        }
+
+                        Array.prototype.slice.call(host.querySelectorAll("[data-pattern-value]")).forEach(function (x) {
+                            x.classList.toggle("active", x === btn);
+                        });
+                        setFeedback("Unsaved changes");
+                    });
+                });
+
+                var patternSelect = host.querySelector("[data-gf='pattern']");
+                if (patternSelect) {
+                    patternSelect.addEventListener("change", function () {
+                        Array.prototype.slice.call(host.querySelectorAll("[data-pattern-value]")).forEach(function (x) {
+                            x.classList.toggle("active", equalsNormalized(x.getAttribute("data-pattern-value") || "", patternSelect.value || ""));
+                        });
+                        setFeedback("Unsaved changes");
+                    });
+                }
+
+                var brandSearch = host.querySelector("[data-gf-brand-search='1']");
+                if (brandSearch) {
+                    brandSearch.addEventListener("input", function () {
+                        renderBrandChips(brandSearch.value || "");
+                    });
+                }
+
+                Array.prototype.slice.call(host.querySelectorAll("input[data-gf], textarea[data-gf], select[data-gf]")).forEach(function (input) {
+                    input.addEventListener("input", function () {
+                        setFeedback("Unsaved changes");
+                    });
+                    input.addEventListener("change", function () {
+                        setFeedback("Unsaved changes");
+                    });
+                });
+
+                Array.prototype.slice.call(host.querySelectorAll("[data-section-toggle]")).forEach(function (btn) {
+                    btn.addEventListener("click", function () {
+                        var sectionName = btn.getAttribute("data-section-toggle") || "";
+                        var section = host.querySelector("[data-section='" + sectionName + "']");
+                        if (!section) {
+                            return;
+                        }
+
+                        var isHidden = section.getAttribute("aria-hidden") !== "false";
+                        section.setAttribute("aria-hidden", isHidden ? "false" : "true");
+                        if (sectionName === "conditionNotes") {
+                            btn.textContent = isHidden ? "Hide notes" : "Add notes";
+                        } else {
+                            btn.textContent = isHidden ? "Hide instructions" : "Add instructions";
+                        }
+                    });
+                });
+
+                renderBrandChips((brandSearch && brandSearch.value) || "");
+            }
+
+            function renderEditor() {
+                var qty = Math.max(1, parseInt(line.qty || 1, 10) || 1);
+                if (editorState.currentPieceNo > qty) editorState.currentPieceNo = qty;
+                if (editorState.currentPieceNo < 1) editorState.currentPieceNo = 1;
+
+                var activePiece = editorState.draftPieces[editorState.currentPieceNo - 1] || createEmptyPieceDetails(editorState.currentPieceNo);
+                editorState.draftPieces[editorState.currentPieceNo - 1] = activePiece;
+
+                var tabs = "";
+                for (var p = 1; p <= qty; p++) {
+                    var pieceData = editorState.draftPieces[p - 1] || createEmptyPieceDetails(p);
+                    tabs += "<button type='button' class='garment-piece-tab" + (p === editorState.currentPieceNo ? " active" : "") + "' data-piece='" + p + "'>Piece " + p + (hasPieceDetails(pieceData) ? " ✓" : "") + "</button>";
+                }
+
+                var completedCount = editorState.draftPieces.filter(function (x) { return hasPieceDetails(x); }).length;
+
+                host.innerHTML = ""
+                    + "<div class='garment-editor-backdrop' data-ge-action='backdrop' aria-hidden='false'></div>"
+                    + "<div class='garment-editor-drawer' role='dialog' aria-modal='true' aria-label='Garment details drawer' aria-hidden='false'>"
+                    + "<div class='garment-editor-header'>"
+                    + "<div class='garment-editor-heading-wrap'>"
+                    + "<div class='garment-editor-title'>Garment details · " + escapeHtml(line.name || "Item") + "</div>"
+                    + "<div class='garment-editor-subtitle'>Piece " + editorState.currentPieceNo + " of " + qty + " · Optional fields with smart suggestions</div>"
+                    + "</div>"
+                    + "<span class='garment-editor-status'>" + completedCount + " / " + qty + " completed</span>"
+                    + "<button type='button' class='garment-editor-close' data-ge-action='close' aria-label='Close garment details'>×</button>"
+                    + "</div>"
+                    + "<div class='garment-editor-body'>"
+                    + "<div class='garment-editor-piece-tabs'>" + tabs + "</div>"
+                    + buildPieceEditorHtml(activePiece)
+                    + "</div>"
+                    + "<div class='garment-editor-footer'>"
+                    + "<div class='garment-editor-actions'>"
+                    + "<div class='garment-editor-feedback' data-ge-feedback='1'></div>"
+                    + "<button type='button' class='order-line-meta-btn' data-ge-action='applyAll'>Apply to all pieces</button>"
+                    + "<button type='button' class='order-line-meta-btn' data-ge-action='cancel'>Cancel</button>"
+                    + "<button type='button' class='setup-btn' style='max-width:200px; margin-bottom:0;' data-ge-action='save'>Save garment details</button>"
+                    + "</div>"
+                    + "</div>"
+                    + "</div>";
+
+                setSelectedDefects(host, activePiece.existingDefects || "");
+                bindInteractiveVisuals();
+                bindEscHandler();
+                document.body.style.overflow = "hidden";
+
+                Array.prototype.slice.call(host.querySelectorAll(".garment-piece-tab")).forEach(function (btn) {
+                    btn.addEventListener("click", function () {
+                        persistCurrentPiece();
+                        var nextPiece = parseInt(btn.getAttribute("data-piece"), 10);
+                        if (!Number.isNaN(nextPiece)) {
+                            editorState.currentPieceNo = nextPiece;
+                            renderEditor();
+                        }
+                    });
+                });
+
+                var saveBtn = host.querySelector("[data-ge-action='save']");
+                var cancelBtn = host.querySelector("[data-ge-action='cancel']");
+                var applyAllBtn = host.querySelector("[data-ge-action='applyAll']");
+
+                if (saveBtn) {
+                    saveBtn.addEventListener("click", function () {
+                        persistCurrentPiece();
+                        line.garmentPieceDetails = editorState.draftPieces.map(function (x, idx) {
+                            return normalizePieceDetails(x, idx + 1);
+                        });
+                        closeEditor();
+                        renderOrderLines();
+                    });
+                }
+
+                if (cancelBtn) {
+                    cancelBtn.addEventListener("click", function () {
+                        closeEditor();
+                        renderOrderLines();
+                    });
+                }
+
+                if (applyAllBtn) {
+                    applyAllBtn.addEventListener("click", function () {
+                        persistCurrentPiece();
+                        var source = normalizePieceDetails(editorState.draftPieces[editorState.currentPieceNo - 1], editorState.currentPieceNo);
+                        editorState.draftPieces = editorState.draftPieces.map(function (_, idx) {
+                            return {
+                                pieceNo: idx + 1,
+                                brandName: source.brandName,
+                                primaryColor: source.primaryColor,
+                                secondaryColor: source.secondaryColor,
+                                pattern: source.pattern,
+                                existingDefects: source.existingDefects,
+                                defectRemarks: source.defectRemarks,
+                                specialInstructions: source.specialInstructions
+                            };
+                        });
+                        setFeedback("Applied to all pieces");
+                        showToast("Applied current garment details to all pieces for this line.", true);
+                        renderEditor();
+                    });
+                }
+
+                if (closeBtn) {
+                    closeBtn.addEventListener("click", closeEditor);
+                }
+
+                if (backdrop) {
+                    backdrop.addEventListener("click", closeEditor);
+                }
+            }
+
+            function persistCurrentPiece() {
+                var currentPiece = editorState.currentPieceNo;
+                var target = editorState.draftPieces[currentPiece - 1] || createEmptyPieceDetails(currentPiece);
+                target.pieceNo = currentPiece;
+                target.brandName = trimOptionalText((host.querySelector("[data-gf='brandName']") || {}).value, 64);
+                target.primaryColor = trimOptionalText((host.querySelector("[data-gf='primaryColor']") || {}).value, 32);
+                target.secondaryColor = trimOptionalText((host.querySelector("[data-gf='secondaryColor']") || {}).value, 32);
+                target.pattern = normalizePatternValue((host.querySelector("[data-gf='pattern']") || {}).value);
+                target.existingDefects = trimOptionalText(collectSelectedDefects(host), 1024);
+                target.defectRemarks = trimOptionalText((host.querySelector("[data-gf='defectRemarks']") || {}).value, 512);
+                var selectedInstructionSuggestions = collectSelectedInstructionSuggestions();
+                var customInstructionText = trimOptionalText((host.querySelector("[data-gf='specialInstructions']") || {}).value, 512);
+                target.specialInstructions = mergeSpecialInstructions(selectedInstructionSuggestions, customInstructionText);
+                editorState.draftPieces[currentPiece - 1] = target;
+            }
+
+            function closeEditor() {
+                if (host) {
+                    host.innerHTML = "";
+                }
+                unbindEscHandler();
+                document.body.style.overflow = previousBodyOverflow || "";
+                line.editorOpen = false;
+            }
+
+            line.editorOpen = true;
+            renderEditor();
+        }
+
         if (!orderLines.length) {
             container.innerHTML = "<div class='order-line'><span>No items added yet. Select an item and click Add To Order.</span></div>";
+            markOrderReviewDirty();
+            scheduleTopUpRefresh(20);
             syncTotals();
             return;
         }
 
         orderLines.forEach(function (line, index) {
+            ensureGarmentPieceDetails(line);
+            var detailsAdded = lineHasAnyGarmentDetails(line);
+
             var row = document.createElement("div");
             row.className = "order-line";
-            row.innerHTML = "<span>" + line.name + "</span>"
-                + "<span>x" + line.qty + "</span>"
-                + "<span>" + formatCurrency(line.qty * line.price) + "</span>"
-                + "<button type='button' class='remove-line' data-idx='" + index + "'>×</button>";
+            row.innerHTML = "<span class='order-line-name'>" + escapeHtml(line.name || "Item") + "</span>"
+                + "<span class='order-line-qty-controls'>"
+                + "<button type='button' class='order-line-qty-btn' data-line-qty-minus='" + index + "' aria-label='Decrease quantity'>-</button>"
+                + "<input type='number' class='order-line-qty-input' data-line-qty-input='" + index + "' min='1' step='1' value='" + line.qty + "' aria-label='Line quantity' />"
+                + "<button type='button' class='order-line-qty-btn' data-line-qty-plus='" + index + "' aria-label='Increase quantity'>+</button>"
+                + "</span>"
+                + "<span class='order-line-meta'>" + formatCurrency(line.qty * line.price) + "</span>"
+                + "<span class='order-line-actions'>"
+                + (detailsAdded ? "<span class='order-line-details-badge'>Details added</span>" : "")
+                + "<button type='button' class='order-line-meta-btn' data-edit-idx='" + index + "'>Garment details</button>"
+                + "<button type='button' class='remove-line' data-idx='" + index + "'>×</button>"
+                + "</span>";
             container.appendChild(row);
+
+            var editorHost = document.createElement("div");
+            editorHost.id = "garmentEditorHost_" + index;
+            container.appendChild(editorHost);
+
+            if (line.editorOpen) {
+                openGarmentEditor(index);
+            }
         });
 
         Array.prototype.slice.call(container.querySelectorAll(".remove-line")).forEach(function (btn) {
@@ -2426,6 +4127,73 @@
                     orderLines.splice(idx, 1);
                     renderOrderLines();
                 }
+            });
+        });
+
+        Array.prototype.slice.call(container.querySelectorAll("[data-line-qty-plus]")).forEach(function (btn) {
+            btn.addEventListener("click", function () {
+                var idx = Number(btn.getAttribute("data-line-qty-plus"));
+                if (Number.isNaN(idx) || !orderLines[idx]) {
+                    return;
+                }
+
+                orderLines[idx].qty = Math.max(1, parseInt(orderLines[idx].qty || 1, 10) + 1);
+                ensureGarmentPieceDetails(orderLines[idx]);
+                renderOrderLines();
+            });
+        });
+
+        Array.prototype.slice.call(container.querySelectorAll("[data-line-qty-minus]")).forEach(function (btn) {
+            btn.addEventListener("click", function () {
+                var idx = Number(btn.getAttribute("data-line-qty-minus"));
+                if (Number.isNaN(idx) || !orderLines[idx]) {
+                    return;
+                }
+
+                var nextQty = Math.max(1, parseInt(orderLines[idx].qty || 1, 10) - 1);
+                orderLines[idx].qty = nextQty;
+                ensureGarmentPieceDetails(orderLines[idx]);
+                renderOrderLines();
+            });
+        });
+
+        Array.prototype.slice.call(container.querySelectorAll("[data-line-qty-input]")).forEach(function (input) {
+            input.addEventListener("change", function () {
+                var idx = Number(input.getAttribute("data-line-qty-input"));
+                if (Number.isNaN(idx) || !orderLines[idx]) {
+                    return;
+                }
+
+                var qty = parseInt(input.value || "1", 10);
+                if (Number.isNaN(qty) || qty < 1) {
+                    qty = 1;
+                }
+
+                orderLines[idx].qty = qty;
+                ensureGarmentPieceDetails(orderLines[idx]);
+                renderOrderLines();
+            });
+        });
+
+        Array.prototype.slice.call(container.querySelectorAll("[data-edit-idx]")).forEach(function (btn) {
+            btn.addEventListener("click", function () {
+                var idx = Number(btn.getAttribute("data-edit-idx"));
+                if (Number.isNaN(idx) || !orderLines[idx]) {
+                    return;
+                }
+
+                orderLines.forEach(function (lineItem, lineIdx) {
+                    lineItem.editorOpen = lineIdx === idx;
+                });
+
+                renderOrderLines();
+            });
+        });
+
+        markOrderReviewDirty();
+        scheduleTopUpRefresh(20);
+        syncTotals();
+    }
 
     function violatesPartialPaymentPolicy(netPayableAmount, paidNowAmount) {
         if (allowPartialPayment) {
@@ -2439,11 +4207,6 @@
         var isFullyPaidOrder = netPayable <= tolerance;
 
         return !isUnpaidOrder && !isFullyPaidOrder;
-    }
-            });
-        });
-
-        syncTotals();
     }
 
     function buildItemSummaryText() {
@@ -2501,8 +4264,35 @@
                 existing.qty += qty;
                 existing.price = parseAmount(selectedItem.price);
                 existing.hasConfiguredPrice = !!selectedItem.hasConfiguredPrice;
+                existing.editorOpen = false;
+                if (Array.isArray(existing.garmentPieceDetails) && existing.garmentPieceDetails.length) {
+                    var next = [];
+                    for (var pi = 1; pi <= existing.qty; pi++) {
+                        var found = existing.garmentPieceDetails.find(function (g) { return Number(g && g.pieceNo) === pi; });
+                        next.push(found || {
+                            pieceNo: pi,
+                            brandName: "",
+                            primaryColor: "",
+                            secondaryColor: "",
+                            pattern: "",
+                            existingDefects: "",
+                            defectRemarks: "",
+                            specialInstructions: ""
+                        });
+                    }
+                    existing.garmentPieceDetails = next;
+                }
             }
-            else orderLines.push({ service: selectedItem.service, category: selectedItem.category, name: selectedItem.name, price: selectedItem.price, qty: qty, hasConfiguredPrice: !!selectedItem.hasConfiguredPrice });
+            else orderLines.push({
+                service: selectedItem.service,
+                category: selectedItem.category,
+                name: selectedItem.name,
+                price: selectedItem.price,
+                qty: qty,
+                hasConfiguredPrice: !!selectedItem.hasConfiguredPrice,
+                garmentPieceDetails: [],
+                editorOpen: false
+            });
         } else {
             var manualNameEl = document.getElementById('manualItemName');
             var manualPriceEl = document.getElementById('manualUnitPrice');
@@ -2512,7 +4302,15 @@
 
             var existing = orderLines.find(function (line) { return line.name === manualName; });
             if (existing) existing.qty += qty;
-            else orderLines.push({ service: selectedService, category: selectedCategory, name: manualName, price: manualPrice, qty: qty });
+            else orderLines.push({
+                service: selectedService,
+                category: selectedCategory,
+                name: manualName,
+                price: manualPrice,
+                qty: qty,
+                garmentPieceDetails: [],
+                editorOpen: false
+            });
         }
 
         renderOrderLines();
@@ -4132,6 +5930,26 @@
                 e.stopPropagation();
                 addSelectedItemToOrder();
             };
+            var catalogSearchInput = document.getElementById("catalogSearchInput");
+            var catalogSearchClearBtn = document.getElementById("catalogSearchClearBtn");
+            if (catalogSearchInput) {
+                catalogSearchInput.addEventListener("input", function () {
+                    catalogSearchText = normalizeText(catalogSearchInput.value);
+                    renderCatalogGrid();
+                    updateCatalogStats();
+                });
+            }
+            if (catalogSearchClearBtn) {
+                catalogSearchClearBtn.addEventListener("click", function () {
+                    catalogSearchText = "";
+                    if (catalogSearchInput) {
+                        catalogSearchInput.value = "";
+                        catalogSearchInput.focus();
+                    }
+                    renderCatalogGrid();
+                    updateCatalogStats();
+                });
+            }
             document.getElementById("orderHistorySearch")?.addEventListener("input", applyOrderHistorySearch);
             document.getElementById("orderHistoryStatusFilter")?.addEventListener("change", applyOrderHistorySearch);
             document.getElementById("orderHistoryFromDate")?.addEventListener("change", applyOrderHistorySearch);
@@ -4141,6 +5959,18 @@
             document.getElementById("weightInKg").addEventListener("input", syncTotals);
             document.getElementById("ratePerKg").addEventListener("input", syncTotals);
             document.getElementById("weightServiceType").addEventListener("change", syncTotals);
+
+            ["advanceUsed", "paidNow", "weightInKg", "ratePerKg", "weightServiceType", "customerName", "notes", "paymentMode"].forEach(function (id) {
+                var el = document.getElementById(id);
+                if (!el) {
+                    return;
+                }
+
+                el.addEventListener("change", markOrderReviewDirty);
+                if (id === "advanceUsed" || id === "paidNow" || id === "weightInKg" || id === "ratePerKg") {
+                    el.addEventListener("input", markOrderReviewDirty);
+                }
+            });
 
             var customerNameInput = document.getElementById("customerName");
             var customerSuggestionList = document.getElementById("customerNameSuggestions");
@@ -4242,16 +6072,41 @@
                 var itemsPayloadInput = document.getElementById("orderItemsJson");
                 if (itemsPayloadInput) {
                     var payloadItems = orderLines.map(function (line) {
+                        var details = Array.isArray(line.garmentPieceDetails) ? line.garmentPieceDetails : [];
+                        var normalizedDetails = details.map(function (piece, idx) {
+                            var pieceNo = Number((piece && piece.pieceNo) || idx + 1);
+                            if (!Number.isFinite(pieceNo) || pieceNo < 1) {
+                                pieceNo = idx + 1;
+                            }
+
+                            return {
+                                pieceNo: pieceNo,
+                                brandName: (piece && piece.brandName ? String(piece.brandName).trim() : ""),
+                                primaryColor: (piece && piece.primaryColor ? String(piece.primaryColor).trim() : ""),
+                                secondaryColor: (piece && piece.secondaryColor ? String(piece.secondaryColor).trim() : ""),
+                                pattern: (piece && piece.pattern ? String(piece.pattern).trim() : ""),
+                                existingDefects: (piece && piece.existingDefects ? String(piece.existingDefects).trim() : ""),
+                                defectRemarks: (piece && piece.defectRemarks ? String(piece.defectRemarks).trim() : ""),
+                                specialInstructions: (piece && piece.specialInstructions ? String(piece.specialInstructions).trim() : "")
+                            };
+                        }).filter(function (piece) {
+                            return !!(piece.brandName || piece.primaryColor || piece.secondaryColor || piece.pattern || piece.existingDefects || piece.defectRemarks || piece.specialInstructions);
+                        });
+
                         return {
                             serviceType: line.service || selectedService,
                             category: line.category || selectedCategory,
                             itemName: line.name,
                             unitPrice: Number(line.price || 0),
-                            quantity: Number(line.qty || 0)
+                            quantity: Number(line.qty || 0),
+                            pieceDetails: normalizedDetails
                         };
                     });
                     itemsPayloadInput.value = JSON.stringify(payloadItems);
                 }
+
+                var topUpFields = syncTopUpFieldsAndDisplay();
+                var topUpsPayload = topUpFields.snapshot || [];
 
                 var createOrderBtn = document.getElementById("createOrderBtn");
                 var customerName = (document.getElementById("customerName").value || "").trim();
@@ -4322,6 +6177,22 @@
                 if (enableMinimumOrder && minimumOrderAmount > 0 && orderAmountValue < minimumOrderAmount) {
                     e.preventDefault();
                     showToast("Minimum order amount is " + formatCurrency(minimumOrderAmount) + ". Current order amount is " + formatCurrency(orderAmountValue) + ".", false);
+                    return;
+                }
+
+                var currentReviewSignature = buildCurrentReviewSignature();
+                if (!reviewConfirmationAcknowledged || reviewedOrderSignature !== currentReviewSignature) {
+                    e.preventDefault();
+                    reviewedOrderSignature = "";
+                    reviewConfirmationAcknowledged = false;
+                    showToast("Please review and confirm the order summary before saving.", false);
+                    showOrderReviewModal();
+                    return;
+                }
+
+                if (currentOrderMode !== "pieces" && topUpsPayload.length) {
+                    e.preventDefault();
+                    showToast("Top-up services are supported only for pieces mode orders.", false);
                     return;
                 }
 
@@ -4396,10 +6267,62 @@
                 });
             }
 
+            var reviewOrderBtn = document.getElementById("reviewOrderBtn");
+            var orderReviewCloseBtn = document.getElementById("orderReviewCloseBtn");
+            var orderReviewBackBtn = document.getElementById("orderReviewBackBtn");
+            var orderReviewConfirmBtn = document.getElementById("orderReviewConfirmBtn");
+            var orderReviewBackdrop = document.getElementById("orderReviewModalBackdrop");
+
+            if (reviewOrderBtn) {
+                reviewOrderBtn.addEventListener("click", function () {
+                    showOrderReviewModal();
+                });
+            }
+
+            if (orderReviewCloseBtn) {
+                orderReviewCloseBtn.addEventListener("click", function () {
+                    reviewConfirmationAcknowledged = false;
+                    reviewedOrderSignature = "";
+                    closeOrderReviewModal();
+                });
+            }
+
+            if (orderReviewBackBtn) {
+                orderReviewBackBtn.addEventListener("click", function () {
+                    reviewConfirmationAcknowledged = false;
+                    reviewedOrderSignature = "";
+                    closeOrderReviewModal();
+                });
+            }
+
+            if (orderReviewBackdrop) {
+                orderReviewBackdrop.addEventListener("click", function () {
+                    reviewConfirmationAcknowledged = false;
+                    reviewedOrderSignature = "";
+                    closeOrderReviewModal();
+                });
+            }
+
+            if (orderReviewConfirmBtn) {
+                orderReviewConfirmBtn.addEventListener("click", function () {
+                    reviewedOrderSignature = buildCurrentReviewSignature();
+                    reviewConfirmationAcknowledged = true;
+                    closeOrderReviewModal();
+                    showToast("Order review confirmed. Click Save Order to continue.", true);
+                });
+            }
+
             document.addEventListener("keydown", function (event) {
                 if (event.key === "Escape" && isZeroPriceModalOpen()) {
                     zeroPriceWarningAcknowledged = false;
                     closeZeroPriceModal();
+                    return;
+                }
+
+                if (event.key === "Escape" && isOrderReviewModalOpen()) {
+                    reviewConfirmationAcknowledged = false;
+                    reviewedOrderSignature = "";
+                    closeOrderReviewModal();
                 }
             });
 
@@ -4410,6 +6333,9 @@
             } else {
                 updateAvailableAdvanceDisplay(0, "Select a customer to view available advance.");
             }
+
+            renderTopUpSelection();
+            scheduleTopUpRefresh(50);
         }
 
         document.getElementById("savePriceConfigBtn")?.addEventListener("click", function (e) { e.preventDefault(); saveConfiguredItemPrice(); });

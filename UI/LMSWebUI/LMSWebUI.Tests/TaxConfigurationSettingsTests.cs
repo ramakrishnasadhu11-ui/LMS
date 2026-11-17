@@ -3499,6 +3499,218 @@ namespace LMSWebUI.Tests
             Assert.Equal("etag-42", customerApi.LastDeactivateRequest.ConcurrencyToken);
         }
 
+        [Fact]
+        public async Task TopUpServicesManagement_Get_AllowsOwnerRole()
+        {
+            var customerApi = new InMemoryCustomerApiClient
+            {
+                TopUpServicesResponse = new List<TopUpServiceMasterDto>
+                {
+                    new TopUpServiceMasterDto
+                    {
+                        TopUpName = "Perfume",
+                        ChargeType = "PerOrder",
+                        UnitPrice = 25m,
+                        IsActive = true
+                    }
+                }
+            };
+
+            var loginApi = new InMemoryTaxLoginApiClient
+            {
+                TenantStoreDetailsResponse = JObject.Parse(@"{
+                    'Storecodes': ['S1'],
+                    'StoreStatuses': [
+                        { 'StoreCode': 'S1', 'TenantName': 'tenant@example.com', 'IsActive': true }
+                    ],
+                    'TenantStores': [
+                        { 'StoreCode': 'S1', 'TenantName': 'tenant@example.com', 'IsActive': true }
+                    ]
+                }")
+            };
+
+            var controller = CreateController(customerApi, loginApi);
+            SetControllerSession(controller, "tenant@example.com", "S1", "Owner");
+
+            var result = await controller.TopUpServicesManagement();
+
+            var view = Assert.IsType<ViewResult>(result);
+            var model = Assert.IsType<TopUpServicesManagementViewModel>(view.Model);
+            Assert.Single(model.TopUpServices);
+            Assert.Equal("Perfume", model.TopUpServices[0].TopUpName);
+        }
+
+        [Fact]
+        public async Task TopUpServicesManagement_Get_DeniesStoreUser()
+        {
+            var controller = CreateController(new InMemoryCustomerApiClient(), new InMemoryTaxLoginApiClient());
+            SetControllerSession(controller, "tenant@example.com", "S1", "StoreUser");
+
+            var result = await controller.TopUpServicesManagement();
+
+            var redirect = Assert.IsType<RedirectToActionResult>(result);
+            Assert.Equal("Index", redirect.ActionName);
+            Assert.Equal("Dashboard", redirect.ControllerName);
+        }
+
+        [Fact]
+        public async Task SaveTopUpServiceMaster_UsesSessionTenantStore_NotBrowserPayload()
+        {
+            var customerApi = new InMemoryCustomerApiClient();
+            var loginApi = new InMemoryTaxLoginApiClient
+            {
+                TenantStoreDetailsResponse = JObject.Parse(@"{
+                    'Storecodes': ['S1'],
+                    'StoreStatuses': [
+                        { 'StoreCode': 'S1', 'TenantName': 'tenant@example.com', 'IsActive': true }
+                    ],
+                    'TenantStores': [
+                        { 'StoreCode': 'S1', 'TenantName': 'tenant@example.com', 'IsActive': true }
+                    ]
+                }")
+            };
+
+            var controller = CreateController(customerApi, loginApi);
+            SetControllerSession(controller, "tenant@example.com", "S1", "Admin");
+
+            var payload = new SaveTopUpServiceMasterRequestDto
+            {
+                TenantName = "other@tenant.com",
+                StoreCode = "BAD",
+                TopUpService = new TopUpServiceMasterDto
+                {
+                    TopUpName = "Stain Guard",
+                    ChargeType = "PerGarment",
+                    UnitPrice = 19.5m,
+                    Applicability = new List<TopUpServiceApplicabilityDto>
+                    {
+                        new TopUpServiceApplicabilityDto
+                        {
+                            ServiceType = "Dry Clean",
+                            Category = "Shirts",
+                            ItemName = "Formal Shirt"
+                        }
+                    }
+                }
+            };
+
+            var result = await controller.SaveTopUpServiceMaster(payload);
+            var json = Assert.IsType<JsonResult>(result);
+            var body = JObject.FromObject(json.Value);
+
+            Assert.True(body.Value<bool>("success"));
+            Assert.NotNull(customerApi.LastTopUpSaveRequest);
+            Assert.Equal("tenant@example.com", customerApi.LastTopUpSaveRequest.TenantName);
+            Assert.Equal("S1", customerApi.LastTopUpSaveRequest.StoreCode);
+            Assert.Equal("tenant@example.com", customerApi.LastTopUpSaveRequest.TopUpService.TenantName);
+            Assert.Equal("S1", customerApi.LastTopUpSaveRequest.TopUpService.StoreCode);
+            Assert.All(customerApi.LastTopUpSaveRequest.TopUpService.Applicability,
+                x =>
+                {
+                    Assert.Equal("tenant@example.com", x.TenantName);
+                    Assert.Equal("S1", x.StoreCode);
+                });
+        }
+
+        [Fact]
+        public async Task GetTopUpServiceMasters_ReturnsScopedData_ForAuthorizedRole()
+        {
+            var customerApi = new InMemoryCustomerApiClient
+            {
+                TopUpServicesResponse = new List<TopUpServiceMasterDto>
+                {
+                    new TopUpServiceMasterDto { TopUpName = "Perfume", ChargeType = "PerOrder", UnitPrice = 25m, IsActive = true },
+                    new TopUpServiceMasterDto { TopUpName = "Eco Pack", ChargeType = "PerGarment", UnitPrice = 5m, IsActive = false, IsArchived = true }
+                }
+            };
+
+            var loginApi = new InMemoryTaxLoginApiClient
+            {
+                TenantStoreDetailsResponse = JObject.Parse(@"{
+                    'Storecodes': ['S1'],
+                    'StoreStatuses': [
+                        { 'StoreCode': 'S1', 'TenantName': 'tenant@example.com', 'IsActive': true }
+                    ],
+                    'TenantStores': [
+                        { 'StoreCode': 'S1', 'TenantName': 'tenant@example.com', 'IsActive': true }
+                    ]
+                }")
+            };
+
+            var controller = CreateController(customerApi, loginApi);
+            SetControllerSession(controller, "tenant@example.com", "S1", "TenantOwner");
+
+            var result = await controller.GetTopUpServiceMasters(includeInactive: true);
+            var json = Assert.IsType<JsonResult>(result);
+            var body = JObject.FromObject(json.Value);
+
+            Assert.True(body.Value<bool>("success"));
+            Assert.Equal(2, body.Value<int>("totalCount"));
+            Assert.Contains(customerApi.QueryCalls, c =>
+                string.Equals(c.RequestUrl, "/GetTopUpServiceMasters", StringComparison.OrdinalIgnoreCase)
+                && string.Equals(GetQueryValue(c.Query, "tenantName"), "tenant@example.com", StringComparison.Ordinal)
+                && string.Equals(GetQueryValue(c.Query, "storeCode"), "S1", StringComparison.Ordinal));
+        }
+
+        [Fact]
+        public async Task SetTopUpServiceStatus_DeniesUnauthorizedRole()
+        {
+            var controller = CreateController(new InMemoryCustomerApiClient(), new InMemoryTaxLoginApiClient());
+            SetControllerSession(controller, "tenant@example.com", "S1", "StoreUser");
+
+            var result = await controller.SetTopUpServiceStatus(new SetTopUpServiceStatusRequestDto
+            {
+                TopUpName = "Perfume",
+                IsActive = false,
+                IsArchived = true
+            });
+
+            var json = Assert.IsType<JsonResult>(result);
+            var body = JObject.FromObject(json.Value);
+            Assert.False(body.Value<bool>("success"));
+            Assert.Contains("permission", body.Value<string>("message"), StringComparison.OrdinalIgnoreCase);
+        }
+
+        [Fact]
+        public async Task TopUpServicesManagement_Get_UsesFallbackStoreStatuses_WhenTenantStoreDetailsMissingStatuses()
+        {
+            var customerApi = new InMemoryCustomerApiClient
+            {
+                TopUpServicesResponse = new List<TopUpServiceMasterDto>
+                {
+                    new TopUpServiceMasterDto
+                    {
+                        TopUpName = "Express Care",
+                        ChargeType = "PerOrder",
+                        UnitPrice = 40m,
+                        IsActive = true
+                    }
+                }
+            };
+
+            var loginApi = new InMemoryTaxLoginApiClient
+            {
+                TenantStoreDetailsResponse = JObject.Parse(@"{
+                    'Storecodes': ['S1']
+                }"),
+                StoreStatusesResponse = JObject.Parse(@"{
+                    'StoreStatuses': [
+                        { 'StoreCode': 'S1', 'TenantName': 'tenant@example.com', 'IsActive': true }
+                    ]
+                }")
+            };
+
+            var controller = CreateController(customerApi, loginApi);
+            SetControllerSession(controller, "tenant@example.com", "S1", "Owner");
+
+            var result = await controller.TopUpServicesManagement();
+
+            var view = Assert.IsType<ViewResult>(result);
+            var model = Assert.IsType<TopUpServicesManagementViewModel>(view.Model);
+            Assert.Single(model.TopUpServices);
+            Assert.Equal("Express Care", model.TopUpServices[0].TopUpName);
+        }
+
         private static CustomerController CreateController(InMemoryCustomerApiClient customerApi, InMemoryTaxLoginApiClient loginApi)
         {
             var cache = new MemoryCache(new MemoryCacheOptions());
@@ -3841,6 +4053,9 @@ namespace LMSWebUI.Tests
             public List<LaundryItemPriceDto> LaundryItemPricesResponse { get; set; } = new List<LaundryItemPriceDto>();
             public PaymentSettingsViewModel PaymentSettingsResponse { get; set; }
             public PaymentSettingsViewModel LastSavedPaymentSettings { get; private set; }
+            public List<TopUpServiceMasterDto> TopUpServicesResponse { get; set; } = new List<TopUpServiceMasterDto>();
+            public SaveTopUpServiceMasterRequestDto LastTopUpSaveRequest { get; private set; }
+            public SetTopUpServiceStatusRequestDto LastTopUpStatusRequest { get; private set; }
             public int SavePaymentSettingsCount { get; private set; }
             public int InsertCustomerCount { get; private set; }
             public JObject LastInsertedCustomerRequest { get; private set; }
@@ -3923,6 +4138,83 @@ namespace LMSWebUI.Tests
                     {
                         StatusCode = "200",
                         Message = "Payment settings saved."
+                    };
+
+                    return Task.FromResult(ToGeneric<T>(response));
+                }
+
+                if (string.Equals(requestUrl, "/SaveTopUpServiceMaster", StringComparison.OrdinalIgnoreCase))
+                {
+                    LastTopUpSaveRequest = ToObject<SaveTopUpServiceMasterRequestDto>(model);
+                    var topUpService = LastTopUpSaveRequest?.TopUpService ?? new TopUpServiceMasterDto();
+                    if (!TopUpServicesResponse.Any(x => string.Equals(x.TopUpName, topUpService.TopUpName, StringComparison.OrdinalIgnoreCase)))
+                    {
+                        TopUpServicesResponse.Add(topUpService);
+                    }
+
+                    var response = new SaveTopUpServiceMasterResponseDto
+                    {
+                        StatusCode = "200",
+                        Message = "Top-up saved.",
+                        TopUpService = topUpService
+                    };
+
+                    return Task.FromResult(ToGeneric<T>(response));
+                }
+
+                if (string.Equals(requestUrl, "/SetTopUpServiceStatus", StringComparison.OrdinalIgnoreCase))
+                {
+                    LastTopUpStatusRequest = ToObject<SetTopUpServiceStatusRequestDto>(model);
+
+                    var existing = TopUpServicesResponse.FirstOrDefault(x => string.Equals(x.TopUpName, LastTopUpStatusRequest.TopUpName, StringComparison.OrdinalIgnoreCase));
+                    if (existing != null)
+                    {
+                        existing.IsActive = LastTopUpStatusRequest.IsActive;
+                        existing.IsArchived = LastTopUpStatusRequest.IsArchived;
+                    }
+
+                    var response = new SetTopUpServiceStatusResponseDto
+                    {
+                        StatusCode = "200",
+                        Message = "Top-up status updated.",
+                        TopUpService = existing
+                    };
+
+                    return Task.FromResult(ToGeneric<T>(response));
+                }
+
+                if (string.Equals(requestUrl, "/GetApplicableTopUps", StringComparison.OrdinalIgnoreCase))
+                {
+                    var request = ToObject<GetApplicableTopUpsRequestDto>(model);
+                    var filtered = (TopUpServicesResponse ?? new List<TopUpServiceMasterDto>())
+                        .Where(x => x != null && !x.IsArchived && x.IsActive)
+                        .ToList();
+
+                    if (!string.IsNullOrWhiteSpace(request?.ServiceType)
+                        || !string.IsNullOrWhiteSpace(request?.Category)
+                        || !string.IsNullOrWhiteSpace(request?.ItemName))
+                    {
+                        filtered = filtered
+                            .Where(x =>
+                            {
+                                var rows = x.Applicability ?? new List<TopUpServiceApplicabilityDto>();
+                                if (rows.Count == 0)
+                                {
+                                    return true;
+                                }
+
+                                return rows.Any(r =>
+                                    (string.IsNullOrWhiteSpace(request.ServiceType) || string.Equals(r.ServiceType, request.ServiceType, StringComparison.OrdinalIgnoreCase))
+                                    && (string.IsNullOrWhiteSpace(request.Category) || string.Equals(r.Category, request.Category, StringComparison.OrdinalIgnoreCase))
+                                    && (string.IsNullOrWhiteSpace(request.ItemName) || string.Equals(r.ItemName, request.ItemName, StringComparison.OrdinalIgnoreCase)));
+                            })
+                            .ToList();
+                    }
+
+                    var response = new GetApplicableTopUpsResponseDto
+                    {
+                        StatusCode = "200",
+                        TopUpServices = filtered
                     };
 
                     return Task.FromResult(ToGeneric<T>(response));
@@ -4201,6 +4493,29 @@ namespace LMSWebUI.Tests
                     if (typeof(T) == typeof(List<LaundryItemPriceDto>))
                     {
                         return Task.FromResult(ToGeneric<T>(LaundryItemPricesResponse));
+                    }
+                }
+
+                if (string.Equals(requestUrl, "/GetTopUpServiceMasters", StringComparison.OrdinalIgnoreCase))
+                {
+                    if (typeof(T) == typeof(GetTopUpServiceMastersResponseDto))
+                    {
+                        return Task.FromResult(ToGeneric<T>(new GetTopUpServiceMastersResponseDto
+                        {
+                            StatusCode = "200",
+                            TopUpServices = TopUpServicesResponse
+                        }));
+                    }
+
+                    if (typeof(T) == typeof(JObject))
+                    {
+                        var response = new JObject
+                        {
+                            ["StatusCode"] = "200",
+                            ["TopUpServices"] = JToken.FromObject(TopUpServicesResponse ?? new List<TopUpServiceMasterDto>())
+                        };
+
+                        return Task.FromResult((T)(object)response);
                     }
                 }
 

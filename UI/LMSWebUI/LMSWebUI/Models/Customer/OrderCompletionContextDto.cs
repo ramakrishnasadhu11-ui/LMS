@@ -24,11 +24,13 @@ namespace LMSWebUI.Models.Customer
         public decimal PaidNow { get; set; }
         public decimal PendingAmount { get; set; }
         public decimal NetPayable { get; set; }
+        public decimal TopUpAmount { get; set; }
         public string PaymentMode { get; set; }
         public string ServiceType { get; set; }
         public int TotalPieces { get; set; }
         public DateTime CreatedDate { get; set; }
         public List<LaundryOrderItemDto> Items { get; set; } = new List<LaundryOrderItemDto>();
+        public List<LaundryOrderTopUpDto> TopUps { get; set; } = new List<LaundryOrderTopUpDto>();
         public List<LaundryOrderTaxLineDto> TaxLines { get; set; } = new List<LaundryOrderTaxLineDto>();
     }
 }

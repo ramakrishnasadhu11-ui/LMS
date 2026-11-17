@@ -18,6 +18,11 @@
     <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer.NetTopologySuite" Version="8.0.31" />
     <PackageReference Include="Swashbuckle.AspNetCore" Version="6.6.2" />
     <PackageReference Include="VMD.RESTApiResponseWrapper.Core" Version="1.0.4" />
+   <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="8.0.31">
+		  <PrivateAssets>all</PrivateAssets>
+		  <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+	  </PackageReference>
+
   </ItemGroup>
 
   <ItemGroup>

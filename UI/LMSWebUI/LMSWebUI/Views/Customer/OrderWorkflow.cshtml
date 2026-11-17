@@ -249,6 +249,20 @@
     .wf-status-ready { background: #e5faf2; color: #0f6b43; }
     .wf-status-delivered { background: #e9f5ee; color: #23653f; }
 
+    .wf-topup-summary {
+        margin-top: 4px;
+        font-size: 11px;
+        color: #64748b;
+        line-height: 1.35;
+    }
+
+    .wf-topup-details {
+        margin-top: 4px;
+        font-size: 10px;
+        color: #667085;
+        line-height: 1.35;
+    }
+
     .wf-mode-pill {
         display: inline-block;
         border: 1px solid var(--els-border);
@@ -1046,6 +1060,35 @@
                 statusStyle = wfStatusStyleAttr(status);
             }
             var customerEmail = wfEsc(o.CustomerEmail || o.customerEmail || "");
+            var topUps = o.TopUps || o.topUps || [];
+            var topUpAmount = wfNum(firstDefined(o.TopUpAmount, o.topUpAmount, 0));
+            if (topUpAmount <= 0 && Array.isArray(topUps) && topUps.length > 0) {
+                var computedTopUp = 0;
+                for (var topUpIndex = 0; topUpIndex < topUps.length; topUpIndex++) {
+                    var topUpLine = topUps[topUpIndex] || {};
+                    computedTopUp += wfNum(firstDefined(topUpLine.LineAmountSnapshot, topUpLine.lineAmountSnapshot, 0));
+                }
+                topUpAmount = computedTopUp;
+            }
+
+            var topUpSummaryHtml = "";
+            var topUpDetailsHtml = "";
+            if (Array.isArray(topUps) && topUps.length > 0) {
+                var detailParts = [];
+                for (var topUpRowIndex = 0; topUpRowIndex < topUps.length; topUpRowIndex++) {
+                    var topUpRow = topUps[topUpRowIndex] || {};
+                    var topUpName = wfEsc(firstDefined(topUpRow.TopUpName, topUpRow.topUpName, "Top-up"));
+                    var topUpChargeType = wfEsc(firstDefined(topUpRow.ChargeType, topUpRow.chargeType, ""));
+                    var topUpQty = wfNum(firstDefined(topUpRow.AppliedQuantity, topUpRow.appliedQuantity, 0));
+                    var topUpUnitPrice = wfNum(firstDefined(topUpRow.UnitPriceSnapshot, topUpRow.unitPriceSnapshot, 0));
+                    var topUpLineAmount = wfNum(firstDefined(topUpRow.LineAmountSnapshot, topUpRow.lineAmountSnapshot, 0));
+                    detailParts.push(topUpName + " (" + topUpChargeType + "): " + topUpQty + " × " + wfFormatAmount(topUpUnitPrice) + " = " + wfFormatAmount(topUpLineAmount));
+                }
+
+                topUpSummaryHtml = "<div class='wf-topup-summary'>Top-ups: " + wfEsc(String(topUps.length)) + " / " + wfFormatAmount(topUpAmount) + "</div>";
+                topUpDetailsHtml = "<div class='wf-topup-details'>" + detailParts.join("<br/>") + "</div>";
+            }
+
             var actions = "<div class='wf-actions'>";
             if (target) {
                 actions += "<button type='button' class='btn btn-xs btn-success wf-move-btn' data-order='" + ordNo + "' data-target='" + wfEsc(target) + "'>Next: " + wfEsc(target) + "</button>";
@@ -1080,7 +1123,7 @@
             html += "<tr class='" + rowClass + "'>"
                 + "<td>" + ordNo + "</td>"
                 + "<td>" + invNo + "</td>"
-                + "<td>" + customer + "</td>"
+                + "<td>" + customer + topUpSummaryHtml + topUpDetailsHtml + "</td>"
                 + "<td>" + created + agingTag + "</td>"
                 + "<td><span class='wf-status-pill " + wfStatusClass(status) + "'" + statusStyle + ">" + wfEsc(status) + "</span></td>"
                 + "<td><span class='wf-mode-pill'>" + (mode === "weight" ? "Weight" : "Pieces") + "</span></td>"

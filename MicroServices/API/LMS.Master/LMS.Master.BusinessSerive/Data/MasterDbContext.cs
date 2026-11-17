@@ -21,8 +21,11 @@ namespace LMS.Master.BusinessSerive.Data
         public DbSet<CustomerAdvanceEntity> CustomerAdvances => Set<CustomerAdvanceEntity>();
         public DbSet<LaundryOrderEntity> LaundryOrders => Set<LaundryOrderEntity>();
         public DbSet<LaundryOrderTaxLineEntity> LaundryOrderTaxLines => Set<LaundryOrderTaxLineEntity>();
+        public DbSet<LaundryOrderTopUpEntity> LaundryOrderTopUps => Set<LaundryOrderTopUpEntity>();
         public DbSet<LaundryOrderItemEntity> LaundryOrderItems => Set<LaundryOrderItemEntity>();
         public DbSet<LaundryItemPriceEntity> LaundryItemPrices => Set<LaundryItemPriceEntity>();
+        public DbSet<TopUpServiceMasterEntity> TopUpServiceMasters => Set<TopUpServiceMasterEntity>();
+        public DbSet<TopUpServiceApplicabilityEntity> TopUpServiceApplicabilities => Set<TopUpServiceApplicabilityEntity>();
         public DbSet<StoreServiceMasterEntity> StoreServiceMasters => Set<StoreServiceMasterEntity>();
         public DbSet<StoreItemMasterEntity> StoreItemMasters => Set<StoreItemMasterEntity>();
         public DbSet<TenantIntegrationSettingsEntity> TenantIntegrationSettings => Set<TenantIntegrationSettingsEntity>();
@@ -242,9 +245,40 @@ namespace LMS.Master.BusinessSerive.Data
                 entity.Property(x => x.ItemName).HasMaxLength(128);
                 entity.Property(x => x.UnitPrice).HasColumnType("decimal(18,2)");
                 entity.Property(x => x.TagNo).HasMaxLength(32);
+                entity.Property(x => x.BrandName).HasMaxLength(64);
+                entity.Property(x => x.PrimaryColor).HasMaxLength(32);
+                entity.Property(x => x.SecondaryColor).HasMaxLength(32);
+                entity.Property(x => x.Pattern).HasMaxLength(32);
+                entity.Property(x => x.ExistingDefects).HasMaxLength(1024);
+                entity.Property(x => x.DefectRemarks).HasMaxLength(512);
+                entity.Property(x => x.SpecialInstructions).HasMaxLength(512);
 
                 entity.HasIndex(x => x.OrderNo);
                 entity.HasIndex(x => new { x.TenantName, x.StoreCode, x.TagNo });
+            });
+
+            modelBuilder.Entity<LaundryOrderTopUpEntity>(entity =>
+            {
+                entity.ToTable("LaundryOrderTopUps");
+                entity.Property(x => x.TenantName).HasMaxLength(256).IsRequired();
+                entity.Property(x => x.StoreCode).HasMaxLength(64).IsRequired();
+                entity.Property(x => x.OrderNo).HasMaxLength(64).IsRequired();
+                entity.Property(x => x.TopUpName).HasMaxLength(128).IsRequired();
+                entity.Property(x => x.ChargeType).HasMaxLength(32).IsRequired();
+                entity.Property(x => x.ServiceType).HasMaxLength(64);
+                entity.Property(x => x.Category).HasMaxLength(64);
+                entity.Property(x => x.ItemName).HasMaxLength(128);
+                entity.Property(x => x.AppliedQuantity).HasColumnType("decimal(18,3)");
+                entity.Property(x => x.UnitPriceSnapshot).HasColumnType("decimal(18,2)");
+                entity.Property(x => x.LineAmountSnapshot).HasColumnType("decimal(18,2)");
+
+                entity.HasOne<LaundryOrderEntity>()
+                    .WithMany()
+                    .HasForeignKey(x => x.LaundryOrderId)
+                    .OnDelete(DeleteBehavior.NoAction);
+
+                entity.HasIndex(x => new { x.LaundryOrderId, x.LineNo });
+                entity.HasIndex(x => new { x.TenantName, x.StoreCode, x.OrderNo, x.LineNo });
             });
 
             modelBuilder.Entity<LaundryItemPriceEntity>(entity =>
@@ -259,6 +293,38 @@ namespace LMS.Master.BusinessSerive.Data
                 entity.Property(x => x.UnitPrice).HasColumnType("decimal(18,2)");
 
                 entity.HasIndex(x => new { x.TenantName, x.StoreCode, x.ServiceType, x.Category, x.ItemName }).IsUnique();
+            });
+
+            modelBuilder.Entity<TopUpServiceMasterEntity>(entity =>
+            {
+                entity.ToTable("TopUpServiceMaster");
+                entity.Property(x => x.TenantName).HasMaxLength(256).IsRequired();
+                entity.Property(x => x.StoreCode).HasMaxLength(64).IsRequired();
+                entity.Property(x => x.TopUpName).HasMaxLength(128).IsRequired();
+                entity.Property(x => x.ChargeType).HasMaxLength(32).IsRequired();
+                entity.Property(x => x.UnitPrice).HasColumnType("decimal(18,2)");
+                entity.Property(x => x.Description).HasMaxLength(256);
+
+                entity.HasIndex(x => new { x.TenantName, x.StoreCode, x.TopUpName }).IsUnique();
+                entity.HasIndex(x => new { x.TenantName, x.StoreCode, x.IsActive, x.IsArchived });
+            });
+
+            modelBuilder.Entity<TopUpServiceApplicabilityEntity>(entity =>
+            {
+                entity.ToTable("TopUpServiceApplicability");
+                entity.Property(x => x.TenantName).HasMaxLength(256).IsRequired();
+                entity.Property(x => x.StoreCode).HasMaxLength(64).IsRequired();
+                entity.Property(x => x.ServiceType).HasMaxLength(64);
+                entity.Property(x => x.Category).HasMaxLength(64);
+                entity.Property(x => x.ItemName).HasMaxLength(128);
+
+                entity.HasOne<TopUpServiceMasterEntity>()
+                    .WithMany()
+                    .HasForeignKey(x => x.TopUpServiceMasterId)
+                    .OnDelete(DeleteBehavior.NoAction);
+
+                entity.HasIndex(x => new { x.TenantName, x.StoreCode, x.TopUpServiceMasterId, x.ServiceType, x.Category, x.ItemName }).IsUnique();
+                entity.HasIndex(x => new { x.TenantName, x.StoreCode, x.IsActive });
             });
 
             modelBuilder.Entity<StoreServiceMasterEntity>(entity =>

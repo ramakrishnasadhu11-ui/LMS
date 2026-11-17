@@ -124,7 +124,7 @@ namespace LMSWebUI.Controllers
                 }
             }
 
-            var isTenantAdminUser = string.Equals(userRole, "Admin", System.StringComparison.OrdinalIgnoreCase);
+            var isTenantAdminUser = IsStoreManagementRole(userRole);
             var isAdminUser = isTenantAdminUser || isSuperAdminUser;
 
             var shouldShowSubscriptionSpotlight = false;
@@ -505,6 +505,22 @@ namespace LMSWebUI.Controllers
         {
             var role = string.IsNullOrWhiteSpace(userRole) ? "StoreUser" : userRole.Trim();
             return !string.Equals(role, "SuperAdmin", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static bool IsStoreManagementRole(string userRole)
+        {
+            var role = string.IsNullOrWhiteSpace(userRole) ? string.Empty : userRole.Trim();
+            if (string.IsNullOrWhiteSpace(role))
+            {
+                return false;
+            }
+
+            return string.Equals(role, "Admin", StringComparison.OrdinalIgnoreCase)
+                   || string.Equals(role, "Owner", StringComparison.OrdinalIgnoreCase)
+                   || string.Equals(role, "StoreOwner", StringComparison.OrdinalIgnoreCase)
+                   || string.Equals(role, "TenantOwner", StringComparison.OrdinalIgnoreCase)
+                   || string.Equals(role, "TenantAdmin", StringComparison.OrdinalIgnoreCase)
+                   || string.Equals(role, "StoreAdmin", StringComparison.OrdinalIgnoreCase);
         }
 
         private async Task<(bool IsValid, string Message)> ValidateSessionStoreScopeAsync(string tenantName, string tenantStore)

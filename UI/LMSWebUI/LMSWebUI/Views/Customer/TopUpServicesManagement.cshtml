@@ -1,0 +1,338 @@
+@model LMSWebUI.Models.Admin.TopUpServicesManagementViewModel
+@using Newtonsoft.Json
+@{
+    ViewData["Title"] = "Top-up Services Management";
+    Layout = "~/Views/Shared/_HeaderMenuItemsLayout.cshtml";
+    var initialJson = JsonConvert.SerializeObject(Model?.TopUpServices ?? new List<LMSWebUI.Models.Admin.TopUpServiceMasterDto>());
+}
+
+<div class="topup-page">
+    <div class="topup-shell">
+        <div class="topup-header">
+            <h2>Top-up Services Management</h2>
+            <p>Configure add-on services by store. Changes apply only to tenant <b>@Model?.TenantName</b> and store <b>@Model?.StoreCode</b>.</p>
+        </div>
+
+        <div id="topupMessage" class="topup-message" style="display:none;"></div>
+
+        <div class="topup-controls">
+            <label><input type="checkbox" id="includeInactive" @(Model?.IncludeInactive == true ? "checked" : "") /> Show inactive/archived</label>
+            <button type="button" class="btn btn-primary" id="refreshBtn">Refresh</button>
+        </div>
+
+        <div class="topup-form-wrap">
+            @Html.AntiForgeryToken()
+            <div class="row">
+                <div class="col-md-3 form-group">
+                    <label>Top-up Name</label>
+                    <input type="text" id="topUpName" class="form-control" maxlength="128" />
+                </div>
+                <div class="col-md-2 form-group">
+                    <label>Charge Type</label>
+                    <select id="chargeType" class="form-control">
+                        <option value="PerGarment">PerGarment</option>
+                        <option value="PerOrder">PerOrder</option>
+                    </select>
+                </div>
+                <div class="col-md-2 form-group">
+                    <label>Unit Price</label>
+                    <input type="number" id="unitPrice" class="form-control" min="0" step="0.01" />
+                </div>
+                <div class="col-md-5 form-group">
+                    <label>Description</label>
+                    <input type="text" id="description" class="form-control" maxlength="512" />
+                </div>
+            </div>
+            <div class="row">
+                <div class="col-md-3 form-group">
+                    <label>Service Type (optional)</label>
+                    <input type="text" id="serviceType" class="form-control" maxlength="128" />
+                </div>
+                <div class="col-md-3 form-group">
+                    <label>Category (optional)</label>
+                    <input type="text" id="category" class="form-control" maxlength="128" />
+                </div>
+                <div class="col-md-3 form-group">
+                    <label>Item Name (optional)</label>
+                    <input type="text" id="itemName" class="form-control" maxlength="128" />
+                </div>
+                <div class="col-md-3 form-group topup-actions">
+                    <button type="button" class="btn btn-success" id="saveBtn">Save</button>
+                    <button type="button" class="btn btn-default" id="clearBtn">Clear</button>
+                </div>
+            </div>
+            <small class="text-muted">Guidance: keep top-up names unique, use PerOrder for fixed add-ons and PerGarment for item-level add-ons.</small>
+        </div>
+
+        <div id="topupLoading" class="topup-loading" style="display:none;">Loading...</div>
+
+        <table class="table table-bordered table-striped" id="topupTable">
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Charge Type</th>
+                    <th>Unit Price</th>
+                    <th>Status</th>
+                    <th>Applicability</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody></tbody>
+        </table>
+    </div>
+</div>
+
+<style>
+    .topup-page { padding: 16px; background: linear-gradient(180deg,#f2f6ff 0%,#f8fbff 220px,#f7f9fc 100%); }
+    .topup-shell { max-width: 1200px; margin: 0 auto; background: #fff; border: 1px solid #d4e0f6; border-radius: 14px; padding: 16px; }
+    .topup-header h2 { margin-top: 0; color: #123b91; }
+    .topup-controls { display: flex; gap: 14px; align-items: center; margin: 12px 0; }
+    .topup-form-wrap { border: 1px solid #d7e3f7; border-radius: 10px; padding: 12px; margin-bottom: 12px; background: #f8fbff; }
+    .topup-actions { display: flex; align-items: end; gap: 8px; }
+    .topup-message { margin: 10px 0; padding: 10px; border-radius: 8px; }
+    .topup-message.ok { background: #eafaf0; border: 1px solid #badfc6; color: #19653a; }
+    .topup-message.err { background: #fff0f0; border: 1px solid #f1c3c3; color: #9a1f1f; }
+    .topup-loading { margin: 10px 0; color: #123b91; font-weight: 600; }
+</style>
+
+<script>
+(function () {
+    const antiForgeryToken = document.querySelector('input[name="__RequestVerificationToken"]')?.value || '';
+    const apiListUrl = '@Url.Action("GetTopUpServiceMasters", "Customer")';
+    const apiSaveUrl = '@Url.Action("SaveTopUpServiceMaster", "Customer")';
+    const apiStatusUrl = '@Url.Action("SetTopUpServiceStatus", "Customer")';
+    const apiApplicableUrl = '@Url.Action("GetApplicableTopUps", "Customer")';
+
+    let services = @Html.Raw(initialJson);
+
+    const tableBody = document.querySelector('#topupTable tbody');
+    const loading = document.getElementById('topupLoading');
+    const includeInactive = document.getElementById('includeInactive');
+
+    function setMessage(message, success) {
+        const host = document.getElementById('topupMessage');
+        host.textContent = message || '';
+        host.className = 'topup-message ' + (success ? 'ok' : 'err');
+        host.style.display = message ? 'block' : 'none';
+    }
+
+    function setLoading(isLoading) {
+        loading.style.display = isLoading ? 'block' : 'none';
+    }
+
+    function getValue(id) { return (document.getElementById(id)?.value || '').trim(); }
+
+    function renderTable() {
+        tableBody.innerHTML = '';
+        if (!services || services.length === 0) {
+            tableBody.innerHTML = '<tr><td colspan="6" class="text-center text-muted">No top-up services found.</td></tr>';
+            return;
+        }
+
+        services.forEach(x => {
+            const applicability = (x.applicability || x.Applicability || [])
+                .filter(r => r && r.isActive !== false && r.IsActive !== false)
+                .map(r => [r.serviceType || r.ServiceType, r.category || r.Category, r.itemName || r.ItemName].filter(Boolean).join(' / '))
+                .filter(Boolean)
+                .slice(0, 2)
+                .join('; ');
+
+            const topUpName = x.topUpName || x.TopUpName || '';
+            const chargeType = x.chargeType || x.ChargeType || '';
+            const unitPrice = x.unitPrice ?? x.UnitPrice ?? 0;
+            const isActive = (x.isActive ?? x.IsActive) === true;
+            const isArchived = (x.isArchived ?? x.IsArchived) === true;
+            const actionLabel = isArchived ? 'Restore' : 'Archive';
+
+            const row = document.createElement('tr');
+            row.innerHTML = `
+                <td>${topUpName}</td>
+                <td>${chargeType}</td>
+                <td>${Number(unitPrice).toFixed(2)}</td>
+                <td>${isArchived ? 'Archived' : (isActive ? 'Active' : 'Inactive')}</td>
+                <td>${applicability || '<span class="text-muted">All items</span>'}</td>
+                <td>
+                    <button type="button" class="btn btn-xs btn-info" data-action="edit" data-name="${topUpName}">Edit</button>
+                    <button type="button" class="btn btn-xs btn-warning" data-action="toggle" data-name="${topUpName}" data-archived="${isArchived}">${actionLabel}</button>
+                </td>`;
+            tableBody.appendChild(row);
+        });
+    }
+
+    function clearForm() {
+        ['topUpName','unitPrice','description','serviceType','category','itemName'].forEach(id => document.getElementById(id).value = '');
+        document.getElementById('chargeType').value = 'PerGarment';
+    }
+
+    async function load() {
+        setLoading(true);
+        setMessage('', true);
+        try {
+            const response = await fetch(`${apiListUrl}?includeInactive=${includeInactive.checked}`);
+            const data = await response.json();
+            if (!data.success) {
+                setMessage(data.message || 'Unable to load top-up services.', false);
+                return;
+            }
+            services = data.items || [];
+            renderTable();
+        } catch (err) {
+            setMessage('Unable to load top-up services.', false);
+        } finally {
+            setLoading(false);
+        }
+    }
+
+    async function save() {
+        const topUpName = getValue('topUpName');
+        const chargeType = getValue('chargeType');
+        const unitPriceRaw = getValue('unitPrice');
+        const unitPrice = Number(unitPriceRaw);
+
+        if (!topUpName) {
+            setMessage('Top-up name is required.', false);
+            return;
+        }
+        if (!unitPriceRaw || isNaN(unitPrice) || unitPrice < 0) {
+            setMessage('Unit price must be zero or greater.', false);
+            return;
+        }
+
+        const applicability = [];
+        const serviceType = getValue('serviceType');
+        const category = getValue('category');
+        const itemName = getValue('itemName');
+        if (serviceType || category || itemName) {
+            applicability.push({ serviceType, category, itemName, isActive: true });
+        }
+
+        const payload = {
+            topUpService: {
+                topUpName,
+                chargeType,
+                unitPrice,
+                description: getValue('description'),
+                isActive: true,
+                applicability
+            }
+        };
+
+        setLoading(true);
+        try {
+            const response = await fetch(apiSaveUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'RequestVerificationToken': antiForgeryToken
+                },
+                body: JSON.stringify(payload)
+            });
+            const data = await response.json();
+            setMessage(data.message || (data.success ? 'Saved successfully.' : 'Save failed.'), !!data.success);
+            if (data.success) {
+                await load();
+                await previewApplicability();
+            }
+        } catch {
+            setMessage('Unable to save top-up service.', false);
+        } finally {
+            setLoading(false);
+        }
+    }
+
+    async function previewApplicability() {
+        const payload = {
+            serviceType: getValue('serviceType'),
+            category: getValue('category'),
+            itemName: getValue('itemName'),
+            orderMode: 'pieces'
+        };
+
+        try {
+            const response = await fetch(apiApplicableUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'RequestVerificationToken': antiForgeryToken
+                },
+                body: JSON.stringify(payload)
+            });
+            const data = await response.json();
+            if (data && data.success && Array.isArray(data.items) && data.items.length > 0) {
+                setMessage(`Applicable top-ups for current filter: ${data.items.map(x => x.topUpName || x.TopUpName).join(', ')}`, true);
+            }
+        } catch {
+        }
+    }
+
+    async function setArchiveStatus(topUpName, isArchived) {
+        const actionText = isArchived ? 'restore' : 'archive';
+        if (!window.confirm(`Are you sure you want to ${actionText} top-up '${topUpName}'?`)) {
+            return;
+        }
+
+        const payload = {
+            topUpName,
+            isActive: isArchived,
+            isArchived: !isArchived
+        };
+
+        setLoading(true);
+        try {
+            const response = await fetch(apiStatusUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'RequestVerificationToken': antiForgeryToken
+                },
+                body: JSON.stringify(payload)
+            });
+
+            const data = await response.json();
+            setMessage(data.message || (data.success ? 'Status updated successfully.' : 'Status update failed.'), !!data.success);
+            if (data.success) {
+                await load();
+            }
+        } catch {
+            setMessage('Unable to update top-up status.', false);
+        } finally {
+            setLoading(false);
+        }
+    }
+
+    tableBody.addEventListener('click', function (e) {
+        const button = e.target.closest('button');
+        if (!button) return;
+
+        const action = button.getAttribute('data-action');
+        const name = button.getAttribute('data-name');
+        const row = services.find(x => (x.topUpName || x.TopUpName) === name);
+        if (!row) return;
+
+        if (action === 'edit') {
+            document.getElementById('topUpName').value = row.topUpName || row.TopUpName || '';
+            document.getElementById('chargeType').value = row.chargeType || row.ChargeType || 'PerGarment';
+            document.getElementById('unitPrice').value = row.unitPrice ?? row.UnitPrice ?? 0;
+            document.getElementById('description').value = row.description || row.Description || '';
+
+            const app = (row.applicability || row.Applicability || [])[0] || {};
+            document.getElementById('serviceType').value = app.serviceType || app.ServiceType || '';
+            document.getElementById('category').value = app.category || app.Category || '';
+            document.getElementById('itemName').value = app.itemName || app.ItemName || '';
+            return;
+        }
+
+        if (action === 'toggle') {
+            const archived = button.getAttribute('data-archived') === 'true';
+            setArchiveStatus(name, archived);
+        }
+    });
+
+    document.getElementById('saveBtn').addEventListener('click', save);
+    document.getElementById('clearBtn').addEventListener('click', clearForm);
+    document.getElementById('refreshBtn').addEventListener('click', load);
+    includeInactive.addEventListener('change', load);
+
+    renderTable();
+})();
+</script>

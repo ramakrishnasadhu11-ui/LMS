@@ -3,6 +3,25 @@ using System.Collections.Generic;
 
 namespace LMS.Master.DTO
 {
+    public class LaundryGarmentPieceDetailDto
+    {
+        public int PieceNo { get; set; }
+
+        public string BrandName { get; set; }
+
+        public string PrimaryColor { get; set; }
+
+        public string SecondaryColor { get; set; }
+
+        public string Pattern { get; set; }
+
+        public string ExistingDefects { get; set; }
+
+        public string DefectRemarks { get; set; }
+
+        public string SpecialInstructions { get; set; }
+    }
+
     /// <summary>
     /// A garment line as captured on the order screen. Quantity is expanded into
     /// one tagged piece per unit when the order is saved.
@@ -22,6 +41,22 @@ namespace LMS.Master.DTO
         public int PieceNo { get; set; }
 
         public string TagNo { get; set; }
+
+        public string BrandName { get; set; }
+
+        public string PrimaryColor { get; set; }
+
+        public string SecondaryColor { get; set; }
+
+        public string Pattern { get; set; }
+
+        public string ExistingDefects { get; set; }
+
+        public string DefectRemarks { get; set; }
+
+        public string SpecialInstructions { get; set; }
+
+        public List<LaundryGarmentPieceDetailDto> PieceDetails { get; set; } = new List<LaundryGarmentPieceDetailDto>();
     }
 
     public class LaundryOrderDto
@@ -70,6 +105,8 @@ namespace LMS.Master.DTO
 
         public decimal NetPayable { get; set; }
 
+        public decimal TopUpAmount { get; set; }
+
         public string PaymentMode { get; set; }
 
         public string Notes { get; set; }
@@ -77,6 +114,8 @@ namespace LMS.Master.DTO
         public DateTime CreatedDate { get; set; }
 
         public List<LaundryOrderItemDto> Items { get; set; } = new List<LaundryOrderItemDto>();
+
+        public List<LaundryOrderTopUpDto> TopUps { get; set; } = new List<LaundryOrderTopUpDto>();
 
         public int TotalPieces { get; set; }
 
