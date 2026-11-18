@@ -151,20 +151,22 @@
     position: fixed;
     top: 0;
     right: 0;
-    width: min(760px, 100vw);
+    width: min(840px, 100vw);
     height: 100vh;
-    background: #fff;
-    border-left: 1px solid #dbe7f3;
-    box-shadow: -24px 0 52px rgba(17, 32, 52, 0.22);
+    background: #fffdf8;
+    border-left: 1px solid #dfd4c0;
+    box-shadow: -20px 0 48px rgba(15, 28, 52, 0.28);
     z-index: 1060;
     display: flex;
     flex-direction: column;
+    color: #12263f;
 }
 .garment-editor-drawer[aria-hidden='true'] { display: none; }
 .garment-editor-backdrop {
     position: fixed;
     inset: 0;
-    background: rgba(16, 24, 40, 0.42);
+    background: rgba(13, 24, 43, 0.58);
+    backdrop-filter: blur(2px);
     z-index: 1050;
 }
 .garment-editor-backdrop[aria-hidden='true'] { display: none; }
@@ -405,6 +407,60 @@
     color: #144c8f;
 }
 .garment-instruction-chip.active i { color: #144c8f; }
+.garment-inspection-summary {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+    margin-bottom: 10px;
+}
+.garment-inspection-metric {
+    border: 1px solid #d7e5f3;
+    border-radius: 10px;
+    background: #fff;
+    padding: 8px;
+}
+.garment-inspection-metric-label {
+    font-size: 10px;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+    color: #667a93;
+    font-weight: 700;
+}
+.garment-inspection-metric-value {
+    margin-top: 3px;
+    font-size: 14px;
+    font-weight: 800;
+    color: #143f66;
+}
+.garment-recent-row { margin: 8px 0 2px; }
+.garment-recent-title {
+    display: inline-block;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+    color: #657a92;
+    margin-bottom: 4px;
+}
+.garment-recent-chip-wrap { display:flex; flex-wrap:wrap; gap:5px; }
+.garment-recent-chip {
+    border: 1px solid #dbe6f2;
+    border-radius: 999px;
+    background: #f8fbff;
+    color: #31597e;
+    padding: 4px 9px;
+    font-size: 10px;
+    font-weight: 700;
+    cursor: pointer;
+}
+.garment-defect-group-title {
+    margin: 8px 0 6px;
+    font-size: 10px;
+    letter-spacing: .05em;
+    text-transform: uppercase;
+    font-weight: 800;
+    color: #60758e;
+}
 .garment-defect-list {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
@@ -438,7 +494,7 @@
 }
 .garment-editor-actions {
     display: grid;
-    grid-template-columns: 1fr auto auto;
+    grid-template-columns: 1fr auto auto auto auto;
     gap: 8px;
     align-items: center;
 }
@@ -459,6 +515,9 @@
     .garment-editor-body { padding: 10px 12px 14px; }
     .garment-editor-footer { padding: 10px 12px; }
     .garment-editor-actions { grid-template-columns: 1fr; }
+}
+@@media (max-width: 720px) {
+    .garment-inspection-summary { grid-template-columns: 1fr; }
 }
 .setup-btn { width: 100%; min-height: 40px; border: 1px solid transparent; border-radius: 6px; background: linear-gradient(180deg, var(--els-primary-light) 0%, var(--els-primary) 100%); color: #fff; font-weight: 600; cursor: pointer; margin-bottom: 8px; }
 .setup-btn.secondary { background: linear-gradient(180deg, #8f99a4 0%, #6f7a86 100%); }
@@ -3615,7 +3674,37 @@
         function buildPieceEditorHtml(piece) {
             var pattern = piece.pattern || "";
             var brandValue = piece.brandName || "";
-            var showConditionNotes = !!(piece.defectRemarks || "").trim();
+            var selectedDefectCount = (piece.existingDefects || "")
+                .split(",")
+                .map(function (x) { return x.trim(); })
+                .filter(Boolean)
+                .length;
+            var defectRemarkParts = (function (rawValue) {
+                var text = trimOptionalText(rawValue, 512);
+                if (!text) {
+                    return { location: "", notes: "" };
+                }
+
+                var location = "";
+                var notes = "";
+                var locationMatch = text.match(/(?:^|\|)\s*Location\s*:\s*([^|]+)/i);
+                var notesMatch = text.match(/(?:^|\|)\s*Notes?\s*:\s*([^|]+)/i);
+
+                if (locationMatch && locationMatch[1]) {
+                    location = trimOptionalText(locationMatch[1], 128);
+                }
+                if (notesMatch && notesMatch[1]) {
+                    notes = trimOptionalText(notesMatch[1], 384);
+                }
+
+                if (!location && !notes) {
+                    notes = text;
+                }
+
+                return { location: location, notes: notes };
+            })(piece.defectRemarks || "");
+
+            var showConditionNotes = !!(defectRemarkParts.location || defectRemarkParts.notes);
             var showSpecialInstructions = !!(piece.specialInstructions || "").trim();
 
             function splitSpecialInstructions(rawValue) {
@@ -3677,6 +3766,18 @@
                 }).join("");
             }
 
+            function buildDefectGroup(title, defectValues, groupClass) {
+                var options = (defectValues || []).map(function (x) {
+                    return "<label><input type='checkbox' data-defect='1' value='" + escapeHtml(x) + "' />" + escapeHtml(x) + "</label>";
+                }).join("");
+
+                return ""
+                    + "<div class='garment-defect-group " + escapeHtml(groupClass || "") + "'>"
+                    + "<div class='garment-defect-group-title'>" + escapeHtml(title) + "</div>"
+                    + "<div class='garment-defect-list'>" + options + "</div>"
+                    + "</div>";
+            }
+
             return ""
                 + "<div class='garment-editor-guidance'><b>Tip:</b> Start with brand and colour, then add defects/instructions only when needed. Example: \"Ink mark near left cuff\".</div>"
                 + "<div class='garment-editor-grid'>"
@@ -3714,24 +3815,16 @@
                 + "</div></section>"
                 + "<section class='garment-editor-section full'>"
                 + "<div class='garment-section-head'><h4 class='garment-section-title'>Condition checklist</h4>"
-                + "<button type='button' class='garment-section-toggle' data-section-toggle='conditionNotes'>" + (showConditionNotes ? "Hide notes" : "Add notes") + "</button></div>"
+                + "<div style='display:inline-flex;align-items:center;gap:8px;'><span class='garment-editor-status'>" + selectedDefectCount + " selected</span><button type='button' class='garment-section-toggle' data-section-toggle='conditionNotes'>" + (showConditionNotes ? "Hide notes" : "Add notes") + "</button></div></div>"
                 + "<div class='garment-section-body'>"
                 + "<div class='setup-field'><label>Existing defects (select all that apply)</label>"
-                + "<div class='garment-defect-list'>"
-                + "<label><input type='checkbox' data-defect='1' value='Stains' />Stains</label>"
-                + "<label><input type='checkbox' data-defect='1' value='Ink Marks' />Ink Marks</label>"
-                + "<label><input type='checkbox' data-defect='1' value='Oil Marks' />Oil Marks</label>"
-                + "<label><input type='checkbox' data-defect='1' value='Tears' />Tears</label>"
-                + "<label><input type='checkbox' data-defect='1' value='Holes' />Holes</label>"
-                + "<label><input type='checkbox' data-defect='1' value='Missing Buttons' />Missing Buttons</label>"
-                + "<label><input type='checkbox' data-defect='1' value='Broken Zip' />Broken Zip</label>"
-                + "<label><input type='checkbox' data-defect='1' value='Colour Fading' />Colour Fading</label>"
-                + "<label><input type='checkbox' data-defect='1' value='Fabric Damage' />Fabric Damage</label>"
-                + "<label><input type='checkbox' data-defect='1' value='Embroidery Damage' />Embroidery Damage</label>"
-                + "<label><input type='checkbox' data-defect='1' value='Other' />Other</label>"
-                + "</div></div>"
+                + buildDefectGroup("Stains", ["Stains", "Ink Marks", "Oil Marks"], "stains")
+                + buildDefectGroup("Physical damage", ["Tears", "Holes", "Missing Buttons", "Broken Zip", "Fabric Damage", "Embroidery Damage"], "physical")
+                + buildDefectGroup("Appearance", ["Colour Fading", "Other"], "appearance")
+                + "</div>"
                 + "<div class='garment-section-body' data-section='conditionNotes' aria-hidden='" + (showConditionNotes ? "false" : "true") + "'>"
-                + "<div class='setup-field'><label>Defect remarks/location</label><textarea rows='2' maxlength='512' data-gf='defectRemarks' placeholder='Ex: Small tear near right pocket'>" + escapeHtml(piece.defectRemarks || "") + "</textarea></div>"
+                + "<div class='setup-field'><label>Defect location</label><input type='text' maxlength='128' data-gf='defectLocation' placeholder='Ex: Left cuff / Back hem' value='" + escapeHtml(defectRemarkParts.location || "") + "' /></div>"
+                + "<div class='setup-field'><label>Defect notes</label><textarea rows='2' maxlength='384' data-gf='defectNotes' placeholder='Ex: Ink mark near left cuff, slight tear near pocket'>" + escapeHtml(defectRemarkParts.notes || "") + "</textarea></div>"
                 + "</div></section>"
                 + "<section class='garment-editor-section full'>"
                 + "<div class='garment-section-head'><h4 class='garment-section-title'>Special instructions</h4>"
@@ -3739,7 +3832,7 @@
                 + "<div class='garment-section-body' data-section='specialNotes' aria-hidden='" + (showSpecialInstructions ? "false" : "true") + "'>"
                 + "<div class='garment-instruction-guidance'>Pick one or more suggestions, then add custom notes if needed.</div>"
                 + "<div class='garment-instruction-chip-grid'>" + buildInstructionSuggestionChips(specialInstructionState.selected) + "</div>"
-                + "<div class='setup-field'><label>Custom handling notes</label><textarea rows='3' maxlength='512' data-gf='specialInstructions' placeholder='Ex: Delicate fabric, avoid high heat. Iron inside-out only.'>" + escapeHtml(specialInstructionState.custom || "") + "</textarea></div>"
+                + "<div class='setup-field'><label>Custom handling notes <span class='garment-field-optional'>(optional)</span></label><textarea rows='3' maxlength='512' data-gf='specialInstructions' placeholder='Ex: Delicate fabric, avoid high heat. Iron inside-out only.'>" + escapeHtml(specialInstructionState.custom || "") + "</textarea></div>"
                 + "</div></section>"
                 + "</div>";
         }
@@ -3758,6 +3851,9 @@
                 currentPieceNo: 1,
                 draftPieces: line.garmentPieceDetails.map(function (x) { return Object.assign({}, x); })
             };
+            var editorHasUnsavedChanges = false;
+            var recentBrandSelections = [];
+            var recentInstructionSelections = [];
 
             var previousBodyOverflow = document.body.style.overflow;
             var escHandlerBound = false;
@@ -3790,6 +3886,115 @@
                 if (feedback) {
                     feedback.textContent = message || "";
                 }
+            }
+
+            function markEditorDirty(message) {
+                editorHasUnsavedChanges = true;
+                setFeedback(message || "Unsaved changes");
+            }
+
+            function markEditorClean(message) {
+                editorHasUnsavedChanges = false;
+                setFeedback(message || "");
+            }
+
+            function pushRecentValue(list, value, limit) {
+                var normalized = trimOptionalText(value, 64);
+                if (!normalized) {
+                    return;
+                }
+
+                var key = normalized.toLowerCase();
+                var without = list.filter(function (x) { return (x || "").toLowerCase() !== key; });
+                without.unshift(normalized);
+                while (without.length > (limit || 6)) {
+                    without.pop();
+                }
+
+                list.splice(0, list.length);
+                without.forEach(function (x) { list.push(x); });
+            }
+
+            function buildRecentChips(title, dataAttr, values) {
+                if (!Array.isArray(values) || !values.length) {
+                    return "";
+                }
+
+                return ""
+                    + "<div class='garment-recent-row'>"
+                    + "<div class='garment-recent-title'>" + escapeHtml(title) + "</div>"
+                    + "<div class='garment-recent-chip-wrap'>"
+                    + values.map(function (x) {
+                        return "<button type='button' class='garment-recent-chip' data-recent-value='" + escapeHtml(x) + "' data-recent-kind='" + escapeHtml(dataAttr) + "'>" + escapeHtml(x) + "</button>";
+                    }).join("")
+                    + "</div></div>";
+            }
+
+            function bindRecentChips() {
+                Array.prototype.slice.call(host.querySelectorAll("[data-recent-value][data-recent-kind]")).forEach(function (btn) {
+                    btn.addEventListener("click", function () {
+                        var kind = btn.getAttribute("data-recent-kind") || "";
+                        var value = btn.getAttribute("data-recent-value") || "";
+
+                        if (kind === "brand") {
+                            var brandInput = host.querySelector("[data-gf='brandName']");
+                            if (brandInput) {
+                                brandInput.value = value;
+                                markEditorDirty("Unsaved changes");
+                            }
+                        } else if (kind === "instruction") {
+                            Array.prototype.slice.call(host.querySelectorAll("[data-si-suggestion]")).forEach(function (chip) {
+                                chip.classList.toggle("active", equalsNormalized(chip.getAttribute("data-si-suggestion") || "", value));
+                            });
+                            markEditorDirty("Unsaved changes");
+                        }
+                    });
+                });
+            }
+
+            function closeEditorWithGuard(force) {
+                if (!force && editorHasUnsavedChanges) {
+                    var confirmDiscard = window.confirm("You have unsaved inspection changes. Discard and close?");
+                    if (!confirmDiscard) {
+                        return;
+                    }
+                }
+
+                closeEditor();
+            }
+
+            function copyPreviousPieceToCurrent() {
+                var current = editorState.currentPieceNo;
+                if (current <= 1) {
+                    showToast("No previous piece available to duplicate.", false);
+                    return;
+                }
+
+                persistCurrentPiece();
+                var previousPiece = normalizePieceDetails(editorState.draftPieces[current - 2], current - 1);
+                var hasSource = hasPieceDetails(previousPiece);
+                if (!hasSource) {
+                    showToast("Previous piece has no details to duplicate.", false);
+                    return;
+                }
+
+                var shouldApply = window.confirm("Duplicate previous piece details into current piece?");
+                if (!shouldApply) {
+                    return;
+                }
+
+                editorState.draftPieces[current - 1] = {
+                    pieceNo: current,
+                    brandName: previousPiece.brandName,
+                    primaryColor: previousPiece.primaryColor,
+                    secondaryColor: previousPiece.secondaryColor,
+                    pattern: previousPiece.pattern,
+                    existingDefects: previousPiece.existingDefects,
+                    defectRemarks: previousPiece.defectRemarks,
+                    specialInstructions: previousPiece.specialInstructions
+                };
+                markEditorDirty("Duplicated from previous piece");
+                renderEditor();
             }
 
             function collectSelectedInstructionSuggestions() {
@@ -3845,14 +4050,14 @@
                     btn.addEventListener("click", function () {
                         brandInput.value = btn.getAttribute("data-brand-value") || "";
                         renderBrandChips(searchValue || "");
-                        setFeedback("Unsaved changes");
+                        markEditorDirty("Unsaved changes");
                     });
                 });
 
                 Array.prototype.slice.call(host.querySelectorAll("[data-si-suggestion]")).forEach(function (btn) {
                     btn.addEventListener("click", function () {
                         btn.classList.toggle("active");
-                        setFeedback("Unsaved changes");
+                        markEditorDirty("Unsaved changes");
                     });
                 });
             }
@@ -3863,7 +4068,7 @@
                         if (cb.parentElement) {
                             cb.parentElement.classList.toggle("active", cb.checked);
                         }
-                        setFeedback("Unsaved changes");
+                        markEditorDirty("Unsaved changes");
                     });
                 });
 
@@ -3879,7 +4084,7 @@
                         Array.prototype.slice.call(host.querySelectorAll("[data-swatch-target='" + target + "']")).forEach(function (x) {
                             x.classList.toggle("active", x === btn);
                         });
-                        setFeedback("Unsaved changes");
+                        markEditorDirty("Unsaved changes");
                     });
                 });
 
@@ -3893,7 +4098,7 @@
                         Array.prototype.slice.call(host.querySelectorAll("[data-pattern-value]")).forEach(function (x) {
                             x.classList.toggle("active", x === btn);
                         });
-                        setFeedback("Unsaved changes");
+                        markEditorDirty("Unsaved changes");
                     });
                 });
 
@@ -3903,7 +4108,7 @@
                         Array.prototype.slice.call(host.querySelectorAll("[data-pattern-value]")).forEach(function (x) {
                             x.classList.toggle("active", equalsNormalized(x.getAttribute("data-pattern-value") || "", patternSelect.value || ""));
                         });
-                        setFeedback("Unsaved changes");
+                        markEditorDirty("Unsaved changes");
                     });
                 }
 
@@ -3916,10 +4121,10 @@
 
                 Array.prototype.slice.call(host.querySelectorAll("input[data-gf], textarea[data-gf], select[data-gf]")).forEach(function (input) {
                     input.addEventListener("input", function () {
-                        setFeedback("Unsaved changes");
+                        markEditorDirty("Unsaved changes");
                     });
                     input.addEventListener("change", function () {
-                        setFeedback("Unsaved changes");
+                        markEditorDirty("Unsaved changes");
                     });
                 });
 
@@ -3942,6 +4147,7 @@
                 });
 
                 renderBrandChips((brandSearch && brandSearch.value) || "");
+                bindRecentChips();
             }
 
             function renderEditor() {
@@ -3959,6 +4165,21 @@
                 }
 
                 var completedCount = editorState.draftPieces.filter(function (x) { return hasPieceDetails(x); }).length;
+                var completionPercent = qty > 0 ? Math.round((completedCount / qty) * 100) : 0;
+                var selectedDefectCount = (activePiece.existingDefects || "")
+                    .split(",")
+                    .map(function (x) { return x.trim(); })
+                    .filter(Boolean)
+                    .length;
+                var identitySummary = trimOptionalText(activePiece.brandName || "", 64)
+                    || trimOptionalText(activePiece.primaryColor || "", 32)
+                    || normalizePatternValue(activePiece.pattern || "")
+                    || "Not captured";
+                var instructionSummary = trimOptionalText(activePiece.specialInstructions || "", 512)
+                    ? "Added"
+                    : "None";
+                var recentBrandHtml = buildRecentChips("Recent brand picks", "brand", recentBrandSelections);
+                var recentInstructionHtml = buildRecentChips("Recent instruction picks", "instruction", recentInstructionSelections);
 
                 host.innerHTML = ""
                     + "<div class='garment-editor-backdrop' data-ge-action='backdrop' aria-hidden='false'></div>"
@@ -3966,20 +4187,39 @@
                     + "<div class='garment-editor-header'>"
                     + "<div class='garment-editor-heading-wrap'>"
                     + "<div class='garment-editor-title'>Garment details · " + escapeHtml(line.name || "Item") + "</div>"
-                    + "<div class='garment-editor-subtitle'>Piece " + editorState.currentPieceNo + " of " + qty + " · Optional fields with smart suggestions</div>"
+                    + "<div class='garment-editor-subtitle'><span>Piece " + editorState.currentPieceNo + " of " + qty + "</span><span class='garment-editor-subtitle-dot'></span><span>Optional fields with smart suggestions</span></div>"
                     + "</div>"
                     + "<span class='garment-editor-status'>" + completedCount + " / " + qty + " completed</span>"
                     + "<button type='button' class='garment-editor-close' data-ge-action='close' aria-label='Close garment details'>×</button>"
                     + "</div>"
                     + "<div class='garment-editor-body'>"
+                    + "<div class='garment-editor-hero'>"
+                    + "<div class='garment-editor-hero-main'>"
+                    + "<div class='garment-editor-hero-label'>Inspection workspace</div>"
+                    + "<div class='garment-editor-hero-title'>" + escapeHtml(line.name || "Garment") + " · Piece " + editorState.currentPieceNo + "</div>"
+                    + "</div>"
+                    + "<div class='garment-editor-progress-wrap'>"
+                    + "<div class='garment-editor-progress-text'>" + completionPercent + "% complete</div>"
+                    + "<div class='garment-editor-progress-track'><div class='garment-editor-progress-fill' style='width:" + completionPercent + "%;'></div></div>"
+                    + "</div>"
+                    + "</div>"
                     + "<div class='garment-editor-piece-tabs'>" + tabs + "</div>"
+                    + "<div class='garment-inspection-summary'>"
+                    + "<div class='garment-inspection-metric'><div class='garment-inspection-metric-label'>Identity</div><div class='garment-inspection-metric-value'>" + escapeHtml(identitySummary) + "</div></div>"
+                    + "<div class='garment-inspection-metric'><div class='garment-inspection-metric-label'>Defects selected</div><div class='garment-inspection-metric-value'>" + selectedDefectCount + "</div></div>"
+                    + "<div class='garment-inspection-metric'><div class='garment-inspection-metric-label'>Instructions</div><div class='garment-inspection-metric-value'>" + escapeHtml(instructionSummary) + "</div></div>"
+                    + "</div>"
+                    + recentBrandHtml
+                    + recentInstructionHtml
                     + buildPieceEditorHtml(activePiece)
                     + "</div>"
                     + "<div class='garment-editor-footer'>"
                     + "<div class='garment-editor-actions'>"
                     + "<div class='garment-editor-feedback' data-ge-feedback='1'></div>"
-                    + "<button type='button' class='order-line-meta-btn' data-ge-action='applyAll'>Apply to all pieces</button>"
-                    + "<button type='button' class='order-line-meta-btn' data-ge-action='cancel'>Cancel</button>"
+                    + "<button type='button' class='garment-action-btn' data-ge-action='copyPrevious'>Copy previous piece</button>"
+                    + "<button type='button' class='garment-action-btn' data-ge-action='applyAll'>Apply to all pieces</button>"
+                    + "<button type='button' class='garment-action-btn warning' data-ge-action='skip'>Skip inspection</button>"
+                    + "<button type='button' class='garment-action-btn warning' data-ge-action='cancel'>Cancel</button>"
                     + "<button type='button' class='setup-btn' style='max-width:200px; margin-bottom:0;' data-ge-action='save'>Save garment details</button>"
                     + "</div>"
                     + "</div>"
@@ -4004,6 +4244,8 @@
                 var saveBtn = host.querySelector("[data-ge-action='save']");
                 var cancelBtn = host.querySelector("[data-ge-action='cancel']");
                 var applyAllBtn = host.querySelector("[data-ge-action='applyAll']");
+                var copyPreviousBtn = host.querySelector("[data-ge-action='copyPrevious']");
+                var skipBtn = host.querySelector("[data-ge-action='skip']");
 
                 if (saveBtn) {
                     saveBtn.addEventListener("click", function () {
@@ -4011,14 +4253,34 @@
                         line.garmentPieceDetails = editorState.draftPieces.map(function (x, idx) {
                             return normalizePieceDetails(x, idx + 1);
                         });
-                        closeEditor();
+                        markEditorClean("Saved");
+                        closeEditorWithGuard(true);
                         renderOrderLines();
                     });
                 }
 
                 if (cancelBtn) {
                     cancelBtn.addEventListener("click", function () {
-                        closeEditor();
+                        closeEditorWithGuard(false);
+                        renderOrderLines();
+                    });
+                }
+
+                if (copyPreviousBtn) {
+                    copyPreviousBtn.addEventListener("click", function () {
+                        copyPreviousPieceToCurrent();
+                    });
+                }
+
+                if (skipBtn) {
+                    skipBtn.addEventListener("click", function () {
+                        var confirmSkip = window.confirm("Skip inspection for this line? Existing unsaved changes in this drawer will be discarded.");
+                        if (!confirmSkip) {
+                            return;
+                        }
+
+                        markEditorClean("");
+                        closeEditorWithGuard(true);
                         renderOrderLines();
                     });
                 }
@@ -4026,6 +4288,11 @@
                 if (applyAllBtn) {
                     applyAllBtn.addEventListener("click", function () {
                         persistCurrentPiece();
+                        var confirmApplyAll = window.confirm("Apply current piece details to all pieces? This will overwrite existing piece-specific values.");
+                        if (!confirmApplyAll) {
+                            return;
+                        }
+
                         var source = normalizePieceDetails(editorState.draftPieces[editorState.currentPieceNo - 1], editorState.currentPieceNo);
                         editorState.draftPieces = editorState.draftPieces.map(function (_, idx) {
                             return {
@@ -4039,18 +4306,22 @@
                                 specialInstructions: source.specialInstructions
                             };
                         });
-                        setFeedback("Applied to all pieces");
+                        markEditorDirty("Applied to all pieces");
                         showToast("Applied current garment details to all pieces for this line.", true);
                         renderEditor();
                     });
                 }
 
                 if (closeBtn) {
-                    closeBtn.addEventListener("click", closeEditor);
+                    closeBtn.addEventListener("click", function () {
+                        closeEditorWithGuard(false);
+                    });
                 }
 
                 if (backdrop) {
-                    backdrop.addEventListener("click", closeEditor);
+                    backdrop.addEventListener("click", function () {
+                        closeEditorWithGuard(false);
+                    });
                 }
             }
 
@@ -4063,11 +4334,25 @@
                 target.secondaryColor = trimOptionalText((host.querySelector("[data-gf='secondaryColor']") || {}).value, 32);
                 target.pattern = normalizePatternValue((host.querySelector("[data-gf='pattern']") || {}).value);
                 target.existingDefects = trimOptionalText(collectSelectedDefects(host), 1024);
-                target.defectRemarks = trimOptionalText((host.querySelector("[data-gf='defectRemarks']") || {}).value, 512);
+                var defectLocation = trimOptionalText((host.querySelector("[data-gf='defectLocation']") || {}).value, 128);
+                var defectNotes = trimOptionalText((host.querySelector("[data-gf='defectNotes']") || {}).value, 384);
+                var defectRemarkParts = [];
+                if (defectLocation) {
+                    defectRemarkParts.push("Location: " + defectLocation);
+                }
+                if (defectNotes) {
+                    defectRemarkParts.push("Notes: " + defectNotes);
+                }
+                target.defectRemarks = trimOptionalText(defectRemarkParts.join(" | "), 512);
                 var selectedInstructionSuggestions = collectSelectedInstructionSuggestions();
                 var customInstructionText = trimOptionalText((host.querySelector("[data-gf='specialInstructions']") || {}).value, 512);
                 target.specialInstructions = mergeSpecialInstructions(selectedInstructionSuggestions, customInstructionText);
                 editorState.draftPieces[currentPiece - 1] = target;
+
+                pushRecentValue(recentBrandSelections, target.brandName, 6);
+                (selectedInstructionSuggestions || []).forEach(function (x) {
+                    pushRecentValue(recentInstructionSelections, x, 6);
+                });
             }
 
             function closeEditor() {
